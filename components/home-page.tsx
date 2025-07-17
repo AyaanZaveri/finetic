@@ -8,9 +8,10 @@ import { SearchComponent } from "@/components/search-component";
 import { useAuthStore } from "@/lib/auth-store";
 import { Play, ChevronLeft, ChevronRight } from "lucide-react";
 import { AuroraBackground } from "@/components/aurora-background";
+import { ContinueWatching } from "./continue-watching";
 
 export function HomePage() {
-  const { user, fetchMovies, fetchTVShows, getImageUrl } = useAuthStore();
+  const { user, fetchMovies, fetchTVShows } = useAuthStore();
   const [movies, setMovies] = useState<any[]>([]);
   const [tvShows, setTVShows] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -86,6 +87,11 @@ export function HomePage() {
         </p>
       </div>
 
+      {/* Continue Watching Section */}
+      <section className="relative z-10 mb-12">
+        <ContinueWatching />
+      </section>
+
       {/* Movies Section */}
       <section className="relative z-10 mb-12">
         <div className="flex items-center justify-between mb-6">
@@ -123,7 +129,7 @@ export function HomePage() {
             <div className="flex gap-4 w-max">
               {movies.map((movie) => (
                 <div key={movie.Id} className="flex-shrink-0">
-                  <MediaCard item={movie} getImageUrl={getImageUrl} />
+                  <MediaCard item={movie} />
                 </div>
               ))}
             </div>
@@ -175,7 +181,7 @@ export function HomePage() {
             <div className="flex gap-4 w-max">
               {tvShows.map((show) => (
                 <div key={show.Id} className="flex-shrink-0">
-                  <MediaCard item={show} getImageUrl={getImageUrl} />
+                  <MediaCard item={show} />
                 </div>
               ))}
             </div>
