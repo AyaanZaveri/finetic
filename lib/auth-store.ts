@@ -46,6 +46,7 @@ interface AuthState {
   fetchTVShowDetails: (tvShowId: string) => Promise<JellyfinItem | null>;
   fetchSeasons: (tvShowId: string) => Promise<JellyfinItem[]>;
   fetchEpisodes: (seasonId: string) => Promise<JellyfinItem[]>;
+  fetchInProgressItems: () => Promise<JellyfinItem[]>;
   getImageUrl: (itemId: string, imageType?: string, tag?: string) => string;
   getDownloadUrl: (itemId: string, mediaSourceId: string) => string;
   getStreamUrl: (
@@ -297,6 +298,32 @@ export const useAuthStore = create<AuthState>()(
           return data.Items || [];
         } catch (error) {
           console.error("Failed to fetch episodes:", error);
+          return [];
+        }
+      },
+
+      fetchInProgressItems: async (): Promise<JellyfinItem[]> => {
+        const { api, user } = get();
+        if (!api || !user) return [];
+
+        try {
+          const userLibraryApi = new UserLibraryApi(api.configuration);
+          const { data } = await userLibraryApi.getResumableItems({
+            userId: user.Id,
+            includeItemTypes: [BaseItemKind.Movie, BaseItemKind.Episode],
+            isResumable: true,
+            sortBy: [ItemSortBy.DatePlayed],
+            sortOrder: [SortOrder.Descending],
+            fields: [
+              ItemFields.CanDelete,
+              ItemFields.PrimaryImageAspectRatio,
+              ItemFields.Overview,
+              ItemFields.UserData,
+            ],
+          });
+          return data.Items || [];
+        } catch (error) {
+          console.error("Failed to fetch in-progress items:", error);
           return [];
         }
       },

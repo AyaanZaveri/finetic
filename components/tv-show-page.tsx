@@ -45,6 +45,7 @@ import { AuroraBackground } from "@/components/aurora-background";
 import { Vibrant } from "node-vibrant/browser";
 import HlsVideoElement from "hls-video-element/react";
 import MuxVideo from "@mux/mux-video-react";
+import { EpisodeActions } from "./episode-actions";
 
 interface TVShowPageProps {
   tvShowId: string;
@@ -507,57 +508,15 @@ export function TVShowPage({ tvShowId }: TVShowPageProps) {
                             </div>
                           </div>
                           {selectedEpisode?.Id === episode.Id && (
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={() =>
-                                  window.open(
-                                    getDownloadUrl(
-                                      episode.Id!,
-                                      selectedVersion!.Id!
-                                    ),
-                                    "_blank"
-                                  )
-                                }
-                              >
-                                <Download className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={async () => {
-                                  const streamUrl = getStreamUrl(
-                                    episode.Id!,
-                                    selectedVersion!.Id!
-                                  );
-                                  setCurrentStreamUrl(streamUrl);
-                                  const tracks = await getSubtitleTracks(
-                                    episode.Id!,
-                                    selectedVersion!.Id!
-                                  );
-                                  setSubtitleTracks(tracks);
-                                  setIsFullScreen(true);
-                                }}
-                              >
-                                <Play className="h-4 w-4" />
-                              </Button>
-                              <Dialog>
-                                <DialogTrigger asChild>
-                                  <Button variant="outline" size="icon">
-                                    <Info className="h-4 w-4" />
-                                  </Button>
-                                </DialogTrigger>
-                                <DialogContent>
-                                  <DialogHeader>
-                                    <DialogTitle>Media Info</DialogTitle>
-                                  </DialogHeader>
-                                  <MediaInfoDialog
-                                    mediaSource={selectedVersion}
-                                  />
-                                </DialogContent>
-                              </Dialog>
-                            </div>
+                            <EpisodeActions
+                              episodeId={episode.Id!}
+                              selectedVersion={selectedVersion}
+                              onPlay={(streamUrl, subtitleTracks) => {
+                                setCurrentStreamUrl(streamUrl);
+                                setSubtitleTracks(subtitleTracks);
+                                setIsFullScreen(true);
+                              }}
+                            />
                           )}
                         </div>
                       ))}
