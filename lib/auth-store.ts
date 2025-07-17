@@ -43,6 +43,9 @@ interface AuthState {
   fetchTVShows: (limit?: number) => Promise<JellyfinItem[]>;
   searchItems: (query: string) => Promise<JellyfinItem[]>;
   fetchMovieDetails: (movieId: string) => Promise<JellyfinItem | null>;
+  fetchTVShowDetails: (tvShowId: string) => Promise<JellyfinItem | null>;
+  fetchSeasons: (tvShowId: string) => Promise<JellyfinItem[]>;
+  fetchEpisodes: (seasonId: string) => Promise<JellyfinItem[]>;
   getImageUrl: (itemId: string, imageType?: string, tag?: string) => string;
   getDownloadUrl: (itemId: string, mediaSourceId: string) => string;
   getStreamUrl: (
@@ -228,6 +231,73 @@ export const useAuthStore = create<AuthState>()(
         } catch (error) {
           console.error("Failed to fetch movie details:", error);
           return null;
+        }
+      },
+
+      fetchTVShowDetails: async (
+        tvShowId: string
+      ): Promise<JellyfinItem | null> => {
+        const { api, user } = get();
+        if (!api || !user) return null;
+
+        try {
+          const userLibraryApi = new UserLibraryApi(api.configuration);
+          const { data } = await userLibraryApi.getItem({
+            userId: user.Id,
+            itemId: tvShowId,
+          });
+          return data;
+        } catch (error) {
+          console.error("Failed to fetch TV show details:", error);
+          return null;
+        }
+      },
+
+      fetchSeasons: async (tvShowId: string): Promise<JellyfinItem[]> => {
+        const { api, user } = get();
+        if (!api || !user) return [];
+
+        try {
+          const itemsApi = new ItemsApi(api.configuration);
+          const { data } = await itemsApi.getItems({
+            userId: user.Id,
+            parentId: tvShowId,
+            includeItemTypes: [BaseItemKind.Season],
+            recursive: false,
+            sortBy: [ItemSortBy.SortName],
+            sortOrder: [SortOrder.Ascending],
+          });
+          return data.Items || [];
+        } catch (error) {
+          console.error("Failed to fetch seasons:", error);
+          return [];
+        }
+      },
+
+      fetchEpisodes: async (seasonId: string): Promise<JellyfinItem[]> => {
+        const { api, user } = get();
+        if (!api || !user) return [];
+
+        try {
+          const itemsApi = new ItemsApi(api.configuration);
+          const { data } = await itemsApi.getItems({
+            userId: user.Id,
+            parentId: seasonId,
+            includeItemTypes: [BaseItemKind.Episode],
+            recursive: false,
+            sortBy: [ItemSortBy.SortName],
+            sortOrder: [SortOrder.Ascending],
+            fields: [
+              ItemFields.CanDelete,
+              ItemFields.PrimaryImageAspectRatio,
+              ItemFields.Overview,
+              ItemFields.MediaSources,
+            ],
+          });
+          return data.Items || [];
+        } catch (error) {
+          console.error("Failed to fetch episodes:", error);
+          return [];
         }
       },
 

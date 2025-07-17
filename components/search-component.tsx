@@ -103,8 +103,7 @@ export function SearchComponent({ className = "" }: SearchComponentProps) {
     if (item.Type === "Movie") {
       router.push(`/movie/${item.Id}`);
     } else if (item.Type === "Series") {
-      // Assuming a series page exists at /series/[id]
-      router.push(`/series/${item.Id}`);
+      router.push(`/tv/${item.Id}`);
     } else if (item.Type === "Episode") {
       // For episodes, navigate to the search page for now as SeriesId is not directly available
       router.push(`/search?q=${encodeURIComponent(item.Name)}`);
