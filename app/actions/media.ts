@@ -11,6 +11,8 @@ import { ItemSortBy } from "@jellyfin/sdk/lib/generated-client/models/item-sort-
 import { SortOrder } from "@jellyfin/sdk/lib/generated-client/models/sort-order";
 import { UserLibraryApi } from "@jellyfin/sdk/lib/generated-client/api/user-library-api";
 import { getItemsApi } from "@jellyfin/sdk/lib/utils/api/items-api";
+import { MoviesApi } from "@jellyfin/sdk/lib/generated-client/api/movies-api";
+import { CollectionsApi } from "@jellyfin/sdk/lib/generated-client/api/collections-api";
 
 // Type aliases for easier use
 type JellyfinItem = BaseItemDto;
@@ -92,6 +94,72 @@ export async function fetchMovies(limit: number = 20): Promise<JellyfinItem[]> {
       throw authError;
     }
 
+    return [];
+  }
+}
+
+export async function fetchPersonDetails(
+    personId: string
+    ): Promise<JellyfinItem | null> {
+    try {
+        const { serverUrl, user } = await getAuthData();
+        const api = jellyfin.createApi(serverUrl);
+        api.accessToken = user.AccessToken;
+
+        const peopleApi = new PeopleApi(api.configuration);
+        const { data } = await peopleApi.getPerson({
+            personId: personId,
+            userId: user.Id,
+        });
+        return data;
+    } catch (error) {
+        console.error("Failed to fetch person details:", error);
+        return null;
+    }
+}
+
+export async function fetchCollection(
+    collectionId: string
+    ): Promise<JellyfinItem | null> {
+    try {
+        const { serverUrl, user } = await getAuthData();
+        const api = jellyfin.createApi(serverUrl);
+        api.accessToken = user.AccessToken;
+
+        const collectionsApi = new CollectionsApi(api.configuration);
+        const { data } = await collectionsApi.getCollection({
+            collectionId: collectionId,
+            userId: user.Id,
+        });
+        return data;
+    } catch (error) {
+        console.error("Failed to fetch collection details:", error);
+        return null;
+    }
+}
+
+export async function fetchRecommendations(
+  limit: number = 20
+): Promise<JellyfinItem[]> {
+  try {
+    const { serverUrl, user } = await getAuthData();
+    const api = jellyfin.createApi(serverUrl);
+    api.accessToken = user.AccessToken;
+
+    const moviesApi = new MoviesApi(api.configuration);
+
+    const { data } = await moviesApi.getMovieRecommendations({
+      userId: user.Id,
+      limit,
+      fields: [
+        ItemFields.CanDelete,
+        ItemFields.PrimaryImageAspectRatio,
+        ItemFields.Overview,
+      ],
+    });
+    return data.Items || [];
+  } catch (error) {
+    console.error("Failed to fetch recommendations:", error);
     return [];
   }
 }

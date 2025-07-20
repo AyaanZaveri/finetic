@@ -1,11 +1,15 @@
 import { google } from "@ai-sdk/google";
 import { convertToCoreMessages, streamText, tool } from "ai";
 import { z } from "zod";
-import { searchItems } from "@/app/actions/search";
+import { searchItems, searchPeople } from "@/app/actions/search";
 import {
   fetchMovies,
   fetchTVShows,
   fetchMediaDetails,
+  fetchResumeItems,
+  fetchRecommendations,
+  fetchPersonDetails,
+  fetchCollection,
 } from "@/app/actions/media";
 
 export async function POST(req: Request) {
@@ -188,6 +192,161 @@ export async function POST(req: Request) {
               return {
                 success: false,
                 error: "Failed to fetch media details",
+              };
+            }
+          },
+        }),
+
+        getResumeItems: tool({
+          description: "Get the list of items to continue watching.",
+          parameters: z.object({}),
+          execute: async () => {
+            console.log("▶️ [getResumeItems] Tool called");
+            try {
+              const items = await fetchResumeItems();
+              return {
+                success: true,
+                items: items.map((item) => ({
+                  id: item.Id,
+                  name: item.Name,
+                  type: item.Type,
+                  year: item.ProductionYear,
+                })),
+                count: items.length,
+              };
+            } catch (error) {
+              return {
+                success: false,
+                error: "Failed to fetch resume items",
+                items: [],
+              };
+            }
+          },
+        }),
+
+        getRecommendations: tool({
+          description: "Get movie recommendations.",
+          parameters: z.object({
+            limit: z.number().optional().describe("Number of recommendations to retrieve (default: 20)"),
+          }),
+          execute: async ({ limit = 20 }) => {
+            console.log("👍 [getRecommendations] Tool called with limit:", limit);
+            try {
+              const items = await fetchRecommendations(limit);
+              return {
+                success: true,
+                items: items.map((item) => ({
+                  id: item.Id,
+                  name: item.Name,
+                  type: item.Type,
+                  year: item.ProductionYear,
+                })),
+                count: items.length,
+              };
+            } catch (error) {
+              return {
+                success: false,
+                error: "Failed to fetch recommendations",
+                items: [],
+              };
+            }
+          },
+        }),
+
+        searchPeople: tool({
+          description: "Search for people (actors, directors, etc.).",
+          parameters: z.object({
+            query: z.string().describe("The name of the person to search for"),
+          }),
+          execute: async ({ query }) => {
+            console.log("🧑 [searchPeople] Tool called with query:", query);
+            try {
+              const people = await searchPeople(query);
+              return {
+                success: true,
+                people: people.map((person) => ({
+                  id: person.Id,
+                  name: person.Name,
+                })),
+                count: people.length,
+              };
+            } catch (error) {
+              return {
+                success: false,
+                error: "Failed to search people",
+                people: [],
+              };
+            }
+          },
+        }),
+
+        getPersonDetails: tool({
+          description: "Get detailed information about a specific person.",
+          parameters: z.object({
+            personId: z.string().describe("The unique ID of the person"),
+          }),
+          execute: async ({ personId }) => {
+            console.log(
+              "🧑 [getPersonDetails] Tool called with personId:",
+              personId
+            );
+            try {
+              const details = await fetchPersonDetails(personId);
+              if (!details) {
+                return {
+                  success: false,
+                  error: "Person not found",
+                };
+              }
+              return {
+                success: true,
+                details: {
+                  id: details.Id,
+                  name: details.Name,
+                  overview: details.Overview,
+                },
+              };
+            } catch (error) {
+              return {
+                success: false,
+                error: "Failed to fetch person details",
+              };
+            }
+          },
+        }),
+
+        getCollection: tool({
+          description: "Get a collection of media items.",
+          parameters: z.object({
+            collectionId: z
+              .string()
+              .describe("The unique ID of the collection"),
+          }),
+          execute: async ({ collectionId }) => {
+            console.log(
+              "📚 [getCollection] Tool called with collectionId:",
+              collectionId
+            );
+            try {
+              const collection = await fetchCollection(collectionId);
+              if (!collection) {
+                return {
+                  success: false,
+                  error: "Collection not found",
+                };
+              }
+              return {
+                success: true,
+                collection: {
+                  id: collection.Id,
+                  name: collection.Name,
+                  overview: collection.Overview,
+                },
+              };
+            } catch (error) {
+              return {
+                success: false,
+                error: "Failed to fetch collection",
               };
             }
           },

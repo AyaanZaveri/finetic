@@ -3,6 +3,7 @@
 import { cookies } from 'next/headers';
 import { Jellyfin } from "@jellyfin/sdk";
 import { ItemsApi } from "@jellyfin/sdk/lib/generated-client/api/items-api";
+import { PeopleApi } from "@jellyfin/sdk/lib/generated-client/api/people-api";
 import { BaseItemDto } from "@jellyfin/sdk/lib/generated-client/models/base-item-dto";
 import { BaseItemKind } from "@jellyfin/sdk/lib/generated-client/models/base-item-kind";
 import { ItemFields } from "@jellyfin/sdk/lib/generated-client/models/item-fields";
@@ -74,4 +75,27 @@ export async function searchItems(query: string): Promise<JellyfinItem[]> {
     console.error("Failed to search items:", error);
     return [];
   }
+}
+
+export async function searchPeople(query: string): Promise<JellyfinItem[]> {
+    const { serverUrl, user } = await getAuthData();
+
+    if (!query.trim()) return [];
+
+    const api = jellyfin.createApi(serverUrl);
+    api.accessToken = user.AccessToken;
+
+    try {
+        const peopleApi = new PeopleApi(api.configuration);
+        const { data } = await peopleApi.getPersons({
+            userId: user.Id,
+            searchTerm: query,
+            limit: 20,
+        });
+
+        return data.Items || [];
+    } catch (error) {
+        console.error("Failed to search people:", error);
+        return [];
+    }
 }
