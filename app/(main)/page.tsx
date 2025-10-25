@@ -82,7 +82,7 @@ export default async function Home() {
 
         {nextUpItems.length > 0 && (
           <MediaSection
-            sectionName="Continue Watching"
+            sectionName="Next Up"
             mediaItems={nextUpItems}
             serverUrl={serverUrl}
             continueWatching
