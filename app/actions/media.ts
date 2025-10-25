@@ -12,6 +12,7 @@ import { SortOrder } from "@jellyfin/sdk/lib/generated-client/models/sort-order"
 import { UserLibraryApi } from "@jellyfin/sdk/lib/generated-client/api/user-library-api";
 import { LibraryApi } from "@jellyfin/sdk/lib/generated-client/api/library-api";
 import { getItemsApi } from "@jellyfin/sdk/lib/utils/api/items-api";
+import { getTvShowsApi } from "@jellyfin/sdk/lib/utils/api/tv-shows-api";
 import { getLibraryApi } from "@jellyfin/sdk/lib/utils/api/library-api";
 import { getGenresApi } from "@jellyfin/sdk/lib/utils/api/genres-api";
 import { createJellyfinInstance } from "@/lib/utils";
@@ -276,6 +277,31 @@ export async function fetchResumeItems() {
     return data.Items || [];
   } catch (error) {
     console.error("Failed to fetch resume items:", error);
+    return [];
+  }
+}
+
+export async function fetchNextUpItems() {
+  try {
+    const { serverUrl, user } = await getAuthData();
+    const jellyfinInstance = createJellyfinInstance();
+    const api = jellyfinInstance.createApi(serverUrl);
+    api.accessToken = user.AccessToken;
+
+    const tvShowsApi = getTvShowsApi(api);
+    const { data } = await tvShowsApi.getNextUp({
+      userId: user.Id,
+      fields: [
+        ItemFields.CanDelete,
+        ItemFields.PrimaryImageAspectRatio,
+        ItemFields.Overview,
+      ],
+      enableImages: true
+    });
+
+    return data.Items || [];
+  } catch (error) {
+    console.error("Failed to fetch next up episodes:", error);
     return [];
   }
 }
