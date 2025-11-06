@@ -1,4 +1,4 @@
-import { fetchResumeItems, fetchLibraryItems } from "@/app/actions/media";
+import { fetchResumeItems, fetchNextUpItems, fetchLibraryItems } from "@/app/actions/media";
 import { getAuthData, getUserLibraries } from "@/app/actions/utils";
 import { AuthErrorHandler } from "@/app/components/auth-error-handler";
 import { VibrantAuroraBackground } from "@/components/vibrant-aurora-background";
@@ -11,6 +11,7 @@ export default async function Home() {
   let serverUrl = "";
   let user = null;
   let resumeItems: BaseItemDto[] = [];
+  let nextUpItems: BaseItemDto[] = [];
   let libraries: { library: any; items: BaseItemDto[] }[] = [];
   let authError = null;
 
@@ -20,12 +21,16 @@ export default async function Home() {
     user = authData.user;
 
     // Fetch resume items and all user libraries
-    const [resumeItemsResult, userLibraries] = await Promise.all([
+    const [resumeItemsResult, nextUpItemsResult, userLibraries] = await Promise.all([
       fetchResumeItems(),
+      fetchNextUpItems(),
       getUserLibraries(),
     ]);
 
     resumeItems = resumeItemsResult;
+    nextUpItems = nextUpItemsResult
+      .filter(item => !resumeItems
+        .some(resumeItem => resumeItem.Id === item.Id));
 
     // Fetch items for each library
     const libraryPromises = userLibraries.map(async (library) => {
@@ -70,6 +75,15 @@ export default async function Home() {
           <MediaSection
             sectionName="Continue Watching"
             mediaItems={resumeItems}
+            serverUrl={serverUrl}
+            continueWatching
+          />
+        )}
+
+        {nextUpItems.length > 0 && (
+          <MediaSection
+            sectionName="Next Up"
+            mediaItems={nextUpItems}
             serverUrl={serverUrl}
             continueWatching
           />
