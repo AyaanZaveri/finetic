@@ -1,3 +1,7 @@
+## Notice
+
+Finetic has been succeeded by [Navigator](https://github.com/AyaanZaveri/navigator), a Stremio client for desktop and web.
+
 <h1 align="center">
   <br>
     <a href="https://github.com/AyaanZaveri/finetic"><img src="https://github.com/AyaanZaveri/finetic/blob/main/public/logo/desktop/finetic.png?raw=true" alt="Finetic" width="200"></a>
