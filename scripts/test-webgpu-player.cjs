@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { load } = require('./test-support/react-hooks.cjs');
+const { load, hooks } = require('./test-support/react-hooks.cjs');
 const tick = async () => { for (let i = 0; i < 40; i++) await Promise.resolve(); };
 
 class Video extends EventTarget {
@@ -9,6 +9,7 @@ class Video extends EventTarget {
     super(); Object.assign(this, { volume: .7, muted: false, playbackRate: 1, currentTime: 0,
       duration: 100, paused: true, dataset: {}, parentElement: { tagName: 'DIV', querySelector: () => this.picture }, picture: {} });
   }
+  closest() { return null; }
   play() { this.paused = false; return Promise.resolve(); }
   pause() { this.paused = true; }
 }
@@ -92,6 +93,35 @@ function fixture({ result, deferred = false, moduleDeferred = false } = {}) {
   assert.equal(stale.fallbacks, 0); assert.ok(!stale.notifications.includes('loadedmetadata'), 'A stale open cannot publish readiness');
   const hung = fixture({ moduleDeferred: true }); await tick(); [...hung.timers.values()][0]();
   assert.equal(hung.fallbacks, 1); hung.resolveModule(); await tick(); assert.equal(hung.calls.length, 0);
+
+  const menuFixture = fixture(); await tick();
+  const host = hooks();
+  const { DesktopTracks } = load('components/desktop/tracks.tsx', {
+    react: host.react, 'react/jsx-runtime': host.jsx, 'lucide-react': { AudioLines: 'icon' },
+    '@/components/ui/button': { Button: 'button' }, '@/components/player-settings-menu.module.css': {},
+    '@/components/arc/dropdown-menu/dropdown-menu': Object.fromEntries(
+      ['DropdownMenu', 'DropdownMenuTrigger', 'DropdownMenuContent', 'DropdownMenuOptions'].map(name => [name, name])),
+    '@/lib/media/track-label': { trackOptions: tracks => tracks.map((track, index) => ({ value: String(index), label: track.label })) },
+  });
+  const find = (tree, type) => Array.isArray(tree) ? tree.flatMap(node => find(node, type))
+    : !tree || typeof tree !== 'object' ? [] : [...(tree.type === type ? [tree] : []), ...find(tree.props?.children, type)];
+  const props = { mediaRef: { current: menuFixture.video }, sourceKey: 'film' };
+  const renderMenu = () => host.render(DesktopTracks, props);
+  renderMenu(); host.flush();
+  let choices = find(renderMenu(), 'DropdownMenuOptions')[0];
+  assert.equal(choices.props.value, '1', 'The browser audio menu shows the selected GPU track');
+  choices.props.onValueChange('0'); await tick();
+  choices = find(renderMenu(), 'DropdownMenuOptions')[0]; assert.equal(choices.props.value, '0');
+  menuFixture.events.onFallback('device-lost', 10000);
+  const nativeTracks = Object.assign(new EventTarget(), { length: 1, 0: { id: 'native', language: 'en', label: 'Native', enabled: true } });
+  menuFixture.video.audioTracks = nativeTracks;
+  menuFixture.video.dispatchEvent(new Event('loadedmetadata'));
+  assert.equal(find(renderMenu(), 'DropdownMenuOptions')[0].props.options.length, 1, 'Fallback replaces the old audio list');
+  const beforeUpdates = host.updates;
+  nativeTracks.dispatchEvent(new Event('change')); assert.ok(host.updates > beforeUpdates, 'Listen to the replacement native track list');
+  host.unmount(); const afterUnmount = host.updates;
+  nativeTracks.dispatchEvent(new Event('change')); assert.equal(host.updates, afterUnmount, 'Unmount removes audio subscriptions');
+  menuFixture.detach();
 
   const { acquirePlaybackProbe } = load('lib/media/playback-probe-lock.ts');
   const first = await acquirePlaybackProbe(new AbortController().signal);

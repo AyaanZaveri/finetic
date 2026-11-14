@@ -55,7 +55,7 @@
     "prepare:webgpu": "node scripts/prepare-webgpu-assets.mjs",
     "predev": "npm run prepare:webgpu",
     "prebuild": "npm run prepare:webgpu",
-    "test:webgpu": "node scripts/test-webgpu-player.cjs"
+    "test:webgpu": "npm run prepare:webgpu && node scripts/test-webgpu-player.cjs"
   },
   "dependencies": {
     "@ai-sdk/cerebras": "^3.0.84",

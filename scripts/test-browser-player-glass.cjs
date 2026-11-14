@@ -85,3 +85,16 @@ for (let x = 140; x < 1800; x += 7) {
   assert.equal(y - height - offset + height - y + offset, 0);
 }
 console.log('PASS: moving and paused seek glass stays aligned through CSS coordinates, independent of frame capture');
+
+blocked = false;
+const gpuPicture = makeCanvas(), gpuVideo = new Video();
+gpuVideo.webgpu = { picture: () => gpuPicture };
+cleanup = context.exports.attachBrowserPlayerGlass(gpuVideo);
+const gpuMaster = contexts.find(context => context.lastDraw?.[0] === gpuPicture);
+assert.ok(gpuMaster, 'GPU glass samples the presented canvas instead of the source-less video');
+assert.deepEqual(gpuMaster.lastDraw.slice(1), [0, 0, 640, 320], 'Do not apply letterboxing twice to a framed GPU canvas');
+callbacks.clear(); delete gpuVideo.webgpu;
+gpuVideo.dispatchEvent(new Event('loadeddata'));
+assert.equal(callbacks.size, 1, 'Same-file fallback starts a new frame subscription');
+cleanup();
+console.log('PASS: GPU canvas glass, preserved framing, and native frame subscription after fallback');
