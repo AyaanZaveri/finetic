@@ -10,7 +10,7 @@ const audio = load('lib/media/audio-language.ts');
 const subtitles = load('lib/media/subtitle-preference.ts', { './audio-language': audio });
 const appearance = load('lib/subtitle-appearance.ts');
 const plain = value => JSON.parse(JSON.stringify(value));
-const defaults = { continueWatchingPrefetch: true, metadataPrefetch: true, episodeAutoplay: true, episodePrefetch: true, autoSelectWebStream: false, webGpuPlayback: true, hdrOutput: false, audioLanguage: 'en', subtitleLanguage: 'en', subtitleMode: 'normal', subtitlesEnabledByDefault: false };
+const defaults = { continueWatchingPrefetch: true, metadataPrefetch: true, episodeAutoplay: true, episodePrefetch: true, autoSelectWebStream: false, webGpuPlayback: true, hdrOutput: false, hdrPeakNits: 1000, audioLanguage: 'en', subtitleLanguage: 'en', subtitleMode: 'normal', subtitlesEnabledByDefault: false };
 assert.deepEqual(plain(preferences.readPlaybackPreferences()), defaults);
 function mount() {
   const host = hooks();
@@ -238,6 +238,10 @@ console.log(`PASS: ${rows.length} named common-language choices with flags, inco
 
 // Toggle state and callbacks use the same settings store as other playback preferences.
 let gpuSettings = { ...defaults }, patches = [];
+assert.equal(preferences.normalizePlaybackPreferences({ hdrPeakNits: 600 }).hdrPeakNits, 600);
+assert.equal(preferences.normalizePlaybackPreferences({ hdrPeakNits: NaN }).hdrPeakNits, 1000);
+assert.equal(preferences.normalizePlaybackPreferences({ hdrPeakNits: 10 }).hdrPeakNits, 203);
+assert.equal(preferences.normalizePlaybackPreferences({ hdrPeakNits: 20000 }).hdrPeakNits, 10000);
 const { PlaybackSettings } = load('components/playback-settings.tsx', {
   'react/jsx-runtime': ui.jsx,
   '@/contexts/settings-context': { useSettings: () => ({ playbackPreferences: gpuSettings,
@@ -245,6 +249,7 @@ const { PlaybackSettings } = load('components/playback-settings.tsx', {
   '@/components/arc/switch/switch': { Switch: 'Switch' },
   '@/components/ui/field': { Field: 'Field', FieldGroup: 'FieldGroup', FieldLabel: 'FieldLabel', FieldDescription: 'FieldDescription', FieldContent: 'FieldContent' },
   '@/app/(main)/settings/settings.module.css': {},
+  '@/components/arc/number-field/number-field': { NumberField: 'NumberField' },
 });
 const switches = () => find(PlaybackSettings(), node => node.type === 'Switch');
 switches().find(node => node.props.id === 'hdr-output').props.onCheckedChange(true);
@@ -253,3 +258,8 @@ const hdrSwitch = switches().find(node => node.props.id === 'hdr-output');
 assert.equal(hdrSwitch.props.disabled, true);
 assert.equal(hdrSwitch.props.checked, true, 'Disabling WebGPU keeps the saved HDR selection');
 assert.deepEqual(plain(patches), [{ hdrOutput: true }, { webGpuPlayback: false }]);
+
+const peakField = find(PlaybackSettings(), node => node.type === 'NumberField')[0];
+assert.equal(peakField.props.disabled, true);
+peakField.props.onValueChange(600);
+assert.equal(gpuSettings.hdrPeakNits, 600);

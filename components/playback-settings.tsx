@@ -1,6 +1,7 @@
 "use client";
 
 import { useSettings } from "@/contexts/settings-context";
+import { NumberField } from "@/components/arc/number-field/number-field";
 import { Switch } from "@/components/arc/switch/switch";
 import { Field, FieldGroup, FieldLabel, FieldContent, FieldDescription } from "@/components/ui/field";
 import styles from "@/app/(main)/settings/settings.module.css";
@@ -26,6 +27,12 @@ export function PlaybackSettings() {
           disabled={!playbackPreferences.webGpuPlayback}
           onCheckedChange={hdrOutput => updatePlaybackPreferences({ hdrOutput })} />
       </Field>
+      <NumberField id="hdr-peak-nits" label="HDR peak brightness" suffix=" nits"
+        description="Set this to your display's peak HDR brightness. Default: 1,000 nits. Applies to the next video."
+        min={203} max={10000} step={1} largeStep={100} size="sm"
+        disabled={!playbackPreferences.webGpuPlayback || !playbackPreferences.hdrOutput}
+        value={playbackPreferences.hdrPeakNits}
+        onValueChange={hdrPeakNits => updatePlaybackPreferences({ hdrPeakNits })} />
       <Field orientation="horizontal">
         <FieldContent>
           <FieldLabel htmlFor="metadata-prefetch">Preload metadata</FieldLabel>
