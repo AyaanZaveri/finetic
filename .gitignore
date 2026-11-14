@@ -83,3 +83,6 @@ skills-lock.json
 .vscode/*
 !.vscode/settings.json
 !.vscode/extensions.json
+
+# Versioned WebGPU runtime assets copied from the pinned dependency
+/public/webgpu-player/
