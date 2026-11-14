@@ -47,10 +47,18 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('components/media-card.tsx
 }).outputText, context);
 function render(continueWatching = false) {
     stateIndex = 0;
-    return context.exports.MediaCard({ continueWatching, item: { id: 'tt123', name: 'Fixture', type: 'movie', resumePositionTicks: 30, streamUrl: 'https://example.test/movie.mp4' } });
+    return context.exports.MediaCard({ continueWatching, item: { id: 'tt123', name: 'Fixture', type: 'movie', progressPercent: 42, resumePositionTicks: 30, streamUrl: 'https://example.test/movie.mp4' } });
 }
 assert.equal(render(true).props['data-continue-watching'], true, 'Resume cards opt into stable brightness styling');
-const thumbnail = render(true).props.children[0].props.children[0].props.children[0].props.children;
+function find(node, predicate) {
+    if (!node || typeof node !== 'object') return;
+    if (predicate(node)) return node;
+    let found;
+    React.Children.forEach(node.props?.children, child => { found ||= find(child, predicate); });
+    return found;
+}
+const surface = (resume = false) => find(render(resume), node => node.props?.className?.split(' ').includes('surface'));
+const thumbnail = find(render(true), node => node.type === 'img');
 assert.equal(thumbnail.props.sizes, '320px');
 assert.equal(thumbnail.props.src, '/backdrop.jpg?width=780');
 assert.equal(thumbnail.props.width, 320);
@@ -76,15 +84,25 @@ function hasSeparateResumeShade(node) {
     return React.Children.toArray(node.props?.children).some(hasSeparateResumeShade);
 }
 assert.equal(hasSeparateResumeShade(render(true)), false, 'A separate shade must not be composited over the resume image');
-const frame = () => render().props.children[0].props.children[0];
-for (const end of ['onPointerLeave', 'onPointerCancel', 'onPointerUp']) {
-    frame().props.onPointerDown({ button: 0 });
-    assert.equal(frame().props['data-pressed'], true);
-    frame().props[end]();
-    assert.equal(frame().props['data-pressed'], undefined, end + ' must clear press feedback');
+for (const resume of [false, true]) {
+    for (const end of ['onPointerLeave', 'onPointerCancelCapture', 'onPointerUpCapture']) {
+        render(resume).props.onPointerDownCapture({ button: 0, isPrimary: true });
+        const card = render(resume), pressedSurface = surface(resume);
+        assert.equal(pressedSurface.props['data-pressed'], true);
+        assert.ok(find(pressedSurface, node => node.type === 'img'), 'Artwork is inside the shared press plane');
+        assert.ok(find(pressedSurface, node => node.type === 'button'), 'Play scales with the complete thumbnail');
+        assert.ok(find(pressedSurface, node => Object.hasOwn(node.props ?? {}, 'aboveProgress')), 'The watched marker scales with the thumbnail');
+        if (resume) assert.ok(find(pressedSurface, node => node.props?.role === 'progressbar'), 'Playback progress scales on the same plane');
+        assert.equal(find(pressedSurface, node => node.props?.children === 'Fixture'), undefined, 'Text below the thumbnail stays outside the transform');
+        assert.equal(card.props.children[0].props['data-pressed'], undefined, 'The details link remains a stable hit target');
+        card.props[end]();
+        assert.equal(surface(resume).props['data-pressed'], undefined, end + ' must clear press feedback');
+    }
 }
-frame().props.onPointerDown({ button: 2 });
-assert.equal(frame().props['data-pressed'], undefined, 'Secondary clicks must not scale the card');
+render().props.onPointerDownCapture({ button: 2, isPrimary: true });
+assert.equal(surface().props['data-pressed'], undefined, 'Secondary clicks must not scale the card');
+render().props.onPointerDownCapture({ button: 0, isPrimary: false });
+assert.equal(surface().props['data-pressed'], undefined, 'A secondary touch must not start press feedback');
 function findButton(node) {
     if (!node || typeof node !== 'object') return;
     if (node.type === 'button') return node;

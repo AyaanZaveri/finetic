@@ -139,8 +139,13 @@ export function MediaCard({
           fallback: continueWatching ? artwork.poster : artwork.background,
         });
       }}
-      onPointerLeave={() => { homeScene?.leave(paletteOwner.current); cancelWarmup.current?.(); metadataIntent.cancel(); }}
-      onBlurCapture={event => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) { cancelWarmup.current?.(); metadataIntent.cancel(); } }}
+      onPointerDownCapture={event => {
+        if (event.button === 0 && event.isPrimary !== false) setPressed(true);
+      }}
+      onPointerUpCapture={() => setPressed(false)}
+      onPointerCancelCapture={() => setPressed(false)}
+      onPointerLeave={() => { setPressed(false); homeScene?.leave(paletteOwner.current); cancelWarmup.current?.(); metadataIntent.cancel(); }}
+      onBlurCapture={event => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) { setPressed(false); cancelWarmup.current?.(); metadataIntent.cancel(); } }}
       onFocusCapture={event => {
         // Pointer clicks focus links too; only keyboard focus selects instantly.
         if (!(event.target instanceof Element) || !event.target.matches(":focus-visible")) return;
@@ -155,19 +160,12 @@ export function MediaCard({
         continueWatching ? "w-80" : fullWidth ? "w-full" : "w-36"
       }`}
     >
-      <IntentLink href={linkHref} scroll={false} draggable={false} className={styles.detailsLink} aria-label={`View details for ${item.name || "Untitled"}`}>
-        <div
-          className={`${styles.frame} ${continueWatching ? "border" : styles.posterFrame} relative w-full overflow-hidden ${
-            continueWatching ? "aspect-video" : "aspect-[2/3]"
-          }`}
-          data-pressed={pressed || undefined}
-          onPointerDown={(event) => {
-            if (event.button === 0) setPressed(true);
-          }}
-          onPointerUp={() => setPressed(false)}
-          onPointerLeave={() => setPressed(false)}
-          onPointerCancel={() => setPressed(false)}
-        >
+      <IntentLink href={linkHref} scroll={false} draggable={false}
+        className={`${styles.detailsLink} absolute inset-0 z-10`}
+        aria-label={`View details for ${item.name || "Untitled"}`} />
+      <div className={`${styles.surface} relative w-full ${continueWatching ? "aspect-video" : "aspect-[2/3]"}`}
+        data-pressed={pressed || undefined}>
+        <div className={`${styles.frame} absolute inset-0 overflow-hidden`}>
           {/* Definite bounds keep WebKit image heights inside the poster frame. */}
           <div className={`${styles.artworkBounds} absolute inset-0`}>
             {imageUrl ? (
@@ -208,45 +206,45 @@ export function MediaCard({
             </div>
           ) : null}
         </div>
-        <div className="px-1">
-          <div className={`mt-2.5 text-sm font-medium text-foreground ${titleLines === 2 ? "line-clamp-2 break-words leading-snug" : "truncate"}`}>
-            {item.name}
-          </div>
-          <div className={`text-xs text-muted-foreground mt-0.5 ${continueWatching ? "min-h-4" : ""}`}>
-            {subtitleContent ?? subtitle}
-          </div>
+        {/* Play button overlay */}
+        <div className={`${styles.playOverlay} absolute inset-0 z-30 flex items-center justify-center`}>
+          <button
+            type="button"
+            aria-label={`Play ${item.episodeTitle || item.name}`}
+            onClick={handlePlayClick}
+            onPointerEnter={preloadPlayer}
+            onFocus={preloadPlayer}
+            className={`${styles.playButton} relative z-40 rounded-full p-3 backdrop-blur-md`}
+          >
+            <Play className="h-6 w-6 text-white fill-white" aria-hidden="true" />
+          </button>
+
+          <WatchedIndicator
+            id={item.seriesId || item.id}
+            type={item.type}
+            videoId={item.mediaSourceId || item.episodeId || (item.type === "series" && item.seasonNumber !== undefined && item.episodeNumber !== undefined
+              ? `${item.seriesId || item.id}:${item.seasonNumber}:${item.episodeNumber}` : undefined)}
+            aboveProgress={progressPercent !== null}
+          />
+
+          {progressPercent !== null ? (
+            // Keep playback status above the hover scrim, like the watched indicator.
+            <div role="progressbar" aria-label={`${item.name} playback progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPercent} aria-valuetext={item.progressLabel || undefined} className="absolute inset-x-2 bottom-2 z-40 h-1.5 rounded-full bg-white/30 backdrop-blur-sm overflow-hidden pointer-events-none">
+              <div
+                className="h-full rounded-full bg-white/80"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+          ) : null}
         </div>
-      </IntentLink>
-      {/* Play button overlay */}
-      <div className={`${styles.playOverlay} absolute inset-x-0 top-0 z-30 ${continueWatching ? "aspect-video" : "aspect-[2/3]"} flex items-center justify-center`}>
-        <button
-          type="button"
-          aria-label={`Play ${item.episodeTitle || item.name}`}
-          onClick={handlePlayClick}
-          onPointerEnter={preloadPlayer}
-          onFocus={preloadPlayer}
-          className={`${styles.playButton} relative z-40 rounded-full p-3 backdrop-blur-md`}
-        >
-          <Play className="h-6 w-6 text-white fill-white" aria-hidden="true" />
-        </button>
-
-        <WatchedIndicator
-          id={item.seriesId || item.id}
-          type={item.type}
-          videoId={item.mediaSourceId || item.episodeId || (item.type === "series" && item.seasonNumber !== undefined && item.episodeNumber !== undefined
-            ? `${item.seriesId || item.id}:${item.seasonNumber}:${item.episodeNumber}` : undefined)}
-          aboveProgress={progressPercent !== null}
-        />
-
-        {progressPercent !== null ? (
-          // Keep playback status above the hover scrim, like the watched indicator.
-          <div role="progressbar" aria-label={`${item.name} playback progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPercent} aria-valuetext={item.progressLabel || undefined} className="absolute inset-x-2 bottom-2 z-40 h-1.5 rounded-full bg-white/30 backdrop-blur-sm overflow-hidden pointer-events-none">
-            <div
-              className="h-full rounded-full bg-white/80"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
-        ) : null}
+      </div>
+      <div className="px-1">
+        <div className={`mt-2.5 text-sm font-medium text-foreground ${titleLines === 2 ? "line-clamp-2 break-words leading-snug" : "truncate"}`}>
+          {item.name}
+        </div>
+        <div className={`text-xs text-muted-foreground mt-0.5 ${continueWatching ? "min-h-4" : ""}`}>
+          {subtitleContent ?? subtitle}
+        </div>
       </div>
     </div>
   );
