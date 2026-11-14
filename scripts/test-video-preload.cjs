@@ -68,7 +68,8 @@ const server = load('lib/server/desktop-video-preload.ts', { 'server-only': {} }
     engines.push({engine,props,video});return {engine};
   },teardown(video){video.tornDown=true;}};
   const document={visibilityState:'visible',createElement(){const video=new Video();videos.push(video);return video;},addEventListener(){},removeEventListener(){}};
-  const web=load('lib/media/web-video-preload.ts',{'@mux/playback-core':fakeMux},{...globals,document,
+  let gpuEnabled = false;
+  const web=load('lib/media/web-video-preload.ts',{'@mux/playback-core':fakeMux, './webgpu-module': { canUseWebGpu: () => gpuEnabled }},{...globals,document,
     setTimeout:(fn,ms)=>{const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id)});
   const controller=new AbortController(),url='https://cdn.example/episode.m3u8';
   const lease=await web.preloadWebVideo(url,controller.signal), standby=videos.at(-1),engine=engines.at(-1).engine;
@@ -80,6 +81,15 @@ const server = load('lib/server/desktop-video-preload.ts', { 'server-only': {} }
   assert.equal(web.takeWebVideo(url),undefined,'Adoption is single-use');adopted.dispose();assert.ok(standby.tornDown);
   const stop=new AbortController();await web.preloadWebVideo(url,stop.signal);const discarded=videos.at(-1);stop.abort();assert.ok(discarded.tornDown);
   assert.equal(timers.size,0,'Aborted/consumed preloads leave no timers');
+
+  const outdated = await web.preloadWebVideo(url, new AbortController().signal);
+  const oldVideo = videos.at(-1); outdated.claim(); gpuEnabled = true;
+  assert.equal(web.takeWebVideo(url), undefined, 'Do not adopt native standby after WebGPU is enabled');
+  assert.ok(oldVideo.tornDown); assert.equal(timers.size, 0);
+  const count = videos.length;
+  assert.equal(await web.preloadWebVideo(url, new AbortController().signal), undefined);
+  assert.equal(videos.length, count, 'WebGPU playback avoids a duplicate native preload');
+  gpuEnabled = false;
 
   // The player wrapper attaches the retained element, preserving Media Chrome's
   // actual media ref and native event handlers through rerenders and cleanup.

@@ -10,7 +10,7 @@ const audio = load('lib/media/audio-language.ts');
 const subtitles = load('lib/media/subtitle-preference.ts', { './audio-language': audio });
 const appearance = load('lib/subtitle-appearance.ts');
 const plain = value => JSON.parse(JSON.stringify(value));
-const defaults = { continueWatchingPrefetch: true, metadataPrefetch: true, episodeAutoplay: true, episodePrefetch: true, autoSelectWebStream: false, audioLanguage: 'en', subtitleLanguage: 'en', subtitleMode: 'normal', subtitlesEnabledByDefault: false };
+const defaults = { continueWatchingPrefetch: true, metadataPrefetch: true, episodeAutoplay: true, episodePrefetch: true, autoSelectWebStream: false, webGpuPlayback: true, hdrOutput: false, audioLanguage: 'en', subtitleLanguage: 'en', subtitleMode: 'normal', subtitlesEnabledByDefault: false };
 assert.deepEqual(plain(preferences.readPlaybackPreferences()), defaults);
 function mount() {
   const host = hooks();
@@ -29,6 +29,9 @@ assert.equal(settings.value.playbackPreferences.continueWatchingPrefetch, false,
 assert.equal(settings.value.playbackPreferences.metadataPrefetch, false, 'Metadata preference is independent and persists');
 assert.equal(settings.value.playbackPreferences.episodeAutoplay, false); assert.equal(settings.value.playbackPreferences.episodePrefetch, false);
 assert.equal(settings.value.playbackPreferences.autoSelectWebStream, true, 'Automatic web stream selection persists across remounts');
+settings.value.updatePlaybackPreferences({ webGpuPlayback: false, hdrOutput: true }); settings.render(); settings = mount();
+assert.equal(settings.value.playbackPreferences.webGpuPlayback, false);
+assert.equal(settings.value.playbackPreferences.hdrOutput, true, 'Keep the saved HDR choice while WebGPU is off');
 settings.value.updatePlaybackPreferences({ subtitleMode: 'normal' }); settings.render();
 assert.equal(settings.value.playbackPreferences.audioLanguage, 'fr', 'Updating one preference preserves the others');
 for (const corrupt of ['{broken', 'null', '5', '{"audioLanguage":"garbage","subtitleMode":"bad","subtitlesEnabledByDefault":"true"}']) {
@@ -232,3 +235,21 @@ assert.equal(rows.find(row => row.value === 'pt-BR').label, 'Portuguese (Brazil)
 const legacy = find(languageField.type({ ...languageField.props, value: 'eo' }), node => node.type === 'Select')[0].props.options;
 assert.equal(legacy[0].value, 'eo'); assert.notEqual(legacy[0].label, 'Unknown language');
 console.log(`PASS: ${rows.length} named common-language choices with flags, incomplete browser dictionary fallback and saved preference compatibility`);
+
+// Toggle state and callbacks use the same settings store as other playback preferences.
+let gpuSettings = { ...defaults }, patches = [];
+const { PlaybackSettings } = load('components/playback-settings.tsx', {
+  'react/jsx-runtime': ui.jsx,
+  '@/contexts/settings-context': { useSettings: () => ({ playbackPreferences: gpuSettings,
+    updatePlaybackPreferences(patch) { patches.push(patch); gpuSettings = { ...gpuSettings, ...patch }; } }) },
+  '@/components/arc/switch/switch': { Switch: 'Switch' },
+  '@/components/ui/field': { Field: 'Field', FieldGroup: 'FieldGroup', FieldLabel: 'FieldLabel', FieldDescription: 'FieldDescription', FieldContent: 'FieldContent' },
+  '@/app/(main)/settings/settings.module.css': {},
+});
+const switches = () => find(PlaybackSettings(), node => node.type === 'Switch');
+switches().find(node => node.props.id === 'hdr-output').props.onCheckedChange(true);
+switches().find(node => node.props.id === 'webgpu-playback').props.onCheckedChange(false);
+const hdrSwitch = switches().find(node => node.props.id === 'hdr-output');
+assert.equal(hdrSwitch.props.disabled, true);
+assert.equal(hdrSwitch.props.checked, true, 'Disabling WebGPU keeps the saved HDR selection');
+assert.deepEqual(plain(patches), [{ hdrOutput: true }, { webGpuPlayback: false }]);

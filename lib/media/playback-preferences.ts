@@ -4,6 +4,8 @@ export interface PlaybackPreferences {
   episodeAutoplay: boolean;
   episodePrefetch: boolean;
   autoSelectWebStream: boolean;
+  webGpuPlayback: boolean;
+  hdrOutput: boolean;
   audioLanguage: string;
   subtitleLanguage: string;
   subtitleMode: "normal" | "forced";
@@ -12,7 +14,7 @@ export interface PlaybackPreferences {
 export const DEFAULT_PLAYBACK_PREFERENCES: PlaybackPreferences = {
   continueWatchingPrefetch: true, metadataPrefetch: true,
   episodeAutoplay: true, episodePrefetch: true,
-  autoSelectWebStream: false,
+  autoSelectWebStream: false, webGpuPlayback: true, hdrOutput: false,
   audioLanguage: "en", subtitleLanguage: "en", subtitleMode: "normal", subtitlesEnabledByDefault: false,
 };
 export const PLAYBACK_PREFERENCES_KEY = "navigator-playback-preferences";
@@ -47,6 +49,8 @@ export function normalizePlaybackPreferences(value: unknown): PlaybackPreference
     episodeAutoplay: candidate.episodeAutoplay !== false,
     episodePrefetch: candidate.episodePrefetch !== false,
     autoSelectWebStream: candidate.autoSelectWebStream === true,
+    webGpuPlayback: candidate.webGpuPlayback !== false,
+    hdrOutput: candidate.hdrOutput === true,
     audioLanguage: language(candidate.audioLanguage), subtitleLanguage: language(candidate.subtitleLanguage),
     subtitleMode: candidate.subtitleMode === "forced" ? "forced" : "normal",
     subtitlesEnabledByDefault: candidate.subtitlesEnabledByDefault === true,

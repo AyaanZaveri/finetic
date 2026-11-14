@@ -1,3 +1,4 @@
+import { readPlaybackPreferences } from "./playback-preferences";
 import manifest from "@aiostreams/webgpu-player/package.json";
 
 export interface WebGpuAudioTrack {
@@ -18,6 +19,7 @@ export interface WebGpuPlayer {
     play(): void; pause(): void; seek(_ms: number): void;
     setVolume(_value: number): void; setMuted(_value: boolean): void; setRate(_value: number): void;
     setAudio(_ordinal: number): Promise<WebGpuOpened>;
+    setHDROutput(_enabled: boolean): Promise<void>;
     presentedMs(): number | null; stats(): WebGpuStats | null; destroy(): void;
 }
 export interface WebGpuSubtitleBlock { trackNumber: number; timestampMs: number; durationMs: number | null; data: Uint8Array }
@@ -34,6 +36,7 @@ export interface WebGpuModule {
 
 /** HLS, DASH, and live playlists stay on the existing media-element path. */
 export function canUseWebGpu(url: string): boolean {
+    if (!readPlaybackPreferences().webGpuPlayback) return false;
     if (typeof window === "undefined" || !window.isSecureContext || !("gpu" in navigator)
         || typeof VideoDecoder === "undefined" || typeof AudioWorkletNode === "undefined") return false;
     try {

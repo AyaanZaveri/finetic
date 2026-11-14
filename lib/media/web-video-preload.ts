@@ -104,5 +104,7 @@ export async function preloadWebVideo(url: string, signal: AbortSignal) {
 export function takeWebVideo(url: string): WebVideoSession | undefined {
     if (!pending?.claimed || pending.url !== url) return;
     const { session, timer } = pending; pending = undefined; clearTimeout(timer);
+    // A standby created before WebGPU was enabled belongs to the native engine.
+    if (canUseWebGpu(url)) { session.dispose(); return; }
     session.activate(); return session;
 }

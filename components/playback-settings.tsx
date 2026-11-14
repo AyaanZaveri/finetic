@@ -11,6 +11,23 @@ export function PlaybackSettings() {
     <FieldGroup className="min-w-0 gap-6">
       <Field orientation="horizontal">
         <FieldContent>
+          <FieldLabel htmlFor="webgpu-playback">WebGPU playback</FieldLabel>
+          <FieldDescription id="webgpu-playback-description">Use WebGPU for supported video files in the browser. Applies to the next video.</FieldDescription>
+        </FieldContent>
+        <Switch id="webgpu-playback" aria-describedby="webgpu-playback-description" checked={playbackPreferences.webGpuPlayback}
+          onCheckedChange={webGpuPlayback => updatePlaybackPreferences({ webGpuPlayback })} />
+      </Field>
+      <Field orientation="horizontal">
+        <FieldContent>
+          <FieldLabel htmlFor="hdr-output">HDR output</FieldLabel>
+          <FieldDescription id="hdr-output-description">Use HDR with WebGPU on compatible browsers and displays. Other displays use SDR tone mapping. Applies to the next video.</FieldDescription>
+        </FieldContent>
+        <Switch id="hdr-output" aria-describedby="hdr-output-description" checked={playbackPreferences.hdrOutput}
+          disabled={!playbackPreferences.webGpuPlayback}
+          onCheckedChange={hdrOutput => updatePlaybackPreferences({ hdrOutput })} />
+      </Field>
+      <Field orientation="horizontal">
+        <FieldContent>
           <FieldLabel htmlFor="metadata-prefetch">Preload metadata</FieldLabel>
           <FieldDescription id="metadata-prefetch-description">Prepare title details and episode names in the background.</FieldDescription>
         </FieldContent>
