@@ -7,7 +7,11 @@ const reply = (body: unknown, status = 200) => Response.json(body, { status, hea
 
 /** URLs stay in an authenticated POST body, outside request paths and logs. */
 export async function POST(request: Request) {
-    if (request.headers.get("Origin") !== new URL(request.url).origin) return reply({ error: "Invalid origin" }, 403);
+    // Next's standalone server can canonicalize request.url to localhost.
+    // Compare against the incoming Host so 127.0.0.1 and deployed domains work.
+    const requestUrl = new URL(request.url);
+    const host = request.headers.get("Host") || requestUrl.host;
+    if (request.headers.get("Origin") !== `${requestUrl.protocol}//${host}`) return reply({ error: "Invalid origin" }, 403);
     try { await getAuthData(); } catch { return reply({ error: "Unauthorized" }, 401); }
     if (Number(request.headers.get("Content-Length")) > MAX_BODY) return reply({ error: "Request too large" }, 413);
     const reader = request.body?.getReader();

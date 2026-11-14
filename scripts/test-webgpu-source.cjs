@@ -52,6 +52,8 @@ const globals = { Request, Response, Headers, URL, AbortController, AbortSignal,
   let response = await route.POST(request(JSON.stringify({ url: original })));
   assert.equal(response.status, 200); assert.equal(response.headers.get('Cache-Control'), 'private, no-store');
   assert.equal((await response.json()).url, final);
+  assert.equal((await route.POST(request(JSON.stringify({ url: original }), 'http://127.0.0.1:3000', { Host: '127.0.0.1:3000' }))).status, 200,
+    'Standalone URL canonicalization must not reject a same-origin 127.0.0.1 request');
   assert.equal((await route.POST(request('{'))).status, 400);
   assert.equal((await route.POST(request(JSON.stringify({ url: 42 })))).status, 400);
   assert.equal((await route.POST(request(' '.repeat(16385)))).status, 413, 'Bound streamed bodies even without Content-Length');
