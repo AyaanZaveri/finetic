@@ -119,6 +119,7 @@ html[data-native-platform="macos"]::-webkit-scrollbar-thumb {
   --destructive: oklch(0.58 0.22 27);
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.922 0 0);
+  --image-outline: oklch(0 0 0 / 0.1);
   --input: oklch(0.922 0 0);
   --text-input-fill: color-mix(in oklab, var(--background) 90%, transparent);
   --text-input-border: var(--border);
@@ -172,6 +173,7 @@ html[data-native-platform="macos"]::-webkit-scrollbar-thumb {
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.637 0.237 25.331);
   --border: oklch(1 0 0 / 10%);
+  --image-outline: oklch(1 0 0 / 0.1);
   --input: oklch(1 0 0 / 15%);
   --ring: var(--primary);
   --focus-halo: color-mix(in oklab, var(--ring) 22%, transparent);
