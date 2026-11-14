@@ -23,15 +23,15 @@ export function createWebVideoSession(url: string, speculative = false): WebVide
     let core: Core | undefined;
     let teardown: typeof import("@mux/playback-core")["teardown"] | undefined;
     let disposed = false;
-    const startNative = () => {
+    const startNative = (source = url) => {
         if (disposed) return;
-        if (getWebPlaybackElement(url) === "mux") {
+        if (getWebPlaybackElement(source) === "mux") {
             teardown = teardownMux;
-            core = initialize({ src: url, autoplay: false, preload: "auto", disableTracking: true,
+            core = initialize({ src: source, autoplay: false, preload: "auto", disableTracking: true,
                 ...(speculative ? { _hlsConfig: { maxBufferLength: VIDEO_PRELOAD_SECONDS, maxMaxBufferLength: VIDEO_PRELOAD_SECONDS,
                     maxBufferSize: VIDEO_PRELOAD_BYTES, backBufferLength: 0, maxBufferHole: .5 } } : {}),
             }, video);
-        } else { video.src = url; video.load(); }
+        } else { video.src = source; video.load(); }
     };
     const detachGpu = !speculative && canUseWebGpu(url) ? attachWebGpuVideo(video, url, startNative) : undefined;
     if (!detachGpu) startNative();

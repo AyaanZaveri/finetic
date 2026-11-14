@@ -4,7 +4,7 @@ import type { LookupFunction } from "node:net";
 import type { Agent } from "undici";
 
 export class OutboundRequestError extends Error {}
-type Policy = { provider?: boolean; maxBytes?: number; timeoutMs?: number };
+type Policy = { provider?: boolean; maxBytes?: number; timeoutMs?: number; onFinalUrl?: (_url: URL) => void };
 type FetchOptions = NonNullable<Parameters<typeof fetch>[1]>;
 type FetchInput = Parameters<typeof fetch>[0];
 const DEFAULT_LIMIT = 8 * 1024 * 1024;
@@ -107,7 +107,10 @@ export async function outboundFetch(input: string | URL, init: FetchOptions = {}
         const options = { ...init, cache: "no-store" as const, next: { ...init.next, revalidate: 0 }, headers, signal, redirect: "manual" as const,
             ...(!cloudflareRuntime() ? { dispatcher: await agent(loopback) } : {}) };
         const response = await fetch(url, options);
-        if (!REDIRECTS.has(response.status)) return boundedResponse(response, policy.maxBytes ?? DEFAULT_LIMIT);
+        if (!REDIRECTS.has(response.status)) {
+            policy.onFinalUrl?.(url);
+            return boundedResponse(response, policy.maxBytes ?? DEFAULT_LIMIT);
+        }
         await response.body?.cancel();
         if (init.redirect === "error" || policy.provider || hop === 4 || !["GET", "HEAD"].includes((init.method || "GET").toUpperCase())) {
             throw new OutboundRequestError("The upstream redirect was refused.");

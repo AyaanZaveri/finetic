@@ -69,10 +69,10 @@ export function createWebGpuSubtitles(url: string, notify: (_event: string) => v
     };
     return {
         tracks,
-        start() {
+        start(playbackUrl = url) {
             if (started || closed) return;
             started = true;
-            void readMatroskaSubtitleTracks(url, AbortSignal.any([abort.signal, AbortSignal.timeout(10_000)]))
+            void readMatroskaSubtitleTracks(playbackUrl, AbortSignal.any([abort.signal, AbortSignal.timeout(10_000)]))
                 .then(found => {
                     if (closed) return;
                     for (const track of found.slice(0, 128)) {

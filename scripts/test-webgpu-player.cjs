@@ -13,8 +13,8 @@ class Video extends EventTarget {
   play() { this.paused = false; return Promise.resolve(); }
   pause() { this.paused = true; }
 }
-function fixture({ result, audioFailure = false, deferred = false, moduleDeferred = false } = {}) {
-  let events, resolveOpen, resolveModule, destroys = 0, fallbacks = 0, frameId = 0;
+function fixture({ result, resolvedSource, audioFailure = false, deferred = false, moduleDeferred = false } = {}) {
+  let events, resolveOpen, resolveModule, fallbackSource, destroys = 0, fallbacks = 0, frameId = 0;
   const calls = [], timers = new Map(), raf = new Map();
   const stats = { framesPresented: 1, framesDropped: 0, audio: {}, audioAheadMs: 100, clockMs: 0 };
   const opened = result || { eligible: true, audio: [
@@ -31,6 +31,7 @@ function fixture({ result, audioFailure = false, deferred = false, moduleDeferre
   const module = { createEmbeddedPlayer(surface, handlers) { events = handlers; return player; } };
   const api = load('lib/media/webgpu-video.ts', {
     './webgpu-module': { loadWebGpuModule: () => moduleDeferred ? new Promise(resolve => { resolveModule = resolve; }) : Promise.resolve(module) },
+    './webgpu-source': { resolveWebGpuSource: async url => resolvedSource || url },
     './playback-preferences': { readPlaybackPreferences: () => ({ audioLanguage: 'en' }) },
   }, { Event, EventTarget, DOMException, navigator: { userActivation: { hasBeenActive: true } }, performance,
     setTimeout(fn) { const id = ++frameId; timers.set(id, fn); return id; }, clearTimeout(id) { timers.delete(id); },
@@ -39,9 +40,9 @@ function fixture({ result, audioFailure = false, deferred = false, moduleDeferre
   for (const name of ['loadedmetadata', 'loadeddata', 'canplay', 'playing', 'timeupdate', 'seeking', 'seeked', 'ended', 'trackschange']) {
     video.addEventListener(name, () => notifications.push(name));
   }
-  const detach = api.attachWebGpuVideo(video, 'https://example.test/film.mkv', () => { fallbacks++; });
+  const detach = api.attachWebGpuVideo(video, 'https://example.test/film.mkv', source => { fallbackSource = source; fallbacks++; });
   return { video, calls, notifications, timers, raf, stats, detach, get events() { return events; },
-    get destroys() { return destroys; }, get fallbacks() { return fallbacks; },
+    get destroys() { return destroys; }, get fallbacks() { return fallbacks; }, get fallbackSource() { return fallbackSource; },
     resolveOpen: () => resolveOpen(opened), resolveModule: () => resolveModule(module),
     frame(ms) { presented = ms; const list = [...raf.values()]; raf.clear(); list.forEach(fn => fn(ms)); } };
 }
@@ -102,6 +103,13 @@ function fixture({ result, audioFailure = false, deferred = false, moduleDeferre
   assert.equal(midPlayback.calls.filter(([name]) => name === 'open').at(-1)[1].startMs, 57000);
   assert.equal(midPlayback.notifications.filter(name => name === 'loadedmetadata').length, 1, 'A video-only retry must not reset the saved resume position');
   previousEvents.onError('late audio-output-failed'); assert.equal(midPlayback.fallbacks, 0, 'An old route cannot fail the replacement'); midPlayback.detach();
+
+  const resolved = fixture({ resolvedSource: 'https://cdn.example.test/direct.mkv' }); await tick();
+  assert.equal(resolved.calls.find(([name]) => name === 'open')[1].url, 'https://cdn.example.test/direct.mkv', 'The GPU engine opens the resolved CDN source');
+  assert.equal(resolved.video.currentSrc, 'https://cdn.example.test/direct.mkv');
+  assert.equal(resolved.video.src, 'https://example.test/film.mkv', 'Keep the original source identity for progress');
+  resolved.events.onFallback('video-codec-unsupported', 0);
+  assert.equal(resolved.fallbackSource, 'https://cdn.example.test/direct.mkv', 'Browser fallback must not reopen the blocked addon redirect'); resolved.detach();
 
   const refused = fixture({ result: { eligible: false, reason: 'container-unsupported' } }); await tick();
   assert.equal(refused.fallbacks, 1); assert.equal(refused.destroys, 1); refused.detach();

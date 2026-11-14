@@ -38,6 +38,26 @@ the public folder, as the existing standalone packaging does.
 If dependencies were installed with scripts disabled and a server is already
 running, run `npm run prepare:webgpu` before testing playback.
 
+## Source resolution
+
+An addon can return a redirect that has no CORS permission, even when the final
+CDN permits browser access. Fetch rejects that intermediate response before
+the engine can read the file. The decoder cannot fix this source-opening error.
+
+Before GPU playback, an authenticated same-origin POST to `/api/playback/source`
+resolves the URL on the server with a one-byte range request. The existing
+outbound guard checks each destination and redirect. The media body is cancelled
+at once, including when a server ignores the range. URLs stay in POST bodies and
+private, uncached JSON responses. The browser then fetches the media directly
+from the resolved CDN. The final media host must still permit browser access.
+No video proxy or whole-file server download is added.
+
+The GPU player, embedded caption reader, and browser fallback share the resolved
+URL. Successful resolutions are retained in client memory for one minute, with
+a 32-entry limit, so a compatibility probe and playback can reuse the result.
+Cancellation stops the resolution request. Servers without this endpoint keep
+the existing direct-source behavior.
+
 ## Fallback and resource limits
 
 An audio-route refusal or decode startup failure first retries the same file

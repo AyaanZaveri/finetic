@@ -1,4 +1,5 @@
 import { loadWebGpuModule, type WebGpuAudioTrack, type WebGpuPlayer, type WebGpuStats } from "./webgpu-module";
+import { resolveWebGpuSource } from "./webgpu-source";
 import { createWebGpuSubtitles } from "./webgpu-subtitles";
 import { preferredAudioTrack } from "./audio-language";
 import { readPlaybackPreferences } from "./playback-preferences";
@@ -9,10 +10,12 @@ export type WebGpuVideo = HTMLVideoElement & { webgpu?: {
 
 /** Keep one real video element registered with the controls. Its media API drives
  * the embedded engine until a same-file fallback restores the browser API. */
-export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: () => void): () => void {
+export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_source: string) => void): () => void {
     let player: WebGpuPlayer | undefined;
     let closed = false, opened = false, metadataSent = false, silent = false;
     let generation = 0, initialMetadata = false;
+    let playbackUrl = url, sourceResolved = false;
+    const sourceAbort = new AbortController();
     let time = 0, duration = NaN, width = 0, height = 0, ready = 0;
     let paused = true, ended = false, seeking = false;
     let volume = video.volume, muted = video.muted, rate = video.playbackRate;
@@ -44,7 +47,7 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: () 
     const cleanup = () => {
         if (closed) return;
         closed = true;
-        clearTimeout(startup); subtitles.dispose();
+        clearTimeout(startup); sourceAbort.abort(); subtitles.dispose();
         for (const frame of frames.values()) cancelAnimationFrame(frame);
         frames.clear(); sleepingFrames.clear();
         player?.destroy();
@@ -70,13 +73,13 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: () 
             else video.pause();
         };
         video.addEventListener("loadedmetadata", fallbackMetadata, { once: true });
-        fallback();
+        fallback(playbackUrl);
     };
     let startup: ReturnType<typeof setTimeout>;
     define("webgpu", { value: { get silent() { return silent; }, subtitle: subtitles.text, stats: () => player?.stats() ?? null,
         picture: () => video.parentElement?.querySelector<HTMLCanvasElement>(".webgpuPlayerCanvas-visible") ?? null } });
     video.dataset.webgpu = "";
-    const getters: Record<string, () => unknown> = { currentSrc: () => url, src: () => url, duration: () => duration,
+    const getters: Record<string, () => unknown> = { currentSrc: () => playbackUrl, src: () => url, duration: () => duration,
         videoWidth: () => width, videoHeight: () => height, readyState: () => ready, networkState: () => opened ? 1 : 2,
         paused: () => paused, ended: () => ended, seeking: () => seeking, error: () => null,
         buffered: () => ranges(ready >= 2 ? time : 0), seekable: () => ranges(duration),
@@ -188,7 +191,12 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: () 
         if (closed || current !== generation) return;
         const container = video.parentElement;
         if (!engineModule || !container || container.tagName !== "DIV") { fail(time * 1000, "engine-unavailable"); return; }
-        subtitles.start();
+        if (!sourceResolved) {
+            playbackUrl = await resolveWebGpuSource(url, sourceAbort.signal);
+            if (closed || current !== generation) return;
+            sourceResolved = true;
+        }
+        subtitles.start(playbackUrl);
         const owned = engineModule.createEmbeddedPlayer({ video, container: container as HTMLDivElement }, {
             onState(state) {
                 if (closed || current !== generation || !metadataSent) return;
@@ -210,7 +218,7 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: () 
             onError(reason) { if (current === generation) recover(reason); },
         });
         player = owned;
-        const result = await owned.open({ url, startMs: time * 1000, paused: true, audioOrdinal: silent ? -1 : null, volume, muted, rate });
+        const result = await owned.open({ url: playbackUrl, startMs: time * 1000, paused: true, audioOrdinal: silent ? -1 : null, volume, muted, rate });
         // An open can complete after destroy while its initial file read settles.
         if (closed || current !== generation) { owned.destroy(); return; }
         if (!result.eligible) { recover(result.reason); return; }
