@@ -14,6 +14,7 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
     let player: WebGpuPlayer | undefined;
     let closed = false, opened = false, metadataSent = false, silent = false;
     let generation = 0, initialMetadata = false;
+    let hdrAttempt = false, hdrRejected = false;
     let playbackUrl = url, sourceResolved = false;
     const sourceAbort = new AbortController();
     let time = 0, duration = NaN, width = 0, height = 0, ready = 0;
@@ -174,13 +175,16 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
     const recover = (reason: string, atMs = time * 1000) => {
         if (closed) return;
         video.dataset.webgpuReason = reasonCode(reason);
-        if (!silent && player && /audio|decode-failed|start-fallback|startup-timeout|route-start-failed/i.test(reason)) {
-            silent = true; opened = false; metadataSent = false; ready = 0;
+        const retrySdr = hdrAttempt && !hdrRejected;
+        if (retrySdr || (!silent && player && /audio|decode-failed|start-fallback|startup-timeout|route-start-failed/i.test(reason))) {
+            if (retrySdr) { hdrRejected = true; hdrAttempt = false; }
+            else silent = true;
+            opened = false; metadataSent = false; ready = 0;
             time = seekTarget ?? Math.max(0, atMs / 1000);
             generation++; // Invalidate the failed route before synchronous teardown callbacks.
             player?.destroy();
             emit("waiting");
-            void start().catch(() => fail(time * 1000, "video-only-start-failed"));
+            void start().catch(() => recover("engine-initialization-failed"));
         } else fail(atMs, reason);
     };
     const start = async () => {
@@ -218,6 +222,15 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
             onError(reason) { if (current === generation) recover(reason); },
         });
         player = owned;
+        // Each engine starts in SDR mode. Request extended output only when the
+        // user enables it and the browser reports an HDR display.
+        if (!hdrRejected && readPlaybackPreferences().hdrOutput && typeof window !== "undefined"
+            && window.matchMedia?.("(dynamic-range: high)").matches) {
+            hdrAttempt = true;
+            try { await owned.setHDROutput(true); }
+            catch { hdrRejected = true; hdrAttempt = false; await owned.setHDROutput(false); }
+            if (closed || current !== generation) { owned.destroy(); return; }
+        }
         const result = await owned.open({ url: playbackUrl, startMs: time * 1000, paused: true, audioOrdinal: silent ? -1 : null, volume, muted, rate });
         // An open can complete after destroy while its initial file read settles.
         if (closed || current !== generation) { owned.destroy(); return; }
@@ -240,7 +253,7 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
         if (!paused) player.play();
     };
     // Wait for the host to append the video and register its event listeners.
-    void Promise.resolve().then(start).catch(() => fail(time * 1000, "engine-initialization-failed"));
+    void Promise.resolve().then(start).catch(() => recover("engine-initialization-failed"));
     return () => {
         if (fallbackMetadata) video.removeEventListener("loadedmetadata", fallbackMetadata);
         cleanup();

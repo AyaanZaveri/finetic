@@ -99,8 +99,15 @@ seek changes the picture.
 ## Current limits
 
 - Codec and HDR tone-mapping support depend on the routes that the engine can
-  qualify on the current device. This change does not enable HDR display output
-  or claim HDR display accuracy.
+  qualify on the current device. Playback settings include per-device WebGPU
+  (on by default) and HDR output (off by default) switches. They apply to the
+  next video. Turning WebGPU off also uses the browser path for stream checks
+  and preloading. The HDR preference is retained while WebGPU is off.
+- HDR output requests the engine's extended-range canvas only when the browser
+  reports `(dynamic-range: high)`. SDR sources stay SDR. Other displays keep
+  SDR tone mapping. If HDR setup fails, retry SDR setup before opening the file.
+  Native desktop playback uses its own output path. Physical HDR display
+  accuracy requires user testing.
 - External SRT/VTT subtitles keep Navigator's appearance and timing settings.
   Matroska embedded SRT/UTF-8 and WebVTT captions are listed in the same menu.
   ASS/SSA tracks use a plain-text fallback. Track metadata uses bounded byte

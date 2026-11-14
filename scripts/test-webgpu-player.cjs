@@ -13,7 +13,7 @@ class Video extends EventTarget {
   play() { this.paused = false; return Promise.resolve(); }
   pause() { this.paused = true; }
 }
-function fixture({ result, resolvedSource, audioFailure = false, deferred = false, moduleDeferred = false } = {}) {
+function fixture({ result, resolvedSource, audioFailure = false, deferred = false, moduleDeferred = false, hdrOutput = false, hdrDisplay = false, hdrFailure = false } = {}) {
   let events, resolveOpen, resolveModule, fallbackSource, destroys = 0, fallbacks = 0, frameId = 0;
   const calls = [], timers = new Map(), raf = new Map();
   const stats = { framesPresented: 1, framesDropped: 0, audio: {}, audioAheadMs: 100, clockMs: 0 };
@@ -27,13 +27,14 @@ function fixture({ result, resolvedSource, audioFailure = false, deferred = fals
     play() { calls.push(['play']); }, pause() { calls.push(['pause']); },
     seek(ms) { calls.push(['seek', ms]); }, setVolume(n) { calls.push(['volume', n]); },
     setMuted(n) { calls.push(['muted', n]); }, setRate(n) { calls.push(['rate', n]); },
+    async setHDROutput(value) { calls.push(['hdr', value]); if (value && hdrFailure) throw Error('HDR unavailable'); },
     setAudio(n) { calls.push(['audio', n]); return Promise.resolve(opened); } };
   const module = { createEmbeddedPlayer(surface, handlers) { events = handlers; return player; } };
   const api = load('lib/media/webgpu-video.ts', {
     './webgpu-module': { loadWebGpuModule: () => moduleDeferred ? new Promise(resolve => { resolveModule = resolve; }) : Promise.resolve(module) },
     './webgpu-source': { resolveWebGpuSource: async url => resolvedSource || url },
-    './playback-preferences': { readPlaybackPreferences: () => ({ audioLanguage: 'en' }) },
-  }, { Event, EventTarget, DOMException, navigator: { userActivation: { hasBeenActive: true } }, performance,
+    './playback-preferences': { readPlaybackPreferences: () => ({ audioLanguage: 'en', hdrOutput }) },
+  }, { window: { matchMedia: () => ({ matches: hdrDisplay }) }, Event, EventTarget, DOMException, navigator: { userActivation: { hasBeenActive: true } }, performance,
     setTimeout(fn) { const id = ++frameId; timers.set(id, fn); return id; }, clearTimeout(id) { timers.delete(id); },
     requestAnimationFrame(fn) { const id = ++frameId; raf.set(id, fn); return id; }, cancelAnimationFrame(id) { raf.delete(id); } });
   const video = new Video(), notifications = [];
@@ -47,6 +48,21 @@ function fixture({ result, resolvedSource, audioFailure = false, deferred = fals
     frame(ms) { presented = ms; const list = [...raf.values()]; raf.clear(); list.forEach(fn => fn(ms)); } };
 }
 (async () => {
+  const hdr = fixture({ hdrOutput: true, hdrDisplay: true }); await tick();
+  assert.deepEqual(hdr.calls[0], ['hdr', true], 'Configure HDR before opening the file');
+  hdr.events.onFallback('canvas-configure-failed', 12000); await tick();
+  assert.equal(hdr.calls.filter(([name]) => name === 'hdr').length, 1, 'Retry only once with SDR');
+  assert.equal(hdr.calls.filter(([name]) => name === 'open').length, 2);
+  assert.equal(hdr.calls.filter(([name]) => name === 'open')[1][1].startMs, 12000);
+  assert.equal(hdr.video.webgpu.silent, false, 'SDR recovery retains audio');
+  assert.equal(hdr.fallbacks, 0); hdr.detach();
+  const rejectedHdr = fixture({ hdrOutput: true, hdrDisplay: true, hdrFailure: true }); await tick();
+  assert.deepEqual(rejectedHdr.calls.slice(0, 2), [['hdr', true], ['hdr', false]]);
+  assert.equal(rejectedHdr.fallbacks, 0); rejectedHdr.detach();
+  const sdr = fixture({ hdrOutput: true }); await tick();
+  assert.ok(!sdr.calls.some(([name]) => name === 'hdr'), 'Keep SDR output on an SDR display'); sdr.detach();
+  const disabledHdr = fixture({ hdrDisplay: true }); await tick();
+  assert.ok(!disabledHdr.calls.some(([name]) => name === 'hdr'), 'Honor the disabled HDR preference'); disabledHdr.detach();
   const f = fixture();
   await f.video.play(); await tick();
   assert.equal(f.video.duration, 100); assert.equal(f.video.videoWidth, 1920);
@@ -158,11 +174,15 @@ function fixture({ result, resolvedSource, audioFailure = false, deferred = fals
   const third = await acquirePlaybackProbe(new AbortController().signal); assert.equal(typeof third, 'function'); third();
 
   const globals = { window: { isSecureContext: true }, navigator: { gpu: {} }, VideoDecoder: class {}, AudioWorkletNode: class {}, location: { href: 'https://navigator.test/' }, URL };
-  const capability = load('lib/media/webgpu-module.ts', {}, globals);
+  let webGpuPlayback = true;
+  const capability = load('lib/media/webgpu-module.ts', { './playback-preferences': { readPlaybackPreferences: () => ({ webGpuPlayback }) } }, globals);
   assert.ok(capability.canUseWebGpu('https://cdn.test/film.mkv'));
   assert.equal(capability.canUseWebGpu('https://cdn.test/live.m3u8?token=one'), false);
   assert.equal(capability.canUseWebGpu('https://cdn.test/film.mpd'), false);
   assert.equal(capability.canUseWebGpu('file:///film.mkv'), false);
+  webGpuPlayback = false;
+  assert.equal(capability.canUseWebGpu('https://cdn.test/film.mkv'), false, 'WebGPU preference overrides browser support');
+  webGpuPlayback = true;
   globals.window.isSecureContext = false;
   assert.equal(capability.canUseWebGpu('https://cdn.test/film.mkv'), false);
 
