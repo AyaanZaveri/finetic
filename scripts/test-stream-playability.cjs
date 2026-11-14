@@ -8,6 +8,8 @@ const vm = require('node:vm');
 const source = fs.readFileSync(require.resolve('../lib/media/stream-playability.ts'), 'utf8');
 const js = ts.transpile(source, { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 });
 function localRequire(name) {
+  if (name === './webgpu-module') return { canUseWebGpu: () => false };
+  if (name === './web-video-preload' || name === './playback-probe-lock') return {};
   if (!name.startsWith('@/')) return require(name);
   const context = { exports: {}, require: localRequire, URL };
   vm.runInNewContext(ts.transpile(fs.readFileSync(name.slice(2) + '.ts', 'utf8'), { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }), context);
@@ -50,6 +52,20 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   brave = fake(); brave.captureStream = () => capture([audio, picture]);
   assert.equal(await probe(brave, new AbortController().signal, 100), 'supported', 'Live captured A/V works with both proprietary counters at zero');
   assert.equal(audio.stopped, true); assert.equal(picture.stopped, true);
+
+  let gpuVideo = fake();
+  gpuVideo.webgpu = { stats: () => ({ audio: {}, audioAheadMs: 250 }) };
+  gpuVideo.getVideoPlaybackQuality = () => ({ totalVideoFrames: 1 });
+  gpuVideo.captureStream = () => { throw Error('GPU probes must not capture a source-less video'); };
+  assert.equal(await probe(gpuVideo, new AbortController().signal, 100), 'supported',
+    'A presented GPU frame and submitted audio establish playback');
+  gpuVideo = fake();
+  gpuVideo.webgpu = { stats: () => ({ audio: null, audioAheadMs: null }) };
+  gpuVideo.getVideoPlaybackQuality = () => ({ totalVideoFrames: 1 });
+  gpuVideo.canPlayType = () => 'probably';
+  assert.equal(await probe(gpuVideo, new AbortController().signal, 5, Promise.resolve({
+    video: { codec: 'avc' }, audio: [{ primary: true, codec: 'aac' }],
+  })), 'unknown', 'Native MIME support cannot establish audio for a GPU session');
 
   const available = track('audio'); available.muted = true;
   brave = fake(); brave.webkitVideoDecodedByteCount = 1; brave.captureStream = () => capture([available]);

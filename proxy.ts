@@ -12,7 +12,7 @@ export async function proxy(request: NextRequest) {
         path === "/apple-icon.png" ||
         path === "/icon0.svg" ||
         path === "/icon1.png" || path === "/manifest.webmanifest" ||
-        ["/logo/", "/flags/", "/images/"].some(prefix => path.startsWith(prefix)) ||
+        ["/logo/", "/flags/", "/images/", "/webgpu-player/"].some(prefix => path.startsWith(prefix)) ||
         ["/file.svg", "/next.svg", "/globe.svg", "/window.svg", "/vercel.svg"].includes(path);
 
     if (isStaticAsset) {

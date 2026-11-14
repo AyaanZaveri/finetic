@@ -1,3 +1,5 @@
+import type { WebGpuVideo } from "./webgpu-video";
+
 const selector = '[data-player-glass], [data-player-hdr-glass]';
 const properties = ['x', 'y', 'width', 'height', 'color', 'sheen'];
 const videoEvents = ['loadeddata', 'seeked', 'playing', 'pause'];
@@ -44,7 +46,11 @@ export function attachBrowserPlayerGlass(video: HTMLVideoElement) {
             context.clip();
             // Blur once at thumbnail resolution, before copying to the controls.
             context.filter = `blur(${12 * scale}px)`;
-            context.drawImage(video, x * scale, y * scale, drawnWidth * scale, drawnHeight * scale);
+            const picture = (video as WebGpuVideo).webgpu?.picture() ?? video;
+            if ((video as WebGpuVideo).webgpu && picture === video) return;
+            // The GPU canvas already includes the selected fit and letterbox bars.
+            if (picture === video) context.drawImage(picture, x * scale, y * scale, drawnWidth * scale, drawnHeight * scale);
+            else context.drawImage(picture, left * scale, top * scale, width * scale, height * scale);
             context.restore();
             hasFrame = true;
             for (const surface of visible) paint(surface);
@@ -124,7 +130,7 @@ export function attachBrowserPlayerGlass(video: HTMLVideoElement) {
     });
     observer.observe(document.body, { subtree: true, childList: true, attributes: true,
         attributeFilter: ['data-controls-visible', 'aria-hidden', 'data-player-hdr-glass', 'data-player-video-fit'] });
-    const repaint = () => { hasFrame = false; refresh(); };
+    const repaint = () => { stop(); hasFrame = false; refresh(); };
     for (const event of videoEvents) video.addEventListener(event, repaint);
     document.addEventListener('visibilitychange', refresh);
     window.addEventListener('resize', repaint);

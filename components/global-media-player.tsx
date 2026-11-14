@@ -1105,7 +1105,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             <div className="flex items-center gap-2">
               {onToggleAIAsk && <PlayerNavigatorButton onToggle={onToggleAIAsk} />}
 
-              {nativePlayback && <DesktopTracks mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} />}
+              <DesktopTracks mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} />
               <PlayerSubtitles mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} native={nativePlayback}
                 tracks={subtitleTracks} requestedSrc={requestedSubtitleSrc} onTrackChange={track => {
                   subtitleManualOverride.current = true;

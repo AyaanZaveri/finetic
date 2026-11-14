@@ -4,7 +4,7 @@ export interface WebGpuAudioTrack {
     ordinal: number; codec: string | null; channels: number | null;
     language: string | null; title: string | null; isDefault: boolean;
 }
-export type WebGpuOpened = { eligible: false; reason: string } | {
+export type WebGpuOpened = { eligible: false; _reason: string } | {
     eligible: true; audio: readonly WebGpuAudioTrack[]; audioOrdinal: number | null;
     width: number | null; height: number | null; durationMs: number | null; route: string;
 };
@@ -13,21 +13,21 @@ export interface WebGpuStats {
     audio: unknown | null; audioAheadMs: number | null; clockMs: number;
 }
 export interface WebGpuPlayer {
-    open(request: { url: string; startMs: number; paused: boolean; audioOrdinal: number | null;
+    open(_request: { url: string; startMs: number; paused: boolean; audioOrdinal: number | null;
         volume: number; muted: boolean; rate: number }): Promise<WebGpuOpened>;
-    play(): void; pause(): void; seek(ms: number): void;
-    setVolume(value: number): void; setMuted(value: boolean): void; setRate(value: number): void;
-    setAudio(ordinal: number): Promise<WebGpuOpened>;
+    play(): void; pause(): void; seek(_ms: number): void;
+    setVolume(_value: number): void; setMuted(_value: boolean): void; setRate(_value: number): void;
+    setAudio(_ordinal: number): Promise<WebGpuOpened>;
     presentedMs(): number | null; stats(): WebGpuStats | null; destroy(): void;
 }
 export interface WebGpuEvents {
-    onState(state: "loading" | "playing" | "paused" | "waiting" | "ended"): void;
-    onTime(ms: number): void; onDuration(ms: number | null): void;
-    onFallback(reason: string, atMs: number): void; onError(message: string): void;
+    onState(_state: "loading" | "playing" | "paused" | "waiting" | "ended"): void;
+    onTime(_ms: number): void; onDuration(_ms: number | null): void;
+    onFallback(_reason: string, _atMs: number): void; onError(_message: string): void;
 }
 export interface WebGpuModule {
     isEmbeddedPlayerSupported(): boolean;
-    createEmbeddedPlayer(surface: { container: HTMLDivElement; video: HTMLVideoElement }, events: WebGpuEvents): WebGpuPlayer;
+    createEmbeddedPlayer(_surface: { container: HTMLDivElement; video: HTMLVideoElement }, _events: WebGpuEvents): WebGpuPlayer;
 }
 
 /** HLS, DASH, and live playlists stay on the existing media-element path. */

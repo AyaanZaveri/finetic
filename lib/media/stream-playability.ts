@@ -1,3 +1,7 @@
+import { canUseWebGpu } from "./webgpu-module";
+import { createWebVideoSession } from "./web-video-preload";
+import { acquirePlaybackProbe } from "./playback-probe-lock";
+import type { WebGpuVideo } from "./webgpu-video";
 import type { StremioStream } from "@/types/stremio";
 import { getWebPlaybackElement } from "@/lib/media/playback-source";
 import { installAudioLanguagePreference, preferredAudioTrack } from "@/lib/media/audio-language";
@@ -90,7 +94,8 @@ export function verifyMediaElementPlayback(
       if (trackMetadata) {
         audioMetadata = metadataAudioSupport(trackMetadata, mime => Boolean(decoder.canPlayType?.(mime)), selectedLanguage);
       }
-      if (!captured) {
+      const gpu = (video as WebGpuVideo).webgpu;
+      if (!captured && !gpu) {
         try {
           // Capture the element's own output, never a microphone or screen.
           // Per the capture-from-element spec, element.muted does not mute
@@ -108,7 +113,9 @@ export function verifyMediaElementPlayback(
       frames ||= playing && decoder.readyState >= 2 && decoder.videoWidth > 0 && decoder.videoHeight > 0
         && decoder.currentTime - baseline > 0.05;
       const audio = Number(decoder.webkitAudioDecodedByteCount ?? 0) > 0
-        || Boolean(captured?.getAudioTracks().some(active)) || audioMetadata === "supported";
+        || Boolean(captured?.getAudioTracks().some(active))
+        || (gpu ? Boolean(gpu.stats()?.audio && ((gpu.stats()?.audioAheadMs ?? -1) >= 0
+          || (playing && decoder.currentTime - baseline > .05))) : audioMetadata === "supported");
       if (frames && audio) finish("supported");
     }
 
@@ -142,6 +149,28 @@ export async function probeStreamPlayability(
   const src = stream.url || stream.externalUrl;
   if (!src || options.signal.aborted || typeof document === "undefined"
     || Object.keys(stream.behaviorHints?.proxyHeaders?.request || {}).length) return "unknown";
+
+  if (canUseWebGpu(src)) {
+    const deadline = AbortSignal.timeout(options.timeoutMs ?? WEB_STREAM_CHECK_TIMEOUT_MS);
+    const signal = AbortSignal.any([options.signal, deadline]);
+    const release = await acquirePlaybackProbe(signal);
+    if (!release) return "unknown";
+    // The session uses the same engine and same-file fallback as visible playback.
+    // A layout box is required for the GPU presenter, even in a hidden probe.
+    const host = document.createElement("div");
+    host.style.cssText = "position:fixed;left:-4px;top:-4px;width:2px;height:2px;pointer-events:none;";
+    host.setAttribute("aria-hidden", "true");
+    let session: ReturnType<typeof createWebVideoSession> | undefined;
+    try {
+      session = createWebVideoSession(src);
+      const video = session.video;
+      video.muted = true;
+      video.tabIndex = -1;
+      video.style.cssText = "width:2px;height:2px;";
+      host.append(video); document.body.append(host);
+      return await verifyMediaElementPlayback(video, signal, options.timeoutMs ?? WEB_STREAM_CHECK_TIMEOUT_MS, options.metadata, options);
+    } finally { session?.dispose(); host.remove(); release(); }
+  }
 
   let video: ProbeVideo;
   if (getWebPlaybackElement(src) === "mux") {

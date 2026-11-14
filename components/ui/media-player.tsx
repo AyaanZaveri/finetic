@@ -3021,7 +3021,8 @@ function MediaPlayerPiP(props: MediaPlayerPiPProps) {
     (state) => state.mediaIsPip ?? false
   );
 
-  const isDisabled = disabled || context.disabled;
+  const pipUnavailable = useMediaSelector((state) => state.mediaPipUnavailable);
+  const isDisabled = disabled || context.disabled || Boolean(pipUnavailable);
 
   const onPictureInPicture = React.useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {

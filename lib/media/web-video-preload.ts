@@ -1,3 +1,5 @@
+import { canUseWebGpu } from "./webgpu-module";
+import { attachWebGpuVideo } from "./webgpu-video";
 import { getWebPlaybackElement } from "./playback-source";
 import { initialize, teardown as teardownMux } from "@mux/playback-core";
 
@@ -21,13 +23,18 @@ export function createWebVideoSession(url: string, speculative = false): WebVide
     let core: Core | undefined;
     let teardown: typeof import("@mux/playback-core")["teardown"] | undefined;
     let disposed = false;
-    if (getWebPlaybackElement(url) === "mux") {
-        teardown = teardownMux;
-        core = initialize({ src: url, autoplay: false, preload: "auto", disableTracking: true,
-            ...(speculative ? { _hlsConfig: { maxBufferLength: VIDEO_PRELOAD_SECONDS, maxMaxBufferLength: VIDEO_PRELOAD_SECONDS,
-                maxBufferSize: VIDEO_PRELOAD_BYTES, backBufferLength: 0, maxBufferHole: .5 } } : {}),
-        }, video);
-    } else { video.src = url; video.load(); }
+    const startNative = () => {
+        if (disposed) return;
+        if (getWebPlaybackElement(url) === "mux") {
+            teardown = teardownMux;
+            core = initialize({ src: url, autoplay: false, preload: "auto", disableTracking: true,
+                ...(speculative ? { _hlsConfig: { maxBufferLength: VIDEO_PRELOAD_SECONDS, maxMaxBufferLength: VIDEO_PRELOAD_SECONDS,
+                    maxBufferSize: VIDEO_PRELOAD_BYTES, backBufferLength: 0, maxBufferHole: .5 } } : {}),
+            }, video);
+        } else { video.src = url; video.load(); }
+    };
+    const detachGpu = !speculative && canUseWebGpu(url) ? attachWebGpuVideo(video, url, startNative) : undefined;
+    if (!detachGpu) startNative();
     const stop = () => {
         if (speculative && video.buffered.length && video.buffered.end(video.buffered.length - 1) >= VIDEO_PRELOAD_SECONDS) {
             // HLS can stop loading without detaching MediaSource or dropping packets.
@@ -54,7 +61,7 @@ export function createWebVideoSession(url: string, speculative = false): WebVide
         },
         dispose() {
             if (disposed) return; disposed = true;
-            video.removeEventListener("progress", stop); video.pause();
+            video.removeEventListener("progress", stop); detachGpu?.(); video.pause();
             teardown?.(video, core); video.removeAttribute("src"); video.load(); video.remove();
         },
     };
@@ -62,6 +69,9 @@ export function createWebVideoSession(url: string, speculative = false): WebVide
 
 export async function preloadWebVideo(url: string, signal: AbortSignal) {
     if (pending) pending.release();
+    // A native standby cannot be adopted by the GPU decoder. Do not download
+    // a second opening buffer that the active engine would have to discard.
+    if (canUseWebGpu(url)) return;
     const session = createWebVideoSession(url, true);
     if (signal.aborted) { session.dispose(); return; }
     let claimed = false;

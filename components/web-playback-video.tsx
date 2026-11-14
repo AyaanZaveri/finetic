@@ -71,5 +71,5 @@ export function WebPlaybackVideo(props: Props) {
         };
     }, [props.src, update]);
     useLayoutEffect(update);
-    return <div ref={host} style={{ display: "contents" }} />;
+    return <div ref={host} style={{ position: "relative", width: "100%", height: "100vh" }} />;
 }
