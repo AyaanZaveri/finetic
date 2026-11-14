@@ -15,6 +15,12 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
     let closed = false, opened = false, metadataSent = false, silent = false;
     let generation = 0, initialMetadata = false;
     let hdrAttempt = false, hdrRejected = false;
+    const preferences = readPlaybackPreferences();
+    const hdrFallback = (reason: "display-unavailable" | "output-failed" | "browser-fallback") => {
+        if (!preferences.hdrOutput) return;
+        video.dataset.webgpuHdr = reason;
+        emit("webgpu-hdr-unavailable");
+    };
     let playbackUrl = url, sourceResolved = false;
     const sourceAbort = new AbortController();
     let time = 0, duration = NaN, width = 0, height = 0, ready = 0;
@@ -63,6 +69,7 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
         time = Math.max(0, atMs / 1000);
         const shouldPlay = !paused;
         const resume = time;
+        hdrFallback("browser-fallback");
         cleanup();
         // Preserve a useful, URL-free cause when the browser reports a generic format error.
         video.dataset.webgpuFallback = reasonCode(reason);
@@ -177,7 +184,7 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
         video.dataset.webgpuReason = reasonCode(reason);
         const retrySdr = hdrAttempt && !hdrRejected;
         if (retrySdr || (!silent && player && /audio|decode-failed|start-fallback|startup-timeout|route-start-failed/i.test(reason))) {
-            if (retrySdr) { hdrRejected = true; hdrAttempt = false; }
+            if (retrySdr) { hdrRejected = true; hdrAttempt = false; hdrFallback("output-failed"); }
             else silent = true;
             opened = false; metadataSent = false; ready = 0;
             time = seekTarget ?? Math.max(0, atMs / 1000);
@@ -204,7 +211,10 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
         const owned = engineModule.createEmbeddedPlayer({ video, container: container as HTMLDivElement }, {
             onState(state) {
                 if (closed || current !== generation || !metadataSent) return;
-                if (state === "playing") { paused = false; ready = 4; emit("playing"); if (silent) emit("webgpu-audio-unavailable"); }
+                if (state === "playing") {
+                    if (hdrAttempt) video.dataset.webgpuHdr = player?.stats()?.hdrOutput ? "hdr" : "sdr";
+                    paused = false; ready = 4; emit("playing"); if (silent) emit("webgpu-audio-unavailable");
+                }
                 else if (state === "paused") { paused = true; emit("pause"); }
                 else if (state === "ended") { paused = true; ended = true; emit("ended"); }
                 else emit("waiting");
@@ -224,13 +234,13 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
         player = owned;
         // Each engine starts in SDR mode. Request extended output only when the
         // user enables it and the browser reports an HDR display.
-        if (!hdrRejected && readPlaybackPreferences().hdrOutput && typeof window !== "undefined"
+        if (!hdrRejected && preferences.hdrOutput && typeof window !== "undefined"
             && window.matchMedia?.("(dynamic-range: high)").matches) {
             hdrAttempt = true;
-            try { await owned.setHDROutput(true); }
-            catch { hdrRejected = true; hdrAttempt = false; await owned.setHDROutput(false); }
+            try { await owned.setHDROutput(true, preferences.hdrPeakNits); }
+            catch { hdrRejected = true; hdrAttempt = false; hdrFallback("output-failed"); await owned.setHDROutput(false); }
             if (closed || current !== generation) { owned.destroy(); return; }
-        }
+        } else if (!hdrRejected && preferences.hdrOutput) hdrFallback("display-unavailable");
         const result = await owned.open({ url: playbackUrl, startMs: time * 1000, paused: true, audioOrdinal: silent ? -1 : null, volume, muted, rate });
         // An open can complete after destroy while its initial file read settles.
         if (closed || current !== generation) { owned.destroy(); return; }

@@ -13,10 +13,10 @@ class Video extends EventTarget {
   play() { this.paused = false; return Promise.resolve(); }
   pause() { this.paused = true; }
 }
-function fixture({ result, resolvedSource, audioFailure = false, deferred = false, moduleDeferred = false, hdrOutput = false, hdrDisplay = false, hdrFailure = false } = {}) {
+function fixture({ result, resolvedSource, audioFailure = false, deferred = false, moduleDeferred = false, hdrOutput = false, hdrDisplay = false, hdrFailure = false, hdrPeakNits = 600 } = {}) {
   let events, resolveOpen, resolveModule, fallbackSource, destroys = 0, fallbacks = 0, frameId = 0;
   const calls = [], timers = new Map(), raf = new Map();
-  const stats = { framesPresented: 1, framesDropped: 0, audio: {}, audioAheadMs: 100, clockMs: 0 };
+  const stats = { hdrOutput: hdrDisplay && !hdrFailure, framesPresented: 1, framesDropped: 0, audio: {}, audioAheadMs: 100, clockMs: 0 };
   const opened = result || { eligible: true, audio: [
     { ordinal: 0, language: 'ru', title: 'Russian', isDefault: true },
     { ordinal: 1, language: 'en', title: 'English', isDefault: false },
@@ -27,18 +27,18 @@ function fixture({ result, resolvedSource, audioFailure = false, deferred = fals
     play() { calls.push(['play']); }, pause() { calls.push(['pause']); },
     seek(ms) { calls.push(['seek', ms]); }, setVolume(n) { calls.push(['volume', n]); },
     setMuted(n) { calls.push(['muted', n]); }, setRate(n) { calls.push(['rate', n]); },
-    async setHDROutput(value) { calls.push(['hdr', value]); if (value && hdrFailure) throw Error('HDR unavailable'); },
+    async setHDROutput(value, peak) { calls.push(peak === undefined ? ['hdr', value] : ['hdr', value, peak]); if (value && hdrFailure) throw Error('HDR unavailable'); },
     setAudio(n) { calls.push(['audio', n]); return Promise.resolve(opened); } };
   const module = { createEmbeddedPlayer(surface, handlers) { events = handlers; return player; } };
   const api = load('lib/media/webgpu-video.ts', {
     './webgpu-module': { loadWebGpuModule: () => moduleDeferred ? new Promise(resolve => { resolveModule = resolve; }) : Promise.resolve(module) },
     './webgpu-source': { resolveWebGpuSource: async url => resolvedSource || url },
-    './playback-preferences': { readPlaybackPreferences: () => ({ audioLanguage: 'en', hdrOutput }) },
+    './playback-preferences': { readPlaybackPreferences: () => ({ audioLanguage: 'en', hdrOutput, hdrPeakNits }) },
   }, { window: { matchMedia: () => ({ matches: hdrDisplay }) }, Event, EventTarget, DOMException, navigator: { userActivation: { hasBeenActive: true } }, performance,
     setTimeout(fn) { const id = ++frameId; timers.set(id, fn); return id; }, clearTimeout(id) { timers.delete(id); },
     requestAnimationFrame(fn) { const id = ++frameId; raf.set(id, fn); return id; }, cancelAnimationFrame(id) { raf.delete(id); } });
   const video = new Video(), notifications = [];
-  for (const name of ['loadedmetadata', 'loadeddata', 'canplay', 'playing', 'timeupdate', 'seeking', 'seeked', 'ended', 'trackschange']) {
+  for (const name of ['loadedmetadata', 'loadeddata', 'canplay', 'playing', 'timeupdate', 'seeking', 'seeked', 'ended', 'trackschange', 'webgpu-hdr-unavailable']) {
     video.addEventListener(name, () => notifications.push(name));
   }
   const detach = api.attachWebGpuVideo(video, 'https://example.test/film.mkv', source => { fallbackSource = source; fallbacks++; });
@@ -49,17 +49,26 @@ function fixture({ result, resolvedSource, audioFailure = false, deferred = fals
 }
 (async () => {
   const hdr = fixture({ hdrOutput: true, hdrDisplay: true }); await tick();
-  assert.deepEqual(hdr.calls[0], ['hdr', true], 'Configure HDR before opening the file');
+  assert.deepEqual(hdr.calls[0], ['hdr', true, 600], 'Configure HDR before opening the file');
+  hdr.events.onState('playing');
+  assert.equal(hdr.video.dataset.webgpuHdr, 'hdr');
   hdr.events.onFallback('canvas-configure-failed', 12000); await tick();
   assert.equal(hdr.calls.filter(([name]) => name === 'hdr').length, 1, 'Retry only once with SDR');
   assert.equal(hdr.calls.filter(([name]) => name === 'open').length, 2);
   assert.equal(hdr.calls.filter(([name]) => name === 'open')[1][1].startMs, 12000);
   assert.equal(hdr.video.webgpu.silent, false, 'SDR recovery retains audio');
-  assert.equal(hdr.fallbacks, 0); hdr.detach();
+  assert.equal(hdr.video.dataset.webgpuHdr, 'output-failed');
+  assert.equal(hdr.fallbacks, 0);
+  const notices = hdr.notifications.filter(name => name === 'webgpu-hdr-unavailable').length;
+  hdr.events.onFallback('source-unreadable', 12000);
+  assert.equal(hdr.notifications.filter(name => name === 'webgpu-hdr-unavailable').length, notices + 1,
+    'Report browser fallback before destroying the GPU session');
+  assert.equal(hdr.fallbacks, 1); hdr.detach();
   const rejectedHdr = fixture({ hdrOutput: true, hdrDisplay: true, hdrFailure: true }); await tick();
-  assert.deepEqual(rejectedHdr.calls.slice(0, 2), [['hdr', true], ['hdr', false]]);
+  assert.deepEqual(rejectedHdr.calls.slice(0, 2), [['hdr', true, 600], ['hdr', false]]);
   assert.equal(rejectedHdr.fallbacks, 0); rejectedHdr.detach();
   const sdr = fixture({ hdrOutput: true }); await tick();
+  assert.equal(sdr.video.dataset.webgpuHdr, 'display-unavailable');
   assert.ok(!sdr.calls.some(([name]) => name === 'hdr'), 'Keep SDR output on an SDR display'); sdr.detach();
   const disabledHdr = fixture({ hdrDisplay: true }); await tick();
   assert.ok(!disabledHdr.calls.some(([name]) => name === 'hdr'), 'Honor the disabled HDR preference'); disabledHdr.detach();

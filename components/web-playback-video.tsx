@@ -61,6 +61,16 @@ export function WebPlaybackVideo(props: Props) {
             };
             owned.video.addEventListener("webgpu-audio-unavailable", reportAudio);
             removers.push(() => owned.video.removeEventListener("webgpu-audio-unavailable", reportAudio));
+            let hdrNoticeShown = false;
+            const reportHdr = () => {
+                if (cancelled || hdrNoticeShown) return;
+                hdrNoticeShown = true;
+                toast(owned.video.dataset.webgpuHdr === "display-unavailable"
+                    ? "The browser reports an SDR display. Check HDR in your system display settings and restart the browser."
+                    : "WebGPU HDR output is unavailable for this video. Using fallback playback.");
+            };
+            owned.video.addEventListener("webgpu-hdr-unavailable", reportHdr);
+            removers.push(() => owned.video.removeEventListener("webgpu-hdr-unavailable", reportHdr));
             // A standby element may already have emitted these before adoption.
             queueMicrotask(() => {
                 if (cancelled || !adopted) return;

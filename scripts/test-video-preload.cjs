@@ -93,15 +93,21 @@ const server = load('lib/server/desktop-video-preload.ts', { 'server-only': {} }
 
   // The player wrapper attaches the retained element, preserving Media Chrome's
   // actual media ref and native event handlers through rerenders and cleanup.
+  const notices=[];
   const host=hooks();
   const react={...host.react,useLayoutEffect:host.react.useEffect};
-  const component=load('components/web-playback-video.tsx',{react,'react/jsx-runtime':host.jsx,
+  const component=load('components/web-playback-video.tsx',{react,'react/jsx-runtime':host.jsx, sonner: { toast: message => notices.push(message) },
     '@/lib/media/web-video-preload':web},globals);
   const handoff=await web.preloadWebVideo(url,new AbortController().signal);const retained=videos.at(-1);handoff.claim();
   retained.readyState=4;
   let mediaRef,metadata=0,clicks=0;
   const props={src:url,ref:node=>{mediaRef=node;},className:'fixture-video',onLoadedMetadata:()=>metadata++,onClick:()=>clicks++};
   const tree=host.render(component.WebPlaybackVideo,props);tree.props.ref.current={append(video){assert.equal(video,retained);}};host.flush();await tick();
+  retained.dataset = { webgpuHdr: 'display-unavailable' };
+  retained.dispatchEvent(new Event('webgpu-hdr-unavailable'));
+  retained.dispatchEvent(new Event('webgpu-hdr-unavailable'));
+  assert.equal(notices.length, 1, 'Show the HDR fallback reason once per video');
+  assert.match(notices[0], /browser reports an SDR display/);
   assert.equal(mediaRef,retained);assert.equal(metadata,1,'Replay ready metadata after adopting an already-loaded element');
   retained.dispatchEvent(new Event('click'));assert.equal(clicks,1);
   host.render(component.WebPlaybackVideo,{...props,onClick:()=>clicks+=2});host.flush();retained.dispatchEvent(new Event('click'));assert.equal(clicks,3);

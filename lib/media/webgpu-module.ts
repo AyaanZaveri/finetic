@@ -10,6 +10,7 @@ export type WebGpuOpened = { eligible: false; reason: string } | {
     width: number | null; height: number | null; durationMs: number | null; route: string;
 };
 export interface WebGpuStats {
+    hdrOutput?: boolean;
     framesPresented: number; framesDropped: number;
     audio: unknown | null; audioAheadMs: number | null; clockMs: number;
 }
@@ -19,7 +20,7 @@ export interface WebGpuPlayer {
     play(): void; pause(): void; seek(_ms: number): void;
     setVolume(_value: number): void; setMuted(_value: boolean): void; setRate(_value: number): void;
     setAudio(_ordinal: number): Promise<WebGpuOpened>;
-    setHDROutput(_enabled: boolean): Promise<void>;
+    setHDROutput(_enabled: boolean, _peakNits?: number): Promise<void>;
     presentedMs(): number | null; stats(): WebGpuStats | null; destroy(): void;
 }
 export interface WebGpuSubtitleBlock { trackNumber: number; timestampMs: number; durationMs: number | null; data: Uint8Array }
@@ -48,7 +49,7 @@ export function canUseWebGpu(url: string): boolean {
 let loading: Promise<WebGpuModule | null> | undefined;
 export function loadWebGpuModule(): Promise<WebGpuModule | null> {
     if (!loading) {
-        const url = new URL(`/webgpu-player/${manifest.version}/libraries/webgpu-player/EmbeddedPlayer.js?adapter=2`, location.href).href;
+        const url = new URL(`/webgpu-player/${manifest.version}/libraries/webgpu-player/EmbeddedPlayer.js?adapter=3`, location.href).href;
         // The module resolves its workers and WASM relative to its own URL.
         loading = import(/* webpackIgnore: true */ /* turbopackIgnore: true */ url)
             .then((module: WebGpuModule) => module.isEmbeddedPlayerSupported() ? module : null)

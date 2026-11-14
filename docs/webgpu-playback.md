@@ -16,7 +16,7 @@ The npm lockfile pins the prebuilt embedding distribution at version 0.5.0.
 `npm run prepare:webgpu` copies its complete `libraries` folder to
 `public/webgpu-player/0.5.0/libraries`. `predev` and `prebuild` run this step.
 The copy keeps the workers, WASM, probe files, license texts, and decoder source
-links together. One reviewed adaptation in the embedding module reserves audio
+links together. A reviewed adaptation in the embedding module reserves audio
 ordinal `-1` for video-only playback. The published module normally treats every
 request as an audio selection, so an unsupported audio track can reject a valid
 video route. The adaptation removes audio from the metadata used for that one
@@ -24,10 +24,18 @@ negotiation. The engine's existing no-audio path then skips audio decoding and
 output. Normal audio requests keep their original behavior.
 
 `scripts/webgpu-runtime-patch.mjs` checks the pinned module's version and SHA-256
-before applying this small change. A different runtime fails asset preparation
-until the adaptation is reviewed. Workers and WASM stay byte-for-byte unchanged.
+before applying these changes. A different runtime fails asset preparation
+until the adaptations are reviewed. Workers and WASM stay byte-for-byte unchanged.
 The runtime test exercises the shipped embedding function at its negotiation
 boundary, including its original refusal and its video-only route.
+
+A second adaptation extends `setHDROutput(enabled, peakNits)` with a per-player
+HDR tone-map target. The published embedding otherwise keeps its default
+100-nit target while using an extended-range canvas. The wrapper supplies the
+selected peak to both initial route configuration and later static metadata
+updates. SDR retains the original 100-nit settings. The adaptation also reports
+whether the installed plan selects float HDR output. This reports the software
+output plan, not physical display brightness or scanout.
 
 The browser imports the embedding module only when playback needs it. The module
 resolves workers and decoder packages relative to its own versioned URL.
@@ -105,7 +113,10 @@ seek changes the picture.
   and preloading. The HDR preference is retained while WebGPU is off.
 - HDR output requests the engine's extended-range canvas only when the browser
   reports `(dynamic-range: high)`. SDR sources stay SDR. Other displays keep
-  SDR tone mapping. If HDR setup fails, retry SDR setup before opening the file.
+  SDR tone mapping. Peak brightness is saved per device (203–10,000 nits,
+  default 1,000). Set it to the display's HDR peak. The browser does not supply
+  panel luminance to the player. If HDR setup fails, retry SDR setup before
+  opening the file. A toast reports an SDR display or failed HDR output.
   Native desktop playback uses its own output path. Physical HDR display
   accuracy requires user testing.
 - External SRT/VTT subtitles keep Navigator's appearance and timing settings.
@@ -132,7 +143,9 @@ Run `npm run prepare:webgpu`, `npm run test:webgpu`, `npm run test:web-player`,
 The adapter tests use a controlled engine fixture. They check media commands,
 audio language selection, video-only recovery, fallback state, stale opens,
 timeouts, frame callback cleanup, probe serialization, the pinned runtime
-adaptation, and byte-for-byte copies of the other assets. Subtitle checks cover
+adaptations, and byte-for-byte copies of the other assets. HDR checks reproduce
+the original SDR peak, verify the selected target across metadata updates, and
+check isolation between players, SDR reset, and fallback notices. Subtitle checks cover
 track headers, sparse range reads, text packet decoding, Off, overlapping cues,
 backward seeks, repeated packets, and disposal. They do
 not establish real-browser codec, visual, HDR, or performance results.
