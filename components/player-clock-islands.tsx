@@ -4,6 +4,7 @@ import { useCallback, useSyncExternalStore, type ComponentProps, type RefObject 
 import { usePlaybackTimestamp } from "@/contexts/MediaPlayerContext";
 import { SubtitleText } from "@/components/subtitle-text";
 import { PlayerSkipSegments } from "@/components/player-skip-segments";
+import type { WebGpuVideo } from "@/lib/media/webgpu-video";
 import type { MpvElementHandle } from "@/lib/desktop/mpv-element";
 import { subtitleTime } from "@/lib/media/subtitle-timing";
 
@@ -23,6 +24,7 @@ export function PlayerSubtitleLayer({ mediaRef, lookup, delay, native, enabled, 
         const node = mediaRef.current;
         if (!node || !enabled) return null;
         return lookup(subtitleTime(node.currentTime, delay))
+            ?? (node as WebGpuVideo).webgpu?.subtitle(subtitleTime(node.currentTime, delay))
             ?? (native ? (node as unknown as MpvElementHandle).controller?.subtitleText || null : null);
     }, [mediaRef, lookup, delay, native, enabled]);
     const cue = useSyncExternalStore(subscribe, snapshot, emptySnapshot);

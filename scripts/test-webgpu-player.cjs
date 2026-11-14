@@ -13,7 +13,7 @@ class Video extends EventTarget {
   play() { this.paused = false; return Promise.resolve(); }
   pause() { this.paused = true; }
 }
-function fixture({ result, deferred = false, moduleDeferred = false } = {}) {
+function fixture({ result, audioFailure = false, deferred = false, moduleDeferred = false } = {}) {
   let events, resolveOpen, resolveModule, destroys = 0, fallbacks = 0, frameId = 0;
   const calls = [], timers = new Map(), raf = new Map();
   const stats = { framesPresented: 1, framesDropped: 0, audio: {}, audioAheadMs: 100, clockMs: 0 };
@@ -22,7 +22,7 @@ function fixture({ result, deferred = false, moduleDeferred = false } = {}) {
     { ordinal: 1, language: 'en', title: 'English', isDefault: false },
   ], audioOrdinal: 1, width: 1920, height: 1080, durationMs: 100000 };
   let presented = 0;
-  const player = { open(request) { calls.push(['open', request]); return deferred ? new Promise(resolve => { resolveOpen = resolve; }) : Promise.resolve(opened); },
+  const player = { open(request) { calls.push(['open', request]); if (audioFailure && request.audioOrdinal !== -1) return Promise.resolve({ eligible: false, reason: 'audio-codec-unsupported' }); if (audioFailure) { stats.audio = null; stats.audioAheadMs = null; } return deferred ? new Promise(resolve => { resolveOpen = resolve; }) : Promise.resolve(opened); },
     destroy() { destroys++; }, stats: () => stats, presentedMs: () => presented,
     play() { calls.push(['play']); }, pause() { calls.push(['pause']); },
     seek(ms) { calls.push(['seek', ms]); }, setVolume(n) { calls.push(['volume', n]); },
@@ -84,6 +84,24 @@ function fixture({ result, deferred = false, moduleDeferred = false } = {}) {
   assert.equal(fallback.video.volume, .3); assert.equal(fallback.video.muted, true); assert.equal(fallback.video.playbackRate, 1.25);
   fallback.events.onError('late failure'); assert.equal(fallback.fallbacks, 1, 'Late callbacks cannot restart fallback');
   fallback.detach();
+
+  const silent = fixture({ audioFailure: true }); await silent.video.play(); await tick();
+  assert.equal(silent.fallbacks, 0, 'An audio refusal must retry video without loading the browser MKV element');
+  assert.ok(silent.calls.some(([name, request]) => name === 'open' && request.audioOrdinal === -1));
+  assert.equal(silent.video.webgpu.silent, true);
+  assert.equal(silent.video.dataset.webgpuAudio, 'unavailable');
+  silent.detach();
+
+  const stillRefused = fixture({ audioFailure: true, result: { eligible: false, reason: 'audio-codec-unsupported' } }); await tick();
+  assert.equal(stillRefused.fallbacks, 1, 'A failed video-only retry falls back once without looping');
+  assert.equal(stillRefused.calls.filter(([name]) => name === 'open').length, 2); stillRefused.detach();
+  const midPlayback = fixture(); await tick(); await midPlayback.video.play();
+  const previousEvents = midPlayback.events;
+  previousEvents.onFallback('audio-output-failed', 57000); await tick();
+  assert.equal(midPlayback.fallbacks, 0);
+  assert.equal(midPlayback.calls.filter(([name]) => name === 'open').at(-1)[1].startMs, 57000);
+  assert.equal(midPlayback.notifications.filter(name => name === 'loadedmetadata').length, 1, 'A video-only retry must not reset the saved resume position');
+  previousEvents.onError('late audio-output-failed'); assert.equal(midPlayback.fallbacks, 0, 'An old route cannot fail the replacement'); midPlayback.detach();
 
   const refused = fixture({ result: { eligible: false, reason: 'container-unsupported' } }); await tick();
   assert.equal(refused.fallbacks, 1); assert.equal(refused.destroys, 1); refused.detach();
@@ -147,9 +165,13 @@ function fixture({ result, deferred = false, moduleDeferred = false } = {}) {
     assert.ok(fs.statSync(path.join(root, file)).size > 0, `Runtime includes ${file}`);
   }
   const installed = path.dirname(require.resolve('@aiostreams/webgpu-player/package.json'));
+  const { patchWebGpuRuntime } = await import('./webgpu-runtime-patch.mjs');
   for (const file of fs.readdirSync(path.join(installed, 'libraries'), { recursive: true })) {
     const source = path.join(installed, 'libraries', file);
-    if (fs.statSync(source).isFile()) assert.deepEqual(fs.readFileSync(path.join(root, file)), fs.readFileSync(source), `Preserve runtime bytes: ${file}`);
+    if (fs.statSync(source).isFile()) {
+      const expected = file === 'webgpu-player/EmbeddedPlayer.js' ? Buffer.from(patchWebGpuRuntime(fs.readFileSync(source, 'utf8'), manifest.version)) : fs.readFileSync(source);
+      assert.deepEqual(fs.readFileSync(path.join(root, file)), expected, `Preserve runtime bytes except the reviewed video-only adaptation: ${file}`);
+    }
   }
   console.log('PASS: webgpu media API, language selection, seeking, frame callbacks, fallback, stale loads, timeout, probe locking, capability gates and runtime integrity');
 })().catch(error => { console.error(error); process.exitCode = 1; });

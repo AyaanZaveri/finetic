@@ -67,6 +67,12 @@ const tick = () => new Promise(r => setTimeout(r, 0));
     video: { codec: 'avc' }, audio: [{ primary: true, codec: 'aac' }],
   })), 'unknown', 'Native MIME support cannot establish audio for a GPU session');
 
+  gpuVideo = fake();
+  gpuVideo.webgpu = { silent: true, stats: () => ({ audio: null, audioAheadMs: null }) };
+  gpuVideo.getVideoPlaybackQuality = () => ({ totalVideoFrames: 1 });
+  assert.equal(await probe(gpuVideo, new AbortController().signal, 100), 'supported',
+    'A presented video-only GPU route is usable when the user accepts missing audio');
+
   const available = track('audio'); available.muted = true;
   brave = fake(); brave.webkitVideoDecodedByteCount = 1; brave.captureStream = () => capture([available]);
   const startsLater = probe(brave, new AbortController().signal, 100);

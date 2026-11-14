@@ -53,6 +53,10 @@ assert.equal(changes, 0, 'An unchanged caption does not publish a new snapshot')
 props.delay = 2; assert.equal(render().props.children, 'Embedded', 'Paused offset changes recompute the cue immediately');
 props.native = false; assert.equal(render(), null);
 props.delay = -1; node.currentTime = 9; assert.equal(render().props.children.props.dangerouslySetInnerHTML.__html, 'Hello');
+props.native = false; props.delay = .5; node.currentTime = 4;
+node.webgpu = { subtitle: time => time >= 3 && time < 5 ? '<script>plain caption</script>' : null };
+assert.equal(render().props.children, '<script>plain caption</script>', 'GPU embedded cues use the subtitle clock and render as safe React text');
+props.delay = 2; assert.equal(render(), null, 'GPU caption timing changes recompute without moving playback');
 props.enabled = false; assert.equal(render(), null);
 unsubscribe(); assert.equal(listeners.size, 0);
 

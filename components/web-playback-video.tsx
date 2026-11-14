@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useLayoutEffect, useRef, type ComponentProps, type Ref } from "react";
+import { toast } from "sonner";
 import { createWebVideoSession, takeWebVideo, type WebVideoSession } from "@/lib/media/web-video-preload";
 
 type Props = ComponentProps<"video"> & { src: string };
@@ -52,6 +53,14 @@ export function WebPlaybackVideo(props: Props) {
                 owned.video.addEventListener(name, callback);
                 removers.push(() => owned.video.removeEventListener(name, callback));
             }
+            let audioNoticeShown = false;
+            const reportAudio = () => {
+                if (cancelled || audioNoticeShown) return;
+                audioNoticeShown = true;
+                toast("Playing video without audio. This audio track is unavailable in this browser.");
+            };
+            owned.video.addEventListener("webgpu-audio-unavailable", reportAudio);
+            removers.push(() => owned.video.removeEventListener("webgpu-audio-unavailable", reportAudio));
             // A standby element may already have emitted these before adoption.
             queueMicrotask(() => {
                 if (cancelled || !adopted) return;

@@ -115,7 +115,7 @@ export function verifyMediaElementPlayback(
       const audio = Number(decoder.webkitAudioDecodedByteCount ?? 0) > 0
         || Boolean(captured?.getAudioTracks().some(active))
         || (gpu ? Boolean(gpu.stats()?.audio && ((gpu.stats()?.audioAheadMs ?? -1) >= 0
-          || (playing && decoder.currentTime - baseline > .05))) : audioMetadata === "supported");
+          || (playing && decoder.currentTime - baseline > .05))) || Boolean(gpu?.silent) : audioMetadata === "supported");
       if (frames && audio) finish("supported");
     }
 

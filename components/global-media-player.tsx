@@ -344,7 +344,10 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       return;
     }
 
-    const message = error.message || "This stream could not be played.";
+    const gpuReason = !nativePlayback ? element.dataset?.webgpuFallback : undefined;
+    const message = gpuReason
+      ? `WebGPU playback failed (${gpuReason}). The browser could not play this file either.`
+      : error.message || "This stream could not be played.";
     console.warn("Media player error:", { code: error.code, message });
     setPlaybackError(message);
     reportNavigatorPlayback("error", message);
