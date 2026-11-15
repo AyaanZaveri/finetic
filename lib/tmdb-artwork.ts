@@ -36,12 +36,47 @@ export function selectArtwork(images: TMDBImage[] = [], kind: ArtworkKind): stri
   return `https://image.tmdb.org/t/p/${size}${image.file_path}`;
 }
 
+// Only resolved public image URLs are retained. Credentials scope the private,
+// bounded process cache; responses and browser/CDN caches remain account-safe.
+const resolvedArtwork = new Map<string, { url: string; expires: number }>();
+const pendingArtwork = new Map<string, Promise<string | undefined>>();
+const ARTWORK_CACHE_LIMIT = 256;
+const ARTWORK_CACHE_MS = 86_400_000;
+
 export async function getTMDBArtwork(
   id: string, type: "movie" | "series", kind: ArtworkKind,
   season?: number, episode?: number,
 ): Promise<string | undefined> {
   const token = await getTMDBToken();
   if (!token) return undefined;
+  const key = JSON.stringify([token, id, type, kind, season, episode]);
+  const cached = resolvedArtwork.get(key);
+  if (cached && cached.expires > Date.now()) {
+    resolvedArtwork.delete(key);
+    resolvedArtwork.set(key, cached);
+    return cached.url;
+  }
+  resolvedArtwork.delete(key);
+  const existing = pendingArtwork.get(key);
+  if (existing) return existing;
+  const task = resolveArtwork(id, type, kind, token, season, episode).then(url => {
+    // Transient failures and missing artwork must remain retryable.
+    if (url) {
+      resolvedArtwork.delete(key);
+      resolvedArtwork.set(key, { url, expires: Date.now() + ARTWORK_CACHE_MS });
+      if (resolvedArtwork.size > ARTWORK_CACHE_LIMIT) resolvedArtwork.delete(resolvedArtwork.keys().next().value!);
+    }
+    return url;
+  }).finally(() => { if (pendingArtwork.get(key) === task) pendingArtwork.delete(key); });
+  // Bound retained in-flight state too, without cancelling another caller's work.
+  if (pendingArtwork.size < ARTWORK_CACHE_LIMIT) pendingArtwork.set(key, task);
+  return task;
+}
+
+async function resolveArtwork(
+  id: string, type: "movie" | "series", kind: ArtworkKind, token: string,
+  season?: number, episode?: number,
+): Promise<string | undefined> {
   const tmdbId = await resolveTMDBId(id, type, token);
   if (!tmdbId) return undefined;
   const mediaType = type === "series" ? "tv" : "movie";

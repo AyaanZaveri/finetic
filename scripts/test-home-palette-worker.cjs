@@ -111,6 +111,7 @@ async function cache() {
     assert.equal(await loader.loadHomePalette('/api/artwork?id=tt1&type=movie&kind=backdrop&width=300'), colors);
     assert.equal(calls.length, 1); assert.ok(!calls[0][0].includes('width='));
     assert.ok(calls[0][0].includes('sample=1') && calls[0][0].includes('palette=1'));
+    assert.ok(!calls[0][0].includes('direct=1') && calls[0][1].includes('direct=1'), 'Use external sampling first with a direct fallback');
     assert.equal(await loader.loadHomePalette(), null, 'No artwork retains home emerald rather than an unrelated Aurora default');
     const source = '/api/artwork?id=tt2&type=movie&kind=backdrop';
     const homeFirst = await loader.loadHomePalette(source);

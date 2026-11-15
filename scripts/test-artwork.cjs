@@ -182,10 +182,22 @@ async function run() {
   assert.equal(sample.headers.get('vary'), 'Cookie');
   assert.equal(await sample.text(), 'fixture-jpeg');
   assert.equal(sampledUrls.at(-1), 'https://image.tmdb.org/t/p/w1280/backdrop.jpg', 'Logo contrast samples retain their full-resolution source');
-  await sampled.GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=backdrop&sample=1&palette=1'));
-  assert.equal(sampledUrls.at(-1), 'https://image.tmdb.org/t/p/w300/backdrop.jpg', 'Ambient palettes fetch only a small backdrop');
-  await sampled.GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=poster&sample=1&palette=1'));
-  assert.equal(sampledUrls.at(-1), 'https://image.tmdb.org/t/p/w342/backdrop.jpg', 'Poster fallbacks use a supported small poster size');
+  const beforePalette = sampledUrls.length;
+  for (const [kind, size] of [["backdrop", "w300"], ["poster", "w342"]]) {
+    const palette = await sampled.GET(new Request(`https://navigator.test/api/artwork?id=tt123&type=movie&kind=${kind}&sample=1&palette=1`));
+    assert.equal(palette.status, 307, 'Palette image bytes are served outside the app function');
+    const destination = new URL(palette.headers.get('location'));
+    assert.equal(destination.origin, 'https://wsrv.nl');
+    assert.equal(destination.searchParams.get('url'), `https://image.tmdb.org/t/p/${size}/backdrop.jpg`);
+    assert.equal(destination.searchParams.get('w'), '160');
+    assert.equal(destination.searchParams.get('output'), 'png');
+    assert.equal(palette.headers.get('vary'), 'Cookie');
+    assert.match(palette.headers.get('cache-control'), /^private/);
+  }
+  assert.equal(sampledUrls.length, beforePalette, 'Palette redirects must not fetch any image bytes on the server');
+  const fallback = await sampled.GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=backdrop&sample=1&palette=1&direct=1'));
+  assert.equal(fallback.status, 200, 'External-cache failures retain a direct sampling fallback');
+  assert.equal(sampledUrls.at(-1), 'https://image.tmdb.org/t/p/w300/backdrop.jpg');
   const logoSample = await sampled.GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=logo&sample=1'));
   const posterSample = await sampled.GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=poster&sample=1'));
   assert.equal(posterSample.status, 200, 'Poster palette fallback also needs same-origin image bytes');

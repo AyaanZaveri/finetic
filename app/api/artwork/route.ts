@@ -22,8 +22,19 @@ export async function GET(request: Request) {
     const image = size === "1280" ? episodeHeroStillUrl(original)! : width && /^https:\/\/image\.tmdb\.org\/t\/p\/[^/]+\//.test(original)
         ? original.replace(/\/t\/p\/[^/]+\//, `/t/p/w${width}/`) : original;
     if (params.get("sample") === "1") {
-    // Returning image bytes keeps the canvas origin-clean even when the CDN
-    // redirect does not permit CORS. The upstream URL comes only from TMDB.
+        // Public palette images need CORS, but do not need our server to transfer
+        // their bytes. Only pass an already-resolved public TMDB image to wsrv.
+        if (params.get("palette") === "1" && params.get("direct") !== "1" && kind !== "logo"
+            && /^https:\/\/image\.tmdb\.org\/t\/p\/[^/]+\/[\w.-]+\.(?:png|jpg|jpeg|webp)$/i.test(image)) {
+            const upstream = image.replace(/\/t\/p\/[^/]+\//, `/t/p/${kind === "poster" ? "w342" : "w300"}/`);
+            const proxy = new URL("https://wsrv.nl/");
+            proxy.search = new URLSearchParams({ url: upstream, w: "160", output: "png" }).toString();
+            return new Response(null, { status: 307, headers: {
+                Location: proxy.href, "Cache-Control": "private, max-age=86400", Vary: "Cookie",
+            } });
+        }
+        // Keep direct sampling as a fallback when the external image service
+        // is unavailable, and for full-resolution logo measurements.
         try {
             const sample = params.get("palette") === "1" && kind !== "logo" && /^https:\/\/image\.tmdb\.org\/t\/p\/[^/]+\//.test(image)
                 ? image.replace(/\/t\/p\/[^/]+\//, `/t/p/${kind === "poster" ? "w342" : "w300"}/`) : image;

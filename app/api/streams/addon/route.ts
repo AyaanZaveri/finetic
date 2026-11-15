@@ -1,4 +1,4 @@
-import { outboundFetch } from "@/lib/server/outbound-fetch";
+import { outboundFetch, OutboundRequestError } from "@/lib/server/outbound-fetch";
 import { NextResponse } from "next/server";
 import { getInstalledAddons } from "@/app/actions/auth";
 import type { StremioAddon } from "@/types/stremio";
@@ -81,6 +81,13 @@ export async function GET(request: Request) {
     if (request.signal.aborted) return new Response(null, { status: 499 });
     if (error?.message?.includes("Not authenticated")) {
       return NextResponse.json({ streams: [] }, { status: 401 });
+    }
+    if (error instanceof OutboundRequestError) {
+      // A configured provider rejected by the outbound policy is not an app
+      // crash. Keep its URL/credentials and exception stack out of shared logs.
+      return NextResponse.json({ streams: [], error: "This add-on cannot be used by this server." }, {
+        status: 422, headers: { "Cache-Control": "private, no-store" },
+      });
     }
     console.error("Failed to fetch addon streams:", error);
     return NextResponse.json({ streams: [] }, { status: 500 });

@@ -86,7 +86,11 @@ function sampleSources({ url: source, size }: { url: string; size: string }): st
         const params = new URLSearchParams(sample.slice(sample.indexOf("?") + 1));
         params.delete("width");
         params.set("palette", "1");
-        return [`/api/artwork?${params}`];
+        const cached = `/api/artwork?${params}`;
+        // Try the external cache first. Transfer bytes through our server only
+        // if that service cannot supply a canvas-readable image.
+        params.set("direct", "1");
+        return [cached, `/api/artwork?${params}`];
     }
     // Palette extraction never needs an original-resolution TMDB download.
     if (/^https:\/\/image\.tmdb\.org\/t\/p\/[^/]+\//.test(source)) {
