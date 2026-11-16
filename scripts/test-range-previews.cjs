@@ -30,7 +30,7 @@ const finish = index => requests[index].resolve({ canvas: { width: 448, height: 
     assert.equal(sourceOptions.parallelism, 2); assert.ok(sourceOptions.maxCacheSize <= 16 * 1024 * 1024);
     finish(0); await settle(); assert.equal(answers.at(-1)[0], 20);
     preview.want(40); await settle(); preview.want(60); finish(1); await settle();
-    assert.equal(requests[2].time, 60); assert.equal(answers.at(-1)[0], 20, 'Obsolete frames are cached without replacing the requested scene');
+    assert.equal(requests[2].time, 60); assert.equal(answers.at(-1)[0], 40, 'Continuous motion gets the decoded prior frame with its actual timestamp');
     finish(2); await settle(); assert.equal(answers.at(-1)[0], 60);
     preview.want(20); assert.equal(answers.at(-1)[0], 20); assert.equal(requests.length, 3);
     preview.want(80); await settle(); preview.cancel(); finish(3); await settle(); assert.equal(answers.at(-1)[0], 20);

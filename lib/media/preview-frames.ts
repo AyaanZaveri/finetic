@@ -142,7 +142,11 @@ export class BrowserPreviewFrames {
         }
         this.decoding = null;
         if (src) this.cache.set(target, src, bytes);
-        if (this.wanted === target) this.ready(target, src, !src);
+        if (this.wanted !== null) {
+            const selected = this.cache.get(this.wanted);
+            if (selected) this.ready(this.wanted, selected);
+            else this.ready(target, src, !src);
+        }
         if (this.wanted !== null && this.wanted !== target) this.pump();
     }
     private failed = () => {

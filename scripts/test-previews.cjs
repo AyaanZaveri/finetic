@@ -36,7 +36,7 @@ frames.want(20); frames.want(40); frames.want(60);
 assert.deepEqual(video.seeks, [20], 'Only one seek may be in flight');
 video.finish();
 assert.deepEqual(video.seeks, [20, 60], 'Rapid pointer movement must skip obsolete requests');
-assert.equal(answers.length, 0, 'The obsolete decoded frame must not replace the current preview');
+assert.equal(answers.at(-1)[0], 20, 'Continuous motion still presents the latest decoded frame with its actual timestamp');
 video.finish();
 assert.equal(answers.at(-1)[0], 60);
 frames.want(20);
@@ -105,7 +105,7 @@ console.log('PASS: preview buckets/LRU, latest-request coalescing, cache hits, c
     pending[0]({ size: 10 });
     assert.equal(media.currentTime, 20, 'Finish current encoding before seeking to the newest request');
     media.finish(); frames.dispose(); pending[1]({ size: 10 });
-    assert.equal(results.length, 0, 'An obsolete or disposed binary frame is never presented');
+    assert.deepEqual(results.map(frame => frame[0]), [10], 'A moving pointer gets a pending frame, but disposal suppresses later results');
     assert.deepEqual(revoked, ['blob:jpeg-1', 'blob:jpeg-2']);
     const released = [];
     const bounded = new PreviewCache(5, src => released.push(src), 10);

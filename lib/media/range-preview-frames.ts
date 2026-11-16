@@ -88,7 +88,11 @@ export class RangePreviewFrames {
                 if (!blob) throw new Error('Preview encoding unavailable');
                 const src = URL.createObjectURL(blob);
                 this.cache.set(time, src, blob.size);
-                if (this.wanted === time) { this.ready(time, src); break; }
+                if (this.wanted !== null) {
+                    const selected = this.cache.get(this.wanted);
+                    this.ready(selected ? this.wanted : time, selected || src);
+                }
+                if (this.wanted === time) break;
                 // A moving pointer skips obsolete positions; no parallel decoders.
             }
         } catch { if (!this.closed) this.fail(); }
