@@ -118,12 +118,12 @@ async function run() {
         fetchResumeItems: async () => [items[0], { ...items[0], id: 'missing', year: undefined }, filtered[0]],
         fetchResumeMovieYear: async () => { yearCalls++; return 2014; },
       };
-      if (name === '@/app/actions/auth' || name === '@/lib/server/auth') return { getInstalledAddons: async () => [] };
+      if (name === '@/app/actions/auth' || name === '@/lib/server/auth') return { getUser: async () => ({ _id: 'fixture-user' }), getInstalledAddons: async () => [] };
       if (name === '@/lib/home-catalogs') return { INITIAL_CATALOG_COUNT: 4, CATALOG_BATCH_SIZE: 2 };
       return new Proxy({}, { get: (_, key) => key });
     },
   }).default;
-  const page = Home();
+  const page = await Home();
   const find = (node, predicate) => {
     if (!node || typeof node !== 'object') return undefined;
     if (Array.isArray(node)) return node.map(item => find(item, predicate)).find(Boolean);

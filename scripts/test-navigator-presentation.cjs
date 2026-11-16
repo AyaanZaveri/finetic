@@ -293,8 +293,9 @@ const { EpisodeMetadataCard } = load('components/navigator/episode-metadata-card
     '@/lib/navigator-title-path': { navigatorTitlePath: () => '/api/navigator/title?id=tmdb:58957&type=series' },
     './result-card': { ResultCard: widget('catalog-card'), ResultMeta: widget('catalog-meta') },
 });
-const catalogCard = EpisodeMetadataCard({ catalog: { seriesId: 'tmdb:58957', seriesName: 'Nathan for You', year: 2013 } });
-assert.ok(catalogCard.props.image?.includes('id=tmdb%3A58957'), 'Show posters resolve directly from the show identity, including redirect destinations');
+const catalogPoster = 'https://image.tmdb.org/t/p/w500/show-poster.jpg';
+const catalogCard = EpisodeMetadataCard({ catalog: { seriesId: 'tmdb:58957', seriesName: 'Nathan for You', year: 2013, poster: catalogPoster } });
+assert.equal(catalogCard.props.image, catalogPoster, 'Show cards use the resolved poster carried by the catalog record');
 
 const sceneAction = { type: 'tool-skipToSubtitleContent', toolCallId: 'scene-progress-test', state: 'input-available', input: {} };
 const sceneProgress = (stage, state, detail) => ({ type: 'data-sceneProgress', id: `scene-${stage}`, data: { toolCallId: sceneAction.toolCallId, stage, state, detail } });
@@ -550,8 +551,9 @@ assert.equal(nativeEpisodeLink.pathname, '/api/navigator/title');
 assert.equal(nativeEpisodeLink.searchParams.get('id'), 'tmdb:114294');
 assert.equal(nativeEpisodeLink.searchParams.get('season'), '1');
 assert.equal(nativeEpisodeLink.searchParams.get('episode'), '1');
-const moviePlayback = PlayMediaCard({ result: { success: true, mediaId: 'tt0816692', mediaName: 'Interstellar', mediaType: 'Movie' } });
-assert.equal(new URL(moviePlayback.props.image, 'http://localhost').searchParams.get('kind'), 'poster');
+const moviePoster = 'https://image.tmdb.org/t/p/w500/interstellar.jpg';
+const moviePlayback = PlayMediaCard({ result: { success: true, mediaId: 'tt0816692', mediaName: 'Interstellar', mediaType: 'Movie', thumbnail: moviePoster } });
+assert.equal(moviePlayback.props.image, moviePoster, 'Playback cards retain the resolved public poster');
 assert.equal(moviePlayback.props.imageAspect, 'portrait');
 assert.equal(moviePlayback.props.href, '/movie/tt0816692');
 

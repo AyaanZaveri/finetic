@@ -44,6 +44,9 @@ async function main() {
         'movie/123/external_ids': { imdb_id: 'tt123' },
         'movie/30/external_ids': { imdb_id: null },
         'tv/20/external_ids': { imdb_id: 'tt20' },
+        'tv/20/images': { logos: [{ file_path: '/show-logo.png', iso_639_1: 'en' }] },
+        'movie/123/images': { logos: [{ file_path: '/movie-logo.png', iso_639_1: 'en' }] },
+        'movie/30/images': { logos: [] },
         'find/tt123': { movie_results: [movie], tv_results: [] },
         'find/tt20': { movie_results: [], tv_results: [show] },
         'movie/123': { ...movie, runtime: 120, external_ids: { imdb_id: 'tt123' }, genres: [{ id: 1, name: 'Drama' }], credits: { cast: [{ ...person, character: 'Lead' }], crew: [{ ...person, job: 'Director' }] } },
@@ -80,6 +83,7 @@ async function main() {
     const streamCalls = [];
     const load = loader(globals, {
         ai: await import('ai'), zod: await import('zod'),
+        'next/cache': { unstable_cache: fn => fn },
         'node:fs': { promises: { readFile: async () => { throw new Error('No test cache'); }, writeFile: async () => {} } },
         '@/app/actions/media': {
             getStreamAddonTargets: async () => [{ id: 'test-addon', name: 'Test', transportUrl: 'https://addon.test/manifest.json' }],
@@ -137,7 +141,8 @@ async function main() {
     assert.equal(nativeShow.videos, undefined, 'Title metadata cannot wait for every season');
     assert.equal(nativeShow.seasons.length, 2);
     assert.equal(nativeShow.seasons[0].number, 0);
-    assert.equal(requests.length - beforeOverview, 1, 'Opening a TMDB show needs only its title request');
+    assert.equal(requests.length - beforeOverview, 2, 'Opening a TMDB show fetches its title and direct logo artwork');
+    assert.equal(nativeShow.logo, 'https://image.tmdb.org/t/p/original/show-logo.png');
     const seasons = await tmdb.getTMDBSeasons('tmdb:20');
     assert.equal(seasons[1].id, 'tmdb:20:1');
     const episodes = await tmdb.getTMDBEpisodes('tmdb:20', 1);
