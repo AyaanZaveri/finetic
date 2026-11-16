@@ -96,6 +96,11 @@ impl Player {
         emit: impl Fn(Value) + Send + Sync + 'static,
         colour: impl Fn(Option<String>, Option<String>) + Send + 'static,
     ) -> Result<Self, String> {
+        // Read once per player. Direct mode keeps the original URL and headers
+        // for both mpv and the separate preview decoder, without a local relay.
+        let source_setting = std::env::var("NAVIGATOR_PLAYBACK_SOURCE").ok();
+        let source_mode = crate::media_cache::PlaybackSourceMode::from_setting(source_setting.as_deref());
+        log::debug!("playback source mode: {source_mode:?}");
         // Text cues are drawn by React. Bitmap track selection enables native drawing.
         mpv.set_property("sub-visibility", "no")?;
         let emit = Arc::new(emit);
@@ -159,7 +164,7 @@ impl Player {
                             // Keep the previous reader alive until mpv has stopped that
                             // file; closing it before loadfile can truncate a packet.
                             if let Some(previous) = media_source.take() { retired_media.push(previous); }
-                            media_source = crate::media_cache::MediaSource::new(&url, &headers);
+                            media_source = crate::media_cache::MediaSource::for_playback(&url, &headers, source_mode);
                             let playback_url = media_source.as_ref().map_or_else(|| url.clone(), |source| source.playback_url());
                             let preview_url = media_source.as_ref().map_or_else(|| url.clone(), |source| source.preview_url());
                             let preview_headers = if media_source.is_some() { BTreeMap::new() } else { headers.clone() };

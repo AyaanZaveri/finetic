@@ -18,6 +18,22 @@ const MAX_PIECES: usize = 4096;
 const PREVIEW_WAIT: Duration = Duration::from_millis(150);
 
 type Headers = BTreeMap<String, String>;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PlaybackSourceMode {
+    SharedCache,
+    Direct,
+}
+
+impl PlaybackSourceMode {
+    pub fn from_setting(value: Option<&str>) -> Self {
+        match value {
+            Some("direct") => Self::Direct,
+            _ => Self::SharedCache,
+        }
+    }
+}
+
 fn invalid() -> io::Error {
     io::Error::other("Local media source unavailable")
 }
@@ -243,6 +259,17 @@ pub struct MediaSource {
     worker: Option<JoinHandle<()>>,
 }
 impl MediaSource {
+    pub fn for_playback(
+        original: &str,
+        headers: &Headers,
+        mode: PlaybackSourceMode,
+    ) -> Option<Self> {
+        match mode {
+            PlaybackSourceMode::Direct => None,
+            PlaybackSourceMode::SharedCache => Self::new(original, headers),
+        }
+    }
+
     pub fn new(original: &str, headers: &Headers) -> Option<Self> {
         let url = url::Url::parse(original).ok()?;
         if !matches!(url.scheme(), "http" | "https")
@@ -819,6 +846,23 @@ fn serve(
 pub(crate) mod tests {
     use super::*;
     use std::sync::atomic::AtomicU64;
+
+    #[test]
+    fn playback_source_mode_bypasses_relay_only_when_requested() {
+        for setting in [None, Some("shared-cache"), Some("invalid")] {
+            assert_eq!(PlaybackSourceMode::from_setting(setting), PlaybackSourceMode::SharedCache);
+        }
+        let url = "https://fixture.invalid/video.mkv";
+        let headers = Headers::from([("Authorization".into(), "Bearer fixture".into())]);
+        let direct = PlaybackSourceMode::from_setting(Some("direct"));
+        assert_eq!(direct, PlaybackSourceMode::Direct);
+        assert!(MediaSource::for_playback(url, &headers, direct).is_none());
+        let cached =
+            MediaSource::for_playback(url, &headers, PlaybackSourceMode::SharedCache).unwrap();
+        assert!(cached.playback_url().starts_with("http://127.0.0.1:"));
+        assert_eq!(cached.shared.original, url);
+        assert_eq!(cached.shared.headers, headers);
+    }
 
     /// Deterministic origin with counters, auth, ranges and failure modes.
     pub(crate) struct Origin {

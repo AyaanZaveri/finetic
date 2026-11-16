@@ -314,6 +314,26 @@ Native library lookup order: `NAVIGATOR_LIBMPV`/`--libmpv`, packaged
 `resources/lib`, `desktop/vendor/<os>-<arch>`, then standard system locations.
 OS/architecture folder names use Rust's names (`macos-aarch64`, `windows-x86_64`).
 
+For a manual stream startup comparison on macOS or Windows, set
+`NAVIGATOR_PLAYBACK_SOURCE=direct` in the native app's environment before launch.
+mpv then opens the supplied URL with the original request headers. The preview
+decoder also reads the original URL. Decoded preview images remain cached, but
+playback and previews no longer share downloaded bytes. Set the value to
+`shared-cache`, or unset it, to restore the existing shared byte cache. Restart
+the native app after changing the value. Other values retain the existing mode.
+
+On macOS, launch a newly compiled app executable from a terminal with
+`NAVIGATOR_PLAYBACK_SOURCE=direct /path/to/Navigator.app/Contents/MacOS/navigator-desktop`.
+On Windows PowerShell, set `$env:NAVIGATOR_PLAYBACK_SOURCE = 'direct'` before
+launching the newly compiled EXE from that shell. This switch requires a binary
+that includes this change. It does not change an already installed release.
+
+Compare the same manually selected stream and resume position. This switch
+bypasses the Rust byte relay only. A supplied URL from the separate optional
+next-episode preload endpoint still uses that endpoint, so use a manually
+selected original stream for the comparison. No startup speed improvement has
+been measured yet.
+
 Only one native instance may use a profile. Cookies and web storage are kept in
 the platform's local data directory under `Navigator Desktop/webview`.
 Restarting with a different server origin starts that origin's own session.
