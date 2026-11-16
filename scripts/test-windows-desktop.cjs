@@ -4,7 +4,7 @@ const vm = require("node:vm");
 const ts = require("typescript");
 const crypto = require("node:crypto");
 function load(file, extra = {}) {
-  const context = { exports: {}, require: name => ["@/lib/media/audio-language", "@/lib/media/playback-preferences"].includes(name) ? load(name.slice(2)+".ts") : require(name), Event, EventTarget, CustomEvent, DOMException, URL, crypto, setTimeout, clearTimeout, ...extra };
+  const context = { exports: {}, require: name => name === './preview-images' ? require('./test-support/react-hooks.cjs').load('lib/desktop/preview-images.ts', {}, { URL }) : ["@/lib/media/audio-language", "@/lib/media/playback-preferences"].includes(name) ? load(name.slice(2)+".ts") : require(name), Event, EventTarget, CustomEvent, DOMException, URL, crypto, setTimeout, clearTimeout, ...extra };
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(file, "utf8"), {
     fileName: file, compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   }).outputText, context);

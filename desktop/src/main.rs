@@ -21,6 +21,7 @@ mod tao_shell;
 #[cfg(target_os = "macos")]
 mod macos_updater;
 mod thumbnails;
+mod thumbnail_images;
 #[cfg(any(windows, test))]
 mod window_state;
 #[cfg(windows)]

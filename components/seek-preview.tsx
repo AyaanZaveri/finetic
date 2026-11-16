@@ -87,8 +87,10 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
         if (!nativeFrames || !native) return;
         const receive = (event: Event) => {
             const { position, src } = (event as CustomEvent<{ position: number; src: string }>).detail;
-            cache.current.set(position, src);
-            if (wanted.current === position) setFrame({ time: position, src, video: false, unavailable: false });
+            const at = wanted.current;
+            if (at !== null && (at === position || native.cachedPreview(at) === src)) {
+                setFrame({ time: at, src, video: false, unavailable: false });
+            }
         };
         native.addEventListener("previewframe", receive);
         return () => native.removeEventListener("previewframe", receive);
@@ -144,7 +146,7 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
             scheduler.current.want(bucket, (at) => browser.current?.want(at));
             return;
         }
-        const cached = cache.current.get(bucket);
+        const cached = native?.cachedPreview(bucket) || cache.current.get(bucket);
         if (cached) {
             scheduler.current.cancel();
             native?.cancelPreview();
@@ -157,7 +159,7 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
             native?.preview(at).then((src) => {
                 if (generation !== ticket.current) return;
                 if (src) {
-                    cache.current.set(at, src);
+                    if (!nativeFrames) cache.current.set(at, src);
                     setFrame({ time: at, src, video: false, unavailable: false });
                 } else {
                     // HLS or an unsupported container can still use the WebView decoder.
@@ -173,8 +175,8 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
     // gesture's settle timer is pending. Never debounce an existing thumbnail.
     const displaySrc = displayBucket === null ? undefined
         : native?.cachedPreview(displayBucket) || cache.current.get(displayBucket) || range.current?.cache.get(displayBucket) || browser.current?.cache.get(displayBucket);
-    const image = displaySrc || (frame.time === displayBucket ? frame.src : null);
-    const ready = !!image || (frame.time === displayBucket && frame.video);
+    const image = displaySrc || ((active || frame.time === displayBucket) ? frame.src : null);
+    const ready = !!displaySrc || (frame.time === displayBucket && !!(frame.src || frame.video));
     const unavailable = frame.time === displayBucket && frame.unavailable;
     return (
         <div data-slot="media-player-seek-thumbnail" data-native-preview-provider={nativeFrames ? window.navigatorDesktop?.platform : undefined} aria-busy={active && !ready && !unavailable} className="relative w-56 overflow-hidden rounded-lg" style={image ? undefined : { aspectRatio: videoRatio }}>
@@ -195,8 +197,8 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
                     className={`pointer-events-none absolute inset-0 size-full object-contain ${ready && frame.video ? "opacity-100" : "opacity-0"}`}
                 />
             ))}
-            {image && <PreviewImage src={image} />}
-            {!ready && !unavailable && <Skeleton className="absolute inset-0 size-full rounded-none bg-white/10" />}
+            {image && <PreviewImage src={image} pending={!ready} />}
+            {!image && !ready && !unavailable && <Skeleton className="absolute inset-0 size-full rounded-none bg-white/10" />}
             {unavailable && <div className="absolute inset-0 flex items-center justify-center text-xs text-white/60">Preview unavailable</div>}
         </div>
     );

@@ -599,7 +599,7 @@ mod tests {
             if v["type"] == "thumbnail" { assert!(ready.get(), "Indexing must not precede the first ready frame"); }
             v["type"] == "thumbnail" && v["request"] == 1
         });
-        assert!(first["src"].as_str().is_some_and(|src| src.starts_with("data:image/jpeg;base64,")));
+        assert!(first["src"].as_str().is_some_and(|src| src.starts_with("http://127.0.0.1:") || src.starts_with("data:image/jpeg;base64,")));
         assert_eq!(first["range"]["start"], first["position"]);
         assert!(first["range"]["end"].as_f64().unwrap() > 0.5);
         player.send(Command::Thumbnail { session: "preview".into(), request: 2, position: Some(0.7) });
@@ -627,10 +627,10 @@ mod tests {
         wait_for(&inbox, |v| v["type"] == "ready" && v["session"] == "shared");
         player.send(Command::Thumbnail { session: "shared".into(), request: 1, position: Some(0.5) });
         let first = wait_for(&inbox, |v| v["type"] == "thumbnail" && v["request"] == 1);
-        assert!(first["src"].as_str().is_some_and(|src| src.starts_with("data:image/jpeg;base64,")));
+        assert!(first["src"].as_str().is_some_and(|src| src.starts_with("http://127.0.0.1:") || src.starts_with("data:image/jpeg;base64,")));
         player.send(Command::Thumbnail { session: "shared".into(), request: 2, position: Some(4.5) });
         let second = wait_for(&inbox, |v| v["type"] == "thumbnail" && v["request"] == 2);
-        assert!(second["src"].as_str().is_some_and(|src| src.starts_with("data:image/jpeg;base64,")));
+        assert!(second["src"].as_str().is_some_and(|src| src.starts_with("http://127.0.0.1:") || src.starts_with("data:image/jpeg;base64,")));
         assert_ne!(second["position"], first["position"], "Exercise a new keyframe, not JPEG reuse");
         println!("Shared cache: {} origin requests, {} bytes for {} byte video", origin.requests.load(Ordering::SeqCst), origin.transferred.load(Ordering::SeqCst), size);
         assert_eq!(origin.transferred.load(Ordering::SeqCst), size as u64, "Playback, indexing and two NEW preview frames must share a single download");

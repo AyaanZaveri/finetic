@@ -4,6 +4,7 @@ const vm = require("node:vm");
 const crypto = require("node:crypto");
 const ts = require("typescript");
 function languageRequire(name) {
+    if (name === './preview-images') return require('./test-support/react-hooks.cjs').load('lib/desktop/preview-images.ts', {}, { URL });
     if (!['@/lib/media/audio-language', '@/lib/media/playback-preferences'].includes(name)) return require(name);
     const context = { exports: {}, require: languageRequire };
     vm.runInNewContext(ts.transpileModule(fs.readFileSync(name.slice(2)+'.ts', 'utf8'), {

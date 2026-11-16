@@ -118,7 +118,8 @@ assert.equal(nativeNode.props.time,30.3,'Native requests follow the current fing
 // lookup while the gesture's request policy is inactive.
 hooks.length = 0; timers.clear(); effects.length = 0;
 const listeners = new Map();
-const controller = { cachedPreview() {}, addEventListener: (type, fn) => listeners.set(type,fn), removeEventListener() {}, cancelPreview() {} };
+const nativeCache = new Map();
+const controller = { cachedPreview(at) { return nativeCache.get(at); }, addEventListener: (type, fn) => listeners.set(type,fn), removeEventListener() {}, cancelPreview() {} };
 const nativeMedia = { controller };
 let at = 10, requesting = true;
 function renderSource() {
@@ -132,14 +133,17 @@ function renderSource() {
   return node;
 }
 const image = node => node.props.children.find(child => child?.props?.src?.startsWith('data:image/jpeg'));
-const deliver = (position, src) => listeners.get('previewframe')({detail:{position, src}});
+const deliver = (position, src) => { nativeCache.set(position,src); listeners.get('previewframe')({detail:{position, src}}); };
 renderSource(); deliver(10, 'data:image/jpeg;base64,TEN');
 assert.equal(image(renderSource()).props.src, 'data:image/jpeg;base64,TEN');
 deliver(2, 'data:image/jpeg;base64,OLD');
 assert.equal(image(renderSource()).props.src, 'data:image/jpeg;base64,TEN', 'A late frame cannot replace the current correct thumbnail');
 at = 20;
-assert.equal(image(renderSource()), undefined, 'Never label an old scene with the new target time');
+const updating = renderSource();
+assert.equal(image(updating).props.src, 'data:image/jpeg;base64,TEN', 'Keep the previous image while fetching the new scene');
+assert.equal(image(updating).props.pending, true, 'An old scene must be explicitly marked as updating');
+assert.equal(updating.props['aria-busy'], true);
 deliver(20, 'data:image/jpeg;base64,TWENTY'); renderSource();
 at = 10; requesting = false;
 assert.equal(image(renderSource()).props.src, 'data:image/jpeg;base64,TEN', 'Returning to a decoded point displays immediately without waiting for settle or a bridge request');
-console.log('PASS: precise displayed timestamps, late-frame rejection, and synchronous cached preview reuse');
+console.log('PASS: pending preview retention, late-frame isolation, and synchronous cached preview reuse');

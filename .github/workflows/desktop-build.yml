@@ -51,6 +51,10 @@ jobs:
       - name: Check desktop and update behavior
         run: |
           node scripts/test-desktop.cjs
+          node scripts/test-native-preview-cache.cjs
+          node scripts/test-preview-images.cjs
+          node scripts/test-preview-crop-worker.cjs
+          node scripts/test-surface-scrub.cjs
           node scripts/test-windows-install.cjs
           node scripts/test-windows-install-readiness.cjs
           npm run test:app-updates
@@ -103,6 +107,10 @@ jobs:
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
           node scripts/test-desktop.cjs
+          node scripts/test-native-preview-cache.cjs
+          node scripts/test-preview-images.cjs
+          node scripts/test-preview-crop-worker.cjs
+          node scripts/test-surface-scrub.cjs
           node scripts/test-windows-install.cjs
           node scripts/test-windows-install-readiness.cjs
           npm run test:app-updates

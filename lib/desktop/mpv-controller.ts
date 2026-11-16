@@ -1,6 +1,7 @@
 import { readPlaybackPreferences } from "@/lib/media/playback-preferences";
 import { preferredAudioTrack } from "@/lib/media/audio-language";
 import type { DesktopBridge, NativeMessage, NativeState, NativeTrack } from "./bridge";
+import { nativePreviewUrl, PreviewImages } from "./preview-images";
 
 function ranges(end: number, cached?: { start: number; end: number }[]): TimeRanges {
   const values = cached === undefined ? (Number.isFinite(end) && end > 0 ? [{ start: 0, end }] : [])
@@ -49,6 +50,11 @@ export class MpvController extends EventTarget {
   private previewAliases = new Map<number, number>();
   private previewRanges = new Map<number, number>();
   private decodedPreviews = new Map<number, HTMLImageElement>();
+  private previewImages = new PreviewImages(url => {
+    for (const [at, src] of this.previewFrames) if (src === url) {
+      this.previewFrames.delete(at); this.previewRanges.delete(at); this.decodedPreviews.delete(at);
+    }
+  });
   cachedPreview(position: number) {
     let key = this.previewFrames.has(position) ? position : this.previewAliases.get(position);
     if (key === undefined || !this.previewFrames.has(key)) {
@@ -59,7 +65,7 @@ export class MpvController extends EventTarget {
     }
     if (key === undefined) return;
     const src = this.previewFrames.get(key);
-    if (src) { this.previewFrames.delete(key); this.previewFrames.set(key, src); }
+    if (src) { this.previewFrames.delete(key); this.previewFrames.set(key, src); this.previewImages.touch(src); }
     return src;
   }
   private rememberPreview(position: number, src: string, range?: { start: number; end: number } | null) {
@@ -139,6 +145,7 @@ export class MpvController extends EventTarget {
 
   load(url: string, headers?: Record<string, string>, startPosition = 0) {
     this.cancelPreview();
+    this.previewImages.clear();
     if (this.disposed) return;
     this.pending.clear();
     if (this.session) this.bridge.send({ type: "stop", session: this.session });
@@ -201,7 +208,12 @@ export class MpvController extends EventTarget {
       if (this.previewPending) this.cancelPreview();
       return Promise.resolve(cached);
     }
-    this.cancelPreview();
+    // Supersede the waiter, without cancelling useful native work between asks.
+    if (this.previewPending) {
+      clearTimeout(this.previewPending.timer);
+      this.previewPending.resolve(null);
+      this.previewPending = undefined;
+    }
     if (this.disposed || !this.session || !Number.isFinite(position) || position < 0) return Promise.resolve(null);
     const id = ++this.previewId;
     this.previewActive = true;
@@ -225,6 +237,7 @@ export class MpvController extends EventTarget {
   }
   dispose() {
     this.cancelPreview();
+    this.previewImages.clear();
     if (this.disposed) return;
     this.disposed = true;
     this.pending.clear();
@@ -254,26 +267,38 @@ export class MpvController extends EventTarget {
         this.fire("chapterschange");
         break;
       case "thumbnail-frame":
-        if (!Number.isFinite(message.position) || message.position < 0 || !message.src?.startsWith("data:image/jpeg;base64,")) break;
-        this.rememberPreview(message.position, message.src);
-        this.dispatchEvent(new CustomEvent("previewframe", { detail: { position: message.position, src: message.src } }));
-        break;
-      case "thumbnail":
-        if (this.previewPending?.id === message.request) {
+      case "thumbnail": {
+        if (nativePreviewUrl(message.src)) {
+          const session = this.session;
+          void this.previewImages.get(message.src!).then(src => {
+            if (this.session !== session || this.disposed) return;
+            if (message.type === "thumbnail" || src) this.receive({ ...message, src } as NativeMessage);
+          });
+          break;
+        }
+        const src = message.src && (message.src.startsWith("data:image/jpeg;base64,") || this.previewImages.has(message.src)) ? message.src : null;
+        const position = message.position;
+        const valid = src && position !== null && Number.isFinite(position) && position >= 0;
+        if (valid) this.rememberPreview(position, src, message.range);
+        const waiting = this.previewPending;
+        // A late result can also answer a newer ask in the same keyframe interval.
+        if (waiting && ((message.type === "thumbnail" && waiting.id === message.request)
+          || (valid && this.cachedPreview(waiting.position) === src))) {
           const pending = this.previewPending;
+          if (!pending) break;
           clearTimeout(pending.timer);
           this.previewPending = undefined;
           this.previewActive = false;
-          const src = message.src?.startsWith("data:image/jpeg;base64,") ? message.src : null;
-          if (src && message.position !== null && Number.isFinite(message.position) && message.position >= 0) {
-            this.rememberPreview(message.position, src, message.range);
+          if (valid) {
             this.previewAliases.delete(pending.position);
-            this.previewAliases.set(pending.position, message.position);
+            this.previewAliases.set(pending.position, position);
             while (this.previewAliases.size > 256) this.previewAliases.delete(this.previewAliases.keys().next().value!);
           }
           pending.resolve(src);
         }
+        if (valid) this.dispatchEvent(new CustomEvent("previewframe", { detail: { position, src, range: message.range } }));
         break;
+      }
       case "state": {
         const previous = this.state;
         const confirmingPlay = this.pending.get("paused")?.value === false && message.state.paused === false;

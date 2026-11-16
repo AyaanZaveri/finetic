@@ -26,6 +26,7 @@ struct Shared {
     state: Mutex<State>,
     session: String,
     emit: Emit,
+    images: Option<crate::thumbnail_images::ImageServer>,
 }
 
 /// Dropping a source cancels publication, even if a bounded HTTP read is finishing.
@@ -39,9 +40,17 @@ impl Previews {
         headers: BTreeMap<String, String>,
         emit: Emit,
     ) -> Self {
+        let mut token = [0_u8; 16];
+        let images = getrandom::getrandom(&mut token).ok().and_then(|_| {
+            crate::thumbnail_images::ImageServer::start(
+                token.iter().map(|b| format!("{b:02x}")).collect(),
+            )
+            .ok()
+        });
         let shared = Arc::new(Shared {
             session,
             emit,
+            images,
             state: Mutex::new(State {
                 decoder: None,
                 wanted: None,
@@ -65,7 +74,10 @@ impl Previews {
                 let settings = Settings {
                     width: 448,
                     quality: 72,
-                    cache: 96,
+                    // The image server owns the 256-entry, 16 MiB cache. Keep
+                    // a few working JPEGs in the decoder so late fetches cannot
+                    // evict its current frame and trigger a duplicate download.
+                    cache: if opened.images.is_some() { 4 } else { 96 },
                     workers: 2,
                     fetches: 2,
                     ..Settings::default()
@@ -82,10 +94,10 @@ impl Previews {
                     Ok(decoder) => state.decoder = Some(decoder),
                     Err(_) => state.unavailable = true,
                 }
-                let result = answer(&mut state);
+                let result = answer(&mut state, &opened);
                 drop(state);
                 if let Some((request, image)) = result {
-                    send(&opened, request, image);
+                    send(&opened, Some(request), image);
                 }
             });
         Self { shared }
@@ -101,64 +113,88 @@ impl Previews {
             position: (seconds * 1000.0) as u64,
         });
         state.expected = None;
-        let result = answer(&mut state);
+        let result = answer(&mut state, &self.shared);
         drop(state);
         if let Some((request, image)) = result {
-            send(&self.shared, request, image);
+            send(&self.shared, Some(request), image);
         }
     }
 }
-fn answer(state: &mut State) -> Option<(Request, Option<Arc<Thumbnail>>)> {
+type Picture = (u64, String);
+fn picture(shared: &Shared, image: &Thumbnail) -> Picture {
+    let src = shared
+        .images
+        .as_ref()
+        .and_then(|images| {
+            images
+                .cached(image.time_ms)
+                .or_else(|| images.insert(image.time_ms, &image.jpeg))
+        })
+        .unwrap_or_else(|| format!("data:image/jpeg;base64,{}", STANDARD.encode(&image.jpeg)));
+    (image.time_ms, src)
+}
+fn answer(state: &mut State, shared: &Shared) -> Option<(Request, Option<Picture>)> {
     let wanted = state.wanted?;
     if state.unavailable {
         return Some((wanted, None));
     }
     let decoder = state.decoder.as_ref()?;
     let index = decoder.keyframes().at(wanted.position);
-    state.expected = Some(decoder.keyframes().entries.get(index)?.time_ms);
+    let time = decoder.keyframes().entries.get(index)?.time_ms;
+    state.expected = Some(time);
+    if let Some(src) = shared
+        .images
+        .as_ref()
+        .and_then(|images| images.cached(time))
+    {
+        return Some((wanted, Some((time, src))));
+    }
     decoder
         .want(wanted.position, None)
-        .map(|image| (wanted, Some(image)))
+        .map(|image| (wanted, Some(picture(shared, &image))))
 }
 fn publish(weak: &Weak<Shared>, image: Arc<Thumbnail>) {
     let Some(shared) = weak.upgrade() else {
         return;
     };
-    let request = {
+    let (wanted, current) = {
         let state = shared.state.lock().unwrap();
-        if state.closed || state.expected != Some(image.time_ms) {
+        if state.closed {
             return;
         }
-        state.wanted
+        (state.wanted, state.expected == Some(image.time_ms))
     };
-    if let Some(request) = request {
-        send(&shared, request, Some(image));
+    // Retain useful completed work even when the pointer has moved on.
+    let image = picture(&shared, &image);
+    if let Some(wanted) = wanted {
+        send(&shared, current.then_some(wanted), Some(image));
     }
 }
-fn send(shared: &Shared, request: Request, image: Option<Arc<Thumbnail>>) {
-    // The same keyframe serves this half-open interval. Tell the UI the exact
-    // bounds so nearby hovers can reuse it without crossing the bridge again.
-    let range = image.as_ref().and_then(|image| {
+fn send(shared: &Shared, request: Option<Request>, image: Option<Picture>) {
+    let range = image.as_ref().and_then(|(time, _)| {
         let state = shared.state.lock().unwrap();
         let keys = state.decoder.as_ref()?.keyframes();
-        let index = keys.at(request.position);
+        let index = keys.at(*time);
         let start = keys.entries.get(index)?.time_ms;
-        let end = keys.entries.get(index + 1).map_or(keys.duration_ms, |entry| entry.time_ms);
-        (image.time_ms == start && end > start).then(|| json!({"start": start as f64 / 1000.0, "end": end as f64 / 1000.0}))
+        let end = keys
+            .entries
+            .get(index + 1)
+            .map_or(keys.duration_ms, |entry| entry.time_ms);
+        (*time == start && end > start)
+            .then(|| json!({"start": start as f64 / 1000.0, "end": end as f64 / 1000.0}))
     });
-    // Images are small JPEGs; only the active playback session may request them.
-    let (src, at) = image.map_or((None, None), |image| {
-        (
-            Some(format!(
-                "data:image/jpeg;base64,{}",
-                STANDARD.encode(&image.jpeg)
-            )),
-            Some(image.time_ms as f64 / 1000.0),
-        )
+    let (at, src) = image.map_or((None, None), |(time, src)| {
+        (Some(time as f64 / 1000.0), Some(src))
     });
-    (shared.emit)(
-        json!({"type":"thumbnail", "session":shared.session, "request":request.id, "src":src, "position":at, "range":range}),
-    );
+    if let Some(request) = request {
+        (shared.emit)(
+            json!({"type":"thumbnail", "session":shared.session, "request":request.id, "src":src, "position":at, "range":range}),
+        );
+    } else {
+        (shared.emit)(
+            json!({"type":"thumbnail-frame", "session":shared.session, "src":src, "position":at, "range":range}),
+        );
+    }
 }
 impl Drop for Previews {
     fn drop(&mut self) {
@@ -205,9 +241,16 @@ mod tests {
                 }
             };
             let src = first["src"].as_str().expect("Preview must contain a JPEG");
-            let bytes = STANDARD
-                .decode(src.strip_prefix("data:image/jpeg;base64,").unwrap())
-                .unwrap();
+            let bytes = if let Some(data) = src.strip_prefix("data:image/jpeg;base64,") {
+                STANDARD.decode(data).unwrap()
+            } else {
+                ureq::get(src)
+                    .call()
+                    .unwrap()
+                    .body_mut()
+                    .read_to_vec()
+                    .unwrap()
+            };
             assert!(
                 bytes.starts_with(&[0xff, 0xd8, 0xff]),
                 "Native preview must be a real encoded JPEG"

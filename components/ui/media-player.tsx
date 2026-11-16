@@ -2551,7 +2551,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
                     {thumbnail.coords ? (
                       <div className="absolute top-0 left-0" style={spriteStyle} />
                     ) : (
-                      <PreviewImage src={thumbnail.src} alt={`Preview at ${hoverTime}`} />
+                      <PreviewImage key={previewSource} src={thumbnail.src} alt={`Preview at ${hoverTime}`} />
                     )}
                   </div>
                 )}

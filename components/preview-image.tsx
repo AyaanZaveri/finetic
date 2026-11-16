@@ -1,50 +1,51 @@
 "use client";
 
-import { useState } from "react";
-import { previewContentBounds } from "@/lib/media/preview-content";
+import { useEffect, useState } from "react";
+import { previewCrop } from "@/lib/media/preview-crop-client";
 
 type Crop = { source: string; ratio: number; left: number; top: number; width: number; height: number };
-
-// Revisited thumbnails should not run canvas readback/content analysis again.
 const crops = new Map<string, Crop>();
 
-/** Preserve the content's aspect ratio, including letterbox bands encoded in the frame. */
-export function PreviewImage({ src, alt = "" }: { src: string; alt?: string }) {
-    const [crop, setCrop] = useState<Crop | null>(null);
-    // Retain the last ratio while the next frame loads to avoid a 16:9 flash.
-    const current = crop?.source === src ? crop : crops.get(src) ?? null;
+/** Decode replacements before swapping; analyze letterbox bands off the UI thread. */
+export function PreviewImage({ src, alt = "", pending = false }: { src: string; alt?: string; pending?: boolean }) {
+    const [current, setCurrent] = useState<Crop | null>(null);
+    useEffect(() => {
+        const controller = new AbortController();
+        const image = new Image();
+        const analysis = crops.has(src) ? Promise.resolve(null) : previewCrop(src, controller.signal);
+        image.src = src;
+        let visible = false;
+        let prepared = crops.get(src);
+        const present = () => {
+            if (controller.signal.aborted || !image.naturalWidth || !image.naturalHeight) return;
+            visible = true;
+            setCurrent(prepared || { source: src, ratio: image.naturalWidth / image.naturalHeight, left: 0, top: 0, width: 100, height: 100 });
+        };
+        // Keep the previous image until its replacement is decoded. Crop work
+        // runs independently and cannot hold an otherwise ready frame hidden.
+        if (image.decode) void image.decode().then(present).catch(() => {});
+        else { image.onload = present; if (image.complete) present(); }
+        void analysis.then(result => {
+            if (!result || controller.signal.aborted) return;
+            const { bounds, width, height } = result;
+            prepared = { source: src, ratio: bounds.width / bounds.height,
+                left: -bounds.x / bounds.width * 100, top: -bounds.y / bounds.height * 100,
+                width: width / bounds.width * 100, height: height / bounds.height * 100 };
+            crops.set(src, prepared);
+            while (crops.size > 256) crops.delete(crops.keys().next().value!);
+            if (visible) setCurrent(prepared);
+        });
+        return () => { controller.abort(); image.onload = null; image.removeAttribute("src"); };
+    }, [src]);
     return (
-        <div className="relative w-56 overflow-hidden rounded-lg" style={{ aspectRatio: current?.ratio ?? crop?.ratio ?? 16 / 9 }}>
+        <div aria-busy={pending || current?.source !== src} className="relative w-56 overflow-hidden rounded-lg" style={{ aspectRatio: current?.ratio ?? 16 / 9 }}>
             <img
-                src={src} alt={alt} draggable={false} decoding="sync"
+                src={current?.source} alt={pending || (current && current.source !== src) ? "Previous preview" : alt} draggable={false} decoding="async"
                 className="absolute max-w-none"
                 style={{ left: `${current?.left ?? 0}%`, top: `${current?.top ?? 0}%`, width: `${current?.width ?? 100}%`, height: `${current?.height ?? 100}%`, visibility: current ? "visible" : "hidden" }}
-                onLoad={event => {
-                    const cached = crops.get(src);
-                    if (cached) { setCrop(cached); return; }
-                    const image = event.currentTarget;
-                    const width = image.naturalWidth, height = image.naturalHeight;
-                    if (!width || !height) return;
-                    let next: Crop = { source: src, ratio: width / height, left: 0, top: 0, width: 100, height: 100 };
-                    try {
-                        const canvas = document.createElement("canvas");
-                        const scale = Math.min(448 / width, 1);
-                        canvas.width = Math.max(1, Math.round(width * scale));
-                        canvas.height = Math.max(1, Math.round(height * scale));
-                        const context = canvas.getContext("2d", { willReadFrequently: true });
-                        if (context) {
-                            context.drawImage(image, 0, 0, canvas.width, canvas.height);
-                            const bounds = previewContentBounds(context.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height);
-                            next = { source: src, ratio: bounds.width / bounds.height,
-                                left: -bounds.x / bounds.width * 100, top: -bounds.y / bounds.height * 100,
-                                width: canvas.width / bounds.width * 100, height: canvas.height / bounds.height * 100 };
-                        }
-                    } catch { /* Cross-origin frames still retain their intrinsic aspect ratio. */ }
-                    crops.set(src, next);
-                    while (crops.size > 256) crops.delete(crops.keys().next().value!);
-                    setCrop(next);
-                }}
             />
+            {!current && <div className="absolute inset-0 bg-white/10" />}
+            {(pending || (current && current.source !== src)) && <span className="absolute inset-x-0 bottom-0 bg-black/60 px-2 py-1 text-center text-[10px] text-white">Updating preview…</span>}
         </div>
     );
 }

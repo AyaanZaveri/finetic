@@ -482,11 +482,18 @@ enables on-demand extraction when a stream supplies no storyboard.
 
 - Desktop preloads the file index after playback loads, then uses the pinned
   AIOStreams/media library to read selected keyframes with HTTP ranges. It keeps
-  96 JPEGs, decodes with two background workers, and fetches at most two frames
-  concurrently. It never seeks the playback decoder. Stream request headers are
-  reused; the page can request only its current session's thumbnail, not an
-  arbitrary URL or file. Responses are checked against the latest keyframe and
-  request before publication.
+  up to 256 JPEGs within a 16 MiB memory budget, decodes with two background
+  workers, and fetches at most two frames concurrently. It never seeks the
+  playback decoder. Stream request headers are reused. A session-scoped,
+  token-protected loopback endpoint serves generated JPEGs from memory. It
+  cannot open media URLs or files. The page retains bounded Blob copies so
+  native eviction cannot break an image it has cached. Older runtimes and an
+  unavailable local image endpoint retain base64 compatibility.
+  Useful late frames populate the cache. A frame can answer any current request
+  inside its keyframe interval, while results from replaced sessions are ignored.
+  The previous picture stays visible with an updating label until the next
+  picture is ready. Replacement images decode before display. Black-bar analysis
+  runs in an optional worker and never blocks showing an otherwise ready image.
 - Web uses a separate muted HTML video decoder (Mux/MSE for manifest streams),
   preloads metadata, uses `fastSeek` where supported, and captures small sRGB
   JPEGs into a 96-frame LRU. Late seek errors cannot overwrite cached frames;
