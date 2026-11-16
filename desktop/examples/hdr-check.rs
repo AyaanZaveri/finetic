@@ -29,6 +29,9 @@ mod render;
 #[cfg(target_os = "macos")]
 #[path = "../src/thumbnails.rs"]
 mod thumbnails;
+#[cfg(target_os = "macos")]
+#[path = "../src/thumbnail_images.rs"]
+mod thumbnail_images;
 
 #[cfg(not(target_os = "macos"))]
 fn main() {
