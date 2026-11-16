@@ -26,3 +26,7 @@ Extract the app ZIP and move Navigator to Applications. Navigator 0.5.3 and late
 
 This build uses an ad hoc signature and is not notarized by Apple. macOS may require approval before you can open it. In-app updates use cryptographic signatures to verify downloads.
 
+### Checks completed
+
+Wake-lock lifecycle, preview, artwork, desktop, and updater regression checks passed. Windows and macOS Rust tests, TypeScript checks, and frontend and native production builds passed. Packaged versions, archive integrity, checksums, and both platform update signatures were verified.
+

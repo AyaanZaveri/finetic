@@ -4,7 +4,7 @@
     <title>Navigator for macOS</title>
     <language>en</language>
     <item>
-      <title>Navigator 0.5.11</title>
+      <title>Navigator 0.5.12</title>
       <description>&lt;!doctype html&gt;
 &lt;html lang=&quot;en&quot;&gt;
 &lt;head&gt;
@@ -23,9 +23,9 @@ p { margin: 0; }
 &lt;body&gt;&lt;p&gt;Update Navigator, then reopen it with your existing sign-in and settings.&lt;/p&gt;&lt;/body&gt;
 &lt;/html&gt;</description>
       <sparkle:minimumSystemVersion>13.5</sparkle:minimumSystemVersion>
-      <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.5.11/Navigator-0.5.11-macos-arm64.zip"
-        sparkle:version="0.5.11" sparkle:shortVersionString="0.5.11"
-        sparkle:edSignature="hZP/RBOAtbIcnwXzxxqVTCj/KqAOOW0zPDp4C/Lm8GxWvBG+t4svHB6VliDWQ5cFpJCpYnD1fu5vQU0Q/rueBQ==" length="93674750" type="application/octet-stream" />
+      <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.5.12/Navigator-0.5.12-macos-arm64.zip"
+        sparkle:version="0.5.12" sparkle:shortVersionString="0.5.12"
+        sparkle:edSignature="OyD+X0xItDrfCX4Z8XPz9znY359ogIlr02GVKYttpTyZjwhab1g0MPzTA8ojeNugCkgfgMT4YpZZfRmxGlcmDw==" length="93754827" type="application/octet-stream" />
     </item>
   </channel>
 </rss>
