@@ -6,7 +6,7 @@ import { useAtom, useStore } from "jotai";
 import { toast } from "sonner";
 import { useRouter, usePathname } from "next/navigation";
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls, type UIMessage } from "ai";
-import { preparedNavigatorActions, shouldContinueAfterNavigatorAction, readNavigatorHistory, record, markNavigatorRequestStopped } from "@/lib/navigator-chat";
+import { preparedNavigatorActions, shouldContinueAfterNavigatorAction, record, markNavigatorRequestStopped } from "@/lib/navigator-chat";
 import { acknowledgePlayback, type ActionOutcome } from "@/lib/navigator-playback-ack";
 import { useStreamQueries } from "@/components/stream-query-provider";
 import type { SubtitleSnapshot } from "@/lib/media/subtitle-snapshot";
@@ -34,7 +34,6 @@ const AIAsk = ({ userId }: { userId: string }) => {
     const actionAbortRef = useRef(new AbortController());
     const requestBodyRef = useRef<Record<string, unknown>>({});
     const continuationCountRef = useRef(0);
-    const [loadedHistoryKey, setLoadedHistoryKey] = useState<string | null>(null);
     const historyKey = userId ? `navigator-chat-v2:${userId}` : null;
     const pathname = usePathname();
     const transport = useMemo(() => new DefaultChatTransport({ api: "/api/chat", body: async () => {
@@ -338,17 +337,12 @@ const AIAsk = ({ userId }: { userId: string }) => {
         requestBodyRef.current = {};
         opencodeSessionIdRef.current = null;
         setRequestDurationsMs({});
-        let saved: UIMessage[] = [];
-        try { saved = historyKey ? readNavigatorHistory(localStorage.getItem(historyKey)) : []; } catch { /* Storage may be unavailable; keep the live chat usable. */ }
-        setMessages(saved);
-        setLoadedHistoryKey(historyKey);
+        // Conversation state belongs to this page session. Remove transcripts
+        // saved by older versions, but never restore or persist them.
+        try { if (historyKey) localStorage.removeItem(historyKey); } catch { /* Chat also works when storage is blocked. */ }
+        setMessages([]);
         return () => { actionAbortRef.current.abort(); stop(); };
     }, [historyKey, setMessages, stop]);
-
-    useEffect(() => {
-        if (!historyKey || loadedHistoryKey !== historyKey || isBusy) return;
-        try { localStorage.setItem(historyKey, JSON.stringify(messages.slice(-80))); } catch { /* Storage may be unavailable; keep the live chat usable. */ }
-    }, [messages, historyKey, loadedHistoryKey, isBusy]);
 
     const prepareRequest = () => {
         actionAbortRef.current = new AbortController();
