@@ -10,6 +10,7 @@ const routes = [];
 const palettes = [];
 let finePointer = true;
 let resumeWarmup = null;
+let cardArtwork = { poster: '/poster.jpg', background: '/backdrop.jpg' };
 class TestNode {}
 class TestElement extends TestNode { matches(selector) { return selector === ':focus-visible'; } }
 const routeContext = { exports: {} };
@@ -31,7 +32,7 @@ const context = { exports: {}, Element: TestElement, Node: TestNode, window: { m
         if (!(index in state)) state[index] = initial;
         return [state[index], value => { state[index] = value; }];
     }, useRef: initial => ({ current: initial }), useCallback: callback => callback, useEffect() {} };
-    if (name === '@/lib/artwork') return { mediaArtwork: () => ({ poster: '/poster.jpg', background: '/backdrop.jpg' }), backdropVariantUrl: (url, width) => `${url}?width=${width}` };
+    if (name === '@/lib/artwork') return { mediaArtwork: () => cardArtwork, backdropVariantUrl: (url, width) => `${url}?width=${width}` };
     if (name === '@/components/watched-indicator') return { WatchedIndicator: () => null };
     if (name === '@/lib/series-route') return routeContext.exports;
     if (name === '@/contexts/MediaPlayerContext') return { usePlaybackActions: () => ({ playMedia: async item => playback.push(item), setIsPlayerVisible: visible => playback.push(visible) }) };
@@ -111,6 +112,14 @@ function findButton(node) {
     return found;
 }
 (async () => {
+    cardArtwork = { poster: '/poster.jpg' };
+    await findButton(render()).props.onClick({ preventDefault() {}, stopPropagation() {} });
+    assert.equal(playback.at(-2).backdropUrl, undefined, 'Movie catalog Play never sends a poster as a backdrop');
+    cardArtwork = { poster: '/poster.jpg', background: '/backdrop.jpg' };
+    for (const resume of [false, true]) {
+        await findButton(render(resume)).props.onClick({ preventDefault() {}, stopPropagation() {} });
+        assert.equal(playback.at(-2).backdropUrl, '/backdrop.jpg', 'Catalog and Continue Watching both pass landscape artwork');
+    }
     let prevented = false, stopped = false;
     await findButton(render()).props.onClick({ preventDefault() { prevented = true; }, stopPropagation() { stopped = true; } });
     assert.equal(prevented && stopped, true);

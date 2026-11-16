@@ -29,16 +29,20 @@
 .wordmark {
   visibility: hidden;
   opacity: 0;
-  transition: opacity 300ms var(--ease-out);
 }
-.frame:has(.artwork[data-artwork-state="ready"]) .wordmark[data-logo-ready] { visibility: visible; opacity: 1; }
+.frame:has(.artwork[data-artwork-state="ready"]) .wordmark[data-logo-ready] {
+  visibility: visible;
+  opacity: 1;
+  animation: wordmark-reveal 300ms var(--ease-out) backwards;
+}
 
-@starting-style {
-  .frame:has(.artwork[data-artwork-state="ready"]) .wordmark[data-logo-ready] { opacity: 0; }
+@keyframes wordmark-reveal {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .wordmark { transition-duration: 100ms; }
+  .frame:has(.artwork[data-artwork-state="ready"]) .wordmark[data-logo-ready] { animation-duration: 100ms; }
 }
 
 .playOverlay {
@@ -179,7 +183,9 @@
 }
 
 :global(html[data-native-platform="macos"]) .card[data-continue-watching] .artwork {
-  opacity: 0.65;
+  /* Share the same endpoint with the load reveal. A literal opacity here
+     overrides pending pixels, then snaps from the animation's 1 back to .65. */
+  --artwork-opacity: 0.65;
   transform: translateZ(0) scale(1);
 }
 
@@ -212,4 +218,10 @@
   outline: var(--keyboard-focus-width) solid var(--ring);
   outline-offset: 0;
   box-shadow: 0 0 0 var(--keyboard-focus-halo-width) var(--focus-halo);
+}
+
+/* The link delegates its ring to a sibling surface. */
+:global(html[data-input-modality="pointer"]) .detailsLink:focus-visible + .surface {
+  outline: none;
+  box-shadow: none;
 }

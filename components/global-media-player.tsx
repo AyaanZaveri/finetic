@@ -57,7 +57,7 @@ import type { MediaToPlay } from "@/lib/atoms";
 import { fetchPlaybackId } from "@/lib/media/fetch-playback-id";
 import { fetchPlaybackEpisode } from "@/lib/media/fetch-playback-episode";
 import { fetchPlaybackDetails } from "@/lib/media/fetch-playback-details";
-import { initialPlaybackDetails, mergePlaybackDetails } from "@/lib/media/playback-details";
+import { initialPlaybackDetails, mergePlaybackDetails, playbackBackdrop } from "@/lib/media/playback-details";
 import { desktopBridge, recordDesktopStage } from "@/lib/desktop/bridge";
 import { MpvVideo } from "@/components/desktop/mpv-video";
 import { PlayerVideoFit } from "@/components/player-video-fit";
@@ -832,8 +832,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   if (!isPlayerVisible || !currentMedia) return null;
 
   const { isEpisode: isEpisodePlayback, showTitle, primaryTitle, season, episodeNumber } = getPlaybackTitles(currentMedia, mediaDetails);
-  const fallbackBackdrop =
-    currentMedia.backdropUrl || mediaDetails?.background || mediaDetails?.poster;
+  const fallbackBackdrop = playbackBackdrop(currentMedia, mediaDetails);
   const titleRating = mediaDetails?.imdbRating ? `IMDb ${mediaDetails.imdbRating}`
     : mediaDetails?.ratingSource === "TMDB" && typeof mediaDetails.communityRating === "number" && mediaDetails.communityRating > 0
       ? `TMDB ${mediaDetails.communityRating.toFixed(1)}` : undefined;

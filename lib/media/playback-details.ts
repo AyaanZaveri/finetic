@@ -8,12 +8,21 @@ export function playbackDetailsId(media: Pick<MediaToPlay, "id" | "seriesId" | "
   return media.type === "series" ? parseSeriesRouteId(id).seriesId : id;
 }
 
+/** Prefer resolved landscape artwork; a poster fallback must never fill the player. */
+export function playbackBackdrop(media: MediaToPlay, details?: MediaItem | null): string | undefined {
+    const posters = [details?.poster, media.details?.poster].filter(Boolean);
+    // TMDB can return the same poster at different resolutions after enrichment.
+    const identity = (source: string) => source.replace(/(https:\/\/image\.tmdb\.org\/t\/p\/)[^/]+\//, "$1");
+    const candidates = [details?.background, media.details?.background, media.backdropUrl];
+    return candidates.find(source => !!source && !posters.some(poster => identity(source) === identity(poster!)));
+}
+
 /** Canonical artwork URLs can start downloading before metadata or streams. */
 export function initialPlaybackDetails(media: MediaToPlay): MediaItem {
   const id = playbackDetailsId(media);
   const artwork = mediaArtwork(media.details || {});
   return mergePlaybackDetails({ id, type: media.type, name: media.showName || media.name,
-    ...artwork, background: media.backdropUrl || artwork.background }, media.details);
+    ...artwork, background: playbackBackdrop(media, media.details) }, media.details);
 }
 
 /** Empty/partial responses must not erase fields already obtained for this title. */

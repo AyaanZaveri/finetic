@@ -120,7 +120,7 @@ export function MediaCard({
           item.type === "series" ? item.episodeTitle : undefined,
         seasonNumber: item.seasonNumber,
         episodeNumber: item.episodeNumber,
-        backdropUrl: artwork.background || artwork.poster,
+        backdropUrl: artwork.background,
         subtitleFilename: item.subtitleFilename,
         subtitleVideoSize: item.subtitleVideoSize,
       });

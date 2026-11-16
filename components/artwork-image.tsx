@@ -30,7 +30,7 @@ export function ArtworkImage({
 
   const finish = useCallback((image: HTMLImageElement) => {
     const box = image.getBoundingClientRect?.();
-    const unseen = !!box && (box.bottom <= 0 || box.right <= 0 || box.top >= window.innerHeight || box.left >= window.innerWidth);
+    const unseen = !!box && box.right > box.left && box.bottom > box.top && (box.bottom <= 0 || box.right <= 0 || box.top >= window.innerHeight || box.left >= window.innerWidth);
     setResult({ key, state: "ready", unseen });
   }, [key]);
 

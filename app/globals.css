@@ -385,3 +385,13 @@ html[data-native-platform="macos"]::-webkit-scrollbar-thumb {
     outline: none !important;
   }
 }
+
+/* Hover-driven menus call focus() too. Browser focus-visible heuristics can
+   retain keyboard mode across those calls. Keep editable controls' indicators,
+   and restore all keyboard rings as soon as a navigation key is pressed. */
+html[data-input-modality="pointer"] :focus-visible:not(:is(input, textarea, select, [contenteditable]:not([contenteditable="false"]))) {
+  --ring: transparent;
+  --focus-halo: transparent;
+  outline-color: transparent !important;
+  box-shadow: var(--tw-shadow, 0 0 #0000) !important;
+}
