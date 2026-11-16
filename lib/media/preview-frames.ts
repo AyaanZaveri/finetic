@@ -1,19 +1,24 @@
 /** Small bounded frame cache shared by both preview backends. */
 export class PreviewCache {
-    private frames = new Map<number, string>();
-    private capacity: number;
-    constructor(capacity = 256) { this.capacity = capacity; }
+    private frames = new Map<number, { src: string; bytes: number }>();
+    private bytes = 0;
+    constructor(private capacity = 256, private release?: (_src: string) => void, private maxBytes = 16 * 1024 * 1024) {}
     get(time: number) {
         const value = this.frames.get(time);
         if (value) { this.frames.delete(time); this.frames.set(time, value); }
-        return value;
+        return value?.src;
     }
-    set(time: number, src: string) {
-        this.frames.delete(time);
-        this.frames.set(time, src);
-        while (this.frames.size > this.capacity) this.frames.delete(this.frames.keys().next().value!);
+    private drop(time: number) {
+        const value = this.frames.get(time);
+        if (value) { this.frames.delete(time); this.bytes -= value.bytes; this.release?.(value.src); }
     }
-    clear() { this.frames.clear(); }
+    set(time: number, src: string, bytes = src.length * 2) {
+        if (this.frames.get(time)?.src === src) { this.get(time); return; }
+        this.drop(time);
+        this.frames.set(time, { src, bytes }); this.bytes += bytes;
+        while (this.frames.size > this.capacity || this.bytes > this.maxBytes) this.drop(this.frames.keys().next().value!);
+    }
+    clear() { for (const time of this.frames.keys()) this.drop(time); }
 }
 
 export function previewBucket(time: number, duration: number) {
@@ -25,7 +30,7 @@ export type PreviewMedia = HTMLVideoElement;
 
 /** One independent, muted decoder. Coalesce pointer requests; never seek the playing media. */
 export class BrowserPreviewFrames {
-    readonly cache = new PreviewCache();
+    readonly cache = new PreviewCache(256, src => { if (src.startsWith("blob:")) URL.revokeObjectURL(src); });
     private wanted: number | null = null;
     private decoding: number | null = null;
     private timer?: ReturnType<typeof setTimeout>;
@@ -39,6 +44,7 @@ export class BrowserPreviewFrames {
     private retriedWithoutCors = false;
     private captureBlocked = false;
     private ownsSource: boolean;
+    private encoding = false;
     constructor(video: PreviewMedia, ready: (_time: number, _src: string | null, _videoFrame?: boolean, _unavailable?: boolean) => void, preserveVideo = false, allowCorsRetry = false, ownsSource = true) {
         this.video = video; this.ready = ready; this.preserveVideo = preserveVideo; this.allowCorsRetry = allowCorsRetry;
         this.ownsSource = ownsSource;
@@ -98,12 +104,11 @@ export class BrowserPreviewFrames {
         // can permanently starve a slow remote HDR decoder. Late data recovers.
     };
     private captured = () => {
-        if (this.closed || this.decoding === null || this.video.readyState < 2 || this.video.seeking) return;
+        if (this.closed || this.encoding || this.decoding === null || this.video.readyState < 2 || this.video.seeking) return;
         clearTimeout(this.timer);
         this.timer = undefined;
         this.video.pause();
         const target = this.decoding;
-        this.decoding = null;
         let src: string | null = null;
         try {
             if (!this.preserveVideo && !this.captureBlocked) {
@@ -116,13 +121,30 @@ export class BrowserPreviewFrames {
                 // mux-video exposes its actual video as nativeEl; plain video is its own source.
                 const source = (this.video as unknown as { nativeEl?: HTMLVideoElement }).nativeEl ?? this.video;
                 this.context?.drawImage(source, 0, 0, this.canvas.width, this.canvas.height);
+                if (this.context && this.canvas.toBlob) {
+                    this.encoding = true;
+                    this.canvas.toBlob(blob => {
+                        this.encoding = false;
+                        this.finishCapture(target, blob ? URL.createObjectURL(blob) : null, blob?.size);
+                    }, 'image/jpeg', 0.72);
+                    return;
+                }
+                // Older embedded engines without async canvas encoding.
                 src = this.context ? this.canvas.toDataURL('image/jpeg', 0.72) : null;
             }
         } catch { this.captureBlocked = true; /* Display the decoded video when capture is forbidden. */ }
-        if (src) this.cache.set(target, src);
+        this.finishCapture(target, src);
+    };
+    private finishCapture(target: number, src: string | null, bytes?: number) {
+        if (this.closed || this.decoding !== target) {
+            if (src?.startsWith('blob:')) URL.revokeObjectURL(src);
+            return;
+        }
+        this.decoding = null;
+        if (src) this.cache.set(target, src, bytes);
         if (this.wanted === target) this.ready(target, src, !src);
         if (this.wanted !== null && this.wanted !== target) this.pump();
-    };
+    }
     private failed = () => {
         clearTimeout(this.timer);
         this.timer = undefined;

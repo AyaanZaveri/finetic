@@ -59,12 +59,7 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
     const native = (media as unknown as MpvElementHandle | null)?.controller;
     const [fallback, setFallback] = useState(false);
     const [rangeUnavailable, setRangeUnavailable] = useState(false);
-    const [videoRatio, setVideoRatio] = useState(16 / 9);
     const videoNode = useRef<PreviewMedia | null>(null);
-    const updateVideoRatio = () => {
-        const video = videoNode.current;
-        if (video?.videoWidth && video.videoHeight) setVideoRatio(video.videoWidth / video.videoHeight);
-    };
     const [videoAttached, setVideoAttached] = useState(false);
     const videoRef = useCallback((node: unknown) => { videoNode.current = node as PreviewMedia | null; setVideoAttached(!!node); }, []);
     const [frame, setFrame] = useState<Frame>(empty);
@@ -107,8 +102,14 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
             if (wanted.current !== null) setFrame({ time: at, src, video: false, unavailable: false });
         }, () => setRangeUnavailable(true));
         range.current = provider;
-        return () => { provider.dispose(); if (range.current === provider) range.current = null; };
-    }, [rangeMode, source]);
+        // Let playback settle before reading a second index. Hover can still
+        // start immediately and shares this same initialization promise.
+        let warm: ReturnType<typeof setTimeout> | undefined;
+        const prepare = () => { clearTimeout(warm); warm = setTimeout(() => { void provider.prepare(); }, 1_500); };
+        if (media && media.readyState >= 2) prepare();
+        else media?.addEventListener('playing', prepare, { once: true });
+        return () => { clearTimeout(warm); media?.removeEventListener('playing', prepare); provider.dispose(); if (range.current === provider) range.current = null; };
+    }, [rangeMode, source, media]);
 
     useLayoutEffect(() => {
         const video = videoNode.current;
@@ -179,22 +180,20 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
     const ready = !!displaySrc || (frame.time === displayBucket && !!(frame.src || frame.video));
     const unavailable = frame.time === displayBucket && frame.unavailable;
     return (
-        <div data-slot="media-player-seek-thumbnail" data-native-preview-provider={nativeFrames ? window.navigatorDesktop?.platform : undefined} aria-busy={active && !ready && !unavailable} className="relative w-56 overflow-hidden rounded-lg" style={image ? undefined : { aspectRatio: videoRatio }}>
+        <div data-slot="media-player-seek-thumbnail" data-native-preview-provider={nativeFrames ? window.navigatorDesktop?.platform : undefined} aria-busy={active && !ready && !unavailable} className="relative w-56 overflow-hidden rounded-lg" style={{ width: 224, height: 126, flex: "none" }}>
             {browserMode && !rangeMode && source && (muxPreview ? (
                 <MuxVideo
                     ref={videoRef}
-                    onLoadedMetadata={updateVideoRatio}
                     src={source} muted playsInline preload={active ? "auto" : "metadata"} crossOrigin="anonymous" disablePictureInPicture disableRemotePlayback disableTracking
                     aria-hidden="true" tabIndex={-1}
-                    className={`pointer-events-none absolute inset-0 size-full object-contain ${ready && frame.video ? "opacity-100" : "opacity-0"}`}
+                    className={`pointer-events-none absolute inset-0 size-full object-contain ${frame.video ? "opacity-100" : "opacity-0"}`}
                 />
             ) : (
                 <video
                     ref={videoRef}
-                    onLoadedMetadata={updateVideoRatio}
                     src={source} muted playsInline preload={active ? "auto" : "metadata"} crossOrigin="anonymous" disablePictureInPicture disableRemotePlayback
                     aria-hidden="true" tabIndex={-1}
-                    className={`pointer-events-none absolute inset-0 size-full object-contain ${ready && frame.video ? "opacity-100" : "opacity-0"}`}
+                    className={`pointer-events-none absolute inset-0 size-full object-contain ${frame.video ? "opacity-100" : "opacity-0"}`}
                 />
             ))}
             {image && <PreviewImage src={image} pending={!ready} />}

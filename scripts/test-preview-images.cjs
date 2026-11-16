@@ -53,12 +53,12 @@ async function main() {
  }, { Image });
  const render = src => { const tree = runtime.render(PreviewImage, { src }); runtime.flush(); return tree; };
  render('one'); images[0].ready.resolve(); await flush();
- let tree = render('one'); assert.equal(tree.props.children[0].props.src, 'one', 'Display does not wait for crop analysis');
+ let tree = render('one'); assert.equal(tree.props.style.height, 126, 'Preview height stays bounded independently of decoded image geometry'); assert.equal(tree.props.children[0].props.src, 'one', 'Display does not wait for crop analysis');
  tree = render('two'); assert.equal(tree.props.children[0].props.src, 'one', 'Retain the decoded image while its replacement loads');
- assert.equal(tree.props['aria-busy'], true); assert.equal(analyses[0].signal.aborted, true);
+ assert.equal(tree.props['aria-busy'], true); assert.ok(!JSON.stringify(tree).includes('Updating preview'), 'Pending frames use a quiet overlay without a text banner'); assert.equal(analyses[0].signal.aborted, true);
  images[1].ready.resolve(); await flush(); tree = render('two'); assert.equal(tree.props.children[0].props.src, 'two');
  analyses[1].resolve({ width: 448, height: 252, bounds: { x: 0, y: 20, width: 448, height: 212 } }); await flush();
- tree = render('two'); assert.equal(tree.props.style.aspectRatio, 448/212);
+ tree = render('two'); assert.equal(tree.props.style.height, 126, 'Crop analysis cannot resize the popup');
  render('three'); render('four'); images[2].ready.resolve(); await flush(); tree = render('four');
  assert.equal(tree.props.children[0].props.src, 'two', 'An abandoned decode cannot replace the visible frame');
  runtime.unmount(); assert.equal(analyses.at(-1).signal.aborted, true);

@@ -1,16 +1,18 @@
+import { resolveWebGpuSource } from './webgpu-source';
 import { PreviewCache } from './preview-frames';
 import type { CanvasSink, Input } from 'mediabunny';
 
 /** Sparse WebCodecs decoding avoids a second full-size HTML video playback pipeline. */
 export class RangePreviewFrames {
-    readonly cache = new PreviewCache();
+    readonly cache = new PreviewCache(256, src => URL.revokeObjectURL(src));
     private input?: Input;
     private sink?: CanvasSink;
     private wanted: number | null = null;
     private running = false;
     private closed = false;
     private timer?: ReturnType<typeof setTimeout>;
-    private canvas?: HTMLCanvasElement;
+    private opening?: Promise<CanvasSink | undefined>;
+    private abort = new AbortController();
     private source: string;
     private ready: (_time: number, _src: string) => void;
     private unavailable: () => void;
@@ -25,17 +27,24 @@ export class RangePreviewFrames {
         void this.pump();
     }
     cancel() { this.wanted = null; }
-    private async initialize() {
-        if (this.sink) return this.sink;
-        const { Input, UrlSource, CanvasSink, MP4, MATROSKA, WEBM, QTFF } = await import('mediabunny');
+    /** Warm the demuxer after playback starts, without decoding or scanning frames. */
+    async prepare() { try { await this.initialize(); } catch { this.fail(); } }
+    private initialize() { return this.opening ??= this.open(); }
+    private async open() {
+        const [module, source] = await Promise.all([
+            import('mediabunny'), resolveWebGpuSource(this.source, AbortSignal.any([this.abort.signal, AbortSignal.timeout(5_000)])),
+        ]);
+        const { Input, UrlSource, CanvasSink, MP4, MATROSKA, WEBM, QTFF } = module;
         if (this.closed) return;
-        this.input = new Input({ formats: [MP4, MATROSKA, WEBM, QTFF], source: new UrlSource(this.source, {
-            maxCacheSize: 16 * 1024 * 1024, parallelism: 1,
+        this.input = new Input({ formats: [MP4, MATROSKA, WEBM, QTFF], source: new UrlSource(source, {
+            maxCacheSize: 16 * 1024 * 1024, parallelism: 2,
             getRetryDelay: attempts => attempts < 1 ? 0.5 : null,
             handleUnhandledError: () => this.fail(),
             fetchFn: (async (...args: Parameters<typeof fetch>) => {
                 const [url, options] = args;
-                const response = await fetch(url, options);
+                const signals = [this.abort.signal, AbortSignal.timeout(5_000)];
+                if (options?.signal) signals.push(options.signal);
+                const response = await fetch(url, { ...options, signal: AbortSignal.any(signals) });
                 // Do not download a multi-GB body from a server ignoring Range.
                 if (response.ok && response.status !== 206 && new Headers(options?.headers).has('Range')) {
                     await response.body?.cancel();
@@ -46,7 +55,9 @@ export class RangePreviewFrames {
         }) });
         const track = await this.input.getPrimaryVideoTrack();
         if (!track || !await track.canDecode()) throw new Error('WebCodecs cannot decode this stream');
+        if (this.closed) return;
         const width = await track.getDisplayWidth(), height = await track.getDisplayHeight();
+        if (this.closed) return;
         const scale = Math.min(448 / width, 252 / height, 1);
         this.sink = new CanvasSink(track, { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)),
             fit: 'contain', poolSize: 1, decoderOptions: { optimizeForLatency: true } });
@@ -55,7 +66,7 @@ export class RangePreviewFrames {
     private async pump() {
         if (this.running || this.closed || this.wanted === null) return;
         this.running = true;
-        this.timer = setTimeout(() => this.fail(), 30000);
+        this.timer = setTimeout(() => this.fail(), 6_000);
         try {
             const sink = await this.initialize();
             while (sink && !this.closed && this.wanted !== null) {
@@ -63,17 +74,20 @@ export class RangePreviewFrames {
                 const cached = this.cache.get(time);
                 if (cached) { this.ready(time, cached); break; }
                 clearTimeout(this.timer);
-                this.timer = setTimeout(() => this.fail(), 30000);
+                this.timer = setTimeout(() => this.fail(), 6_000);
                 const result = await sink.getCanvas(time);
                 if (this.closed) break;
                 if (!result) throw new Error('No frame at the requested time');
-                this.canvas ??= document.createElement('canvas');
-                this.canvas.width = result.canvas.width; this.canvas.height = result.canvas.height;
-                const context = this.canvas.getContext('2d', { alpha: false, colorSpace: 'srgb' });
-                if (!context) throw new Error('Canvas unavailable');
-                context.drawImage(result.canvas, 0, 0);
-                const src = this.canvas.toDataURL('image/jpeg', 0.72);
-                this.cache.set(time, src);
+                // Encode asynchronously and keep binary JPEGs. Do not copy the
+                // canvas or create large base64 strings on the pointer path.
+                const canvas = result.canvas;
+                const blob = 'convertToBlob' in canvas
+                    ? await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.72 })
+                    : await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.72));
+                if (this.closed) break;
+                if (!blob) throw new Error('Preview encoding unavailable');
+                const src = URL.createObjectURL(blob);
+                this.cache.set(time, src, blob.size);
                 if (this.wanted === time) { this.ready(time, src); break; }
                 // A moving pointer skips obsolete positions; no parallel decoders.
             }
@@ -82,7 +96,7 @@ export class RangePreviewFrames {
     }
     private fail() { if (!this.closed) { this.dispose(); this.unavailable(); } }
     dispose() {
-        this.closed = true; this.wanted = null;
+        this.closed = true; this.wanted = null; this.abort.abort();
         clearTimeout(this.timer); this.timer = undefined;
         this.input?.dispose(); this.cache.clear();
     }

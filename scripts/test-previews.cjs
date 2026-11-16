@@ -89,3 +89,28 @@ console.log('PASS: preview buckets/LRU, latest-request coalescing, cache hits, c
     assert.deepEqual(requests, [0, 4], 'Leaving hover must cancel the queued request');
     console.log('PASS: leading/trailing preview throttle and queued-request cancellation');
 })().catch(error => { console.error(error); process.exitCode = 1; });
+
+// Async JPEG encoding coalesces new positions and releases late object URLs.
+{
+    const pending = [], revoked = [];
+    let serial = 0;
+    context.URL = { createObjectURL: () => `blob:jpeg-${++serial}`, revokeObjectURL: src => revoked.push(src) };
+    context.document.createElement = () => ({ getContext: () => ({ drawImage() {} }), toBlob: callback => pending.push(callback) });
+    const media = new Video(), results = [];
+    const frames = new BrowserPreviewFrames(media, (...args) => results.push(args));
+    frames.want(10); media.finish();
+    assert.equal(pending.length, 1); assert.equal(results.length, 0, 'Publish only after async JPEG encoding finishes');
+    frames.want(20); media.dispatchEvent(new Event('canplay'));
+    assert.equal(pending.length, 1, 'Readiness events cannot encode the same frame twice');
+    pending[0]({ size: 10 });
+    assert.equal(media.currentTime, 20, 'Finish current encoding before seeking to the newest request');
+    media.finish(); frames.dispose(); pending[1]({ size: 10 });
+    assert.equal(results.length, 0, 'An obsolete or disposed binary frame is never presented');
+    assert.deepEqual(revoked, ['blob:jpeg-1', 'blob:jpeg-2']);
+    const released = [];
+    const bounded = new PreviewCache(5, src => released.push(src), 10);
+    bounded.set(1, 'one', 6); bounded.set(2, 'two', 6);
+    assert.equal(bounded.get(1), undefined); assert.deepEqual(released, ['one']);
+    bounded.clear(); assert.deepEqual(released, ['one', 'two']);
+    console.log('PASS: async binary capture, coalescing, stale callback cleanup and byte-bounded preview eviction');
+}

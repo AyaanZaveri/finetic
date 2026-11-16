@@ -4,27 +4,30 @@ const vm = require('node:vm');
 const ts = require('typescript');
 const compile = path => ts.transpileModule(fs.readFileSync(path, 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
 const frames = { exports: {} }; vm.runInNewContext(compile('lib/media/preview-frames.ts'), frames);
-let sourceOptions, disposed = 0, decodable = true, fallback = 0;
-const requests = [], answers = [];
+let sourceOptions, sourceUrl, disposed = 0, decodable = true, fallback = 0;
+const requests = [], answers = [], revoked = []; let blobId = 0;
 const bundle = {
   MP4: {}, MATROSKA: {}, WEBM: {}, QTFF: {},
-  UrlSource: class { constructor(url, options) { sourceOptions = options; } },
+  UrlSource: class { constructor(url, options) { sourceUrl = url; sourceOptions = options; } },
   Input: class { async getPrimaryVideoTrack() { return { canDecode: async () => decodable, getDisplayWidth: async () => 3840, getDisplayHeight: async () => 2160 }; } dispose() { disposed++; } },
   CanvasSink: class { constructor(track, options) { assert.ok(options.width <= 448 && options.height <= 252); assert.equal(options.poolSize, 1); } getCanvas(time) { return new Promise(resolve => requests.push({ time, resolve })); } },
 };
 let response;
-const context = { exports: {}, setTimeout, clearTimeout, Headers, fetch: async () => response,
+const context = { exports: {}, setTimeout, clearTimeout, Headers, AbortController, AbortSignal,
+  URL: { createObjectURL: () => `blob:preview-${++blobId}`, revokeObjectURL: src => revoked.push(src) }, fetch: async () => response,
   document: { createElement: () => ({ getContext: () => ({ drawImage() {} }), toDataURL: () => 'data:image/jpeg;base64,thumbnail' }) },
-  require: name => name === 'mediabunny' ? bundle : frames.exports,
+  require: name => name === 'mediabunny' ? bundle : name === './webgpu-source' ? { resolveWebGpuSource: async () => 'https://fixture.test/resolved.mkv' } : frames.exports,
 };
 vm.runInNewContext(compile('lib/media/range-preview-frames.ts'), context);
 const settle = async () => { for (let i = 0; i < 25; i++) await Promise.resolve(); };
-const finish = index => requests[index].resolve({ canvas: { width: 448, height: 252 }, timestamp: requests[index].time - .02, duration: .04 });
+const finish = index => requests[index].resolve({ canvas: { width: 448, height: 252, convertToBlob: async () => new Blob([new Uint8Array(2048)], { type: 'image/jpeg' }) }, timestamp: requests[index].time - .02, duration: .04 });
 (async () => {
   const preview = new context.exports.RangePreviewFrames('https://fixture.test/large-hdr.mkv', (...args) => answers.push(args), () => fallback++);
   try {
+    await preview.prepare(); assert.equal(requests.length, 0, 'Warm only the index, without decoding background frames');
+    assert.equal(sourceUrl, 'https://fixture.test/resolved.mkv', 'Previews share the playback redirect resolver');
     preview.want(20); await settle(); assert.equal(requests[0].time, 20);
-    assert.equal(sourceOptions.parallelism, 1); assert.ok(sourceOptions.maxCacheSize <= 16 * 1024 * 1024);
+    assert.equal(sourceOptions.parallelism, 2); assert.ok(sourceOptions.maxCacheSize <= 16 * 1024 * 1024);
     finish(0); await settle(); assert.equal(answers.at(-1)[0], 20);
     preview.want(40); await settle(); preview.want(60); finish(1); await settle();
     assert.equal(requests[2].time, 60); assert.equal(answers.at(-1)[0], 20, 'Obsolete frames are cached without replacing the requested scene');
@@ -37,6 +40,7 @@ const finish = index => requests[index].resolve({ canvas: { width: 448, height: 
     assert.equal(cancelled, true, 'A server ignoring ranges cannot trigger a whole-file download');
   } finally { preview.dispose(); }
   assert.equal(disposed, 1); assert.equal(fallback, 0);
+  assert.equal(revoked.length, blobId, 'All cached binary frames are released on disposal');
   decodable = false;
   const unsupported = new context.exports.RangePreviewFrames('https://fixture.test/unsupported.mkv', () => {}, () => fallback++);
   unsupported.want(10); await settle(); assert.equal(fallback, 1); assert.equal(disposed, 2);

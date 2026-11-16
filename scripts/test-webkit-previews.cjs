@@ -32,7 +32,7 @@ try {
             callback=(args)=>{clearTimeout(timer);resolve(args);}; provider.want(at);
         });
         const first = await ask(1.5);
-        if(!first[1]?.startsWith('data:image/jpeg;base64,'))throw new Error('Real canvas JPEG capture failed');
+        if(!first[1]?.startsWith('blob:') || (await (await fetch(first[1])).blob()).type!=='image/jpeg')throw new Error('Real canvas binary JPEG capture failed');
         const second = await ask(0);
         const before=video.currentTime;
         const cached = await ask(1.5);
@@ -45,5 +45,5 @@ try {
     execFileSync('clang', ['-fobjc-arc', '-framework', 'Cocoa', '-framework', 'WebKit', 'scripts/webkit-image-layout.m', '-o', executable]);
     const result = JSON.parse(execFileSync(executable, [html, script], { encoding:'utf8', timeout:30000 }));
     assert.equal(result.jpeg, true); assert.equal(result.cache, true);
-    console.log('PASS: real WebKit video seek → canvas JPEG, instant cache reuse, and unchanged main playback');
+    console.log('PASS: real WebKit video seek → binary canvas JPEG, instant cache reuse, and unchanged main playback');
 } finally { fs.rmSync(temporary, { recursive:true, force:true }); }

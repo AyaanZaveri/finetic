@@ -53,6 +53,10 @@ jobs:
           node scripts/test-desktop.cjs
           node scripts/test-native-preview-cache.cjs
           node scripts/test-preview-images.cjs
+          node scripts/test-range-previews.cjs
+          node scripts/test-previews.cjs
+          node scripts/test-browser-preview-recovery.cjs
+          node scripts/test-seek-preview-source.cjs
           node scripts/test-preview-crop-worker.cjs
           node scripts/test-playback-wake-lock.cjs
           node scripts/test-surface-scrub.cjs
@@ -110,6 +114,10 @@ jobs:
           node scripts/test-desktop.cjs
           node scripts/test-native-preview-cache.cjs
           node scripts/test-preview-images.cjs
+          node scripts/test-range-previews.cjs
+          node scripts/test-previews.cjs
+          node scripts/test-browser-preview-recovery.cjs
+          node scripts/test-seek-preview-source.cjs
           node scripts/test-preview-crop-worker.cjs
           node scripts/test-playback-wake-lock.cjs
           node scripts/test-surface-scrub.cjs

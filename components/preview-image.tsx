@@ -37,15 +37,20 @@ export function PreviewImage({ src, alt = "", pending = false }: { src: string; 
         });
         return () => { controller.abort(); image.onload = null; image.removeAttribute("src"); };
     }, [src]);
+    // Decoder dimensions and letterbox analysis must never grow the tooltip.
+    const ratio = current?.ratio && Number.isFinite(current.ratio) ? current.ratio : 16 / 9;
+    const width = Math.min(100, ratio / (16 / 9) * 100);
+    const height = Math.min(100, (16 / 9) / ratio * 100);
+    const busy = pending || current?.source !== src;
     return (
-        <div aria-busy={pending || current?.source !== src} className="relative w-56 overflow-hidden rounded-lg" style={{ aspectRatio: current?.ratio ?? 16 / 9 }}>
+        <div aria-busy={busy} className="relative w-56 overflow-hidden rounded-lg" style={{ width: 224, height: 126, flex: "none" }}>
             <img
                 src={current?.source} alt={pending || (current && current.source !== src) ? "Previous preview" : alt} draggable={false} decoding="async"
                 className="absolute max-w-none"
-                style={{ left: `${current?.left ?? 0}%`, top: `${current?.top ?? 0}%`, width: `${current?.width ?? 100}%`, height: `${current?.height ?? 100}%`, visibility: current ? "visible" : "hidden" }}
+                style={{ left: `${(100 - width) / 2 + (current?.left ?? 0) * width / 100}%`, top: `${(100 - height) / 2 + (current?.top ?? 0) * height / 100}%`, width: `${(current?.width ?? 100) * width / 100}%`, height: `${(current?.height ?? 100) * height / 100}%`, visibility: current ? "visible" : "hidden" }}
             />
             {!current && <div className="absolute inset-0 bg-white/10" />}
-            {(pending || (current && current.source !== src)) && <span className="absolute inset-x-0 bottom-0 bg-black/60 px-2 py-1 text-center text-[10px] text-white">Updating preview…</span>}
+            {current && busy && <div aria-hidden="true" className="pointer-events-none absolute inset-0 animate-pulse bg-white/5 motion-reduce:animate-none" />}
         </div>
     );
 }
