@@ -473,6 +473,27 @@ native fullscreen. It validates message sizes, numbers, header syntax, and URL
 schemes. The player disables user scripts/config, reference following, and
 unsafe playlists, and constrains FFmpeg's stream protocols.
 
+### Playback sleep prevention
+
+The native player holds an idle-display sleep request only while its current
+file is playing, including buffering. Pause, stop, end, source replacement, and
+shutdown release it. macOS uses an IOKit `PreventUserIdleDisplaySleep` assertion,
+which also prevents idle system sleep. Windows uses `SetThreadExecutionState`
+with continuous display and system requirements on the player thread. The guard
+stays on that thread and releases its request before shutdown. These requests
+respect manual Sleep, lid close, and system emergency power policy.
+
+Browser playback uses Screen Wake Lock when the API and browser policy permit
+it. The request is released on pause, end, errors, page hiding, or player cleanup.
+Returning to a visible playing page requests a fresh lock. Unsupported browsers,
+denied requests, and low-power restrictions do not block playback or cause a
+retry loop. Native macOS/Windows playback uses the OS guard independently of
+WebView support.
+
+References: [Apple power assertions](https://developer.apple.com/library/archive/qa/qa1340/_index.html),
+[Windows execution state](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-setthreadexecutionstate),
+and [Screen Wake Lock](https://developer.mozilla.org/en-US/docs/Web/API/Screen_Wake_Lock_API).
+
 ### Scrubber previews on web and desktop
 
 Hovering the timeline shows the existing Dice UI preview card, timestamp, and a

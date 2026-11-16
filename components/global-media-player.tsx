@@ -21,6 +21,7 @@ import { formatRuntime } from "@/lib/format-runtime";
 
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect, useMemo } from "react";
 import { preload } from "react-dom";
+import { PlaybackWakeLock } from "@/components/playback-wake-lock";
 import { useRouter } from "next/navigation";
 import type { MediaItem, StremioStream } from "@/types/stremio";
 import { Button } from "@/components/ui/button";
@@ -861,6 +862,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           available={subtitleData.length > 0 && subtitleTracks.some(track => track.active) && !fetchingSubtitles}
           container={videoRef.current?.closest<HTMLElement>('[data-slot="media-player"]')} />
         <NativePlayerGlass mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} ready={videoReady && !loading && !playbackError} />
+        <PlaybackWakeLock mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} enabled={!nativePlayback && !!streamUrl && !playbackError} />
         {!nativePlayback && <BrowserPlayerGlass mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} ready={videoReady && !loading && !playbackError} />}
         {/* Video element */}
         {streamUrl && (

@@ -22,6 +22,7 @@ mod tao_shell;
 mod macos_updater;
 mod thumbnails;
 mod thumbnail_images;
+mod wake_lock;
 #[cfg(any(windows, test))]
 mod window_state;
 #[cfg(windows)]

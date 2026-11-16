@@ -32,6 +32,9 @@ mod thumbnails;
 #[cfg(target_os = "macos")]
 #[path = "../src/thumbnail_images.rs"]
 mod thumbnail_images;
+#[cfg(target_os = "macos")]
+#[path = "../src/wake_lock.rs"]
+mod wake_lock;
 
 #[cfg(not(target_os = "macos"))]
 fn main() {

@@ -121,6 +121,8 @@ impl Player {
         #[cfg(test)]
         let worker_idle_wakes = idle_wakes.clone();
         let worker = std::thread::Builder::new().name("navigator-mpv".into()).spawn(move || {
+            let mut wake_lock = crate::wake_lock::WakeLock::default();
+            let mut wake_file_open = false;
             let mut session = String::new();
             let mut desired = String::new();
             let mut entries = HashMap::<i64, String>::new();
@@ -151,6 +153,7 @@ impl Player {
                     let target = target.clone();
                     let result = match command {
                         Command::Load { session: next, url, headers, start_position } => {
+                            wake_file_open = false;
                             load_started = Some(Instant::now());
                             first_ready_logged = false;
                             log::debug!("playback load received");
@@ -218,6 +221,7 @@ impl Player {
                                 .and_then(|_| sync_subtitle_visibility(&client).map(|_| ()))
                         },
                         Command::Stop { .. } => {
+                            wake_file_open = false;
                             #[cfg(windows)]
                             glass_control.source(String::new());
                             let result = client.command(&["stop"]);
@@ -240,6 +244,8 @@ impl Player {
                     };
                     if let Err(message) = result { emit(json!({"type":"error","session":target,"message":message})); }
                 }
+                let awake = crate::wake_lock::playback_active(wake_file_open, !desired.is_empty() && session == desired, state["paused"].as_bool().unwrap_or(true));
+                if let Err(message) = wake_lock.set_active(awake) { log::warn!("{message}"); }
                 let wait = event_wait(dirty && !session.is_empty(), last.elapsed(), batch);
                 let event = client.wait_event(wait, |id| PROPERTIES.get(id as usize).is_some_and(|(_, k)| *k == Kind::Json));
                 #[cfg(test)]
@@ -257,6 +263,7 @@ impl Player {
                     Some(Event::StartFile { playlist_id }) => {
                         playing_id = playlist_id;
                         session = entries.remove(&playlist_id).unwrap_or_default();
+                        wake_file_open = session == desired;
                         if session == desired { retired_media.clear(); }
                         state["position"] = json!(0.0); state["duration"] = json!(0.0); state["buffered"] = json!(0.0);
                         state["bufferedRanges"] = json!([]);
@@ -310,6 +317,7 @@ impl Player {
                     Some(Event::Seek) => { state["seeking"] = json!(true); dirty = true; }
                     Some(Event::EndFile { playlist_id, reason, error }) => {
                         if playlist_id != playing_id { entries.remove(&playlist_id); continue; }
+                        wake_file_open = false;
                         if desired.is_empty() { retired_media.clear(); }
                         // A provider/TLS/proxy incompatibility must not prevent playback.
                         // Retry once on the original source, retaining resume and pause.
@@ -384,6 +392,7 @@ impl Player {
                 }
             }
             // The UI must keep pumping while mpv finishes a render-dependent stop.
+            drop(wake_lock);
             let _ = client.command(&["stop"]);
             colour(None, None);
         }).map_err(|e| e.to_string())?;

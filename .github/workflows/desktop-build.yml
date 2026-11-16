@@ -54,6 +54,7 @@ jobs:
           node scripts/test-native-preview-cache.cjs
           node scripts/test-preview-images.cjs
           node scripts/test-preview-crop-worker.cjs
+          node scripts/test-playback-wake-lock.cjs
           node scripts/test-surface-scrub.cjs
           node scripts/test-windows-install.cjs
           node scripts/test-windows-install-readiness.cjs
@@ -110,6 +111,7 @@ jobs:
           node scripts/test-native-preview-cache.cjs
           node scripts/test-preview-images.cjs
           node scripts/test-preview-crop-worker.cjs
+          node scripts/test-playback-wake-lock.cjs
           node scripts/test-surface-scrub.cjs
           node scripts/test-windows-install.cjs
           node scripts/test-windows-install-readiness.cjs
