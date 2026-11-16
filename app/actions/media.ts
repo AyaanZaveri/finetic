@@ -692,8 +692,8 @@ async function upsertPlaybackState(
     // matches Stremio's bitfield order, with specials after regular episodes.
     if (input.mediaType === "series" && input.videoId && (previousWatchedVideo
       || (baseState.flaggedWatched > 0 && (!wasFlaggedWatched || !baseState.watched)))) {
-      const episodes = await fetchEpisodes(input.libraryItemId);
-      const specials = /^tmdb:/.test(input.libraryItemId) ? await fetchEpisodes(input.libraryItemId, 0) : [];
+      const episodes = await fetchEpisodes(input.libraryItemId, undefined, undefined, false);
+      const specials = /^tmdb:/.test(input.libraryItemId) ? await fetchEpisodes(input.libraryItemId, 0, undefined, false) : [];
       const ids = orderedEpisodeIds([...episodes, ...specials]);
       if (previousWatchedVideo) baseState.watched = markVideoWatched(baseState.watched, ids, previousWatchedVideo, baseState.watchedEpisodes);
       if (baseState.flaggedWatched > 0) baseState.watched = markVideoWatched(baseState.watched, ids, input.videoId, baseState.watchedEpisodes);

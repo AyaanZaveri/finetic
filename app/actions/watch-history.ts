@@ -6,7 +6,8 @@ import { orderedEpisodeIds, setVideoWatched, watchedVideoIds } from "@/lib/strem
 import { watchHistoryKey, type WatchHistoryItem, type WatchHistoryRequest, type WatchStatusInput } from "@/lib/watch-history";
 
 /** One datastore call serves a batch of cards. Metadata is only needed for
- * series that already have encoded episode history. Never infer whole-show completion. */
+ * series that already have encoded episode history. History only needs episode
+ * ordering, so never resolve artwork here. Never infer whole-show completion. */
 export async function fetchWatchedItems(requests: WatchHistoryRequest[]): Promise<Record<string, WatchHistoryItem> | null> {
     const valid = requests.slice(0, 100).filter(item => typeof item.id === "string" && item.id.length > 0 && item.id.length < 500
         && (item.type === "movie" || item.type === "series"));
@@ -35,8 +36,8 @@ export async function fetchWatchedItems(requests: WatchHistoryRequest[]): Promis
             const watched = new Set<string>();
             if (request.type === "series" && state) {
                 if (state.watched || Array.isArray(state.watchedEpisodes)) {
-                    const regular = await fetchEpisodes(request.id);
-                    const specials = /^tmdb:/.test(request.id) ? await fetchEpisodes(request.id, 0) : [];
+                    const regular = await fetchEpisodes(request.id, undefined, undefined, false);
+                    const specials = /^tmdb:/.test(request.id) ? await fetchEpisodes(request.id, 0, undefined, false) : [];
                     watchedVideoIds(state.watched, orderedEpisodeIds([...regular, ...specials]), state.watchedEpisodes)
                         .forEach(id => watched.add(id));
                 }
@@ -86,8 +87,8 @@ export async function setWatchedStatus(input: WatchStatusInput): Promise<WatchHi
         };
         const watched = new Set<string>();
         if (input.type === "series") {
-            const episodes = await fetchEpisodes(input.id);
-            const specials = /^tmdb:/.test(input.id) ? await fetchEpisodes(input.id, 0) : [];
+            const episodes = await fetchEpisodes(input.id, undefined, undefined, false);
+            const specials = /^tmdb:/.test(input.id) ? await fetchEpisodes(input.id, 0, undefined, false) : [];
             const ids = orderedEpisodeIds([...episodes, ...specials]);
             if (!ids.includes(input.videoId!)) return null;
             watchedVideoIds(state.watched, ids, state.watchedEpisodes).forEach(id => watched.add(id));

@@ -9,7 +9,8 @@ const ids = ['tmdb:1', 'tmdb:2', 'tmdb:3'];
 const history = load('app/actions/watch-history.ts', {
     '@/lib/server/auth': { getAuthData: async () => ({ authKey: 'fixture' }) },
     '@/lib/stremio-watched': bits,
-    './tv-shows': { fetchEpisodes: async (id, season) => {
+    './tv-shows': { fetchEpisodes: async (id, season, _signal, includeArtwork) => {
+        assert.equal(includeArtwork, false, "Watched badges must not resolve episode thumbnails");
         calls.push({ id, season });
         if (season === 0) return [{ id: `${id}:0:1`, season: 0, episode: 1 }];
         active++; peak = Math.max(peak, active);
