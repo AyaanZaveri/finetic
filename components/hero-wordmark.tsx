@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { VibrantLogo } from "./vibrant-logo";
 import { getWordmarkBounds, getWordmarkDensity, type WordmarkBounds } from "@/lib/wordmark-bounds";
+import { artworkSampleUrl } from "@/lib/artwork";
 import { cn } from "@/lib/utils";
 import styles from "./hero-wordmark.module.css";
 
@@ -17,7 +18,7 @@ export function HeroWordmark({
   movieName: string;
   className?: string;
 }) {
-  const logoSrc = src.startsWith("/api/artwork?") ? `${src}&sample=1` : src;
+  const logoSrc = artworkSampleUrl(src);
   const [analysis, setAnalysis] = useState<{
     src: string;
     bounds: WordmarkBounds;
@@ -77,7 +78,7 @@ export function HeroWordmark({
     image.onerror = () => {
       if (cancelled || !image.crossOrigin) return;
       image.crossOrigin = null;
-      image.src = logoSrc;
+      image.src = src;
     };
     image.src = logoSrc;
     return () => {
@@ -113,7 +114,7 @@ export function HeroWordmark({
           }}
         >
           <VibrantLogo
-            src={logoSrc}
+            src={src}
             alt={alt}
             movieName={movieName}
             width={800}

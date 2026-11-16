@@ -65,7 +65,7 @@ function InitialCatalogRow({ row }: { row: InitialHomeCatalog }) {
   </section>;
   const section = result.section;
   const first = section?.mediaItems[0];
-  const artwork = first ? mediaArtwork(first.id, first.type) : null;
+  const artwork = first ? mediaArtwork(first) : null;
   return section?.mediaItems.length ? <>
     {artwork && <HomeInitialPalette primary={artwork.poster} fallback={artwork.background} />}
     <MediaSection sectionName={section.sectionName} mediaItems={section.mediaItems} />

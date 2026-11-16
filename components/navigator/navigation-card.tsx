@@ -1,6 +1,5 @@
 "use client";
 
-import { artworkFromPath } from "@/lib/artwork";
 
 import { Film, Tv } from "lucide-react";
 import { ResultCard, ResultMeta } from "./result-card";
@@ -46,7 +45,7 @@ export function NavigationCard({
       }
       icon={result.mediaType?.toLowerCase() === "movie" ? Film : Tv}
       subtitle={result.seriesName}
-      image={(episode ? result.thumbnail : result.poster) || artworkFromPath(result.url)}
+      image={(episode ? result.thumbnail : result.poster)}
       imageAspect={episode ? "landscape" : "portrait"}
       href={
         result.success &&

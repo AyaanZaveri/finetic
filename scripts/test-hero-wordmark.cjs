@@ -29,6 +29,7 @@ const boundsHelpers = load('lib/wordmark-bounds.ts');
 const { HeroWordmark } = load('components/hero-wordmark.tsx', {
     './vibrant-logo': { VibrantLogo },
     '@/lib/wordmark-bounds': boundsHelpers,
+    '@/lib/artwork': load('lib/artwork.ts', {}, { URLSearchParams }),
     '@/lib/utils': { cn: (...classes) => classes.filter(Boolean).join(' ') },
     './hero-wordmark.module.css': { default: { root: 'root', artwork: 'artwork', image: 'image' } },
 }, {
@@ -37,7 +38,7 @@ const { HeroWordmark } = load('components/hero-wordmark.tsx', {
         naturalHeight = 834;
         set src(value) {
             imageRequests.push(value);
-            if (value.includes('sample=1')) this.onload?.();
+            if (value.includes('wsrv.nl')) this.onload?.();
             else this.onerror?.();
         }
     },
@@ -80,13 +81,13 @@ assert.equal(render('/tall-logo.png').artwork.props.style.aspectRatio, .5, 'Inva
 // Its effect must still recover dimensions without cross-origin pixel access.
 analysis = null;
 captureEffects = true;
-const artworkUrl = '/api/artwork?id=tt0816692&type=movie&kind=logo&v=3';
+const artworkUrl = 'https://image.tmdb.org/t/p/original/logo.svg';
 render(artworkUrl);
 captureEffects = false;
 effects.pop()();
 assert.equal(render(artworkUrl).artwork.props.style.aspectRatio, 2944 / 834,
     'Cached logos must recover their dimensions even when the displayed image load event was missed and canvas is unavailable');
-assert.ok(imageRequests.at(-1).includes('sample=1'), 'Logo measurement must load same-origin image bytes rather than redirect to the CDN');
+assert.ok(imageRequests.at(-1).includes('wsrv.nl'), 'Logo measurement must load external CORS-enabled image bytes');
 assert.equal(render(artworkUrl).root.props['data-ready'], true,
     'Reveal the final intrinsic size even if canvas analysis is unavailable');
 analysis = null;

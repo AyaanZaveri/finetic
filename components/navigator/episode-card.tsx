@@ -1,6 +1,5 @@
 "use client";
 
-import { artworkFromPath } from "@/lib/artwork";
 
 import { Tv } from "lucide-react";
 import { buildEpisodePath, toEpisodeNavigationPath } from "@/lib/series-route";
@@ -47,7 +46,7 @@ export function EpisodeCard({
       title={episode.name}
       subtitle={episode.seriesName || episode.showName}
       icon={Tv}
-      image={episode.thumbnail || artworkFromPath(href)}
+      image={episode.thumbnail}
       imageAspect="landscape"
       href={onClick ? undefined : href}
       onClick={onClick}

@@ -3,14 +3,14 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
 function load(file, dependencies = {}) {
-    const context = { exports: {}, URL, require: name => dependencies[name] };
+    const context = { exports: {}, URL, URLSearchParams, require: name => dependencies[name] };
     vm.runInNewContext(ts.transpileModule(fs.readFileSync(file, 'utf8'), {
         compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
     }).outputText, context);
     return context.exports;
 }
 const contrast = load('lib/logo-contrast.ts');
-const { paintLogoBackdrop, logoSampleSource, verticalGradientStops, logoBlurRadius } = load('lib/logo-backdrop.ts', { '@/lib/logo-contrast': contrast });
+const { paintLogoBackdrop, logoSampleSource, verticalGradientStops, logoBlurRadius } = load('lib/logo-backdrop.ts', { '@/lib/logo-contrast': contrast, '@/lib/artwork': load('lib/artwork.ts') });
 const css = 'linear-gradient(rgba(255, 255, 255, 0) 0%, rgb(255, 255, 255) 100%)';
 assert.equal(verticalGradientStops(css).length, 2, 'Commas inside color functions must not split the gradient');
 assert.equal(verticalGradientStops('linear-gradient(90deg, black, white)'), null);
@@ -43,7 +43,7 @@ paintLogoBackdrop(output.getContext(), { left: 64, top: 64, width: 32, height: 3
 assert.ok(calls.find(call => call[0] === 'image' && call[1] === 'blur(24px)'), 'Blur is applied at the canvas sampling scale');
 assert.ok(calls.find(call => call[0] === 'image' && call[2][3] > 32), 'Surrounding source pixels participate, not just the unblurred logo crop');
 assert.equal(calls.at(-1)[0], 'fill', 'The header tint paints after the filtered backdrop');
-assert.ok(logoSampleSource('/api/artwork?id=tt123&type=movie&kind=backdrop', 'https://navigator.test').includes('sample=1'));
+assert.ok(logoSampleSource('https://image.tmdb.org/t/p/w300/backdrop.jpg', 'https://navigator.test').includes('wsrv.nl'));
 assert.equal(logoSampleSource('https://image.tmdb.org/t/p/w1280/art.jpg', 'https://navigator.test'), 'https://image.tmdb.org/t/p/w1280/art.jpg');
 
 // A one-pixel software canvas exercises the real painter's compositing at the

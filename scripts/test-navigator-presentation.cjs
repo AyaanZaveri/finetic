@@ -535,13 +535,9 @@ const { PlayMediaCard } = load('components/navigator/play-media-card.tsx', {
     '@/lib/navigator-title-path': load('lib/navigator-title-path.ts', { '@/lib/series-route': load('lib/series-route.ts', {}) }),
 });
 assert.equal(PlayMediaCard({ result: { success: false } }), null, 'Failed actions never render Media/Media even outside the segment renderer');
-const playbackCard = PlayMediaCard({ result: { success: true, mediaId: 'tt13623608:1:1', mediaName: 'The Curse', showName: 'The Curse', episodeTitle: 'Land of Enchantment', mediaType: 'Episode', seasonNumber: 1, episodeNumber: 1 } });
+const playbackCard = PlayMediaCard({ result: { success: true, mediaId: 'tt13623608:1:1', mediaName: 'The Curse', showName: 'The Curse', episodeTitle: 'Land of Enchantment', mediaType: 'Episode', seasonNumber: 1, episodeNumber: 1, thumbnail: 'https://image.tmdb.org/t/p/w500/still.jpg' } });
 const playbackImage = new URL(playbackCard.props.image, 'http://localhost');
-assert.equal(playbackImage.pathname, '/api/artwork');
-assert.equal(playbackImage.searchParams.get('id'), 'tt13623608');
-assert.equal(playbackImage.searchParams.get('kind'), 'still');
-assert.equal(playbackImage.searchParams.get('season'), '1');
-assert.equal(playbackImage.searchParams.get('episode'), '1');
+assert.equal(playbackImage.href, 'https://image.tmdb.org/t/p/w500/still.jpg');
 assert.equal(playbackCard.props.imageAspect, 'landscape');
 assert.equal(playbackCard.props.title, 'Land of Enchantment');
 assert.equal(playbackCard.props.subtitle, 'The Curse', 'The show name belongs under the episode title, before badges');

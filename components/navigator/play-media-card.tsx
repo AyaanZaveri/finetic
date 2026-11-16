@@ -1,7 +1,6 @@
 "use client";
 
 import { Play } from "lucide-react";
-import { artworkUrl } from "@/lib/artwork";
 import { parseSeriesRouteId } from "@/lib/series-route";
 import { navigatorTitlePath } from "@/lib/navigator-title-path";
 import { ResultCard, ResultMeta } from "./result-card";
@@ -37,13 +36,7 @@ export function PlayMediaCard({
   const target = parseSeriesRouteId(result.mediaSourceId || result.mediaId || result.seriesId || "");
   const season = result.seasonNumber ?? target.season;
   const episodeNumber = result.episodeNumber ?? target.episode;
-  const image = result.thumbnail || artworkUrl(
-    episode ? result.seriesId || target.seriesId : result.mediaId || "",
-    result.mediaType === "Movie" ? "movie" : "series",
-    episode ? "still" : "poster",
-    season,
-    episodeNumber,
-  );
+  const image = result.thumbnail;
   const title = episode
     ? result.episodeTitle || (episodeNumber != null ? `Episode ${episodeNumber}` : "Episode")
     : result.mediaName || "Media";

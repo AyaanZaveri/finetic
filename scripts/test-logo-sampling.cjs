@@ -30,7 +30,7 @@ const scope = new Element('DIV', rect(0, 0, 500, 500), null, 0);
 const scroller = new Element('MAIN', scope.bounds, scope, 1);
 scroller.style.backgroundColor = 'rgb(255, 255, 255)'; scroller.style.overflowY = 'auto';
 const hero = new Element('IMG', rect(0, 0, 500, 300), scroller, 2); hero.src = '/hero-white.jpg';
-const poster = new Element('IMG', rect(20, 400, 200, 300), scroller, 3); poster.src = '/api/artwork?id=tt123&type=series&kind=poster';
+const poster = new Element('IMG', rect(20, 400, 200, 300), scroller, 3); poster.src = 'https://image.tmdb.org/t/p/w500/poster.jpg';
 const header = new Element('HEADER', rect(0, 0, 500, 100), scope, 4);
 const logo = new Element('SPAN', rect(30, 30, 32, 32), header, 5);
 logo.closest = () => header;

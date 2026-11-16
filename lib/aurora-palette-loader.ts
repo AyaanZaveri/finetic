@@ -81,23 +81,10 @@ async function extract(sources: { url: string; size: string }[]): Promise<string
 }
 
 function sampleSources({ url: source, size }: { url: string; size: string }): string[] {
-    const sample = artworkSampleUrl(source);
-    if (sample.startsWith("/api/artwork?")) {
-        const params = new URLSearchParams(sample.slice(sample.indexOf("?") + 1));
-        params.delete("width");
-        params.set("palette", "1");
-        const cached = `/api/artwork?${params}`;
-        // Try the external cache first. Transfer bytes through our server only
-        // if that service cannot supply a canvas-readable image.
-        params.set("direct", "1");
-        return [cached, `/api/artwork?${params}`];
-    }
-    // Palette extraction never needs an original-resolution TMDB download.
+    // Only allow public TMDB images through wsrv. Never disclose add-on URLs.
     if (/^https:\/\/image\.tmdb\.org\/t\/p\/[^/]+\//.test(source)) {
-        return [source.replace(/\/t\/p\/[^/]+\//, `/t/p/${size}/`)];
+        const small = source.replace(/\/t\/p\/[^/]+\//, `/t/p/${size}/`);
+        return [`${artworkSampleUrl(small)}&w=160`, small];
     }
-    if (/^https?:\/\//i.test(source) && !/^https?:\/\/wsrv\.nl/i.test(source)) {
-        return [sample, `https://wsrv.nl/?url=${encodeURIComponent(source.replace(/^https?:\/\//i, ""))}&w=300&h=300`];
-    }
-    return [sample];
+    return [source];
 }

@@ -65,7 +65,7 @@ const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream
   const actions = load('app/actions/search.ts', {
     '@/lib/server/auth': { getAuthData: async () => ({ authKey: 'fixture-only' }) },
     '@/lib/server/outbound-fetch': { outboundFetch: 'fixture-fetch' },
-    react: { cache: fn => fn }, '@/lib/artwork': { artworkUrl: () => '/poster' },
+    react: { cache: fn => fn }, '@/lib/artwork': { publicArtworkUrl: () => '/poster' }, '@/lib/server/media-artwork': { resolveArtworkList: async items => items },
     './auth': { getInstalledAddons: async () => [{ transportUrl: 'https://addon.test', manifest: {
       id: 'one', name: 'One', catalogs: [{ id: 'top', type: 'movie', extra: [{ name: 'search' }] }],
     } }] },

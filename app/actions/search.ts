@@ -3,7 +3,8 @@
 import { getAuthData } from "@/lib/server/auth";
 import { outboundFetch } from "@/lib/server/outbound-fetch";
 
-import { artworkUrl } from "@/lib/artwork";
+import { publicArtworkUrl } from "@/lib/artwork";
+import { resolveArtworkList } from "@/lib/server/media-artwork";
 
 import type {
     StremioCatalogResponse,
@@ -75,7 +76,7 @@ function mapMetaToSearchResult(
         id: meta.id,
         type: meta.type,
         name: meta.name,
-        poster: artworkUrl(meta.id, meta.type, "poster"),
+        poster: publicArtworkUrl(meta.poster),
         description: meta.description,
         releaseInfo: meta.releaseInfo,
         imdbRating: meta.imdbRating,
@@ -139,7 +140,7 @@ async function collectSearchResults(
 
     if (!options.returnEarlyWithResults) {
         await Promise.allSettled(searchPromises);
-        return sortSearchResults(results);
+        return resolveArtworkList(sortSearchResults(results));
     }
 
     await new Promise<void>((resolve) => {
@@ -168,7 +169,7 @@ async function collectSearchResults(
     });
 
     options.signal?.throwIfAborted();
-    return sortSearchResults(results);
+    return resolveArtworkList(sortSearchResults(results));
 }
 
 // ─── Search ──────────────────────────────────────────────────────
@@ -230,9 +231,9 @@ export async function searchCatalogSectionsForAddon(
                     title: `${addon.manifest.name} - ${catalog.id}`,
                     catalogId: catalog.id,
                     catalogType: catalog.type,
-                    items: data.metas.map((meta) =>
+                    items: await resolveArtworkList(data.metas.map((meta) =>
                         mapMetaToSearchResult(meta, addon.manifest.name, catalog.id, catalog.id)
-                    ),
+                    )),
                 } satisfies SearchCatalogSection;
             })
         );

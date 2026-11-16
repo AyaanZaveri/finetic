@@ -1,7 +1,6 @@
 "use client";
 
 import { Star, Tv } from "lucide-react";
-import { artworkUrl } from "@/lib/artwork";
 import { navigatorTitlePath } from "@/lib/navigator-title-path";
 import { ResultCard, ResultMeta } from "./result-card";
 
@@ -13,7 +12,7 @@ export function EpisodeMetadataCard({ catalog }: {
   return <ResultCard
     title={catalog.seriesName || "Episode catalog"}
     icon={Tv}
-    image={catalog.poster || (catalog.seriesId ? artworkUrl(catalog.seriesId, "series", "poster") : undefined)}
+    image={catalog.poster}
     href={href}
     metadata={<>
       <ResultMeta>Series</ResultMeta>

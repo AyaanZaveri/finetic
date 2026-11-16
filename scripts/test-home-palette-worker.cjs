@@ -103,17 +103,17 @@ async function cache() {
         'node-vibrant/browser': { Vibrant: vibrant },
         './palette-worker-client': { extractHomePalette: sources => { calls.push(sources); return Promise.resolve(['#ff0000', '#aa0000', '#880000']); } },
     }, { URLSearchParams, Image: class {} });
-    const aurora = await loader.loadAuroraPalette('/api/artwork?id=tt1&type=movie&kind=backdrop&width=780');
-    const a = loader.loadHomePalette('/api/artwork?id=tt1&type=movie&kind=backdrop&width=780');
-    assert.equal(a, loader.loadHomePalette('/api/artwork?id=tt1&type=movie&kind=backdrop&width=1280'));
+    const aurora = await loader.loadAuroraPalette('https://image.tmdb.org/t/p/w780/tt1.jpg');
+    const a = loader.loadHomePalette('https://image.tmdb.org/t/p/w780/tt1.jpg');
+    assert.equal(a, loader.loadHomePalette('https://image.tmdb.org/t/p/w1280/tt1.jpg'));
     const colors = await a;
     assert.notEqual(colors[0], aurora[0], 'A cached vibrant Aurora palette must not replace Home dominant colors');
-    assert.equal(await loader.loadHomePalette('/api/artwork?id=tt1&type=movie&kind=backdrop&width=300'), colors);
+    assert.equal(await loader.loadHomePalette('https://image.tmdb.org/t/p/w300/tt1.jpg'), colors);
     assert.equal(calls.length, 1); assert.ok(!calls[0][0].includes('width='));
-    assert.ok(calls[0][0].includes('sample=1') && calls[0][0].includes('palette=1'));
-    assert.ok(!calls[0][0].includes('direct=1') && calls[0][1].includes('direct=1'), 'Use external sampling first with a direct fallback');
+    assert.ok(calls[0][0].startsWith('https://wsrv.nl/'));
+    assert.ok(calls[0][0].startsWith('https://wsrv.nl/') && calls[0][1].startsWith('https://image.tmdb.org/'), 'Use external sampling first with a direct fallback');
     assert.equal(await loader.loadHomePalette(), null, 'No artwork retains home emerald rather than an unrelated Aurora default');
-    const source = '/api/artwork?id=tt2&type=movie&kind=backdrop';
+    const source = 'https://image.tmdb.org/t/p/w780/tt2.jpg';
     const homeFirst = await loader.loadHomePalette(source);
     assert.notEqual((await loader.loadAuroraPalette(source))[0], homeFirst[0], 'Detail pages also retain vibrant selection after a Home visit');
 }

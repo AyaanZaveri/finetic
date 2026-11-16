@@ -53,7 +53,7 @@ export function SearchResultsView({ query, initialResults }: {
     }, [store, filter, hasMore, source.loading, source.error, source.nextPage]);
 
     const firstResult = source.results[0];
-    const firstArtwork = firstResult ? mediaArtwork(firstResult.id, firstResult.type) : undefined;
+    const firstArtwork = firstResult ? mediaArtwork(firstResult) : undefined;
     const total = filter === "all" ? snapshot.movie.totalResults + snapshot.series.totalResults : source.totalResults;
     const pool = useMemo(() => {
         const cards = new Map<string, SearchResultSet["all"]["results"][number]>();

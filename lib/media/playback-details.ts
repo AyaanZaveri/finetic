@@ -11,7 +11,7 @@ export function playbackDetailsId(media: Pick<MediaToPlay, "id" | "seriesId" | "
 /** Canonical artwork URLs can start downloading before metadata or streams. */
 export function initialPlaybackDetails(media: MediaToPlay): MediaItem {
   const id = playbackDetailsId(media);
-  const artwork = mediaArtwork(id, media.type);
+  const artwork = mediaArtwork(media.details || {});
   return mergePlaybackDetails({ id, type: media.type, name: media.showName || media.name,
     ...artwork, background: media.backdropUrl || artwork.background }, media.details);
 }

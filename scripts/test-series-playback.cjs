@@ -21,7 +21,7 @@ async function run() {
     ];
     const context = { exports: {}, URLSearchParams, AbortSignal, console,
         fetch: async () => ({ ok: true, json: async () => ({ meta: { videos } }) }),
-        require: name => name === '@/lib/series-route' ? load('lib/series-route.ts') : name === '@/lib/server/outbound-fetch' ? { outboundFetch: async () => ({ ok: true, json: async () => ({ meta: { videos } }) }) } : name === '@/lib/artwork' ? artwork : name === '@/lib/media/shuffle-episode' ? load('lib/media/shuffle-episode.ts') : name === '@/lib/tmdb-discovery' ? {
+        require: name => name === '@/lib/series-route' ? load('lib/series-route.ts') : name === '@/lib/server/outbound-fetch' ? { outboundFetch: async () => ({ ok: true, json: async () => ({ meta: { videos } }) }) } : name === '@/lib/tmdb-artwork' ? { getTMDBArtwork: async () => undefined } : name === '@/lib/artwork' ? artwork : name === '@/lib/media/shuffle-episode' ? load('lib/media/shuffle-episode.ts') : name === '@/lib/tmdb-discovery' ? {
             getTMDBEpisodes: async (id, season) => {
                 assert.equal(season, 1);
                 return [{ id: `${id}:1:2`, season: 1, episode: 2 }, { id: `${id}:1:1`, season: 1, episode: 1 }];
@@ -50,9 +50,9 @@ async function run() {
         : name === '@/lib/media/playback-context' ? require('./test-support/playback-context.cjs') : name === '@/lib/desktop/bridge' ? { recordDesktopStage() {} } : artwork);
     const updates = new Map();
     const play = request => atoms.playMediaAtom.write(() => {}, (key, value) => updates.set(key, value), request);
-    play({ id: 'tt123', type: 'series', mediaSourceId: 'tt123:0:1', backdropUrl: '/episode-still.jpg' });
+    play({ id: 'tt123', type: 'series', mediaSourceId: 'tt123:0:1', backdropUrl: '/episode-still.jpg', details: { background: 'https://image.tmdb.org/t/p/original/show.jpg' } });
     const episode = updates.get(atoms.currentMediaAtom);
-    assert.equal(episode.backdropUrl, artwork.artworkUrl('tt123', 'series', 'backdrop'));
+    assert.equal(episode.backdropUrl, 'https://image.tmdb.org/t/p/original/show.jpg');
     assert.equal(episode.mediaSourceId, 'tt123:0:1', 'Explicitly selected specials remain playable');
     play({ id: 'movie', type: 'movie', backdropUrl: '/movie.jpg' });
     assert.equal(updates.get(atoms.currentMediaAtom).backdropUrl, '/movie.jpg');

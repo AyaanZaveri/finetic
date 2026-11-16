@@ -3,7 +3,6 @@
 import { Film, Tv, Star } from "lucide-react";
 import { RottenTomatoesIcon } from "../icons/rotten-tomatoes";
 import { navigatorTitlePath } from "@/lib/navigator-title-path";
-import { artworkFromPath } from "@/lib/artwork";
 import { ResultCard, ResultMeta, formatCardRuntime } from "./result-card";
 
 interface MediaDetailsCardProps {
@@ -46,7 +45,7 @@ export function MediaDetailsCard({
       title={media.name}
       subtitle={media.type === "Episode" ? media.seriesName || media.showName : undefined}
       icon={media.type === "Movie" ? Film : Tv}
-      image={(media.type === "Episode" ? media.thumbnail : media.poster) || artworkFromPath(href)}
+      image={(media.type === "Episode" ? media.thumbnail : media.poster)}
       imageAspect={media.type === "Episode" ? "landscape" : "portrait"}
       href={onClick ? undefined : href}
       onClick={onClick}

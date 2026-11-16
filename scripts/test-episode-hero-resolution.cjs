@@ -6,8 +6,6 @@ const small = 'https://image.tmdb.org/t/p/w500/still.jpg';
 const large = 'https://image.tmdb.org/t/p/w1280/still.jpg';
 assert.equal(artwork.episodeHeroStillUrl(small), large);
 assert.equal(artwork.episodeHeroStillUrl(large), large);
-assert.equal(artwork.episodeHeroStillUrl('/api/artwork?id=tt123&type=series&kind=still&v=1&season=1&episode=5'), '/api/artwork?id=tt123&type=series&kind=still&v=1&season=1&episode=5&size=1280');
-assert.equal(artwork.episodeHeroStillUrl('/api/artwork?id=tt123&type=series&kind=logo'), '/api/artwork?id=tt123&type=series&kind=logo');
 assert.equal(artwork.episodeHeroStillUrl('https://other.test/w500/image.jpg'), 'https://other.test/w500/image.jpg');
 assert.equal(artwork.episodeHeroStillUrl(undefined), undefined);
 const tick = () => new Promise(resolve => setImmediate(resolve));

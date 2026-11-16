@@ -14,8 +14,6 @@ import { CATALOG_BATCH_SIZE, INITIAL_CATALOG_COUNT } from "@/lib/home-catalogs";
 import type { MediaItem, StremioAddonCatalog } from "@/types/stremio";
 import { Suspense } from "react";
 
-export const dynamic = "force-dynamic";
-
 function formatTypeLabel(type: string): string {
   return type
     .split(/[-_ ]+/)
@@ -110,7 +108,7 @@ async function ContinueWatchingSection({
 }) {
   const continueWatchingItems = (await continueWatchingPromise).slice(0, 20);
   const first = continueWatchingItems[0];
-  const artwork = first ? mediaArtwork(first.seriesId || first.id, first.type) : null;
+  const artwork = first ? mediaArtwork(first) : null;
 
   return (
     <>
@@ -167,7 +165,7 @@ async function loadCatalogSections(entries: HomeCatalogEntry[]): Promise<HomeCat
   const loadedSections = await Promise.all(
     entries.map(async (entry) => {
       const mediaItems = (
-        await fetchCatalogItems(entry.catalogType, entry.catalogId, entry.addonTransportUrl)
+        await fetchCatalogItems(entry.catalogType, entry.catalogId, entry.addonTransportUrl, undefined, 12)
       ).slice(0, 12);
 
       if (mediaItems.length === 0) return null;

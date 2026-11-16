@@ -1,3 +1,4 @@
+import { artworkSampleUrl } from "@/lib/artwork";
 import { getLogoSampleCrop } from "@/lib/logo-contrast";
 
 export type LogoRect = { left: number; top: number; width: number; height: number };
@@ -169,14 +170,7 @@ export function paintLogoBackdrop(
     }
 }
 
-/** Read our canonical artwork through a byte response, rather than a CDN
- * redirect that can display normally but make canvas sampling fail CORS. */
-export function logoSampleSource(source: string, origin: string) {
-    const url = new URL(source, origin);
-    if (url.origin === origin && url.pathname === "/api/artwork") {
-        url.searchParams.set("sample", "1");
-        if (url.searchParams.get("kind") !== "logo") url.searchParams.set("palette", "1");
-        return url.href;
-    }
-    return source;
+/** Public image sampling bypasses the application server. */
+export function logoSampleSource(source: string, _origin: string) {
+    return artworkSampleUrl(source);
 }

@@ -10,7 +10,7 @@ export function PlayerLoadingWordmark({ src, alt, loading }: {
     loading: boolean;
 }) {
     const [failure, setFailure] = useState<{ src: string; stage: "proxy" | "failed" } | null>(null);
-    // Masks need same-origin image bytes, including when the CDN redirects.
+    // Masks use the CORS-enabled image service; display can use TMDB directly.
     const maskSrc = artworkSampleUrl(src);
     const stage = failure?.src === src ? failure.stage : undefined;
     const imageSrc = stage === "proxy" ? maskSrc : src;

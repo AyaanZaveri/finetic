@@ -7,16 +7,16 @@ const { PlayerLoadingWordmark } = load('components/player-loading-wordmark.tsx',
   './player-loading-wordmark.module.css': {},
   '@/lib/artwork': load('lib/artwork.ts', {}, { URLSearchParams }),
 });
-const src = '/api/artwork?id=tt1442437&type=series&kind=logo&v=3';
+const src = 'https://image.tmdb.org/t/p/original/logo.svg';
 const render = (source = src, loading = true) => PlayerLoadingWordmark({ src: source, alt: 'Modern Family logo', loading });
 const children = tree => tree.props.children.props.children;
 let tree = render();
 assert.equal(children(tree)[0].props.src, src);
 assert.equal(children(tree)[0].props.fetchPriority, 'high');
-assert.ok(children(tree)[1].props.style.maskImage.includes('sample=1'));
+assert.ok(children(tree)[1].props.style.maskImage.includes('wsrv.nl'));
 children(tree)[0].props.onError();
 tree = render();
-assert.ok(children(tree)[0].props.src.includes('sample=1'), 'A failed CDN redirect retries through the same-origin image endpoint');
+assert.ok(children(tree)[0].props.src.includes('wsrv.nl'), 'A failed CDN redirect retries through the external image service');
 children(tree)[0].props.onError();
 tree = render();
 assert.equal(tree.props['data-state'], 'failed');
@@ -31,4 +31,4 @@ assert.equal(value('.logo', 'height'), '18vh');
 assert.equal(value('.image', 'width'), '100%');
 assert.equal(value('.image', 'height'), '100%');
 assert.equal(value('.image', 'object-fit'), 'contain');
-console.log('PASS: definite SVG display size, high-priority image reuse, same-origin retry, nonempty failure fallback, and source changes.');
+console.log('PASS: definite SVG display size, high-priority image reuse, external image retry, nonempty failure fallback, and source changes.');

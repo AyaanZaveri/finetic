@@ -2,8 +2,10 @@
 
 import { releaseYear } from "@/lib/media/release-year";
 import { outboundFetch } from "@/lib/server/outbound-fetch";
+import { readCatalog } from "@/lib/server/catalog-cache";
 
-import { artworkUrl, mediaArtwork } from "@/lib/artwork";
+import { publicArtworkUrl } from "@/lib/artwork";
+import { resolveMediaArtwork, resolveArtworkList } from "@/lib/server/media-artwork";
 import { getTMDBArtwork } from "@/lib/tmdb-artwork";
 
 import type {
@@ -94,7 +96,9 @@ function metaPreviewToMediaItem(
     id: meta.id,
     type: meta.type as MediaItem["type"],
     name: meta.name,
-    ...mediaArtwork(meta.id, meta.type),
+    poster: publicArtworkUrl(meta.poster),
+    background: publicArtworkUrl(meta.background),
+    logo: publicArtworkUrl(meta.logo),
     description: meta.description,
     releaseInfo: meta.releaseInfo,
     imdbRating: meta.imdbRating,
@@ -136,7 +140,7 @@ function fullMetaToMediaItem(
     year: releaseYear(meta.year, meta.releaseInfo),
     videos: meta.videos?.map((video) => ({
       ...video,
-      thumbnail: artworkUrl(meta.id, "series", "still", video.season ?? 1, video.episode ?? 1),
+      thumbnail: publicArtworkUrl(video.thumbnail),
     })),
     trailers: meta.trailers,
     behaviorHints: meta.behaviorHints,
@@ -170,20 +174,15 @@ export async function fetchCatalogItems(
   type: string = "movie",
   catalogId: string = "top",
   addonTransportUrl?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  maxItems = 20,
 ): Promise<MediaItem[]> {
   try {
     signal?.throwIfAborted();
     if (addonTransportUrl) {
-      const data = await fetchAddonResource<StremioCatalogResponse>(
-        addonTransportUrl,
-        `catalog/${type}/${catalogId}.json`,
-        { signal }
-      );
-
-      if (!data?.metas) return [];
-      return data.metas.map((meta) =>
-        metaPreviewToMediaItem(meta, addonTransportUrl)
+      return await readCatalog(
+        addonTransportUrl, type, catalogId,
+        meta => metaPreviewToMediaItem(meta, addonTransportUrl), signal, maxItems,
       );
     }
 
@@ -201,17 +200,11 @@ export async function fetchCatalogItems(
 
       if (!catalog) continue;
 
-      const data = await fetchAddonResource<StremioCatalogResponse>(
-        addon.transportUrl,
-        `catalog/${type}/${catalog.id}.json`,
-        { signal }
-      );
-
-      if (data?.metas) {
-        for (const meta of data.metas) {
-          results.push(metaPreviewToMediaItem(meta, addon.transportUrl));
-        }
-      }
+      const items = await readCatalog(
+        addon.transportUrl, type, catalog.id,
+        meta => metaPreviewToMediaItem(meta, addon.transportUrl), signal, maxItems,
+      ).catch(() => { signal?.throwIfAborted(); return [] as MediaItem[]; });
+      results.push(...items);
     }
 
     return results;
@@ -223,12 +216,12 @@ export async function fetchCatalogItems(
 }
 
 export async function fetchMovies(limit: number = 20): Promise<MediaItem[]> {
-  const items = await fetchCatalogItems("movie", "top");
+  const items = await fetchCatalogItems("movie", "top", undefined, undefined, limit);
   return items.slice(0, limit);
 }
 
 export async function fetchTVShows(limit: number = 20): Promise<MediaItem[]> {
-  const items = await fetchCatalogItems("series", "top");
+  const items = await fetchCatalogItems("series", "top", undefined, undefined, limit);
   return items.slice(0, limit);
 }
 
@@ -288,7 +281,7 @@ async function fetchMediaDetailsUncached(
         throw new Error("Addon did not return metadata.");
       }
 
-      return fullMetaToMediaItem(data.meta, addon.transportUrl);
+      return resolveMediaArtwork(fullMetaToMediaItem(data.meta, addon.transportUrl), true);
     });
 
     if (options?.playback) {
@@ -455,7 +448,7 @@ export async function fetchSimilarItems(
   // Stremio doesn't have a direct "similar items" endpoint.
   // We can try fetching from the same catalog or use IMDB relations.
   // For now, return items from the same catalog type
-  const items = await fetchCatalogItems(type, "top");
+  const items = await fetchCatalogItems(type, "top", undefined, undefined, limit + 1);
   return items.filter((item) => item.id !== itemId).slice(0, limit);
 }
 
@@ -490,7 +483,7 @@ export async function fetchLibraryItems(
     const allItems = results.flat();
 
     return {
-      items: allItems.slice(0, limit),
+      items: await resolveArtworkList(allItems.slice(0, limit)),
       totalRecordCount: allItems.length,
       incomplete,
     };
@@ -718,7 +711,7 @@ async function upsertPlaybackState(
 
     const poster = firstString(existingItem?.poster, input.poster);
     // Stremio sync needs a public image URL, not our app-relative redirect.
-    const libraryPoster = poster?.startsWith("/api/artwork?")
+    const libraryPoster = !publicArtworkUrl(poster)
       ? await getTMDBArtwork(input.libraryItemId, input.mediaType, "poster")
       : poster;
 
@@ -1027,10 +1020,7 @@ export async function fetchResumeItems(): Promise<MediaItem[]> {
         };
       });
 
-    // Artwork already resolves through our TMDB route. Fetching full metadata
-    // here delayed every card for fields the row never uses (including videos
-    // and complete descriptions), then discarded the returned artwork anyway.
-    return resumeItems.map((item: MediaItem) => ({ ...item, ...mediaArtwork(item.seriesId || item.id, item.type) }));
+    return resolveArtworkList(resumeItems, true);
   } catch (error) {
     console.error("Failed to fetch resume items:", error);
     return [];

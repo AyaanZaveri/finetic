@@ -21,7 +21,8 @@ const context = { exports: {}, console, AbortSignal,
             if (unavailable) throw new Error('Metadata unavailable');
             return { name: 'Basketball', thumbnail: 'still.jpg' };
         } };
-        if (name === '@/lib/artwork') return { artworkUrl: () => 'fallback.jpg' };
+        if (name === '@/lib/tmdb-artwork') return { getTMDBArtwork: async () => undefined };
+        if (name === '@/lib/artwork') return { publicArtworkUrl: () => undefined };
         return {};
     },
 };

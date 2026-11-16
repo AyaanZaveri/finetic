@@ -68,7 +68,7 @@ export function MediaCard({
     cancelWarmup.current = warmup?.intent(item) ?? null;
   };
   useEffect(() => () => { cancelWarmup.current?.(); }, [item.id, item.mediaSourceId]);
-  const artwork = mediaArtwork(item.seriesId || item.id, item.type);
+  const artwork = mediaArtwork(item);
   // Search already supplies an exact TMDB poster. Reusing it avoids another
   // metadata request per card and preserves posters in the title's own language.
   const suppliedPoster = item.poster?.startsWith("https://image.tmdb.org/t/p/") ? item.poster : undefined;

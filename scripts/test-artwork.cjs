@@ -15,45 +15,28 @@ function load(file, globals = {}) {
 
 async function run() {
   const urls = load('lib/artwork.ts');
-  const fullBackdrop = urls.artworkUrl('tt123', 'movie', 'backdrop');
-  assert.ok(!fullBackdrop.includes('width='), 'Canonical artwork stays full-resolution');
-  assert.ok(urls.backdropVariantUrl(fullBackdrop, 780).includes('width=780'));
-  assert.equal(urls.backdropVariantUrl('https://image.tmdb.org/t/p/original/art.jpg', 300), 'https://image.tmdb.org/t/p/w300/art.jpg');
-  assert.equal(urls.artworkSampleUrl('/api/artwork?id=tt123&kind=backdrop'), '/api/artwork?id=tt123&kind=backdrop&sample=1');
-  assert.equal(urls.artworkSampleUrl('/api/artwork?id=tt123&kind=poster&sample=1'), '/api/artwork?id=tt123&kind=poster&sample=1');
-  assert.equal(urls.artworkSampleUrl('https://image.tmdb.org/t/p/w1280/art.jpg'), 'https://image.tmdb.org/t/p/w1280/art.jpg');
-  assert.equal(urls.artworkUrl('custom-addon-id', 'movie', 'poster'), undefined);
-  assert.equal(urls.artworkUrl('tt123:2:3', 'series', 'poster'), '/api/artwork?id=tt123&type=series&kind=poster');
-  assert.equal(urls.artworkUrl('tt123', 'series', 'still', 0, 1), '/api/artwork?id=tt123&type=series&kind=still&v=1&season=0&episode=1');
-  for (const [season, episode] of [[-1, 1], [1, 0], [1.5, 2], [NaN, 1]]) {
-    assert.equal(urls.artworkUrl('tt123', 'series', 'still', season, episode), undefined);
+  const direct = 'https://image.tmdb.org/t/p/original/art.jpg';
+  assert.equal(urls.backdropVariantUrl(direct, 780), 'https://image.tmdb.org/t/p/w780/art.jpg');
+  assert.equal(urls.episodeHeroStillUrl(direct), 'https://image.tmdb.org/t/p/w1280/art.jpg');
+  assert.equal(urls.episodeThumbnailUrl(direct, 'tt123', 1, 1), direct);
+  const sample = new URL(urls.artworkSampleUrl(direct));
+  assert.equal(sample.origin, 'https://wsrv.nl');
+  assert.equal(sample.searchParams.get('url'), direct);
+  assert.equal(sample.searchParams.get('output'), 'png');
+  for (const privateUrl of ['https://addon.test/secret/image.jpg', 'http://127.0.0.1/image.jpg', 'https://image.tmdb.org.evil.test/t/p/w500/a.jpg']) {
+    assert.equal(urls.artworkSampleUrl(privateUrl), privateUrl, 'Do not disclose private URLs to the image service');
+    assert.equal(urls.publicArtworkUrl(privateUrl), undefined);
   }
-  assert.equal(urls.artworkUrl('tt123', 'movie', 'still', 1, 1), undefined);
-  assert.equal(urls.artworkUrl('tmdb:12', 'series', 'logo'), '/api/artwork?id=tmdb%3A12&type=series&kind=logo&v=3');
-
-  assert.equal(urls.artworkFromPath('/series/tt123/2/3'), '/api/artwork?id=tt123&type=series&kind=still&v=1&season=2&episode=3');
-  assert.equal(urls.artworkFromPath('/movie/tmdb%3A12'), '/api/artwork?id=tmdb%3A12&type=movie&kind=poster');
-  assert.equal(urls.artworkFromPath('//external.example/movie/tt123'), undefined);
-  assert.equal(urls.artworkFromPath('/movie/%E0%A4%A'), undefined);
-
-  assert.equal(urls.artworkUrl('tmdb%3A204284', 'series', 'still', 2, 1),
-    '/api/artwork?id=tmdb%3A204284&type=series&kind=still&v=1&season=2&episode=1', 'Encoded show IDs must resolve');
-  assert.equal(urls.artworkUrl('tmdb:204284:2:1', 'series', 'still', 2, 1),
-    '/api/artwork?id=tmdb%3A204284&type=series&kind=still&v=1&season=2&episode=1', 'Episode IDs retain the parent show identity');
-  const canonicalStill = '/api/artwork?id=tt10802170&type=series&kind=still&v=1&season=2&episode=1';
-  assert.equal(urls.episodeThumbnailUrl(canonicalStill, 'addon-route-id', 2, 1), canonicalStill,
-    'Carousel must keep server-provided artwork even when the route ID cannot resolve');
-  assert.equal(urls.episodeThumbnailUrl('https://image.tmdb.org/t/p/w500/still.jpg', 'addon-route-id', 2, 1),
-    'https://image.tmdb.org/t/p/w500/still.jpg', 'Direct TMDB stills remain usable');
-  assert.equal(urls.episodeThumbnailUrl('https://old-addon.test/image.jpg', 'tt10802170', 2, 1), canonicalStill,
-    'Non-TMDB thumbnails still use the TMDB source');
+  assert.equal(urls.mediaArtwork({ poster: direct }).poster, direct);
+  assert.equal(urls.mediaArtwork({ poster: '/api/artwork?old' }).poster, undefined);
+  assert.equal(fs.existsSync('app/api/artwork/route.ts'), false, 'Image delivery must bypass app functions');
 
   const env = {};
   const calls = [];
   let failed = false;
   const globals = {
     process: { env }, AbortSignal,
-    require: name => name === '@/lib/tmdb' ? tmdb : name === '@/lib/artwork' ? urls
+    require: name => name === 'next/cache' ? { unstable_cache: fn => fn } : name === '@/lib/server/metadata-cache' ? { opaqueMetadataIdentity: parts => JSON.stringify(parts) } : name === '@/lib/tmdb' ? tmdb : name === '@/lib/artwork' ? urls
       : name === '@/lib/tmdb-credentials' ? credentials
       : name === 'next/headers' ? { cookies: async () => ({ get: () => undefined }) } : {},
     fetch: async (url, options) => {
@@ -119,7 +102,7 @@ async function run() {
   assert.equal(await artwork.getTMDBArtwork('tmdb:20', 'series', 'still', 2, 4), undefined);
   const foreignPaths = [];
   const foreignArtwork = load('lib/tmdb-artwork.ts', {
-    require: name => name === '@/lib/tmdb' ? {
+    require: name => name === 'next/cache' ? { unstable_cache: fn => fn } : name === '@/lib/server/metadata-cache' ? { opaqueMetadataIdentity: parts => JSON.stringify(parts) } : name === '@/lib/tmdb' ? {
       resolveTMDBId: async () => 236182,
       fetchTMDB: async path => {
         foreignPaths.push(path);
@@ -142,73 +125,6 @@ async function run() {
   failed = true;
   assert.equal(await artwork.getTMDBArtwork('tmdb:10', 'movie', 'poster'), undefined);
 
-  const { GET } = load('app/api/artwork/route.ts', {
-    require: name => name === '@/lib/artwork' ? urls : { getTMDBArtwork: async () => 'https://image.tmdb.org/t/p/w500/poster.jpg' },
-  });
-  const valid = await GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=poster'));
-  assert.equal(valid.status, 307);
-  assert.equal(valid.headers.get('location'), 'https://image.tmdb.org/t/p/w500/poster.jpg');
-  assert.equal(valid.headers.get('cache-control'), 'private, max-age=86400');
-  assert.equal(valid.headers.get('vary'), 'Cookie', 'Artwork credentials must not share a public redirect cache');
-  for (const width of [300, 780, 1280]) {
-    const thumbnail = await GET(new Request(`https://navigator.test/api/artwork?id=tt123&type=movie&kind=backdrop&width=${width}`));
-    assert.equal(thumbnail.headers.get('location'), `https://image.tmdb.org/t/p/w${width}/poster.jpg`);
-  }
-  assert.equal((await GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=backdrop&width=9999'))).status, 400);
-  assert.equal((await GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=poster&width=780'))).status, 400);
-  for (const query of ['id=unknown&type=movie&kind=poster', 'id=tt123&type=movie&kind=invalid', 'id=tt123&type=series&kind=still&v=1&season=-1&episode=2']) {
-    assert.equal((await GET(new Request(`https://navigator.test/api/artwork?${query}`))).status, 400);
-  }
-  const highStill = await GET(new Request('https://navigator.test/api/artwork?id=tt123&type=series&kind=still&season=1&episode=5&size=1280'));
-  assert.equal(highStill.headers.get('location'), 'https://image.tmdb.org/t/p/w1280/poster.jpg');
-  assert.equal((await GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=poster&size=1280'))).status, 400);
-  assert.equal((await GET(new Request('https://navigator.test/api/artwork?id=tt123&type=series&kind=still&season=1&episode=5&size=huge'))).status, 400);
-  const missing = load('app/api/artwork/route.ts', {
-    require: name => name === '@/lib/artwork' ? urls : { getTMDBArtwork: async () => undefined },
-  });
-  const absent = await missing.GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=logo'));
-  assert.equal(absent.status, 404);
-  assert.equal(absent.headers.get('cache-control'), 'no-store', 'Temporary missing artwork must not stick in the browser cache');
-  const sampledUrls = [];
-  const sampled = load('app/api/artwork/route.ts', {
-    require: name => name === '@/lib/artwork' ? urls : { getTMDBArtwork: async () => 'https://image.tmdb.org/t/p/w1280/backdrop.jpg' },
-    fetch: async url => { sampledUrls.push(url); return new Response('fixture-jpeg', { headers: { 'Content-Type': 'image/jpeg' } }); },
-    AbortSignal,
-  });
-  const sample = await sampled.GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=backdrop&sample=1'));
-  assert.equal(sample.status, 200, 'Logo sampling needs same-origin bytes, not a cross-origin redirect');
-  assert.equal(sample.headers.get('location'), null);
-  assert.equal(sample.headers.get('content-type'), 'image/jpeg');
-  assert.equal(sample.headers.get('vary'), 'Cookie');
-  assert.equal(await sample.text(), 'fixture-jpeg');
-  assert.equal(sampledUrls.at(-1), 'https://image.tmdb.org/t/p/w1280/backdrop.jpg', 'Logo contrast samples retain their full-resolution source');
-  const beforePalette = sampledUrls.length;
-  for (const [kind, size] of [["backdrop", "w300"], ["poster", "w342"]]) {
-    const palette = await sampled.GET(new Request(`https://navigator.test/api/artwork?id=tt123&type=movie&kind=${kind}&sample=1&palette=1`));
-    assert.equal(palette.status, 307, 'Palette image bytes are served outside the app function');
-    const destination = new URL(palette.headers.get('location'));
-    assert.equal(destination.origin, 'https://wsrv.nl');
-    assert.equal(destination.searchParams.get('url'), `https://image.tmdb.org/t/p/${size}/backdrop.jpg`);
-    assert.equal(destination.searchParams.get('w'), '160');
-    assert.equal(destination.searchParams.get('output'), 'png');
-    assert.equal(palette.headers.get('vary'), 'Cookie');
-    assert.match(palette.headers.get('cache-control'), /^private/);
-  }
-  assert.equal(sampledUrls.length, beforePalette, 'Palette redirects must not fetch any image bytes on the server');
-  const fallback = await sampled.GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=backdrop&sample=1&palette=1&direct=1'));
-  assert.equal(fallback.status, 200, 'External-cache failures retain a direct sampling fallback');
-  assert.equal(sampledUrls.at(-1), 'https://image.tmdb.org/t/p/w300/backdrop.jpg');
-  const logoSample = await sampled.GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=logo&sample=1'));
-  const posterSample = await sampled.GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=poster&sample=1'));
-  assert.equal(posterSample.status, 200, 'Poster palette fallback also needs same-origin image bytes');
-  assert.equal(posterSample.headers.get('location'), null);
-  assert.equal(logoSample.status, 200, 'Wordmark measurements need same-origin logo bytes even when the CDN does not permit canvas access');
-  assert.equal(logoSample.headers.get('location'), null);
-  const brokenSample = load('app/api/artwork/route.ts', {
-    require: name => name === '@/lib/artwork' ? urls : { getTMDBArtwork: async () => 'https://image.tmdb.org/t/p/w1280/backdrop.jpg' },
-    fetch: async () => new Response('unavailable', { status: 503 }), AbortSignal,
-  });
-  assert.equal((await brokenSample.GET(new Request('https://navigator.test/api/artwork?id=tt123&type=movie&kind=backdrop&sample=1'))).status, 502);
   const React = require('react');
   const { renderToStaticMarkup } = require('react-dom/server');
   const { EpisodeHeroThumbnail } = load('components/episode-hero-thumbnail.tsx', {
@@ -222,6 +138,6 @@ async function run() {
     thumbnail: '/next-episode.jpg', title: 'Next episode', released: '2020-01-01',
   }));
   assert.ok(recovered.includes('src="/next-episode.jpg"'), 'A failed episode image must not hide the next episode image');
-  console.log('PASS: TMDB identity matching, artwork selection, episode stills, caching, route validation, and failures');
+  console.log('PASS: TMDB identity matching, artwork selection, episode stills, direct image delivery, sampling privacy, caching, and failures');
 }
 run().catch(error => { console.error(error); process.exitCode = 1; });

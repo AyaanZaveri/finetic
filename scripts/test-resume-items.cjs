@@ -25,6 +25,8 @@ function setup(items, metadata = { id: 'tt0816692', name: 'Interstellar', type: 
           return [{ transportUrl: 'https://addon.test/manifest.json', manifest: { resources: ['meta'], catalogs: [] } }];
         },
       };
+      if (name === '@/lib/server/catalog-cache') return {};
+      if (name === '@/lib/server/media-artwork') return { resolveArtworkList: async items => items.map(item => ({ ...item, background: 'https://image.tmdb.org/t/p/original/backdrop.jpg' })) };
       if (name === '@/lib/artwork') return artwork;
       if (name === '@/lib/media-description') return description;
       return {};
@@ -63,7 +65,7 @@ async function run() {
   assert.equal(items[0].subtitleFilename, 'Movie.mkv');
   assert.equal(items[0].subtitleVideoSize, 123);
   assert.equal(items[0].year, 2014);
-  assert.equal(items[0].background, '/api/artwork?id=tt0816692&type=movie&kind=backdrop&v=1');
+  assert.equal(items[0].background, 'https://image.tmdb.org/t/p/original/backdrop.jpg');
 
   const rows = [raw,
     { ...raw, _id: 'removed', removed: true },
@@ -109,6 +111,8 @@ async function run() {
     require(name) {
       if (name === 'react') return React;
       if (name === 'react/jsx-runtime') return require(name);
+      if (name === '@/lib/server/catalog-cache') return {};
+      if (name === '@/lib/server/media-artwork') return { resolveArtworkList: async items => items.map(item => ({ ...item, background: 'https://image.tmdb.org/t/p/original/backdrop.jpg' })) };
       if (name === '@/lib/artwork') return artwork;
       if (name === '@/app/actions/media') return {
         fetchResumeItems: async () => [items[0], { ...items[0], id: 'missing', year: undefined }, filtered[0]],

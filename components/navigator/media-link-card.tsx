@@ -1,6 +1,5 @@
 "use client";
 
-import { artworkFromPath } from "@/lib/artwork";
 
 import { Film, Tv, Star } from "lucide-react";
 import { RottenTomatoesIcon } from "../icons/rotten-tomatoes";
@@ -57,7 +56,7 @@ export function MediaLinkCard({
       title={title}
       subtitle={episode ? item.seriesName : undefined}
       icon={type === "movie" ? Film : Tv}
-      image={item.source === "TMDB" ? (episode ? item.thumbnail : item.poster) || artworkFromPath(href) : artworkFromPath(href)}
+      image={episode ? item.thumbnail : item.poster}
       imageAspect={episode ? "landscape" : "portrait"}
       href={href}
       metadata={

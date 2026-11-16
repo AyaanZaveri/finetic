@@ -14,7 +14,7 @@ class TestImage {
     this._src = value;
     // Anonymous CORS cannot make a CDN that refuses canvas access readable.
     // The first-party sample endpoint must return bytes instead of redirecting.
-    this.tainted = value.startsWith('/api/artwork') && !value.includes('sample=1');
+    this.tainted = value.startsWith('https://image.tmdb.org/');
   }
   get src() { return this._src; }
 }
@@ -59,31 +59,31 @@ const Vibrant = { from(image) { return {
 const loader = load('lib/aurora-palette-loader.ts', {
   'node-vibrant/browser': { Vibrant }, '@/lib/artwork': artworkHelpers, '@/lib/aurora-palette': paletteHelpers,
 }, { Image: TestImage, URLSearchParams, setTimeout: callback => setTimeout(callback, 20), clearTimeout });
-const first = '/api/artwork?id=first&kind=backdrop';
-const second = '/api/artwork?id=second&kind=backdrop';
+const first = 'https://image.tmdb.org/t/p/original/first-backdrop.jpg';
+const second = 'https://image.tmdb.org/t/p/original/second-backdrop.jpg';
 
 async function testCache() {
-  const unsafe = await new BrowserImage().load('/api/artwork?id=tt1&kind=backdrop');
+  const unsafe = await new BrowserImage().load('https://image.tmdb.org/t/p/original/tt1-backdrop.jpg');
   assert.throws(() => unsafe.getImageData(), { name: 'SecurityError' });
   const a = loader.loadAuroraPalette(first);
   assert.equal(a, loader.loadAuroraPalette(first), 'Strict Mode/concurrent consumers share one in-flight extraction');
   const colors = await a;
   assert.equal(colors[0], '#ff6600');
   assert.equal(colors.length, 3);
-  assert.ok(calls[0].includes('sample=1&palette=1'), 'Extraction uses same-origin small image bytes');
+  assert.ok(calls[0].includes('wsrv.nl'), 'Extraction uses same-origin small image bytes');
   const count = calls.length;
   assert.equal(await loader.loadAuroraPalette(first), colors);
   assert.equal(calls.length, count, 'Revisiting a title must reuse its successful palette');
-  await loader.loadAuroraPalette('/api/artwork?id=broken&kind=backdrop', first.replace('backdrop', 'poster'));
-  assert.ok(calls.some(url => url.includes('kind=poster&sample=1&palette=1')));
-  await loader.loadAuroraPalette('/api/artwork?id=stalled&kind=backdrop', first.replace('backdrop', 'poster'));
-  const failed = '/api/artwork?id=broken-only&kind=backdrop';
+  await loader.loadAuroraPalette('https://image.tmdb.org/t/p/original/broken-backdrop.jpg', first.replace('backdrop', 'poster'));
+  assert.ok(calls.some(url => url.includes('poster.jpg')));
+  await loader.loadAuroraPalette('https://image.tmdb.org/t/p/original/stalled-backdrop.jpg', first.replace('backdrop', 'poster'));
+  const failed = 'https://image.tmdb.org/t/p/original/broken-only-backdrop.jpg';
   assert.equal(await loader.loadAuroraPalette(failed), null);
   const attempts = calls.length;
   await loader.loadAuroraPalette(failed);
   assert.equal(calls.length, attempts + 1, 'Failures cannot poison the cache');
   await loader.loadAuroraPalette('https://image.tmdb.org/t/p/original/backdrop.jpg');
-  assert.ok(calls.includes('https://image.tmdb.org/t/p/w300/backdrop.jpg'));
+  assert.ok(calls.some(url => url.includes('wsrv.nl') && url.includes('backdrop.jpg')));
   console.log('PASS: origin-clean small samples, bounded analysis, shared requests, cached revisits, poster/time-out fallbacks and retryable failures.');
 }
 
@@ -143,7 +143,7 @@ async function testConsumerCancellation() {
       resolve: colors => resolutions.push(colors), release: () => releases.push(true),
     }) }, '@/lib/aurora-palette-loader': loader, '@/lib/aurora-palette': paletteHelpers,
   }).VibrantAuroraBackground;
-  const slow = '/api/artwork?id=slow&kind=backdrop';
+  const slow = 'https://image.tmdb.org/t/p/original/slow-backdrop.jpg';
   const before = calls.length;
   h.render(component, { backdropUrl: slow }); h.flush(); await tick();
   assert.equal(calls.length, before, 'Light mode cannot download/decode invisible aurora artwork');

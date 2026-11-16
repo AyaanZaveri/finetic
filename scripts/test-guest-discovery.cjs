@@ -143,8 +143,6 @@ async function main() {
     assert.equal((await suggestions.GET(new Request('https://navigator.example/api/search/suggestions?q=example'))).status, 200);
     const episodes = load('app/api/series/episodes/route.ts', publicDependencies, routeGlobals);
     assert.equal((await episodes.GET(new Request('https://navigator.example/api/series/episodes?id=tmdb:12&season=1'))).status, 200);
-    const artwork = load('app/api/artwork/route.ts', publicDependencies, routeGlobals);
-    assert.equal((await artwork.GET(new Request('https://navigator.example/api/artwork?id=tmdb:12&type=movie&kind=poster'))).status, 307);
     const catalogs = load('app/api/home/catalogs/route.ts', publicDependencies, routeGlobals);
     assert.equal((await catalogs.POST(new Request('https://navigator.example/api/home/catalogs', { method: 'POST' }))).status, 401);
 

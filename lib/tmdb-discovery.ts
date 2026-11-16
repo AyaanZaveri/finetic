@@ -2,7 +2,7 @@ import "server-only";
 
 import { getTMDBToken } from "@/lib/tmdb-credentials";
 import { parseSeriesRouteId } from "@/lib/series-route";
-import { artworkUrl } from "@/lib/artwork";
+import { getTMDBArtwork } from "@/lib/tmdb-artwork";
 import type { MediaItem } from "@/types/stremio";
 import type { HomeCatalogSection } from "@/lib/home-catalogs";
 
@@ -349,7 +349,7 @@ export async function tmdbMediaItem(id: string, type: TMDBMediaType, signal?: Ab
     return {
         id: title.id, imdbId: title.imdbId, type, name: title.name, description: title.overview, year: title.year,
         releaseInfo: title.releaseInfo, poster: title.poster, background: title.background,
-        logo: artworkUrl(id, type, "logo"),
+        logo: await getTMDBArtwork(id, type, "logo"),
         genres: title.genres, cast: title.cast, director: title.director, writer: title.writer,
         communityRating: title.communityRating, ratingSource: title.ratingSource, voteCount: title.voteCount,
         runtime: title.runtime ? `${title.runtime} min` : undefined,

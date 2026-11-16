@@ -1,5 +1,5 @@
 import { atom } from "jotai";
-import { artworkUrl } from "@/lib/artwork";
+
 import { recordDesktopStage } from "@/lib/desktop/bridge";
 import type { MediaItem } from "@/types/stremio";
 import type { PlaybackStreamRequest } from "@/lib/media/fetch-playback-streams";
@@ -87,7 +87,7 @@ export const playMediaAtom = atom(null, (get, set, media: MediaToPlay) => {
   set(isAIAskOpenAtom, false);
   set(currentMediaAtom, media.type === "series" ? {
     ...media,
-    backdropUrl: artworkUrl(media.seriesId || media.id, "series", "backdrop") || media.backdropUrl,
+    backdropUrl: media.details?.background || media.backdropUrl,
   } : media);
   set(isPlayerVisibleAtom, true);
 });

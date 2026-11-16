@@ -3,7 +3,9 @@
 import { releaseYear } from "@/lib/media/release-year";
 import { outboundFetch } from "@/lib/server/outbound-fetch";
 
-import { artworkUrl, mediaArtwork } from "@/lib/artwork";
+import { publicArtworkUrl } from "@/lib/artwork";
+import { getTMDBArtwork } from "@/lib/tmdb-artwork";
+import { resolveMediaArtwork } from "@/lib/server/media-artwork";
 import { pickRandomEpisode } from "@/lib/media/shuffle-episode";
 
 import type { MediaItem, StremioMeta, StremioMetaResponse
@@ -37,7 +39,9 @@ function metaToMediaItem(meta: StremioMeta, addonTransportUrl?: string): MediaIt
     id: meta.id,
     type: meta.type as MediaItem["type"],
     name: meta.name,
-    ...mediaArtwork(meta.id, meta.type),
+    poster: publicArtworkUrl(meta.poster),
+    background: publicArtworkUrl(meta.background),
+    logo: publicArtworkUrl(meta.logo),
     description: meta.description,
     releaseInfo: meta.releaseInfo,
     imdbRating: meta.imdbRating,
@@ -49,7 +53,7 @@ function metaToMediaItem(meta: StremioMeta, addonTransportUrl?: string): MediaIt
     year: releaseYear(meta.year, meta.releaseInfo),
     videos: meta.videos?.map((video) => ({
       ...video,
-      thumbnail: artworkUrl(meta.id, "series", "still", video.season ?? 1, video.episode ?? 1),
+      thumbnail: publicArtworkUrl(video.thumbnail),
     })),
     links: meta.links,
     trailers: meta.trailers,
@@ -134,7 +138,8 @@ export interface Episode {
 export async function fetchEpisodes(
   seriesId: string,
   seasonNumber?: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  includeArtwork = true,
 ): Promise<Episode[]> {
   try {
     seriesId = parseSeriesRouteId(seriesId).seriesId;
@@ -166,13 +171,13 @@ export async function fetchEpisodes(
           videos = videos.filter((v) => (v.season ?? 1) === seasonNumber);
         }
 
-        return videos.map((v) => ({
+        return Promise.all(videos.map(async (v) => ({
           id: v.id,
           title: v.title || v.name || `Episode ${v.episode ?? 1}`,
           season: v.season ?? 1,
           episode: v.episode ?? 1,
           overview: v.overview,
-          thumbnail: artworkUrl(seriesId, "series", "still", v.season ?? 1, v.episode ?? 1),
+          thumbnail: publicArtworkUrl(v.thumbnail) || (includeArtwork ? await getTMDBArtwork(seriesId, "series", "still", v.season ?? 1, v.episode ?? 1) : undefined),
           released: v.released,
           resumePositionTicks:
             typeof v.resumePositionTicks === "number"
@@ -182,7 +187,7 @@ export async function fetchEpisodes(
             typeof v.progressPercent === "number"
               ? v.progressPercent
               : undefined,
-        }));
+        })));
       }
     }
 
@@ -219,7 +224,7 @@ export async function fetchTVShowDetails(
       );
 
       if (data?.meta) {
-        return metaToMediaItem(data.meta, addon.transportUrl);
+        return resolveMediaArtwork(metaToMediaItem(data.meta, addon.transportUrl), true);
       }
     }
 
@@ -272,8 +277,14 @@ async function fetchEpisodeDetailsUncached(
 
 // ─── Next Episode ────────────────────────────────────────────────
 
+async function withEpisodeArtwork(seriesId: string, episode: Episode | null): Promise<Episode | null> {
+  if (!episode || publicArtworkUrl(episode.thumbnail)) return episode;
+  return { ...episode, thumbnail: await getTMDBArtwork(seriesId, "series", "still", episode.season, episode.episode) };
+}
+
 export async function getRandomEpisodeForSeries(seriesId: string): Promise<Episode | null> {
-  return pickRandomEpisode(await fetchEpisodes(seriesId));
+  const episode = pickRandomEpisode(await fetchEpisodes(seriesId, undefined, undefined, false));
+  return withEpisodeArtwork(seriesId, episode);
 }
 
 /** Advance through regular seasons only, preserving explicit episode playback. */
@@ -285,18 +296,18 @@ export async function getFollowingEpisodeForSeries(
 ): Promise<Episode | null> {
   if (!Number.isSafeInteger(season) || season < 0 || !Number.isSafeInteger(episode) || episode < 1) return null;
   if (season === 0) return getNextEpisodeForSeries(seriesId, signal);
-  const episodes = await fetchEpisodes(seriesId, season, signal);
+  const episodes = await fetchEpisodes(seriesId, season, signal, false);
   const following = episodes.filter(item => item.season === season && item.episode > episode && (!item.released || Date.parse(item.released) <= Date.now()))
     .sort((a, b) => a.episode - b.episode)[0];
-  if (following) return following;
+  if (following) return withEpisodeArtwork(seriesId, following);
   const seasons = (await fetchSeasons(seriesId, signal))
     .filter(item => item.number > season && item.episodeCount > 0)
     .sort((a, b) => a.number - b.number);
   for (const next of seasons) {
-    const first = (await fetchEpisodes(seriesId, next.number, signal))
+    const first = (await fetchEpisodes(seriesId, next.number, signal, false))
       .filter(item => item.season === next.number && item.episode > 0 && (!item.released || Date.parse(item.released) <= Date.now()))
       .sort((a, b) => a.episode - b.episode)[0];
-    if (first) return first;
+    if (first) return withEpisodeArtwork(seriesId, first);
   }
   return null;
 }
@@ -306,9 +317,9 @@ export async function getNextEpisodeForSeries(
   signal?: AbortSignal
 ): Promise<Episode | null> {
   try {
-    const episodes = await fetchEpisodes(seriesId, 1, signal);
+    const episodes = await fetchEpisodes(seriesId, 1, signal, false);
     // Provider order can put specials or later episodes first.
-    return episodes.find(episode => episode.season === 1 && episode.episode === 1) || null;
+    return withEpisodeArtwork(seriesId, episodes.find(episode => episode.season === 1 && episode.episode === 1) || null);
   } catch (error) {
     console.error("Failed to get next episode:", error);
     return null;
