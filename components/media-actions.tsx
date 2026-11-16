@@ -22,6 +22,7 @@ import { createPlaybackStreamRequest, type StreamWithAddon } from "@/lib/media/f
 import { useStreamQueries } from "@/components/stream-query-provider";
 import { projectPlaybackDetails } from "@/lib/media/playback-details";
 import { useAccountAccess } from "@/contexts/account-context";
+import { Button } from "@/components/ui/button";
 import { SignInForStreams } from "@/components/sign-in-for-streams";
 
 interface MediaActionsProps {
@@ -41,6 +42,8 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
   const { setIsPlayerVisible, playMedia } = usePlaybackActions();
   const [streams, setStreams] = useState<StreamWithAddon[]>([]);
   const [loading, setLoading] = useState(false);
+  const [streamError, setStreamError] = useState(false);
+  const [streamRetry, setStreamRetry] = useState(0);
   const [hasCheckedStreams, setHasCheckedStreams] = useState(false);
   const [pendingAddons, setPendingAddons] = useState(0);
   const [totalAddons, setTotalAddons] = useState(0);
@@ -90,6 +93,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
   useEffect(() => {
     if (!authenticated || !activeId || !activeType) return;
     let cancelled = false;
+    setStreamError(false);
 
     const lease = queries?.acquire({ id: activeId, type: activeType });
     const request = lease?.request || createPlaybackStreamRequest(activeId, activeType);
@@ -106,10 +110,10 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
     void request.promise.then(() => {
       if (!cancelled) { setLoading(false); setHasCheckedStreams(true); }
     }).catch(error => {
-      if (!cancelled) { console.error("Failed to fetch streams:", error); setLoading(false); setHasCheckedStreams(true); }
+      if (!cancelled) { console.error("Failed to fetch streams:", error); setStreamError(true); setLoading(false); setHasCheckedStreams(true); }
     });
     return () => { cancelled = true; unsubscribe(); lease?.release(); };
-  }, [activeId, activeType, queries, authenticated]);
+  }, [activeId, activeType, queries, authenticated, streamRetry]);
 
   if (!activeMedia) return null;
   if (!authenticated) return <SignInForStreams />;
@@ -325,6 +329,8 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
                   ? "No matching streams yet"
                   : normalizedSearchQuery || hasActiveFilters
                   ? "Your filters were a little too powerful"
+                  : streamError ? "Could not load streams"
+                  : totalAddons === 0 ? "No stream add-ons connected"
                   : "No streams crawled out of hiding"}
               </EmptyTitle>
               <EmptyDescription>
@@ -332,9 +338,17 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
                   ? "More addons are still loading. Try adjusting your search or resolution filters."
                   : normalizedSearchQuery || hasActiveFilters
                   ? "Loosen the search/filters a bit and you should find the least broken stream."
-                  : "Try again in a minute and hunt for a less cursed source."}
+                  : streamError ? "Your add-ons could not complete this lookup. Try again."
+                  : totalAddons === 0 ? "Connect a stream add-on in Settings to find sources."
+                  : "Your add-ons returned no streams for this episode or title."}
               </EmptyDescription>
             </EmptyHeader>
+            {!loading && !normalizedSearchQuery && !hasActiveFilters && (streamError || totalAddons > 0) && (
+              <Button variant="secondary" size="sm" onClick={() => {
+                queries?.invalidate({ id: activeId!, type: activeType! });
+                setStreamRetry(value => value + 1);
+              }}>Retry</Button>
+            )}
           </Empty>
         )}
     </div>

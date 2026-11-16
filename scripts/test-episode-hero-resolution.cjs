@@ -20,6 +20,21 @@ const mount = () => {
     return { h, render: () => h.render(ProgressiveEpisodeStill, { preview: small, source: large, title: 'The Roundup' }) };
 };
 (async () => {
+    const heroHooks = hooks();
+    const { EpisodeHeroThumbnail } = load('components/episode-hero-thumbnail.tsx', {
+        react: heroHooks.react, 'react/jsx-runtime': heroHooks.jsx,
+        '@/components/artwork-image': { ArtworkImage: 'image', ArtworkPlaceholder: 'placeholder' },
+        '@/components/progressive-episode-still': { ProgressiveEpisodeStill: 'progressive' },
+    });
+    const props = { title: 'Star Potential', released: '2025-04-27' };
+    let heroTree = heroHooks.render(EpisodeHeroThumbnail, props);
+    assert.equal(heroTree.type, 'placeholder', 'A released episode without artwork is not upcoming');
+    heroTree = heroHooks.render(EpisodeHeroThumbnail, { ...props, thumbnail: 'https://other.test/still.jpg' });
+    heroTree.props.onError();
+    assert.equal(heroHooks.render(EpisodeHeroThumbnail, { ...props, thumbnail: 'https://other.test/still.jpg' }).type, 'placeholder', 'A failed still is not an upcoming episode');
+    assert.equal(heroHooks.render(EpisodeHeroThumbnail, { title: 'Unknown date' }).type, 'placeholder');
+    assert.equal(heroHooks.render(EpisodeHeroThumbnail, { ...props, released: '2999-04-27' }).type, 'div', 'Future dates retain the upcoming notice');
+    heroHooks.unmount();
     const cold = mount(); let tree = cold.render();
     const [preview, high] = tree.props.children;
     assert.equal(preview.props.src, small); assert.equal(high.props.src, large);

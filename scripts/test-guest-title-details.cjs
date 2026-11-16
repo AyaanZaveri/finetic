@@ -46,6 +46,7 @@ async function main() {
     const ui = load('components/media-actions.tsx', {
         react: h.react, 'react/jsx-runtime': h.jsx,
         '@/contexts/account-context': { useAccountAccess: () => ({ authenticated: false }) },
+        '@/components/ui/button': { Button: 'button' },
         '@/components/sign-in-for-streams': { SignInForStreams: 'sign-in-for-streams' },
         '@/contexts/MediaPlayerContext': { usePlaybackActions: () => ({}) },
         '@/components/playback-page-provider': { usePlaybackPage: () => null },

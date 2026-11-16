@@ -75,10 +75,10 @@ export const getSeriesEpisodeSelectionData = cache(
 
     const embedded = layoutData.show.videos?.find(video => video.season === seasonNumber && video.episode === episodeNumber);
     const episodeRecord = await cachedHeaderEpisode(layoutData.show, seasonNumber, episodeNumber)
-      || (!embedded ? await fetchEpisodeDetails(id, seasonNumber, episodeNumber) : null);
-    const videos: StremioVideo[] = episodeRecord ? [{ id: episodeRecord.id, title: episodeRecord.title,
+      || (!embedded?.thumbnail ? await fetchEpisodeDetails(id, seasonNumber, episodeNumber) : null);
+    const videos: StremioVideo[] = episodeRecord ? [{ ...embedded, id: embedded?.id || episodeRecord.id, title: episodeRecord.title,
       season: episodeRecord.season, episode: episodeRecord.episode, overview: episodeRecord.overview,
-      thumbnail: episodeRecord.thumbnail, released: episodeRecord.released }] : layoutData.show.videos ?? [];
+      thumbnail: episodeRecord.thumbnail || embedded?.thumbnail, released: episodeRecord.released || embedded?.released }] : layoutData.show.videos ?? [];
     const selectedEpisode = videos.find(
       (video) =>
         video.season === seasonNumber && video.episode === episodeNumber

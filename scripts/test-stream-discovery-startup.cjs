@@ -30,6 +30,16 @@ async function main() {
   else { discovery.reject(new Error('addons failed')); identity.resolve('tt1442437'); }
   await rejected;
  }
+ for (const status of [503, 200]) {
+  let attempt = 0;
+  const loader = load('lib/media/fetch-playback-streams.ts', {
+   './fetch-playback-id': { fetchPlaybackId: async id => id },
+  }, { URLSearchParams, fetch: async url => url.includes('/addons?')
+   ? Response.json({ addons: [{ id: 'a' }, { id: 'b' }] })
+   : ++attempt === 1 ? new Response('offline', { status: 503 })
+   : status === 200 ? Response.json({ streams: [] }) : new Response('offline', { status }) });
+  await assert.rejects(loader.createPlaybackStreamRequest('tt123', 'movie').promise, /Could not load streams/);
+ }
  console.log('PASS: parallel ID/add-on discovery, canonical episode routing, and rejection handling for both inputs');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

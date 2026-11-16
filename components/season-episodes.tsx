@@ -258,10 +258,13 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
       return;
     }
 
-    if (hasPrefetchedEpisodes) {
-      setEpisodes(
-        prefetchedEpisodes.filter((episode) => episode.season === selectedSeason)
-      );
+    const seasonEpisodes = prefetchedEpisodes.filter(episode => episode.season === selectedSeason);
+    // Embedded add-on metadata can have titles and dates without TMDB stills.
+    // Keep it visible, but resolve the selected season instead of treating it as complete.
+    if (seasonEpisodes.length > 0 && seasonEpisodes.every(episode =>
+      episode.thumbnail || (episode.released && Date.parse(episode.released) > Date.now())
+    )) {
+      setEpisodes(seasonEpisodes);
       setEpisodesLoading(false);
       return;
     }
@@ -286,10 +289,10 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
           episodesCache.set(cacheKey, episodesData);
           if (episodesCache.size > 48) episodesCache.delete(episodesCache.keys().next().value!);
         }
-        setEpisodes(episodesData);
+        setEpisodes(episodesData.length ? episodesData : seasonEpisodes);
       } catch (error) {
         if (!cancelled) {
-          setEpisodes([]);
+          setEpisodes(seasonEpisodes);
           setEpisodeError(`${showId}:${selectedSeason}`);
           console.error("Failed to fetch episodes:", error);
         }

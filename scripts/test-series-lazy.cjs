@@ -22,6 +22,24 @@ const episode = (season, number = 1) => ({ id: `tmdb:20:${season}:${number}`, ti
   assert.equal((await getSeriesEpisodeSelectionData('tmdb:20', '0', '1')).selectedEpisode.season, 0);
   assert.equal(await getSeriesEpisodeSelectionData('tmdb:20', '-1', '1'), null);
 
+  const sourceId = 'provider:show:2:2';
+  let detailReads = 0;
+  const embeddedDetails = load('app/(main)/series/[id]/_shared/series-data.ts', {
+    react: { cache: fn => fn },
+    '@/lib/server/metadata-readers': { cachedHeaderEpisode: async () => null },
+    '@/app/actions': { fetchMediaDetails: async () => ({ id: 'tt123', type: 'series', name: 'Show', videos: [
+      { id: sourceId, title: 'Star Potential', season: 2, episode: 2, released: '2025-04-27' },
+    ] }) },
+    '@/app/actions/tv-shows': { fetchEpisodeDetails: async () => {
+      detailReads++;
+      return { ...episode(2, 2), thumbnail: 'https://image.tmdb.org/t/p/w500/still.jpg' };
+    } },
+  });
+  const repaired = await embeddedDetails.getSeriesEpisodeSelectionData('tt123', '2', '2');
+  assert.equal(detailReads, 1, 'Embedded metadata without a still must resolve episode artwork');
+  assert.equal(repaired.selectedEpisode.thumbnail, 'https://image.tmdb.org/t/p/w500/still.jpg');
+  assert.equal(repaired.episodeMedia.id, sourceId, 'Artwork repair must preserve the add-on stream ID');
+
   let reads = 0;
   const pending = [];
   const client = load('lib/media/series-season.ts', {}, {
@@ -51,6 +69,7 @@ const episode = (season, number = 1) => ({ id: `tmdb:20:${season}:${number}`, ti
     react: streamHooks.react, 'react/jsx-runtime': streamHooks.jsx,
     'next/navigation': { useParams: () => routeParams },
     '@/components/media-actions': { MediaActions: 'MediaActions' },
+    '@/contexts/account-context': { useAccountAccess: () => ({ authenticated: true }) },
     '@/components/ui/button': { Button: 'Button' },
     '@/lib/media/series-season': client,
   });
@@ -68,9 +87,12 @@ const episode = (season, number = 1) => ({ id: `tmdb:20:${season}:${number}`, ti
   const shuffleSeasons = [];
   const shuffle = load('lib/media/shuffle-episode.ts');
   const nativeActions = load('app/actions/tv-shows.ts', {
+    'server-only': {},
+    '@/lib/server/media-artwork': {},
+    '@/lib/tmdb-artwork': { getTMDBArtwork: async () => undefined },
     '@/lib/server/outbound-fetch': { outboundFetch: async () => { throw Error('Unexpected addon request'); } },
     '@/lib/server/auth': { getAuthData: async () => ({ authKey: 'fixture' }) },
-    '@/lib/artwork': {}, '@/lib/media/shuffle-episode': shuffle,
+    '@/lib/artwork': { publicArtworkUrl: value => value }, '@/lib/media/shuffle-episode': shuffle,
     './auth': { getAuthData: async () => ({}) }, "@/lib/server/auth": { getAuthData: async () => ({}) },
     '@/lib/tmdb-discovery': {
       getTMDBSeasons: async () => seasonList,
@@ -110,14 +132,15 @@ const episode = (season, number = 1) => ({ id: `tmdb:20:${season}:${number}`, ti
     '@/app/actions/tv-shows': { fetchSeasons: () => { throw Error('Known seasons cannot be fetched again'); }, fetchEpisodes: () => { throw Error('TMDB reads must avoid the client action queue'); } },
   }, { has: () => true, get: (object, name) => name in object ? object[name] : new Proxy({}, { get: (_, key) => key }) });
   const { SeasonEpisodes } = load('components/season-episodes.tsx', modules, { document: { querySelector: () => null }, console: { error() {} } });
-  const render = () => { const tree = h.render(SeasonEpisodes.type, { showId: 'tmdb:20', initialSeasons: seasonList, currentSeasonNumber: 20, currentEpisodeNumber: 1 }); h.flush(); return tree; };
+  const embeddedVideos = [episode(20)];
+  const render = () => { const tree = h.render(SeasonEpisodes.type, { showId: 'tmdb:20', initialSeasons: seasonList, currentSeasonNumber: 20, currentEpisodeNumber: 1, prefetchedVideos: embeddedVideos }); h.flush(); return tree; };
   const find = (node, predicate) => !node || typeof node !== 'object' ? [] : [...(predicate(node) ? [node] : []), ...[].concat(node.props?.children ?? []).flatMap(child => find(child, predicate))];
   render(); await tick(); let tree = render();
   assert.deepEqual(uiRequests.map(row => row.season), [20]);
   const select = find(tree, node => node.type === 'Select')[0];
   assert.deepEqual(Array.from(select.props.options, option => option.value), ['1', '20', '0'], 'Regular seasons precede explicit specials');
   select.props.onValueChange('0'); render(); await tick(); tree = render();
-  assert.deepEqual(uiRequests.map(row => row.season), [20, 0], 'Only the selected dropdown season is requested');
+  assert.deepEqual(uiRequests.map(row => row.season), [20, 0], 'Missing prefetched stills resolve only the selected season');
   assert.equal(uiRequests[0].released, true);
   find(tree, node => node.type === 'Select')[0].props.onValueChange('1'); render(); await tick(); tree = render();
   const retryButton = find(tree, node => node.type === 'Button' && node.props.children === 'Retry')[0];

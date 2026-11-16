@@ -228,6 +228,9 @@ export function createStreamQueries(scope: string, client = new QueryClient(), f
             });
             update(); await Promise.all(work);
             controller.signal.throwIfAborted();
+            if (targets.addons.length && !request.snapshot.streams.length && ready.some(value => !value)) {
+                throw new Error("Could not load streams from your add-ons. Try again.");
+            }
             return request.snapshot.streams;
         })();
         request.promise = new Promise<StreamWithAddon[]>((resolve, reject) => {

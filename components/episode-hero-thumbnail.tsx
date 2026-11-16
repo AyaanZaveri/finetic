@@ -2,7 +2,7 @@
 
 import { ProgressiveEpisodeStill } from "@/components/progressive-episode-still";
 import { episodeHeroStillUrl } from "@/lib/artwork";
-import { ArtworkImage } from "@/components/artwork-image";
+import { ArtworkImage, ArtworkPlaceholder } from "@/components/artwork-image";
 
 import { useMemo, useState } from "react";
 
@@ -28,7 +28,6 @@ export function EpisodeHeroThumbnail({
     typeof releaseTimestamp === "number" && !Number.isNaN(releaseTimestamp);
   const isUpcoming = hasValidReleaseDate && releaseTimestamp > Date.now();
   const hasUsableThumbnail = Boolean(thumbnail) && failedSrc !== thumbnail;
-  const shouldShowUnavailable = isUpcoming || !hasUsableThumbnail;
 
   const formattedReleaseDate =
     hasValidReleaseDate && releaseDate
@@ -39,13 +38,17 @@ export function EpisodeHeroThumbnail({
         })
       : null;
 
-  if (shouldShowUnavailable) {
+  if (isUpcoming) {
     return (
       <div className="flex h-full w-full items-center justify-center border border-border/70 bg-gradient-to-br from-accent via-accent to-accent/70 px-6 text-center text-sm font-medium text-foreground/85">
         This episode is still in the oven. Serving starts{" "}
         {formattedReleaseDate ? `on ${formattedReleaseDate}` : "soon"}.
       </div>
     );
+  }
+
+  if (!hasUsableThumbnail) {
+    return <ArtworkPlaceholder label="Episode image unavailable" aria-label={`${title}: episode image unavailable`} className="h-full w-full" />;
   }
 
   const hero = episodeHeroStillUrl(thumbnail);

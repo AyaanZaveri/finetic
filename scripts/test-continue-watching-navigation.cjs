@@ -53,6 +53,7 @@ async function navigate(emptyProvider) {
             '@/components/arc/chip-group/chip-group': { ChipGroup: 'chips' },
             './media-actions.module.css': {},
             '@/components/stream-summary': { StreamSummary: 'summary' },
+            '@/components/ui/button': { Button: 'button' },
             '@/components/sign-in-for-streams': { SignInForStreams: 'sign-in' },
         });
         pageHost.render(MediaActions, page.props.children.props); pageHost.flush();

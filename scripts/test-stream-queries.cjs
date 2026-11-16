@@ -50,6 +50,17 @@ const stores = [];
     await navigator.request.promise; assert.equal(calls.length, before, 'Fresh Navigator playback reads TanStack data without refetch');
     navigator.release(); await tick();
 
+    const allFailed = store.acquire({ id: 'all-failed', type: 'movie' }); await tick();
+    const rejected = assert.rejects(allFailed.request.promise, /Could not load streams/);
+    for (const id of ['a', 'b']) pending.get('all-failed:' + id).resolve(new Response('offline', { status: 503 }));
+    await rejected; allFailed.release(); await tick();
+
+    const partlyFailed = store.acquire({ id: 'partly-failed', type: 'movie' }); await tick();
+    const partlyRejected = assert.rejects(partlyFailed.request.promise, /Could not load streams/);
+    pending.get('partly-failed:a').resolve(Response.json({ streams: [] }));
+    pending.get('partly-failed:b').resolve(new Response('offline', { status: 503 }));
+    await partlyRejected; partlyFailed.release(); await tick();
+
     const failedTarget = { id: 'failure', type: 'movie' };
     const failed = store.acquire(failedTarget); await tick();
     pending.get('failure:a').resolve(Response.json({ streams: [{ url: 'https://video.test/healthy' }] }));

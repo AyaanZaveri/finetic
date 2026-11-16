@@ -44,6 +44,7 @@ export function createPlaybackStreamRequest(id: string, type: string, signal?: A
         let pending = addons.length;
         const groups: StreamWithAddon[][] = addons.map(() => []);
         const settled = addons.map(() => false);
+        let succeeded = 0;
         const update = () => {
             let settledPrefix = 0;
             while (settled[settledPrefix]) settledPrefix++;
@@ -54,13 +55,16 @@ export function createPlaybackStreamRequest(id: string, type: string, signal?: A
             try {
                 const params = new URLSearchParams({ mediaItemId: canonicalId, type, addonId: addon.id });
                 const response = await fetch('/api/streams/addon?' + params, { signal: timeout(30_000) });
-                if (!response.ok) return;
+                if (!response.ok) throw new Error("Add-on request failed");
                 const data = await response.json() as { streams?: StremioStream[] };
-                groups[index] = Array.isArray(data.streams) ? data.streams.map(stream => ({
+                if (!Array.isArray(data.streams)) throw new Error("Invalid add-on response");
+                succeeded++;
+                groups[index] = data.streams.map(stream => ({
                     ...stream, addonId: addon.id, addonName: addon.name || addon.id, addonIndex: index,
-                })) : [];
+                }));
             } finally { settled[index] = true; pending--; update(); }
         }));
+        if (succeeded < addons.length && !request.snapshot.streams.length) throw new Error("Could not load streams from your add-ons. Try again.");
         return request.snapshot.streams;
     })();
     return request;
