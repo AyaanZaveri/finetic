@@ -31,7 +31,7 @@ async function main() {
     let status = 200;
     let block = false;
     let getUser = async () => ({ _id: 'test' });
-    const movie = { id: 123, media_type: 'movie', title: 'Example Film', release_date: '2020-01-02', overview: 'Movie overview', vote_average: 8, vote_count: 10, poster_path: '/poster.jpg' };
+    const movie = { id: 123, media_type: 'movie', title: 'Example Film', release_date: '2020-01-02', overview: 'Movie overview', vote_average: 8, vote_count: 10, popularity: 100, poster_path: '/poster.jpg' };
     const show = { id: 20, media_type: 'tv', name: 'Example Show', first_air_date: '2021-01-01', overview: 'TV overview', vote_average: 7.65, vote_count: 1234, poster_path: null };
     const person = { id: 7, name: 'Example Person', profile_path: '/person.jpg', known_for_department: 'Directing', known_for: [movie] };
     const fixtures = {
@@ -55,7 +55,7 @@ async function main() {
             { id: 11, season_number: 1, name: 'Season 1', episode_count: 45 },
         ] },
         'tv/20/season/1': { episodes: Array.from({ length: 45 }, (_, i) => ({ id: 100 + i, name: `Episode ${i + 1}`, episode_number: i + 1, season_number: 1, overview: i === 1 ? 'The train arrives' : 'Ordinary episode', air_date: '2021-01-01', still_path: '/still.jpg' })) },
-        'person/7': { ...person, biography: 'A documented biography.', birthday: '1970-01-01', also_known_as: ['Alias'] },
+        'person/7': { ...person, biography: 'A documented biography.', birthday: '1970-01-01', also_known_as: ['Alias'], external_ids: { imdb_id: 'nm0000007' } },
         'person/7/combined_credits': {
             cast: [{ ...movie, character: 'Lead' }, { ...show, character: 'Guest' }],
             crew: [{ ...movie, job: 'Director' }, { ...movie, job: 'Writer' }, { ...show, job: 'Executive Producer' }],
@@ -149,9 +149,33 @@ async function main() {
     assert.equal(episodes[1].id, 'tmdb:20:1:2');
     assert.equal(episodes[1].title, 'Episode 2');
     assert.equal((await tmdb.searchTMDBPeople('Person')).results[0].knownFor[0].id, 'tmdb:123');
+    const multi = await tmdb.searchTMDBCatalog('Person');
+    assert.deepEqual(clone(multi.results.map(item => item.type)), ['movie', 'series', 'person'], 'Mixed results retain TMDB relevance including people');
+    assert.equal(multi.results[2].id, '7');
+    const peoplePage = await tmdb.searchTMDBCatalog('Person', undefined, 'person', 2);
+    assert.equal(peoplePage.results[0].type, 'person');
+    assert.equal(requests.at(-1).url.searchParams.get('page'), '2');
+    fixtures['search/person'].results = [{ ...person, id: 99, known_for: [show] }, { ...person, known_for: [show, movie] }];
+    const knownFor = await tmdb.getTMDBPersonKnownFor(7, 'Example Person');
+    assert.deepEqual(clone(knownFor.map(item => item.id)), ['tmdb:20', 'tmdb:123'], 'Known for matches the person ID and preserves TMDB order instead of title popularity');
+    assert.equal((await tmdb.getTMDBPersonKnownFor(8, 'Example Person')).length, 0, 'Do not borrow titles from a different person');
+    fixtures['search/person'].results = [person];
     assert.match((await tmdb.getTMDBPerson(7)).biography, /documented/);
+    const profile = await tmdb.getTMDBPerson(7);
+    assert.equal(profile.imdbUrl, 'https://www.imdb.com/name/nm0000007/');
+    assert.equal(profile.poster, 'https://image.tmdb.org/t/p/h632/person.jpg');
+    assert.equal(requests.at(-1).url.searchParams.get('append_to_response'), 'external_ids');
+    fixtures['person/7'].external_ids.imdb_id = 'javascript:alert(1)';
+    assert.equal((await tmdb.getTMDBPerson(7)).imdbUrl, undefined, 'Only IMDb person IDs produce an external link');
+    delete fixtures['person/7'].external_ids;
+    assert.equal((await tmdb.getTMDBPerson(7)).imdbUrl, undefined, 'Missing external IDs preserve the profile');
     const credits = await tmdb.getTMDBFilmography(7);
     assert.equal(credits.totalResults, 2, 'Cast and crew credits deduplicate the same title');
+    assert.equal(credits.results[0].type, 'series', 'Newest sorts by release or first-air date');
+    assert.equal((await tmdb.getTMDBFilmography(7, { sort: 'popular' })).results[0].type, 'movie', 'Popularity sort can differ from release order');
+    const showsOnly = await tmdb.getTMDBFilmography(7, { mediaType: 'series' });
+    assert.equal(showsOnly.totalResults, 1);
+    assert.equal(showsOnly.results[0].type, 'series');
     assert.deepEqual(clone(credits.results.find(item => item.type === 'movie').roles), ['Acting', 'Director', 'Writer']);
     const directors = await tmdb.getTMDBFilmography(7, { mediaType: 'movie', role: 'directing', limit: 1 });
     assert.equal(directors.totalResults, 1);
@@ -159,6 +183,13 @@ async function main() {
     const paged = await tmdb.getTMDBFilmography(7, { page: 2, limit: 1 });
     assert.equal(paged.results.length, 1);
     assert.equal(paged.totalPages, 2);
+    assert.equal((await tmdb.getTMDBFilmography(7, { page: 3, limit: 1 })).results.length, 0);
+    const savedCredits = fixtures['person/7/combined_credits'];
+    fixtures['person/7/combined_credits'] = { crew: [{ ...movie, job: 'Director' }, { ...movie, id: -1 }, { ...show, adult: true }] };
+    assert.equal((await tmdb.getTMDBFilmography(7)).totalResults, 1, 'Crew-only profiles work and invalid or adult titles are excluded');
+    fixtures['person/7/combined_credits'] = {};
+    assert.equal((await tmdb.getTMDBFilmography(7)).totalResults, 0, 'Empty credits produce an empty filmography');
+    fixtures['person/7/combined_credits'] = savedCredits;
     const options = { toolCallId: 'test-tool', messages: [], abortSignal: new AbortController().signal };
     const peopleTools = load('app/tools/people.ts');
     assert.equal((await peopleTools.searchPeople.execute({ query: 'Person' }, options)).results[0].name, 'Example Person');

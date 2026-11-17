@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { SearchIcon } from "lucide-react";
+import { SearchPersonCard } from "@/components/search-person-card";
 import { MediaCard } from "@/components/media-card";
 import { HomeInitialPalette } from "@/components/home-palette-provider";
 import { mediaArtwork } from "@/lib/artwork";
@@ -53,11 +54,11 @@ export function SearchResultsView({ query, initialResults }: {
     }, [store, filter, hasMore, source.loading, source.error, source.nextPage]);
 
     const firstResult = source.results[0];
-    const firstArtwork = firstResult ? mediaArtwork(firstResult) : undefined;
-    const total = filter === "all" ? snapshot.movie.totalResults + snapshot.series.totalResults : source.totalResults;
+    const firstArtwork = firstResult && firstResult.type !== "person" ? mediaArtwork(firstResult) : undefined;
+    const total = filter === "all" ? snapshot.movie.totalResults + snapshot.series.totalResults + snapshot.person.totalResults : source.totalResults;
     const pool = useMemo(() => {
         const cards = new Map<string, SearchResultSet["all"]["results"][number]>();
-        for (const kind of ["all", "movie", "series"] as const) {
+        for (const kind of ["all", "movie", "series", "person"] as const) {
             for (const item of snapshot[kind].results) if (!cards.has(identity(item))) cards.set(identity(item), item);
         }
         return cards;
@@ -75,26 +76,26 @@ export function SearchResultsView({ query, initialResults }: {
     return <div className={styles.results}>
         <HomeInitialPalette
             primary={firstResult?.poster || firstArtwork?.poster}
-            fallback={firstResult?.background || firstArtwork?.background}
+            fallback={firstArtwork?.background}
             resetInteraction
         />
         <div className={styles.toolbar}>
-            <SearchTypeFilters value={filter} movies={snapshot.movie.totalResults} shows={snapshot.series.totalResults} onValueChange={changeType} />
+            <SearchTypeFilters value={filter} movies={snapshot.movie.totalResults} shows={snapshot.series.totalResults} people={snapshot.person.totalResults} onValueChange={changeType} />
         </div>
         <ul aria-label="Search results" aria-busy={source.loading} className={styles.grid} hidden={!source.results.length}>
             {ordered.map(key => {
                 const item = pool.get(key)!;
                 return <li key={key} hidden={!visible.has(key)}>
-                    <MediaCard item={item} fullWidth titleLines={2} revealArtwork={false}
-                        subtitleContent={<>{item.year ? `${item.year} · ` : ""}{item.type === "movie" ? "Movie" : "TV Series"}</>} />
+                    {item.type === "person" ? <SearchPersonCard item={item} /> : <MediaCard item={item} fullWidth titleLines={2} revealArtwork={false}
+                        subtitleContent={<>{item.year ? `${item.year} · ` : ""}{item.type === "movie" ? "Movie" : "TV Series"}</>} />}
                 </li>;
             })}
         </ul>
         {!source.results.length && <Empty className={styles.empty}>
             <EmptyHeader>
                 <EmptyMedia variant="icon"><SearchIcon aria-hidden="true" /></EmptyMedia>
-                <EmptyTitle>{total > 0 ? "No results for this type" : "No matching titles"}</EmptyTitle>
-                <EmptyDescription>{total > 0 ? "Choose another result type." : "Try another title or a different spelling in the search above."}</EmptyDescription>
+                <EmptyTitle>{total > 0 ? "No results for this type" : "No matching results"}</EmptyTitle>
+                <EmptyDescription>{total > 0 ? "Choose another result type." : "Try another title, name, or spelling in the search above."}</EmptyDescription>
             </EmptyHeader>
             <div className={styles.emptyActions}>
                 {filter !== "all" && <Button variant="outline" onClick={() => changeType("all")}>Show all types</Button>}
@@ -106,9 +107,9 @@ export function SearchResultsView({ query, initialResults }: {
             <Button variant="outline" onClick={() => void store.loadMore(filter, true)}>Try again</Button>
         </div>}
         {hasMore && !source.error && <div ref={sentinel} className={styles.loadStatus}>
-            <p role="status">{source.loading ? "Loading more titles…" : ""}</p>
+            <p role="status">{source.loading ? "Loading more results…" : ""}</p>
             <Button variant="ghost" disabled={source.loading} className={automatic ? "sr-only focus:not-sr-only" : undefined}
-                onClick={() => void store.loadMore(filter)}>Load more titles</Button>
+                onClick={() => void store.loadMore(filter)}>Load more results</Button>
         </div>}
     </div>;
 }

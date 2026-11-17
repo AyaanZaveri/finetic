@@ -1,4 +1,5 @@
 import "server-only";
+import type { SearchResultPage } from "@/lib/search-presentation";
 
 import { getTMDBToken } from "@/lib/tmdb-credentials";
 import { parseSeriesRouteId } from "@/lib/series-route";
@@ -176,6 +177,27 @@ export async function searchTMDBMedia(query: string, signal?: AbortSignal, type?
     };
 }
 
+/** Multi-search keeps TMDB's cross-type relevance order, including people. */
+export async function searchTMDBCatalog(query: string, signal?: AbortSignal, type?: TMDBMediaType | "person", page = 1) {
+    if (!query.trim()) return { results: [], page: 1, totalPages: 0, totalResults: 0 };
+    const data = await request<TMDBPage<TMDBTitleRecord & Partial<TMDBPersonRecord>>>(`search/${type === "series" ? "tv" : type || "multi"}`, {
+        query: query.trim(), include_adult: false, page,
+    }, signal);
+    const results = data.results.filter(item => !item.adult).flatMap<SearchResultPage["results"][number]>(item => {
+        if (type === "person" || (!type && item.media_type === "person")) return [{
+            id: String(item.id), type: "person" as const, name: item.name || "Unknown person",
+            poster: tmdbImage(item.profile_path, "h632"), department: item.known_for_department,
+            knownFor: (item.known_for || []).filter(title => !title.adult && (title.media_type === "movie" || title.media_type === "tv"))
+                .map(title => title.title || title.name || "Untitled"),
+        }];
+        if (type === "movie" || type === "series" || item.media_type === "movie" || item.media_type === "tv") {
+            return [titleResult(item, type === "movie" || type === "series" ? type : item.media_type === "movie" ? "movie" : "series")];
+        }
+        return [];
+    });
+    return { results, page: data.page, totalPages: data.total_pages, totalResults: data.total_results };
+}
+
 /** Resolve only a selected title, rather than performing one request per search result. */
 export async function resolveTMDBPlaybackId(id: string, type: TMDBMediaType, signal?: AbortSignal): Promise<string> {
     const base = type === "series" ? parseSeriesRouteId(id).seriesId : id;
@@ -296,7 +318,7 @@ export async function searchTMDBPeople(query: string, signal?: AbortSignal, page
         results: data.results.filter(person => !person.adult).map(person => ({
             id: person.id, name: person.name, type: "Person", source: "TMDB", department: person.known_for_department,
             poster: tmdbImage(person.profile_path, "w185"),
-            knownFor: person.known_for?.filter(item => item.media_type === "movie" || item.media_type === "tv")
+            knownFor: person.known_for?.filter(item => !item.adult && (item.media_type === "movie" || item.media_type === "tv"))
                 .map(item => titleResult(item, item.media_type === "movie" ? "movie" : "series")) || [],
             sourceUrl: `https://www.themoviedb.org/person/${person.id}`,
         })),
@@ -304,32 +326,47 @@ export async function searchTMDBPeople(query: string, signal?: AbortSignal, page
     };
 }
 
+/** The public schema supplies known_for on person-search records, not details.
+ * Match the stable ID and keep TMDB's list and order without re-ranking credits. */
+export async function getTMDBPersonKnownFor(personId: number, name: string, signal?: AbortSignal) {
+    for (let page = 1; page <= 5; page++) {
+        const data = await searchTMDBPeople(name, signal, page);
+        const person = data.results.find(item => item.id === personId);
+        if (person) return person.knownFor;
+        if (page >= data.totalPages) break;
+    }
+    return [];
+}
+
 export async function getTMDBPerson(personId: number, signal?: AbortSignal) {
     const person = await request<TMDBPersonRecord & {
         biography?: string; birthday?: string; deathday?: string; place_of_birth?: string; also_known_as?: string[];
-    }>(`person/${personId}`, {}, signal);
+        external_ids?: { imdb_id?: string | null };
+    }>(`person/${personId}`, { append_to_response: "external_ids" }, signal);
     return {
         id: person.id, name: person.name, type: "Person", source: "TMDB", department: person.known_for_department,
         biography: person.biography, birthday: person.birthday, deathday: person.deathday,
         birthplace: person.place_of_birth, aliases: person.also_known_as || [],
-        poster: tmdbImage(person.profile_path, "w185"), sourceUrl: `https://www.themoviedb.org/person/${person.id}`,
+        poster: tmdbImage(person.profile_path, "h632"), sourceUrl: `https://www.themoviedb.org/person/${person.id}`,
+        imdbUrl: person.external_ids?.imdb_id && /^nm\d+$/.test(person.external_ids.imdb_id)
+            ? `https://www.imdb.com/name/${person.external_ids.imdb_id}/` : undefined,
     };
 }
 
-export async function getTMDBFilmography(personId: number, options: {
-    mediaType?: TMDBMediaType; role?: FilmographyRole; page?: number; limit?: number;
+export async function getTMDBFilmographyItems(personId: number, options: {
+    mediaType?: TMDBMediaType; role?: FilmographyRole; sort?: "newest" | "popular";
 } = {}, signal?: AbortSignal) {
     const data = await request<{ cast: TMDBTitleRecord[]; crew: TMDBTitleRecord[] }>(`person/${personId}/combined_credits`, {}, signal);
     const role = options.role || "all";
     const jobs: Record<string, string[]> = { directing: ["Director"], writing: ["Writer", "Screenplay", "Story", "Teleplay", "Creator"], producing: ["Producer", "Executive Producer", "Co-Producer"] };
     const credits = [
-        ...(role === "all" || role === "acting" ? data.cast.map(item => ({ ...item, creditRole: "Acting" })) : []),
-        ...(role !== "acting" ? data.crew.filter(item => role === "all" || jobs[role]?.includes(item.job || ""))
+        ...(role === "all" || role === "acting" ? (data.cast || []).map(item => ({ ...item, creditRole: "Acting" })) : []),
+        ...(role !== "acting" ? (data.crew || []).filter(item => role === "all" || jobs[role]?.includes(item.job || ""))
             .map(item => ({ ...item, creditRole: item.job || item.department || "Crew" })) : []),
     ];
     const unique = new Map<string, ReturnType<typeof titleResult> & { roles: string[]; characters: string[] }>();
     for (const credit of credits) {
-        if (credit.adult || (credit.media_type !== "movie" && credit.media_type !== "tv")) continue;
+        if (credit.adult || !Number.isSafeInteger(credit.id) || credit.id <= 0 || (credit.media_type !== "movie" && credit.media_type !== "tv")) continue;
         const type = credit.media_type === "movie" ? "movie" : "series";
         if (options.mediaType && options.mediaType !== type) continue;
         const key = `${type}:${credit.id}`;
@@ -338,7 +375,18 @@ export async function getTMDBFilmography(personId: number, options: {
         if (credit.character && !item.characters.includes(credit.character)) item.characters.push(credit.character);
         unique.set(key, item);
     }
-    const all = [...unique.values()].sort((a, b) => (b.releaseInfo || "").localeCompare(a.releaseInfo || "") || (b.popularity || 0) - (a.popularity || 0));
+    const all = [...unique.values()].sort((a, b) =>
+        (options.sort === "popular" ? (b.popularity || 0) - (a.popularity || 0) : 0)
+        || (b.releaseInfo || "").localeCompare(a.releaseInfo || "")
+        || (b.popularity || 0) - (a.popularity || 0) || a.name.localeCompare(b.name));
+    return all;
+}
+
+/** Paged tool results share the same complete credits used by the person page. */
+export async function getTMDBFilmography(personId: number, options: {
+    mediaType?: TMDBMediaType; role?: FilmographyRole; page?: number; limit?: number; sort?: "newest" | "popular";
+} = {}, signal?: AbortSignal) {
+    const all = await getTMDBFilmographyItems(personId, options, signal);
     const page = Math.max(1, options.page || 1), limit = Math.min(40, Math.max(1, options.limit || 20));
     return { results: all.slice((page - 1) * limit, page * limit), page, totalResults: all.length, totalPages: Math.ceil(all.length / limit) };
 }

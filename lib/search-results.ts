@@ -23,7 +23,7 @@ export function createSearchResultsStore(initial: SearchResultSet,
         return item;
     });
     const feed = (page: SearchResultPage): SearchFeed => ({ ...page, results: canonical(page.results), nextPage: 2, loading: false, error: null });
-    let snapshot = { all: feed(initial.all), movie: feed(initial.movie), series: feed(initial.series) };
+    let snapshot = { all: feed(initial.all), movie: feed(initial.movie), series: feed(initial.series), person: feed(initial.person) };
     let active: SearchMediaFilter | null = null;
     let request: { filter: SearchMediaFilter; controller: AbortController } | null = null;
     const listeners = new Set<() => void>();

@@ -1,4 +1,4 @@
-import { searchTMDBMedia } from "@/lib/tmdb-discovery";
+import { searchTMDBCatalog } from "@/lib/tmdb-discovery";
 import { SearchResultsView } from "@/components/search-results-view";
 import { SearchSectionLoading } from "@/components/search-section-loading";
 import { SearchIcon } from "lucide-react";
@@ -18,12 +18,13 @@ async function SearchResults({ query }: { query: string }) {
     let initialResults: SearchResultSet | undefined;
     let failure = "TMDB search is unavailable. Please try again.";
     try {
-        const [movie, series, all] = await Promise.all([
-            searchTMDBMedia(query, undefined, "movie", 1),
-            searchTMDBMedia(query, undefined, "series", 1),
-            searchTMDBMedia(query, undefined, undefined, 1),
+        const [movie, series, all, person] = await Promise.all([
+            searchTMDBCatalog(query, undefined, "movie", 1),
+            searchTMDBCatalog(query, undefined, "series", 1),
+            searchTMDBCatalog(query, undefined, undefined, 1),
+            searchTMDBCatalog(query, undefined, "person", 1),
         ]);
-        initialResults = { page: 1, movie, series, all };
+        initialResults = { page: 1, movie, series, all, person };
     } catch (error) {
         if (error instanceof Error && error.message) failure = error.message;
     }
@@ -50,8 +51,8 @@ export default async function Search({ searchParams }: {
                 ) : (
                     <Empty className={styles.empty}><EmptyHeader>
                         <EmptyMedia variant="icon"><SearchIcon aria-hidden="true" /></EmptyMedia>
-                        <EmptyTitle>Search movies and TV shows</EmptyTitle>
-                        <EmptyDescription>Enter a title in the search above, or browse for something new.</EmptyDescription>
+                        <EmptyTitle>Search movies, TV shows, and people</EmptyTitle>
+                        <EmptyDescription>Enter a title or person’s name in the search above, or browse for something new.</EmptyDescription>
                     </EmptyHeader><Button asChild variant="secondary"><Link draggable={false} href="/">Browse titles</Link></Button></Empty>
                 )}
             </div>

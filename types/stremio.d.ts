@@ -263,6 +263,7 @@ export interface MediaItem {
 
 /** Search result shape */
 export interface SearchResult {
+  department?: string;
   id: string;
   type: string;
   name: string;

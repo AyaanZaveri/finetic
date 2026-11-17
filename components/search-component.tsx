@@ -3,8 +3,9 @@
 import { ArtworkImage } from "@/components/artwork-image";
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { Film, Star, Tv } from "lucide-react";
+import { Film, Star, Tv, UserRound } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { groupSearchSuggestions } from "@/lib/search-suggestion-groups";
 import { fetchSearchSuggestions } from "@/lib/search-catalog-stream";
 import { ExpandingSearch, type ExpandingSearchItem } from "@/components/arc/expanding-search/expanding-search";
 import { useIsPlayerVisible } from "@/contexts/MediaPlayerContext";
@@ -38,7 +39,7 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
         cancelPrefetch.current = null;
         if (!item) return;
         const target = suggestions.find(result => `${result.type}:${result.id}` === item.id);
-        if (target?.type === "movie" || target?.type === "series") {
+        if (target?.type === "movie" || target?.type === "series" || target?.type === "person") {
             const href = `/${target.type}/${target.id}`;
             cancelPrefetch.current = scheduleRoutePrefetch(href, () => router.prefetch(href));
         }
@@ -96,7 +97,7 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
                             }
                         }
 
-                        setSuggestions(Array.from(byId.values()).slice(0, 6));
+                        setSuggestions(groupSearchSuggestions(Array.from(byId.values())));
                     }, controller.signal);
                 } catch (error) {
                     if (controller.signal.aborted) return;
@@ -160,7 +161,7 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
     const handleSelect = (selected: ExpandingSearchItem) => {
         const item = suggestions.find(result => `${result.type}:${result.id}` === selected.id);
         if (!item) return;
-        if (item.type === "movie" || item.type === "series") router.push(`/${item.type}/${item.id}`);
+        if (item.type === "movie" || item.type === "series" || item.type === "person") router.push(`/${item.type}/${item.id}`);
         else handleSearch(item.name);
     };
 
@@ -171,9 +172,9 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
         return {
             id: `${item.type}:${item.id}`,
             title: item.name,
-            group: item.type === "movie" ? "Movies" : item.type === "series" ? "TV shows" : "More",
-            meta: [year, rating ? `${rating} out of 10` : ""].filter(Boolean).join(" · "),
-            metaContent: year || rating ? <span className="inline-flex items-center gap-1.5">
+            group: item.type === "movie" ? "Movies" : item.type === "series" ? "TV shows" : "People",
+            meta: item.type === "person" ? item.department || "" : [year, rating ? `${rating} out of 10` : ""].filter(Boolean).join(" · "),
+            metaContent: item.type === "person" ? item.department ? <span>{item.department}</span> : undefined : year || rating ? <span className="inline-flex items-center gap-1.5">
                 {year && <span>{year}</span>}
                 {year && rating && <span aria-hidden="true">·</span>}
                 {rating && <span className="inline-flex items-center gap-1 tabular-nums" role="img" aria-label={`${item.ratingSource || "Rating"} ${rating} out of 10`}>
@@ -183,7 +184,7 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
             </span> : undefined,
             icon: item.poster
                 ? <ArtworkImage src={item.poster} alt="" draggable={false} loading="lazy" width={30} height={44} className="h-11 w-[30px] rounded object-cover" fallbackText="" />
-                : item.type === "movie" ? <Film size={18} /> : <Tv size={18} />,
+                : item.type === "person" ? <UserRound size={18} /> : item.type === "movie" ? <Film size={18} /> : <Tv size={18} />,
         };
     }), [suggestions]);
 
@@ -193,8 +194,8 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
         <ExpandingSearch
             ref={inputRef}
             className={className}
-            label="Search movies and TV shows"
-            placeholder="Search movies and TV shows…"
+            label="Search movies, TV shows, and people"
+            placeholder="Search movies, TV shows, and people…"
             value={searchQuery}
             onValueChange={handleQueryChange}
             items={items}
@@ -204,7 +205,7 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
             onSelect={handleSelect}
             onItemIntent={handleItemIntent}
             onSubmit={handleSearch}
-            emptyHint={searchError || "Try another title, or press Enter to see all results"}
+            emptyHint={searchError || "Try another title or name, or press Enter to see all results"}
             expandedWidth={576}
             persistent
             anchor="start"

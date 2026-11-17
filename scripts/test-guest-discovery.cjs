@@ -132,7 +132,7 @@ async function main() {
     const publicDependencies = {
         '@/lib/server/auth': { getAuthData: async () => { throw new Error('Not authenticated'); } },
         '@/lib/tmdb-discovery': {
-            searchTMDBMedia: async () => ({ results: result.sections[0].mediaItems }),
+            searchTMDBCatalog: async () => ({ results: result.sections[0].mediaItems }),
             getTMDBEpisodes: async () => [{ id: 'tmdb:12:1:1', title: 'Pilot', season: 1, episode: 1 }],
         },
         '@/lib/tmdb-artwork': { getTMDBArtwork: async () => 'https://image.tmdb.org/t/p/w500/poster.jpg' },

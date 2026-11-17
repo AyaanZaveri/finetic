@@ -5,6 +5,7 @@ const runtime = require('react/jsx-runtime');
 const movie = { id: 'tmdb:123', name: 'Example', type: 'movie', year: 2020 };
 const show = { id: 'tmdb:20', name: 'Example TV', type: 'series', year: 2020 };
 const extra = { id: 'tmdb:99', name: 'Type-only result', type: 'movie', year: 2021 };
+const person = { id: '7', name: 'Example Person', type: 'person', knownFor: [] };
 const css = { loadStatus: 'load-status' };
 const ui = {
     react: React, 'react/jsx-runtime': runtime, 'next/link': 'a',
@@ -13,6 +14,7 @@ const ui = {
     '@/components/ui/empty': { Empty: 'empty', EmptyDescription: 'description', EmptyHeader: 'header', EmptyMedia: 'icon', EmptyTitle: 'title' },
     '@/components/search-page-controls': { SearchPageHeading: 'search-heading', SearchRetryButton: 'retry', SearchTypeFilters: 'search-filters' },
     '@/components/media-card': { MediaCard: 'media-card' },
+    '@/components/search-person-card': { SearchPersonCard: 'person-card' },
     '@/components/home-palette-provider': { HomeInitialPalette: 'palette' },
 };
 const calls = []; let fail = false;
@@ -21,10 +23,10 @@ const { default: Page } = load('app/(main)/search/page.tsx', {
     '@/components/search-results-view': { SearchResultsView: 'results-view' },
     '@/components/search-page.module.css': css,
     '@/components/search-section-loading': { SearchSectionLoading: 'loading' },
-    '@/lib/tmdb-discovery': { searchTMDBMedia: async (query, _signal, type, page) => {
+    '@/lib/tmdb-discovery': { searchTMDBCatalog: async (query, _signal, type, page) => {
         calls.push({ query, type, page });
         if (fail) throw new Error('Add your TMDB read access token in Settings → TMDB.');
-        return { results: type === 'movie' ? [movie, extra] : type === 'series' ? [show] : [show, movie],
+        return { results: type === 'movie' ? [movie, extra] : type === 'series' ? [show] : type === 'person' ? [person] : [show, person, movie],
             totalPages: 3, totalResults: type ? 41 : 82 };
     } },
 }, { Error });
@@ -45,7 +47,7 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
     const results = all(shell).find(node => typeof node.type === 'function' && node.type.name === 'SearchResults');
     const body = await results.type(results.props);
     assert.equal(body.type, 'results-view');
-    assert.deepEqual(calls.map(c => [c.type, c.page]), [['movie', 1], ['series', 1], [undefined, 1]], 'Legacy page links start the infinite feed at page one');
+    assert.deepEqual(calls.map(c => [c.type, c.page]), [['movie', 1], ['series', 1], [undefined, 1], ['person', 1]], 'Legacy page links start the infinite feed at page one');
     const props = body.props;
     let params = new URLSearchParams('q=Example&page=4');
     const changes = [], requests = [], observers = [];
@@ -73,17 +75,17 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
         return tree;
     }
     render();
-    assert.deepEqual(visibleIds(tree), ['tmdb:20', 'tmdb:123']);
+    assert.deepEqual(visibleIds(tree), ['tmdb:20', '7', 'tmdb:123']);
     const originalKeys = keys(tree), originalItems = rows(tree).map(row => row.props.children.props.item);
-    assert.ok(rows(tree).every(row => row.props.children.props.revealArtwork === false));
+    assert.ok(rows(tree).every(row => row.props.children.type === 'person-card' || row.props.children.props.revealArtwork === false));
     assert.equal(all(tree).some(node => node.type === 'nav'), false, 'Remove pagination controls');
     assert.equal(all(tree).some(node => /^Page \d/.test(text(node))), false, 'Remove page numbers');
     assert.equal(observers.at(-1).options.root, scrollRoot);
     assert.equal(observers.at(-1).options.rootMargin, '600px 0px');
-    for (const type of ['movie', 'series', 'all']) {
+    for (const type of ['movie', 'series', 'person', 'all']) {
         all(tree).find(node => node.type === 'search-filters').props.onValueChange(type); render();
         assert.deepEqual(keys(tree), originalKeys, 'Segment changes retain keyed cards');
-        assert.deepEqual(visibleIds(tree), type === 'movie' ? ['tmdb:123', 'tmdb:99'] : type === 'series' ? ['tmdb:20'] : ['tmdb:20', 'tmdb:123']);
+        assert.deepEqual(visibleIds(tree), type === 'movie' ? ['tmdb:123', 'tmdb:99'] : type === 'series' ? ['tmdb:20'] : type === 'person' ? ['7'] : ['tmdb:20', '7', 'tmdb:123']);
     }
     assert.equal(requests.length, 0, 'Cached first-page segment changes make no requests');
     assert.equal(changes[0], '/search?q=Example&type=movie');
@@ -93,23 +95,23 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
     render(); assert.equal(all(tree).find(node => node.type === 'ul').props['aria-busy'], true);
     requests[0].resolve({ ok: true, json: async () => ({ results: [movie, extra], totalPages: 3, totalResults: 82 }) });
     await tick(); render();
-    assert.deepEqual(visibleIds(tree), ['tmdb:20', 'tmdb:123', 'tmdb:99'], 'Append in native order without duplicates');
+    assert.deepEqual(visibleIds(tree), ['tmdb:20', '7', 'tmdb:123', 'tmdb:99'], 'Append in native order without duplicates');
     assert.ok(rows(tree).every(row => originalItems.includes(row.props.children.props.item)), 'Existing card metadata remains stable');
     const palette = all(tree).find(node => node.type === 'palette').props.primary;
     all(tree).find(node => node.type === 'search-filters').props.onValueChange('series'); render();
     params = new URLSearchParams('q=Example'); render();
-    assert.deepEqual(visibleIds(tree), ['tmdb:20', 'tmdb:123', 'tmdb:99'], 'History navigation restores the complete loaded feed');
+    assert.deepEqual(visibleIds(tree), ['tmdb:20', '7', 'tmdb:123', 'tmdb:99'], 'History navigation restores the complete loaded feed');
     assert.equal(all(tree).find(node => node.type === 'palette').props.primary, palette, 'Appending does not change the first-poster palette');
     observers.at(-1).fire(); render();
     requests[1].resolve({ ok: false, json: async () => ({ error: 'Search is unavailable' }) });
     await tick(); render();
     assert.ok(all(tree).some(node => node.props?.role === 'alert'));
-    assert.equal(visibleIds(tree).length, 3, 'A later failure keeps the grid');
+    assert.equal(visibleIds(tree).length, 4, 'A later failure keeps the grid');
     const count = requests.length; observers.at(-1).fire(); assert.equal(requests.length, count, 'Do not loop retries automatically');
     all(tree).find(node => node.type === 'button' && text(node) === 'Try again').props.onClick(); render();
     requests[2].resolve({ ok: true, json: async () => ({ results: [], totalPages: 3, totalResults: 82 }) });
     await tick(); render();
-    assert.equal(all(tree).some(node => node.type === 'button' && text(node) === 'Load more titles'), false, 'Final page removes the sentinel');
+    assert.equal(all(tree).some(node => node.type === 'button' && text(node) === 'Load more results'), false, 'Final page removes the sentinel');
     h.unmount(); assert.ok(observers.every(observer => observer.disconnected));
 
     fail = true; const error = await results.type(results.props);

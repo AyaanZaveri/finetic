@@ -6,7 +6,7 @@ const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream
   let upstream, finish, fail;
   const calls = [];
   const { GET } = load('app/api/search/suggestions/route.ts', {
-    '@/lib/tmdb-discovery': { searchTMDBMedia: (query, signal) => {
+    '@/lib/tmdb-discovery': { searchTMDBCatalog: (query, signal) => {
       calls.push(query); upstream = signal;
       return new Promise((resolve, reject) => { finish = resolve; fail = reject;
         signal.addEventListener('abort', () => reject(signal.reason), { once: true }); });
@@ -121,9 +121,9 @@ const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream
   for (const [id, run] of timers) { timers.delete(id); await run(); }
   tree = render();
   assert.deepEqual(Array.from(tree.props.items, item => item.id), [
-    'series:tmdb:30957', 'series:tmdb:45665', 'series:tmdb:236182',
-    'movie:tmdb:30957', 'movie:tmdb:5', 'series:tmdb:6',
-  ], 'Suggestions preserve provider rank, deduplicate by media type and ID, and cap at six without rating/artwork/prefix boosts');
+    'series:tmdb:30957', 'series:tmdb:45665', 'series:tmdb:236182', 'series:tmdb:6',
+    'movie:tmdb:30957', 'movie:tmdb:5',
+  ], 'Suggestions group the top six provider matches, with the strongest group first and provider rank preserved within each group');
   assert.equal(warmups.length, 0, 'Publishing six suggestions never prefetches six routes');
   tree.props.onItemIntent(tree.props.items[1]);
   assert.equal(warmups[0].href, '/series/tmdb:45665');

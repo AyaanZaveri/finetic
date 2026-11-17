@@ -4,7 +4,7 @@ const { createSearchResultsStore } = load('lib/search-results.ts', {}, { AbortCo
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const movie = { type: 'movie', id: '1', name: 'One' }, show = { type: 'series', id: '1', name: 'Show' };
 const page = (results, totalPages = 3) => ({ results, totalPages, totalResults: 60 });
-const initial = { page: 1, all: page([show, movie]), movie: page([movie]), series: page([show]) };
+const initial = { page: 1, all: page([show, movie]), movie: page([movie]), series: page([show]), person: page([]) };
 async function run() {
     const requests = [];
     const store = createSearchResultsStore(initial, (filter, number, signal) => new Promise((resolve, reject) => requests.push({ filter, number, signal, resolve, reject })));
