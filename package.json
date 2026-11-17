@@ -1,6 +1,6 @@
 {
   "name": "navigator",
-  "version": "0.5.14",
+  "version": "0.5.15",
   "private": true,
   "scripts": {
     "desktop:dev": "node scripts/desktop.mjs dev",
