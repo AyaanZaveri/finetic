@@ -47,7 +47,9 @@ const { EpisodeDetailsBoundary } = load('components/media-page/episode-details-b
   const page = EpisodePage({ params: Promise.resolve({ id: 'tt1442437', season: '8', episode: '16' }) });
   assert.equal(page.type, EpisodeDetailsBoundary, 'The boundary renders synchronously before metadata reads');
   assert.equal(reads, 0);
-  const loaded = await page.props.children.type(page.props.children.props);
+  const hydrated = await page.props.children.type(page.props.children.props);
+  assert.equal(hydrated.type, "metadata-hydration");
+  const loaded = hydrated.props.children;
   assert.equal(reads, 1);
   assert.equal(loaded.type, view.EpisodeDetailsView);
   assert.equal(loaded.props.title, 'Basketball');

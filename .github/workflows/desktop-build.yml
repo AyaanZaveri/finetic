@@ -64,6 +64,12 @@ jobs:
           node scripts/test-windows-install-readiness.cjs
           npm run test:app-updates
           npm run test:navigator
+          npm run test:people
+          npm run test:search
+          node scripts/test-button-drag.cjs
+          node scripts/test-carousel-controls.cjs
+          node scripts/test-media-card-menu.cjs
+          node scripts/test-user-menu-keyboard.cjs
           node scripts/test-ci-desktop-artifacts.mjs
           cargo test --manifest-path desktop/Cargo.toml --locked
       - name: Download verified playback libraries
@@ -125,6 +131,12 @@ jobs:
           node scripts/test-windows-install-readiness.cjs
           npm run test:app-updates
           npm run test:navigator
+          npm run test:people
+          npm run test:search
+          node scripts/test-button-drag.cjs
+          node scripts/test-carousel-controls.cjs
+          node scripts/test-media-card-menu.cjs
+          node scripts/test-user-menu-keyboard.cjs
           node scripts/test-ci-desktop-artifacts.mjs
           node scripts/test-windows-package.mjs
           cargo test --manifest-path desktop/Cargo.toml --locked
