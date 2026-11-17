@@ -1,0 +1,4 @@
+{
+  "manifest": "{\"schema\":1,\"platform\":\"windows-x64\",\"version\":\"0.6.1\",\"full\":{\"url\":\"https://github.com/AyaanZaveri/navigator/releases/download/release-v0.6.1/Navigator-0.6.1-windows-x64-setup.exe\",\"size\":80818164,\"sha256\":\"bf7b595ff8f86bf42582802013e9377dc87df1a8b3ee65af6de3af2c4e09f5f4\",\"signature\":\"yONuRod7EQOMmzPb8w/oLs7vM/RHXFAEfe3eAKdm1HmqXD8LsqzMB877THzU5gXJRLCtL+WODKtKdQbhSzKQCA==\"},\"deltas\":[]}",
+  "signature": "hbprsqRtrej+hG0b/x2F/phW2f0i1EaHt3yMPt2ki70Q0l0AdBCwP/9GDt5eaE/lcL0lvhy6z/rWf9J0LesWAg=="
+}
