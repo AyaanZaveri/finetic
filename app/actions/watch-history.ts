@@ -22,7 +22,7 @@ export async function fetchWatchedItems(requests: WatchHistoryRequest[]): Promis
         });
         if (!response.ok) return null;
         const data = await response.json();
-        if (!Array.isArray(data?.result)) return null;
+        if (data?.error || !Array.isArray(data?.result)) return null;
         const items = new Map<string, (typeof data.result)[number]>();
         for (const item of data.result) {
             const key = `${item.type}:${item._id || item.id}`;
@@ -76,7 +76,7 @@ export async function setWatchedStatus(input: WatchStatusInput): Promise<WatchHi
         });
         if (!response.ok) return null;
         const data = await response.json();
-        if (!Array.isArray(data?.result)) return null;
+        if (data?.error || !Array.isArray(data?.result)) return null;
         const existing = data.result.find((item: { _id?: string; id?: string }) => (item._id || item.id) === input.id);
         if (existing && existing.type !== input.type) return null;
         const now = new Date().toISOString();
@@ -108,11 +108,10 @@ export async function setWatchedStatus(input: WatchStatusInput): Promise<WatchHi
             state.watched = updated;
             // New encoded history supersedes the legacy array.
             delete state.watchedEpisodes;
-            const wasWatched = watched.has(input.videoId!);
             if (input.watched) watched.add(input.videoId!);
             else watched.delete(input.videoId!);
-            state.timesWatched = Math.max(0, (Number(state.timesWatched) || 0)
-                + (input.watched && !wasWatched ? 1 : !input.watched && wasWatched ? -1 : 0));
+            // Stremio's MarkVideoAsWatched changes the bitfield, not the
+            // playback completion counter for the title.
             if (state.video_id === input.videoId) {
                 state.flaggedWatched = input.watched ? 1 : 0;
                 state.timeOffset = 0;
@@ -138,7 +137,9 @@ export async function setWatchedStatus(input: WatchStatusInput): Promise<WatchHi
             body: JSON.stringify({ authKey, collection: "libraryItem", changes: [payload] }),
             cache: "no-store", signal: AbortSignal.timeout(10_000),
         });
-        if (!write.ok || (await write.json())?.error) return null;
+        if (!write.ok) return null;
+        const result = await write.json();
+        if (result?.error || (result?.result !== true && result?.result?.success !== true)) return null;
         return { movieWatched: input.type === "movie" && input.watched, watchedEpisodeIds: [...watched] };
     } catch { return null; }
 }

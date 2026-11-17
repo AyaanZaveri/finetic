@@ -28,12 +28,13 @@ async function run() {
     const artwork = load('lib/artwork.ts');
     let library = [];
     const writes = [], reads = [], metadataCalls = [];
-    let readError = false, writeError = false;
+    let readError = false, writeError = false, writeResult = true;
     const episodes = [
         { id: 'show:0:1', season: 0, episode: 1 },
         { id: 'show:1:2', season: 1, episode: 2 },
         { id: 'show:1:1', season: 1, episode: 1 },
     ];
+    assert.deepEqual([...bits.orderedEpisodeIds(episodes)], ['show:0:1', 'show:1:1', 'show:1:2'], 'Match official Stremio season/episode ordering, including season zero');
     const globals = {
         require: name => {
             if (name === './auth' || name === '@/lib/server/auth') return { getAuthData: async () => ({ authKey: 'test-only' }) };
@@ -55,8 +56,8 @@ async function run() {
             assert.equal(body.collection, 'libraryItem');
             if (url.endsWith('/datastorePut')) {
                 writes.push(body.changes[0]);
-                library = library.filter(item => item._id !== body.changes[0]._id).concat(body.changes);
-                return { ok: true, json: async () => writeError ? ({ error: { message: 'rejected' } }) : ({ result: true }) };
+                if (!writeError && (writeResult === true || writeResult?.success === true)) library = library.filter(item => item._id !== body.changes[0]._id).concat(body.changes);
+                return { ok: true, json: async () => writeError ? ({ error: { message: 'rejected' } }) : ({ result: writeResult }) };
             }
             reads.push(body);
             assert.equal(options.cache, 'no-store');
@@ -93,6 +94,11 @@ async function run() {
     assert.equal(final.timeOffset, 0);
     assert.equal(final.timesWatched, 2, 'Each episode counted once');
     assert.deepEqual([...bits.watchedVideoIds(final.watched, bits.orderedEpisodeIds(episodes))], ['show:1:1', 'show:1:2']);
+
+    library.push({ _id: 'short-video', type: 'movie', state: { video_id: 'short-video', timeOffset: 1500, duration: 8000 } });
+    const shortProgress = await actions.fetchPlaybackProgress('short-video', 'short-video');
+    assert.equal(shortProgress.resumePositionTicks, 1.5, 'Progress reads convert milliseconds even below ten seconds');
+    assert.equal(shortProgress.totalDuration, 8);
 
     const scrobble = { libraryItemId: 'scrobble', videoId: 'scrobble', mediaType: 'movie', mediaName: 'Scrobble', durationSeconds: 1000, sessionId: 'scrobble-session' };
     await start({ ...scrobble, currentTimeSeconds: 0, watchedTimeSeconds: 0 });
@@ -134,12 +140,17 @@ async function run() {
     show.poster = 'https://poster.test/show.jpg';
     show.removed = false;
     const inputToggle = { id: 'show', type: 'series', name: 'Show', videoId: 'show:1:1', watched: false };
+    const timesBeforeToggle = show.state.timesWatched;
     const unchecked = await history.setWatchedStatus(inputToggle);
+    assert.equal(writes.at(-1).state.timesWatched, timesBeforeToggle, 'Explicit episode toggles do not modify the playback completion counter');
     assert.deepEqual([...unchecked.watchedEpisodeIds], ['show:1:2']);
     assert.equal(writes.at(-1).state.timeOffset, 123000, 'Toggling another episode preserves active episode progress');
     assert.equal(writes.at(-1).state.flaggedWatched, 1, 'Toggling another episode preserves its watched flag');
     assert.equal(writes.at(-1).poster, show.poster);
     assert.equal(writes.at(-1).removed, false, 'Preserve library membership');
+    writeResult = { success: false };
+    assert.equal(await history.setWatchedStatus({ ...inputToggle, watched: true }), null, 'Reject a write without an affirmative API success result');
+    writeResult = true;
     const checked = await history.setWatchedStatus({ ...inputToggle, watched: true });
     assert.deepEqual([...checked.watchedEpisodeIds], ['show:1:2', 'show:1:1']);
     await history.setWatchedStatus({ ...inputToggle, videoId: 'show:1:2' });

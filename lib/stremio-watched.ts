@@ -2,7 +2,7 @@ import "server-only";
 import { deflateSync, inflateSync } from "node:zlib";
 
 /** Stremio's watched field: lastVideoId:anchorLength:base64(zlib(bytes)).
- * Bits are least-significant first, in metadata order (specials last).
+ * Bits are least-significant first, in season/episode/release order.
  * https://github.com/Stremio/stremio-watched-bitfield */
 export function watchedVideoIds(serialized: unknown, videoIds: string[], legacy?: unknown): string[] {
     if (!serialized) return Array.isArray(legacy) ? videoIds.filter((_, i) => legacy[i] === true || legacy[i] === 1) : [];
@@ -54,7 +54,11 @@ export function setVideoWatched(serialized: string | null, videoIds: string[], v
     return `${videoIds[anchor]}:${anchor + 1}:${deflateSync(bytes).toString("base64")}`;
 }
 
-export function orderedEpisodeIds(episodes: { id: string; season: number; episode: number }[]): string[] {
-    return [...episodes].sort((a, b) => (a.season || Number.MAX_SAFE_INTEGER) - (b.season || Number.MAX_SAFE_INTEGER)
-        || a.episode - b.episode).map(episode => episode.id);
+export function orderedEpisodeIds(episodes: { id: string; season: number; episode: number; released?: string }[]): string[] {
+    const releasedAt = (value?: string) => {
+        const time = Date.parse(value || "");
+        return Number.isFinite(time) ? time : Number.MIN_SAFE_INTEGER;
+    };
+    return [...episodes].sort((a, b) => a.season - b.season
+        || a.episode - b.episode || releasedAt(a.released) - releasedAt(b.released)).map(episode => episode.id);
 }

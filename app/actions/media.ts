@@ -722,7 +722,7 @@ async function upsertPlaybackState(
     }
 
     // Keep per-episode history after the active video changes. Metadata order
-    // matches Stremio's bitfield order, with specials after regular episodes.
+    // matches Stremio's season/episode order, including season-zero specials.
     if (input.mediaType === "series" && input.videoId && (previousWatchedVideo
       || (baseState.flaggedWatched > 0 && (!wasFlaggedWatched || !baseState.watched)))) {
       const episodes = await fetchEpisodes(input.libraryItemId, undefined, undefined, false);
@@ -831,6 +831,7 @@ export async function fetchPlaybackProgress(
         all: false,
       }),
       cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!response.ok) {
@@ -839,7 +840,8 @@ export async function fetchPlaybackProgress(
     }
 
     const data = await response.json();
-    const item = Array.isArray(data?.result) ? data.result[0] : null;
+    if (data?.error || !Array.isArray(data?.result)) return null;
+    const item = data.result.find((candidate: any) => (candidate?._id ?? candidate?.id) === libraryItemId);
     if (!item?.state) return null;
 
     const stateVideoId = firstString(item?.state?.video_id);
@@ -848,16 +850,13 @@ export async function fetchPlaybackProgress(
       return { videoId: stateVideoId };
     }
 
-    const rawOffset = Number(item?.state?.timeOffset ?? item?.state?.timeWatched ?? 0);
+    const rawOffset = Number(item?.state?.timeOffset ?? 0);
     const rawDuration = Number(item?.state?.duration ?? 0);
     const offset = Number.isFinite(rawOffset) ? rawOffset : 0;
     const duration = Number.isFinite(rawDuration) ? rawDuration : 0;
 
-    const offsetInSeconds =
-      (duration > 10_000 || offset > 86_400) && offset > 0
-        ? offset / 1000
-        : offset;
-    const durationInSeconds = duration > 10_000 ? duration / 1000 : duration;
+    const offsetInSeconds = offset / 1000;
+    const durationInSeconds = duration / 1000;
 
     return {
       videoId: stateVideoId,
@@ -962,24 +961,12 @@ export async function fetchResumeItems(): Promise<MediaItem[]> {
       const parsed = Number(value);
       return Number.isFinite(parsed) ? parsed : undefined;
     };
-    const toResumeSeconds = (
-      offsetValue: unknown,
-      durationValue: unknown
-    ): number | undefined => {
+    const toResumeSeconds = (offsetValue: unknown): number | undefined => {
       const offset = toNumberOrUndefined(offsetValue);
       if (offset === undefined || offset <= 0) return undefined;
 
-      const duration = toNumberOrUndefined(durationValue);
-      // Stremio library state commonly stores duration/timeOffset in milliseconds.
-      // Convert to seconds for the HTML video element currentTime API.
-      if (
-        (duration !== undefined && duration > 10_000) ||
-        offset > 86_400 // Anything over 24h is almost certainly milliseconds.
-      ) {
-        return offset / 1000;
-      }
-
-      return offset;
+      // Stremio's library contract uses milliseconds at every duration.
+      return offset / 1000;
     };
     // Matches Stremio core's continue-watching rules:
     // type !== "other", (!removed || temp), and state.timeOffset > 0.
@@ -989,7 +976,7 @@ export async function fetchResumeItems(): Promise<MediaItem[]> {
         const removed = Boolean(item?.removed);
         const temp = Boolean(item?.temp);
         const timeOffset = Number(
-          item?.state?.timeOffset ?? item?.state?.timeWatched ?? 0
+          item?.state?.timeOffset ?? 0
         );
 
         return type !== "other" && (!removed || temp) && timeOffset > 0;
@@ -1016,8 +1003,7 @@ export async function fetchResumeItems(): Promise<MediaItem[]> {
         releaseInfo:
           typeof item?.releaseInfo === "string" ? item.releaseInfo : undefined,
         resumePositionTicks: toResumeSeconds(
-          item?.state?.timeOffset ?? item?.state?.timeWatched,
-          item?.state?.duration
+          item?.state?.timeOffset
         ),
         progressPercent:
           Number(item?.state?.duration ?? 0) > 0
@@ -1027,7 +1013,7 @@ export async function fetchResumeItems(): Promise<MediaItem[]> {
                   100,
                   Math.round(
                     (Number(
-                      item?.state?.timeOffset ?? item?.state?.timeWatched ?? 0
+                      item?.state?.timeOffset ?? 0
                     ) /
                       Number(item?.state?.duration)) *
                       100

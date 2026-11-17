@@ -69,10 +69,13 @@ async function run() {
   assert.equal(items[0].year, 2014);
   assert.equal(items[0].background, 'https://image.tmdb.org/t/p/original/backdrop.jpg');
 
+  const short = await setup([{ ...raw, state: { timeOffset: 1500, duration: 8000 } }]).actions.fetchResumeItems();
+  assert.equal(short[0].resumePositionTicks, 1.5, 'Stremio offsets are milliseconds even for short media');
   const rows = [raw,
     { ...raw, _id: 'removed', removed: true },
     { ...raw, _id: 'other', type: 'other' },
     { ...raw, _id: 'unstarted', state: { timeOffset: 0 } },
+    { ...raw, _id: 'watched-only', state: { timeWatched: 10000 } },
     { ...raw, _id: 'tt1442437', type: 'series', removed: true, temp: true, name: 'Modern Family', state: {
       video_id: 'tt1442437:8:10', episodeTitle: 'Ringmaster Keifth', timeOffset: 180_000, duration: 1_200_000, lastWatched: '2026-11-01',
     } },

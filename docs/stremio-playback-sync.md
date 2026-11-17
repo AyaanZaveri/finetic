@@ -1,6 +1,8 @@
 # Stremio playback sync
 
-Reviewed against Stremio's official source on 2026-11-16.
+Reviewed against Stremio's official source on 2026-11-17. Validation uses
+mocked API responses and official bitfield fixtures. No live account writes
+were run for this review.
 
 Stremio stores playback in the `libraryItem` collection. A record belongs to
 the title. For a series, `state.video_id` identifies the active episode.
@@ -15,6 +17,23 @@ Sources:
 - [Library updates and API sync](https://github.com/Stremio/stremio-core/blob/master/src/models/ctx/update_library.rs)
 - [Watched and credits thresholds](https://github.com/Stremio/stremio-core/blob/master/src/constants.rs)
 - [Web player events](https://github.com/Stremio/stremio-web/blob/development/src/routes/Player/usePlayer.js)
+- [Datastore request contract](https://github.com/Stremio/stremio-core/blob/master/src/types/api/request.rs)
+- [Success and error response contract](https://github.com/Stremio/stremio-core/blob/master/src/types/api/response.rs)
+- [Library state and watched episode ordering](https://github.com/Stremio/stremio-core/blob/master/src/types/library/library_item.rs)
+- [Manual watched actions](https://github.com/Stremio/stremio-core/blob/master/src/models/meta_details.rs)
+
+Reads use `datastoreGet` with `authKey`, `collection: "libraryItem"`, `ids`
+and `all: false`. Writes use `datastorePut` with `authKey`, the collection and
+`changes`. A successful write has `result.success: true`. For compatibility, the adapter also
+accepts a boolean `result: true` shape. An HTTP 200 response alone
+does not establish success.
+
+Removing a card matches Stremio's `RewindLibraryItem`: clear `timeOffset`,
+update `_mtime`, and preserve the rest of the record. Episode watched flags
+use Stremio's compressed bitfield, sorted by season, episode and release date,
+with season-zero specials first. Explicit episode toggles do not change the
+playback completion counter. Navigator also keeps its active-episode flag in
+sync and clears the active resume position when toggling that episode.
 
 The reviewed sources do not establish a public API request quota or a required
 scrobble interval. Navigator uses a 30-second interval as its own policy. It

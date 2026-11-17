@@ -40,7 +40,7 @@ const history = load('app/actions/watch-history.ts', {
     const result = await response;
     assert.equal(peak, 2, 'Never fan out all visible series at once');
     assert.equal(calls.filter(call => call.id === ids[0] && call.season === undefined).length, 1, 'Duplicate cards reuse one title decode');
-    for (const id of ids) assert.deepEqual([...result[`series:${id}`].watchedEpisodeIds], [`${id}:1:1`, `${id}:0:1`], 'Preserve regular/special ordering');
+    for (const id of ids) assert.deepEqual([...result[`series:${id}`].watchedEpisodeIds], [`${id}:0:1`, `${id}:1:1`], 'Match Stremio season ordering, including specials');
     assert.equal(result['movie:movie'].movieWatched, true);
     console.log('PASS: one datastore batch, two title workers, no serial head-of-line blocking, duplicate title reuse and specials compatibility');
 })().catch(error => { console.error(error); process.exitCode = 1; });
