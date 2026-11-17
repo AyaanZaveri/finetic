@@ -17,6 +17,7 @@ const dependencies = {
   '@/lib/artwork': { mediaArtwork: () => ({ poster: '/poster.jpg', background: '/still.jpg' }), backdropVariantUrl: url => url },
   '@/lib/series-route': { buildEpisodePath: () => '/series/test/1/1' },
   '@/contexts/MediaPlayerContext': { usePlaybackActions: () => ({}) },
+  '@/components/media-card-menu': { MediaCardMenu: ({ children }) => children },
   '@/components/watched-indicator': { WatchedIndicator: () => null },
   './media-card.module.css': new Proxy({}, { get: (_, key) => key === '__esModule' ? false : key }),
 };

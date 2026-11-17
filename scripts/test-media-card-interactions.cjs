@@ -18,6 +18,7 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/series-route.ts', 'ut
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
 }).outputText, routeContext);
 const context = { exports: {}, Element: TestElement, Node: TestNode, window: { matchMedia: () => ({ matches: finePointer }) }, require(name) {
+    if (name === '@/components/media-card-menu') return { MediaCardMenu: 'card-menu' };
     if (name === '@/components/metadata-preload') return { useMetadataIntent: () => ({ start() {}, cancel() {} }) };
     if (name === '@/components/artwork-image') return { ArtworkImage: 'img' };
     if (name === '@/lib/preload-tools') return { preloadPlayer() {} };
@@ -48,7 +49,7 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('components/media-card.tsx
 }).outputText, context);
 function render(continueWatching = false) {
     stateIndex = 0;
-    return context.exports.MediaCard({ continueWatching, item: { id: 'tt123', name: 'Fixture', type: 'movie', progressPercent: 42, resumePositionTicks: 30, streamUrl: 'https://example.test/movie.mp4' } });
+    return context.exports.MediaCard({ continueWatching, item: { id: 'tt123', name: 'Fixture', type: 'movie', progressPercent: 42, resumePositionTicks: 30, streamUrl: 'https://example.test/movie.mp4' } }).props.children;
 }
 assert.equal(render(true).props['data-continue-watching'], true, 'Resume cards opt into stable brightness styling');
 function find(node, predicate) {

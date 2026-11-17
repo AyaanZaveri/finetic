@@ -11,6 +11,7 @@ const { MediaCard } = load('components/media-card.tsx', {
   '@/lib/artwork': { mediaArtwork: () => artwork, backdropVariantUrl: value => value },
   '@/components/intent-link': { IntentLink: 'a' },
   '@/contexts/MediaPlayerContext': { usePlaybackActions: () => ({}) },
+  '@/components/media-card-menu': { MediaCardMenu: ({ children }) => children },
   '@/components/watched-indicator': { WatchedIndicator: 'watched' },
   '@/components/continue-watching-warmup': { useContinueWatchingWarmup: () => null },
   './media-card.module.css': {},

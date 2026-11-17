@@ -14,9 +14,10 @@ import { IntentLink } from "@/components/intent-link";
 import type { MediaItem } from "@/types/stremio";
 import { Play } from "lucide-react";
 import { usePlaybackActions } from "@/contexts/MediaPlayerContext";
-import { buildEpisodePath } from "@/lib/series-route";
+import { buildEpisodePath, parseSeriesRouteId } from "@/lib/series-route";
 import styles from "./media-card.module.css";
 import { WatchedIndicator } from "@/components/watched-indicator";
+import { MediaCardMenu, type CardPlayback } from "@/components/media-card-menu";
 import { useContinueWatchingWarmup } from "@/components/continue-watching-warmup";
 
 export function MediaCard({
@@ -35,6 +36,13 @@ export function MediaCard({
   revealArtwork?: boolean;
 }) {
   const { playMedia, setIsPlayerVisible } = usePlaybackActions();
+  const originalTitleId = item.seriesId || (item.type === "series" ? parseSeriesRouteId(item.id).seriesId : item.id);
+  const [historyIdentity, setHistoryIdentity] = useState<{ source: string; id: string } | null>(null);
+  const historyId = historyIdentity?.source === originalTitleId ? historyIdentity.id : originalTitleId;
+  const resolveHistoryId = useCallback((id: string) => setHistoryIdentity({ source: originalTitleId, id }), [originalTitleId]);
+  const rawVideoId = item.mediaSourceId || item.episodeId;
+  const historyVideoId = rawVideoId && (rawVideoId === originalTitleId || rawVideoId.startsWith(`${originalTitleId}:`))
+    ? historyId + rawVideoId.slice(originalTitleId.length) : rawVideoId;
   const homeScene = useHomePaletteScene();
   const paletteOwner = useRef(Symbol("home-card"));
   useEffect(() => {
@@ -98,28 +106,26 @@ export function MediaCard({
   const progressPercent = continueWatching && typeof item.progressPercent === "number" && Number.isFinite(item.progressPercent)
     ? Math.min(100, Math.max(0, item.progressPercent)) : null;
 
-  const handlePlayClick = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
+  const playCard = async (options?: CardPlayback, animateEntrance = true) => {
     if (item) {
+      const episode = options?.videoId ? parseSeriesRouteId(options.videoId) : null;
       await playMedia({
         details: projectPlaybackDetails({ ...item, id: item.seriesId || item.id, name: item.showName || item.name }),
         detailsPath: linkHref,
-        animateEntrance: e.detail > 0,
-        id: item.id,
+        animateEntrance,
+        id: options?.titleId || item.id,
         name: item.episodeTitle || item.name,
         type: item.type,
-        resumePositionTicks: item.resumePositionTicks,
+        resumePositionTicks: options ? options.resumePosition : item.resumePositionTicks,
         streamUrl: item.streamUrl,
         streamRequest: continueWatching ? warmup?.claim(item) : undefined,
-        mediaSourceId: item.mediaSourceId,
-        seriesId: item.type === "series" ? item.seriesId || item.id : undefined,
+        mediaSourceId: options?.videoId || item.mediaSourceId,
+        seriesId: item.type === "series" ? options?.titleId || item.seriesId || item.id : undefined,
         showName: item.type === "series" ? item.showName || item.name : undefined,
         episodeTitle:
           item.type === "series" ? item.episodeTitle : undefined,
-        seasonNumber: item.seasonNumber,
-        episodeNumber: item.episodeNumber,
+        seasonNumber: episode?.season ?? item.seasonNumber,
+        episodeNumber: episode?.episode ?? item.episodeNumber,
         backdropUrl: artwork.background,
         subtitleFilename: item.subtitleFilename,
         subtitleVideoSize: item.subtitleVideoSize,
@@ -128,7 +134,13 @@ export function MediaCard({
     }
   };
 
+  const handlePlayClick = async (e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    await playCard(undefined, e.detail > 0);
+  };
+
   return (
+    <MediaCardMenu item={item} continueWatching={continueWatching} detailsHref={linkHref} onPlay={playCard} onResolvedId={resolveHistoryId}>
     <div
       data-continue-watching={continueWatching || undefined}
       data-reveal-artwork={revealArtwork || undefined}
@@ -221,10 +233,10 @@ export function MediaCard({
           </button>
 
           <WatchedIndicator
-            id={item.seriesId || item.id}
+            id={historyId}
             type={item.type}
-            videoId={item.mediaSourceId || item.episodeId || (item.type === "series" && item.seasonNumber !== undefined && item.episodeNumber !== undefined
-              ? `${item.seriesId || item.id}:${item.seasonNumber}:${item.episodeNumber}` : undefined)}
+            videoId={historyVideoId || (item.type === "series" && item.seasonNumber !== undefined && item.episodeNumber !== undefined
+              ? `${historyId}:${item.seasonNumber}:${item.episodeNumber}` : undefined)}
             aboveProgress={progressPercent !== null}
           />
 
@@ -248,5 +260,6 @@ export function MediaCard({
         </div>
       </div>
     </div>
+    </MediaCardMenu>
   );
 }
