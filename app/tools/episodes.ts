@@ -22,6 +22,7 @@ export function createEpisodeTools(model?: LanguageModel, originalRequest = "") 
         const config = await getTinyfishConfig();
         const onProgress = record(options.context).onEpisodeProgress as ((_progress: EpisodeProgress) => void) | undefined;
         return resolveEpisode(input, { model, signal: options.abortSignal, onProgress,
+            prefetchResearch: record(options.context).prefetchEpisodeResearch === true,
             research: config.enabled && config.apiKey ? (query, purpose, signal) => researchMediaWeb(query, purpose, config.apiKey!, signal, results => onProgress?.({ stage: "search", state: "completed", detail: query, sources: results.map(({ url, title }) => ({ url, title })) })) : undefined });
     };
     const findEpisode = tool({

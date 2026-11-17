@@ -28,6 +28,8 @@ function setup(items, metadata = { id: 'tt0816692', name: 'Interstellar', type: 
       if (name === '@/lib/server/catalog-cache') return {};
       if (name === '@/lib/server/media-artwork') return { resolveArtworkList: async items => items.map(item => ({ ...item, background: 'https://image.tmdb.org/t/p/original/backdrop.jpg' })) };
       if (name === '@/lib/artwork') return artwork;
+            if (name === '@/lib/series-route') return load('lib/series-route.ts');
+            if (name === '@/lib/tmdb-discovery') return { resolveTMDBPlaybackId: async id => id === 'tmdb:123' ? 'tt123' : id };
       if (name === '@/lib/media-description') return description;
       return {};
     },
@@ -86,6 +88,23 @@ async function run() {
   assert.equal(filtered[0].progressPercent, 15);
   assert.equal(filtered[1].id, 'tt0816692');
   assert.equal((await setup([]).actions.fetchResumeItems()).length, 0);
+  const series = { _id: 'tt123', type: 'series', name: 'Same show', state: { video_id: 'tt123:1:2', timeOffset: 10000, duration: 1000000 } };
+  const duplicates = await setup([
+    { ...series, _mtime: '2026-11-01' },
+    { ...series, _id: 'tmdb:123', _mtime: '2026-11-02', state: { ...series.state, video_id: 'tmdb:123:1:2', timeOffset: 20000 } },
+    { ...series, _id: 'tt123:1:2', _mtime: '2026-10-31' },
+    { ...series, _id: 'different-title', _mtime: '2026-11-01' },
+  ]).actions.fetchResumeItems();
+  assert.equal(duplicates.length, 2, 'Verified ID aliases collapse, equal title names do not');
+  assert.equal(duplicates[0].id, 'tt123');
+  assert.equal(duplicates[0].resumePositionTicks, 20, 'Use the newest alias state');
+  assert.equal(duplicates[0].mediaSourceId, 'tt123:1:2', 'Canonical title and episode stay aligned');
+  const cleared = await setup([
+    { ...series, _mtime: '2026-11-01' },
+    { ...series, _mtime: '2026-11-02', state: { ...series.state, timeOffset: 0 } },
+  ]).actions.fetchResumeItems();
+  assert.equal(cleared.length, 0, 'Older duplicate cannot resurrect cleared progress');
+
   const optionalYear = setup([]);
   const yearRequest = optionalYear.actions.fetchResumeMovieYear('tt0816692');
   await new Promise(setImmediate);

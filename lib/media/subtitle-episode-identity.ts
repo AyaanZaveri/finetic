@@ -1,7 +1,7 @@
 interface EpisodeSubtitleTrack { filename?: string; src: string }
 
 const normalize = (value: string) => value.toLowerCase().normalize("NFKD")
-  .replace(/\p{M}/gu, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  .replace(/\p{M}/gu, "").replace(/['’‘`]/g, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
 /** Subtitle catalogs can count specials differently from the canonical video catalog. */
 export async function matchEpisodeSubtitleTracks<T extends EpisodeSubtitleTrack>(

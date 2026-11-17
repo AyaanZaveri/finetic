@@ -78,12 +78,11 @@ import { SubtitleTimingPopover } from "@/components/subtitle-timing-popover";
 import { useSubtitleTiming } from "@/lib/media/subtitle-timing";
 import { NAVIGATOR_PLAYBACK_EVENT } from "@/lib/navigator-playback-ack";
 import { WATCH_HISTORY_CHANGED } from "@/lib/watch-history";
+import { createPlaybackReporter } from "@/lib/media/playback-reporter";
 
 interface GlobalMediaPlayerProps {
   onToggleAIAsk?: () => void;
 }
-
-const PROGRESS_REPORT_INTERVAL_MS = 30_000;
 const WEB_RECOVERY_TOAST_ID = "web-stream-recovery";
 
 export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
@@ -196,7 +195,17 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const failedStreamUrlsRef = useRef(new Set<string>());
   const activePlaybackRequestRef = useRef<MediaToPlay | null>(null);
   const loadMediaRef = useRef<((_request: MediaToPlay, _fallback?: boolean) => Promise<void>) | null>(null);
-  const lastProgressReportAtRef = useRef(0);
+  const playbackReporterRef = useRef<ReturnType<typeof createPlaybackReporter> | null>(null);
+  if (!playbackReporterRef.current) playbackReporterRef.current = createPlaybackReporter(async (kind, payload) => {
+    const report = kind === "start" ? reportPlaybackStart : kind === "stopped" ? reportPlaybackStopped : reportPlaybackProgress;
+    const success = await report(payload);
+    if (success === true) window.dispatchEvent(new CustomEvent(WATCH_HISTORY_CHANGED, { detail: { id: payload.libraryItemId, playback: kind } }));
+    return success;
+  });
+  useEffect(() => {
+    playbackReporterRef.current?.begin();
+    return () => playbackReporterRef.current?.cancel();
+  }, [streamQueries?.scope]);
   const playbackStartedReportedRef = useRef(false);
   const playbackStoppedReportedRef = useRef(false);
   const lastLoadedPlaybackKeyRef = useRef<string | null>(null);
@@ -273,30 +282,28 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         currentTimeSeconds?: number;
         durationSeconds?: number;
         ended?: boolean;
-      }
+      },
+      periodic = false,
     ) => {
       const payload = buildPlaybackPayload(overrides);
-      if (!payload) return;
-      const refreshWatched = (success: boolean) => {
-        if (success) window.dispatchEvent(new CustomEvent(WATCH_HISTORY_CHANGED, { detail: { id: payload.libraryItemId } }));
-      };
+      if (!payload || (kind !== "start" && (!playbackStartedReportedRef.current || playbackStoppedReportedRef.current))) return;
 
       if (kind === "start") {
         if (playbackStartedReportedRef.current) return;
         playbackStartedReportedRef.current = true;
         playbackStoppedReportedRef.current = false;
-        void Promise.resolve(reportPlaybackStart(payload)).then(refreshWatched).catch(() => {});
+        playbackReporterRef.current?.report(kind, payload);
         return;
       }
 
       if (kind === "stopped") {
         if (playbackStoppedReportedRef.current) return;
         playbackStoppedReportedRef.current = true;
-        void Promise.resolve(reportPlaybackStopped(payload)).then(refreshWatched).catch(() => {});
+        playbackReporterRef.current?.report(kind, payload);
         return;
       }
 
-      void Promise.resolve(reportPlaybackProgress(payload)).then(refreshWatched).catch(() => {});
+      playbackReporterRef.current?.report(kind, payload, periodic);
     },
     [buildPlaybackPayload]
   );
@@ -356,15 +363,12 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   const maybeReportPeriodicProgress = useCallback(
     (timeSeconds: number, durationSeconds?: number) => {
-      const now = Date.now();
-      if (now - lastProgressReportAtRef.current < PROGRESS_REPORT_INTERVAL_MS) {
-        return;
-      }
-      lastProgressReportAtRef.current = now;
+      const element = videoRef.current;
+      playbackReporterRef.current?.observe(timeSeconds, element?.paused ?? true, element?.seeking ?? false, element?.playbackRate || 1);
       sendPlaybackUpdate("progress", {
         currentTimeSeconds: timeSeconds,
         durationSeconds,
-      });
+      }, true);
     },
     [sendPlaybackUpdate]
   );
@@ -682,7 +686,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     lastLoadedPlaybackKeyRef.current = playbackKey;
     playbackStartedReportedRef.current = false;
     playbackStoppedReportedRef.current = false;
-    lastProgressReportAtRef.current = 0;
+    playbackReporterRef.current?.begin();
     setVideoReady(false);
     currentTimeRef.current = 0;
     setDuration(0);

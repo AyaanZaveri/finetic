@@ -49,7 +49,6 @@ const AIAsk = ({ userId }: { userId: string }) => {
     const opencodeSessionIdRef = useRef<string | null>(null);
     const {
         aiProvider,
-        analysisModel,
         openaiBaseUrl,
         openaiModel,
         geminiModel,
@@ -355,7 +354,7 @@ const AIAsk = ({ userId }: { userId: string }) => {
         opencodeSessionIdRef.current = opencodeSessionId;
         requestBodyRef.current = {
             currentMedia: isPlayerVisible ? currentMediaWithSource : null, currentTimestamp: playbackStore.get(currentTimestampAtom), pathname,
-            aiProvider, analysisModel, openaiBaseUrl, openaiModel, geminiModel, ollamaApiKey, ollamaBaseUrl, ollamaModel,
+            aiProvider, openaiBaseUrl, openaiModel, geminiModel, ollamaApiKey, ollamaBaseUrl, ollamaModel,
             groqModel, openrouterModel, openrouterReasoningEffort, cerebrasModel, cerebrasReasoningEffort,
             opencodeModel, openaiApiKey, googleApiKey, groqApiKey, openrouterApiKey, cerebrasApiKey,
             opencodeApiKey, opencodeSessionId,

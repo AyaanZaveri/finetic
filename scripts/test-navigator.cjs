@@ -45,7 +45,8 @@ async function main() {
     else throw new Error('Unexpected TMDB endpoint: ' + endpoint);
     return new Response(JSON.stringify(data), { status: episodeMetadataUnavailable && endpoint.includes('/episode/') ? 404 : tmdbStatus, headers: { 'content-type': 'application/json' } });
   }
-  const provider = () => activeModel;
+  const selectedModelIds = [];
+  const provider = modelId => { selectedModelIds.push(modelId); return activeModel; };
   provider.responses = provider;
   const modules = new Map();
   const overrides = {
@@ -110,7 +111,11 @@ async function main() {
   semanticLines[2083].text = 'I saw the napkin he burned.';
   semanticLines[2084].text = 'I saw him grab the gun.';
   semanticLines[2085].text = 'I saw him driving away that night.';
+  semanticLines[0].text = '<i>Earlier recap dialogue</i>';
   const passages = subtitles.sceneSubtitleCandidates(semanticLines);
+  assert.equal(passages[0].italicized, true, 'Grouping must preserve formatting evidence that can distinguish recap dialogue');
+  assert.equal(subtitles.sceneSubtitleCandidates([{ timestamp: 1, timestampFormatted: '00:00:01', text: '<i>A quote</i>' }])[0].italicized, true);
+  semanticLines[0].text = 'Earlier recap dialogue';
   assert.ok(passages.length <= 420);
   assert.equal(passages.map(passage => passage.text).join(' ').includes('I saw him grab the gun.'), true, 'Semantic admissions cannot disappear between timeline samples');
   for (const entry of semanticLines) assert.ok(passages.some(passage => passage.text.includes(entry.text)), 'Ordinary film dialogue retains full context');
@@ -621,10 +626,14 @@ async function main() {
     doStream: async () => { sceneRouterCalls++; return stream([{ type: 'tool-call', toolCallId: 'agent-selected-scene', toolName: 'skipToSubtitleContent', input: JSON.stringify({ mediaQuery: 'Example', userDescription: 'a scene' }) }], 'tool-calls'); },
     doGenerate: async () => ({ content: [{ type: 'text', text: JSON.stringify({ candidate: 1, confidence: 'high' }) }], usage, warnings: [], finishReason: { unified: 'stop', raw: 'stop' } }),
   });
+  const modelSelectionsBeforeScene = selectedModelIds.length;
   const directSceneResponse = await readResponse(await POST(request({ ...payload, pathname: '/', currentMedia: null,
     aiProvider: 'opencode', opencodeModel: 'muse-spark-1.3-contributor', opencodeApiKey: 'test-key', opencodeSessionId: 'test-session',
+    analysisModel: 'unselected-analysis-model', // Legacy clients cannot override the selected model for nested tools.
     messages: [user('compound-scene', 'Go to a scene in Example')] })));
+  assert.deepEqual(selectedModelIds.slice(modelSelectionsBeforeScene), ['muse-spark-1.3-contributor'], 'Create only the user-selected model, ignoring legacy analysis overrides for nested scene calls');
   assert.equal(sceneRouterCalls, 1, 'The agent selects the scene tool through the native tool loop');
+  assert.equal(activeModel.doGenerateCalls.length, 2, 'Both subtitle selection and verification call the same selected model used for routing');
   const directScenePart = directSceneResponse.parts.find(part => part.type === 'tool-skipToSubtitleContent');
   assert.equal(directScenePart.output.success, true);
   assert.equal(directScenePart.output.action, 'play');

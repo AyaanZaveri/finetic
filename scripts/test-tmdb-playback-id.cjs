@@ -31,12 +31,12 @@ function utility(file) {
     assert.equal((await streamRoute.GET(new Request('http://app/api/streams/addon?mediaItemId=tmdb:123:8:16&type=series&addonId=test-addon'))).status, 200);
     assert.deepEqual(addonCalls, ['https://addon.test/stream/series/tt123:8:16.json'], 'Manual stream listings translate selected TMDB episode IDs too');
     const { resolvePlayback } = utility('lib/media/resolve-playback.ts');
-    for (const type of ['movie', 'series']) {
+    for (const manual of [false, true]) for (const type of ['movie', 'series']) {
         const seen = [];
-        const media = await resolvePlayback({ id: 'tmdb:123', type, name: 'Example',
+        const media = await resolvePlayback({ id: 'tmdb:123', type, name: 'Example', ...(manual ? { streamUrl: 'https://video.test/manual.mp4' } : {}),
             ...(type === 'series' ? { seriesId: 'tmdb:123', mediaSourceId: 'tmdb:123:8:16', seasonNumber: 8, episodeNumber: 16 } : {}),
         }, { resolveId: async () => 'tt123', fetchStreams: async id => { seen.push(id); return [{ url: 'https://video.test/movie.mp4' }]; } }, () => {});
-        assert.deepEqual(seen, [type === 'movie' ? 'tt123' : 'tt123:8:16']);
+        assert.deepEqual(seen, manual ? [] : [type === 'movie' ? 'tt123' : 'tt123:8:16']);
         assert.equal(media.id, 'tt123', 'Progress uses the canonical title ID');
         if (type === 'series') assert.equal(media.mediaSourceId, 'tt123:8:16', 'Subtitles use the selected canonical episode');
     }

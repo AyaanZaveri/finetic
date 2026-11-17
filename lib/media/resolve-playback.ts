@@ -395,9 +395,10 @@ async function resolvePlaybackAttempt(
     const knownStreams = shared && shared.type === request.type && (shared.id === targetId
         || (!request.streamUrl && await shared.canonicalId === targetId)) ? shared : undefined;
     const tmdb = /^(tmdb:[1-9]\d*)(?::\d+:\d+)?$/.exec(media.seriesId || media.id);
-    if (!media.streamUrl && tmdb && dependencies.resolveId && (media.type === "movie" || media.type === "series")) {
+    if (tmdb && dependencies.resolveId && (media.type === "movie" || media.type === "series")) {
         const canonicalTarget = knownStreams ? await knownStreams.canonicalId : undefined;
-        const id = canonicalTarget ? canonicalTarget.replace(/:(\d+):(\d+)$/, '') : await dependencies.resolveId(tmdb[1], media.type);
+        const knownImdb = /^tt\d+$/.test(media.details?.imdbId || "") ? media.details!.imdbId : undefined;
+        const id = canonicalTarget ? canonicalTarget.replace(/:(\d+):(\d+)$/, '') : knownImdb || await dependencies.resolveId(tmdb[1], media.type);
         media = { ...media, id, seriesId: media.type === "series" ? id : undefined,
             mediaSourceId: media.mediaSourceId?.replace(/^tmdb:[1-9]\d*(?=:|$)/, id) };
     }

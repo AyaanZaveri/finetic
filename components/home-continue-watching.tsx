@@ -25,7 +25,13 @@ export function ContinueWatchingSection() {
     const [revealArtwork] = useState(() => !queries?.client.getQueryData(["continue-watching", scope]));
     const { data, isPending, refetch } = useQuery(continueWatchingOptions(scope, fetchResumeItems));
     useEffect(() => {
-        const refresh = () => { void refetch(); };
+        const refresh = (event: Event) => {
+            // The player owns live progress. Refresh the row when playback
+            // closes instead of fetching the full library at every heartbeat.
+            const playback = (event as CustomEvent).detail?.playback;
+            if (playback === "progress" || playback === "start") return;
+            void refetch();
+        };
         window.addEventListener(WATCH_HISTORY_CHANGED, refresh);
         return () => window.removeEventListener(WATCH_HISTORY_CHANGED, refresh);
     }, [refetch]);

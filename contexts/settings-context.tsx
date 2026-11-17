@@ -60,8 +60,6 @@ interface SettingsContextType {
   setNavigatorEnabled: (enabled: boolean) => void;
   aiProvider: AIProvider;
   setAiProvider: (provider: AIProvider) => void;
-  analysisModel: string;
-  setAnalysisModel: (model: string) => void;
   // model settings
   openaiBaseUrl: string;
   setOpenaiBaseUrl: (url: string) => void;
@@ -151,7 +149,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   };
   const [videoBitrate, setVideoBitrateState] = useState<string>("auto");
   const [navigatorEnabled, setNavigatorEnabledState] = useState<boolean>(true);
-  const [analysisModels, setAnalysisModels] = useState<Partial<Record<AIProvider, string>>>({});
   const [aiProvider, setAiProviderState] = useState<AIProvider>("openai");
   const [openaiBaseUrl, setOpenaiBaseUrlState] = useState<string>(
     "https://api.openai.com/v1"
@@ -184,14 +181,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [cerebrasApiKey, setCerebrasApiKeyState] = useState<string>("");
   const [opencodeApiKey, setOpencodeApiKeyState] = useState<string>("");
 
-  const setAnalysisModel = (model: string) => {
-    setAnalysisModels(previous => {
-      const next = { ...previous, [aiProvider]: model };
-      localStorage.setItem("navigator-analysis-models", JSON.stringify(next));
-      return next;
-    });
-  };
-
   // Load settings from localStorage on mount
   useEffect(() => {
     try {
@@ -206,12 +195,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       if (SUBTITLE_SIZES.some(option => option.value === size)) setSubtitleSizeState(size as SubtitleSize);
       if (SUBTITLE_OUTLINES.some(option => option.value === outline)) setSubtitleOutlineState(outline as SubtitleOutline);
     } catch { /* Use defaults if local preferences cannot be read. */ }
-    try {
-      const saved = JSON.parse(localStorage.getItem("navigator-analysis-models") || "{}");
-      if (saved && typeof saved === "object" && !Array.isArray(saved)) {
-        setAnalysisModels(Object.fromEntries(Object.entries(saved).filter(([, value]) => typeof value === "string")));
-      }
-    } catch { /* Ignore malformed saved preferences. */ }
     const savedBitrate = localStorage.getItem("navigator-video-bitrate");
     if (
       savedBitrate &&
@@ -443,8 +426,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         playbackPreferences, updatePlaybackPreferences,
         subtitlePosition, setSubtitlePosition, subtitleSize, setSubtitleSize, subtitleOutline, setSubtitleOutline,
         subtitleWeight, setSubtitleWeight, subtitleColor, setSubtitleColor, resetSubtitleAppearance,
-        analysisModel: analysisModels[aiProvider] || "",
-        setAnalysisModel,
         videoBitrate,
         setVideoBitrate,
         navigatorEnabled,

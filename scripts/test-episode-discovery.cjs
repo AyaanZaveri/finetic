@@ -15,6 +15,7 @@ async function main() {
     const requests = [];
     const prompts = [];
     let mode = 'web';
+    let expectParallel = false, researchStarted = false;
     const env = { TINYFISH_API_KEY: 'server-key', NODE_ENV: 'production', NAVIGATOR_DESKTOP: '1', HOSTNAME: '127.0.0.1' };
     const episodes = [
         ...Array.from({ length: 44 }, (_, index) => ({ id: `tmdb:58957:1:${index + 1}`, title: `Early episode ${index + 1}`, name: `Early episode ${index + 1}`, season: 1, episode: index + 1 })),
@@ -33,6 +34,7 @@ async function main() {
             if (options.prompt.startsWith('Resolve a possibly misspelled')) return { output: { title: 'Late Bloomer', sourceId: 'web:1', quote: mode === 'title-repair-invalid' ? 'invented title evidence' : 'Late Bloomer' } };
             if (options.prompt.startsWith('Write one complementary')) return { output: { query: mode === 'bad-refinement' ? '`' : '"Late Bloomer" translated dialogue scene' } };
             const isWeb = options.prompt.includes('web:1');
+            if (expectParallel && !isWeb) assert.ok(researchStarted, 'Scene research starts before metadata assessment finishes');
             const eligible = options.prompt.split('Evidence sources:')[0].includes('tmdb:58957:4:4');
             if (mode === 'clue-only' && isWeb) return { output: { status: 'not_found', evidence: [], clueEvidence: [{ passageId: 'web:1:p1' }] } };
             if (mode === 'fake') return { output: { status: 'matched', clueEvidence: [], evidence: [{ episodeId: 'tmdb:58957:4:4', passageId: 'web:1:p999' }] } };
@@ -120,6 +122,14 @@ async function main() {
     assert.equal(result.status, 'matched', 'Use web evidence to resolve weak metadata ambiguity');
     assert.equal(result.episodes[0].id, 'tmdb:58957:4:4');
     const calls = webCalls;
+    expectParallel = true;
+    researchStarted = false;
+    const scenePromptStart = prompts.length;
+    await resolveEpisode(input, { model: { modelId: 'mock', provider: 'mock' }, prefetchResearch: true, research: async () => { researchStarted = true; return [source]; } });
+    expectParallel = false;
+    assert.equal(researchStarted, true);
+    const sceneAssessments = prompts.slice(scenePromptStart).filter(prompt => prompt.startsWith('Identify the episode'));
+    assert.ok(sceneAssessments.length > 0 && sceneAssessments.every(prompt => prompt.includes('web:1')), 'Scene lookup verifies web evidence instead of accepting a metadata-only teaser');
     result = await resolveEpisode({ ...input, episodeQuery: 'The Anecdote', seasonNumber: 4 }, { research });
     assert.equal(result.status, 'matched'); assert.equal(webCalls, calls, 'Exact titles need no model or web search');
     showCandidates = [{ id: 'tmdb:58957', name: 'Nathan for You', voteCount: 5000 }, { id: 'tmdb:999', name: 'Nathan for You', voteCount: 3 }];
