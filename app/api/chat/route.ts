@@ -42,7 +42,6 @@ const contextSchema = z.object({
         const parsed = subtitleSnapshotSchema.safeParse(value);
         return parsed.success ? parsed.data : undefined;
     }, subtitleSnapshotSchema.optional()),
-    analysisModel: z.string().max(200).optional(),
     pathname: z.string().max(2000).optional(),
     currentTimestamp: z.number().finite().nonnegative().optional(),
     currentMedia: z.object({
@@ -167,7 +166,7 @@ export async function POST(req: Request) {
               },
           };
 
-        const selectModel = (modelOverride?: string) => {
+        const selectModel = () => {
             let model;
             switch (aiProvider) {
             case "openai":
@@ -177,7 +176,7 @@ export async function POST(req: Request) {
                             apiKey: openaiApiKey, fetch: providerFetch,
                             baseURL: openaiBaseUrl,
                         });
-                        model = openaiProvider((modelOverride || openaiModel));
+                        model = openaiProvider(openaiModel);
                     } else {
                         const openaiCompatibleProvider = createOpenAICompatible({
                             name: "openai-compatible",
@@ -185,10 +184,10 @@ export async function POST(req: Request) {
                             apiKey: openaiApiKey, fetch: providerFetch,
                             baseURL: openaiBaseUrl,
                         });
-                        model = openaiCompatibleProvider((modelOverride || openaiModel));
+                        model = openaiCompatibleProvider(openaiModel);
                     }
                 } else if (process.env.OPENAI_API_KEY) {
-                    model = createOpenAI({ apiKey: process.env.OPENAI_API_KEY, fetch: providerFetch })((modelOverride || openaiModel));
+                    model = createOpenAI({ apiKey: process.env.OPENAI_API_KEY, fetch: providerFetch })(openaiModel);
                 } else {
                     throw new Error(
                         "OpenAI API key is required for OpenAI provider. Please set your API key in settings."
@@ -200,10 +199,10 @@ export async function POST(req: Request) {
                     const googleProvider = createGoogle({
                         apiKey: googleApiKey, fetch: providerFetch,
                     });
-                    model = googleProvider((modelOverride || geminiModel));
+                    model = googleProvider(geminiModel);
                 } else if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
                     // Fallback to environment variable
-                    model = createGoogle({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY, fetch: providerFetch })((modelOverride || geminiModel));
+                    model = createGoogle({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY, fetch: providerFetch })(geminiModel);
                 } else {
                     throw new Error(
                         "Google API key is required for Gemini provider. Please set your API key in settings."
@@ -215,7 +214,7 @@ export async function POST(req: Request) {
                     baseURL: ollamaBaseUrl, fetch: providerFetch,
                     headers: ollamaApiKey?.trim() ? { Authorization: `Bearer ${ollamaApiKey.trim()}` } : undefined,
                 });
-                model = ollamaProvider((modelOverride || ollamaModel));
+                model = ollamaProvider(ollamaModel);
                 break;
             }
             case "groq":
@@ -223,9 +222,9 @@ export async function POST(req: Request) {
                     const groqProvider = createGroq({
                         apiKey: groqApiKey, fetch: providerFetch,
                     });
-                    model = groqProvider((modelOverride || groqModel));
+                    model = groqProvider(groqModel);
                 } else if (process.env.GROQ_API_KEY) {
-                    model = createGroq({ apiKey: process.env.GROQ_API_KEY, fetch: providerFetch })((modelOverride || groqModel));
+                    model = createGroq({ apiKey: process.env.GROQ_API_KEY, fetch: providerFetch })(groqModel);
                 } else {
                     throw new Error(
                         "Groq API key is required for Groq provider. Please set your API key in settings."
@@ -237,9 +236,9 @@ export async function POST(req: Request) {
                     const openrouterProvider = createOpenRouter({
                         apiKey: openrouterApiKey, fetch: providerFetch,
                     });
-                    model = openrouterProvider((modelOverride || openrouterModel), openrouterModelSettings);
+                    model = openrouterProvider(openrouterModel, openrouterModelSettings);
                 } else if (process.env.OPENROUTER_API_KEY) {
-                    model = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY, fetch: providerFetch })((modelOverride || openrouterModel), openrouterModelSettings);
+                    model = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY, fetch: providerFetch })(openrouterModel, openrouterModelSettings);
                 } else {
                     throw new Error(
                         "OpenRouter API key is required for OpenRouter provider. Please set your API key in settings."
@@ -251,9 +250,9 @@ export async function POST(req: Request) {
                     const cerebrasProvider = createCerebras({
                         apiKey: cerebrasApiKey, fetch: providerFetch,
                     });
-                    model = cerebrasProvider((modelOverride || cerebrasModel));
+                    model = cerebrasProvider(cerebrasModel);
                 } else if (process.env.CEREBRAS_API_KEY) {
-                    model = createCerebras({ apiKey: process.env.CEREBRAS_API_KEY, fetch: providerFetch })((modelOverride || cerebrasModel));
+                    model = createCerebras({ apiKey: process.env.CEREBRAS_API_KEY, fetch: providerFetch })(cerebrasModel);
                 } else {
                     throw new Error(
                         "Cerebras API key is required for Cerebras provider. Please set your API key in settings."
@@ -270,7 +269,7 @@ export async function POST(req: Request) {
                 if (typeof opencodeSessionId !== "string" || !opencodeSessionId.trim()) {
                     throw new Error("OpenCode Go requires a stable session ID.");
                 }
-                model = createOpenCodeGoModel(modelOverride || opencodeModel, apiKey, opencodeSessionId);
+                model = createOpenCodeGoModel(opencodeModel, apiKey, opencodeSessionId);
                 break;
             }
             default:
@@ -280,9 +279,8 @@ export async function POST(req: Request) {
             return model;
         };
         const model = selectModel();
-        const analysisModel = context.analysisModel?.trim() ? selectModel(context.analysisModel.trim()) : model;
 
-        let tools = createAllTools(currentMedia, currentTimestamp, analysisModel, req.signal, undefined, [], context.currentSubtitles);
+        let tools = createAllTools(currentMedia, currentTimestamp, model, req.signal, undefined, [], context.currentSubtitles);
         let validatedMessages;
         try {
             validatedMessages = await validateUIMessages({ messages, tools });
@@ -293,7 +291,7 @@ export async function POST(req: Request) {
             return new Response("Invalid message role", { status: 400 });
         }
         // Bind validated, uncompacted user context outside the model-controlled tool schema.
-        tools = createAllTools(currentMedia, currentTimestamp, analysisModel, req.signal, sceneRequestContext(validatedMessages), validatedMessages.filter(message => message.role === "assistant").flatMap(message => message.parts), context.currentSubtitles);
+        tools = createAllTools(currentMedia, currentTimestamp, model, req.signal, sceneRequestContext(validatedMessages), validatedMessages.filter(message => message.role === "assistant").flatMap(message => message.parts), context.currentSubtitles);
         // Retain the old handoff schema for saved chats, without advertising it to models.
         const { completeAction: _legacyAction, findEpisodeByTitle: _legacyEpisodes, ...generationTools } = tools;
         const compactedMessages = compactNavigatorMessages(validatedMessages);
