@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: process.env.NAVIGATOR_DEV_ALLOWED_ORIGINS?.split(',').map((host) => host.trim()).filter(Boolean),
   // Signed desktop bundles are immutable; keep the bounded Next cache in memory.
   experimental: {
+    agentUpgrade: "security",
     isrFlushToDisk: process.env.NAVIGATOR_DESKTOP !== '1',
   },
   turbopack: {
