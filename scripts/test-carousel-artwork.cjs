@@ -13,11 +13,12 @@ const { MediaSection } = load('components/media-section.tsx', {
   './ui/scroll-area': { ScrollArea: 'ScrollArea', ScrollBar: 'ScrollBar' },
   './media-section.module.css': { viewport: 'viewport', track: 'track' },
   '@/lib/media/carousel-artwork': { warmCarouselArtwork() { warmed++; return () => { released++; }; } },
-}, { window: { matchMedia: () => ({ matches: reducedMotion }) } });
-const row = h.render(MediaSection, {
+}, { window: { matchMedia: () => ({ matches: reducedMotion }), addEventListener() {}, removeEventListener() {} } });
+const rowProps = {
   sectionName: 'Continue Watching', continueWatching: true,
   mediaItems: Array.from({ length: 20 }, (_, index) => ({ id: `tt${index}`, type: 'movie', name: `Title ${index}` })),
-});
+};
+let row = h.render(MediaSection, rowProps);
 function find(node, predicate) {
   if (!node || typeof node !== 'object') return [];
   return [...(predicate(node) ? [node] : []), ...[].concat(node.props?.children ?? []).flatMap(child => find(child, predicate))];
@@ -26,8 +27,9 @@ assert.equal(find(row, node => node.props?.['data-media-row-viewport'] !== undef
 const rowViewport = find(row, node => node.props?.['data-media-row-viewport'] !== undefined)[0];
 assert.equal(rowViewport.props.tabIndex, -1, 'Tab moves directly to cards and controls instead of the whole carousel');
 const movements = [];
-rowViewport.props.ref.current = { scrollBy: value => movements.push(value) };
+rowViewport.props.ref.current = { scrollBy: value => movements.push(value), scrollWidth: 3000, clientWidth: 1000, scrollLeft: 0, addEventListener() {}, removeEventListener() {} };
 h.flush();
+row = h.render(MediaSection, rowProps);
 find(row, node => node.type === 'CarouselAction').forEach(node => node.props.onClick());
 assert.deepEqual(movements.map(value => value.left), [-300, 300], 'Both arrow actions address the actual native viewport');
 assert.ok(movements.every(value => value.behavior === 'smooth'));

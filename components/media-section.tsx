@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useLayoutEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { CarouselAction } from "@/components/carousel-action";
 import { MediaCard } from "@/components/media-card";
 import { Play, ChevronLeft, ChevronRight } from "lucide-react";
+import { observeCarouselControls } from "@/lib/media/carousel-controls";
 import { warmCarouselArtwork } from "@/lib/media/carousel-artwork";
 import styles from "./media-section.module.css";
 import type { MediaItem } from "@/types/stremio";
@@ -28,6 +29,13 @@ export function MediaSection({
 }: MediaSectionProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const hasItems = mediaItems.length > 0;
+  const [position, setPosition] = useState({ overflow: false, start: true, end: true });
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    return observeCarouselControls(viewport, next => setPosition(previous =>
+      previous.overflow === next.overflow && previous.start === next.start && previous.end === next.end ? previous : next));
+  }, [hasItems, mediaItems.length]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -52,10 +60,11 @@ export function MediaSection({
         <h2 className="min-w-0 text-xl sm:text-2xl font-semibold text-foreground font-poppins">
           {sectionName}
         </h2>
-        <div className="flex shrink-0 items-center gap-2">
+        {position.overflow && <div className="flex shrink-0 items-center gap-2">
           <CarouselAction
             size="icon-sm"
             className="hidden md:inline-flex"
+            disabled={position.start}
             aria-label={`Scroll ${sectionName} left`}
             onClick={scrollLeft}
           >
@@ -64,12 +73,13 @@ export function MediaSection({
           <CarouselAction
             size="icon-sm"
             className="hidden md:inline-flex"
+            disabled={position.end}
             aria-label={`Scroll ${sectionName} right`}
             onClick={scrollRight}
           >
             <ChevronRight aria-hidden="true" />
           </CarouselAction>
-        </div>
+        </div>}
       </div>
       {hasItems ? (
         <div ref={viewportRef} data-media-row-viewport="" className={styles.viewport}
