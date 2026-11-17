@@ -37,3 +37,6 @@
 
 .loadStatus { display: flex; min-height: 3rem; flex-direction: column; align-items: center; gap: var(--space-3); color: var(--muted-foreground); font-size: var(--text-sm); }
 .loadStatus p { margin: 0; }
+
+/* The route heading receives programmatic focus for reading order, not interaction. */
+.title:focus { outline: none; }

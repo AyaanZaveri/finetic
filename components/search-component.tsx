@@ -204,7 +204,7 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
             onSelect={handleSelect}
             onItemIntent={handleItemIntent}
             onSubmit={handleSearch}
-            emptyHint={searchError || "Try another title, or press Enter to see all results."}
+            emptyHint={searchError || "Try another title, or press Enter to see all results"}
             expandedWidth={576}
             persistent
             anchor="start"
