@@ -38,6 +38,7 @@ export function NavigatorComposerInput({ value, onValueChange, disabled }: {
 
   return <InputGroupTextarea
     ref={fieldRef}
+    style={{ background: "transparent", appearance: "none" }}
     aria-label="Message Navigator"
     autoComplete="off"
     autoFocus

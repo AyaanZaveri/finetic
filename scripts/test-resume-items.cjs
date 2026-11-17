@@ -103,44 +103,24 @@ async function run() {
   await new Promise(setImmediate); unknown.release();
   assert.equal(await unknownRequest, null, 'Unavailable captions do not break the row');
 
-  // Exercise the actual Home composition: optional movie metadata must remain
-  // below its own Suspense boundary rather than holding up the resume section.
+  // Home must mount the client cache immediately, outside a server Suspense boundary.
   const React = require('react');
-  let yearCalls = 0;
+  let resumeCalls = 0;
   const Home = load('app/(main)/page.tsx', {
     require(name) {
       if (name === 'react') return React;
       if (name === 'react/jsx-runtime') return require(name);
-      if (name === '@/lib/server/catalog-cache') return {};
-      if (name === '@/lib/server/media-artwork') return { resolveArtworkList: async items => items.map(item => ({ ...item, background: 'https://image.tmdb.org/t/p/original/backdrop.jpg' })) };
-      if (name === '@/lib/artwork') return artwork;
-      if (name === '@/app/actions/media') return {
-        fetchResumeItems: async () => [items[0], { ...items[0], id: 'missing', year: undefined }, filtered[0]],
-        fetchResumeMovieYear: async () => { yearCalls++; return 2014; },
-      };
-      if (name === '@/app/actions/auth' || name === '@/lib/server/auth') return { getUser: async () => ({ _id: 'fixture-user' }), getInstalledAddons: async () => [] };
+      if (name === '@/app/actions/media') return { fetchResumeItems: async () => { resumeCalls++; return items; } };
+      if (name === '@/app/actions/auth') return { getUser: async () => ({ _id: 'fixture-user' }), getInstalledAddons: async () => [] };
       if (name === '@/lib/home-catalogs') return { INITIAL_CATALOG_COUNT: 4, CATALOG_BATCH_SIZE: 2 };
       return new Proxy({}, { get: (_, key) => key });
     },
   }).default;
   const page = await Home();
-  const find = (node, predicate) => {
-    if (!node || typeof node !== 'object') return undefined;
-    if (Array.isArray(node)) return node.map(item => find(item, predicate)).find(Boolean);
-    return predicate(node) ? node : find(node.props?.children, predicate);
-  };
-  const resumeBoundary = find(page, node => node.type === React.Suspense && node.props.children?.type?.name === 'ContinueWatchingSection');
-  assert.ok(resumeBoundary, 'The resume row has an independent streaming boundary');
-  const renderedSection = await resumeBoundary.props.children.type(resumeBoundary.props.children.props);
-  const section = find(renderedSection, node => node.props?.sectionName === 'Continue Watching');
-  assert.equal(yearCalls, 0, 'Producing the row does not await or start optional captions');
-  assert.equal(section.props.cardSubtitles[0], undefined, 'Known years need no additional lookup');
-  assert.equal(section.props.cardSubtitles[2], undefined, 'Episode labels need no metadata request');
-  const yearBoundary = section.props.cardSubtitles[1];
-  assert.equal(yearBoundary.type, React.Suspense);
-  assert.equal(yearBoundary.props.fallback, null);
-  assert.equal(await yearBoundary.props.children.type(yearBoundary.props.children.props), '2014');
-  assert.equal(yearCalls, 1);
-  console.log('PASS: immediate resume data, zero metadata fan-out, fresh progress, episode routing, artwork and independently streamed movie years');
+  const nodes = node => !node || typeof node !== 'object' ? [] : [node, ...[node.props?.children].flat(Infinity).flatMap(nodes)];
+  assert.ok(nodes(page).some(node => node.type === 'ContinueWatchingSection'));
+  assert.ok(!nodes(page).some(node => node.type === React.Suspense && node.props.children?.type === 'ContinueWatchingSection'));
+  assert.equal(resumeCalls, 0, 'The server route never hides the cached row behind another library request');
+  console.log('PASS: immediate resume data, zero metadata fan-out, fresh progress, episode routing, artwork and client-cache Home composition');
 }
 run().catch(error => { console.error(error); process.exitCode = 1; });

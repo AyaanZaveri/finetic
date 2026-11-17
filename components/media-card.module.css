@@ -33,6 +33,8 @@
 .frame:has(.artwork[data-artwork-state="ready"]) .wordmark[data-logo-ready] {
   visibility: visible;
   opacity: 1;
+}
+.card[data-reveal-artwork] .frame:has(.artwork[data-artwork-state="ready"]) .wordmark[data-logo-ready] {
   animation: wordmark-reveal 300ms var(--ease-out) backwards;
 }
 
@@ -42,7 +44,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .frame:has(.artwork[data-artwork-state="ready"]) .wordmark[data-logo-ready] { animation-duration: 100ms; }
+  .card[data-reveal-artwork] .frame:has(.artwork[data-artwork-state="ready"]) .wordmark[data-logo-ready] { animation-duration: 100ms; }
 }
 
 .playOverlay {

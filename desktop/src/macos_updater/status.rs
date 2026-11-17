@@ -5,6 +5,7 @@ pub enum Event {
     Error,
     Finished,
     Install,
+    Relaunch,
 }
 
 // Sparkle reports these normal outcomes through its error delegate too.
@@ -28,5 +29,24 @@ mod tests {
     fn network_and_other_domains_remain_errors() {
         assert_eq!(error_event("SUSparkleErrorDomain", 2001), Event::Error);
         assert_eq!(error_event("NSURLErrorDomain", 1001), Event::Error);
+    }
+}
+
+// Keep normal quit and Sparkle's ready-to-relaunch event alive after resource cleanup.
+pub fn install_should_exit(event: Option<Event>, quit: bool) -> bool {
+    quit || matches!(event, Some(Event::Relaunch | Event::Error))
+}
+
+#[cfg(test)]
+mod install_tests {
+    use super::*;
+    #[test]
+    fn handoff_waits_for_installer_but_keeps_quit_live() {
+        assert!(!install_should_exit(None, false));
+        assert!(!install_should_exit(Some(Event::Install), false));
+        assert!(!install_should_exit(Some(Event::Finished), false));
+        assert!(install_should_exit(Some(Event::Relaunch), false));
+        assert!(install_should_exit(None, true));
+        assert!(install_should_exit(Some(Event::Error), false));
     }
 }

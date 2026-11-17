@@ -2,6 +2,7 @@
 
 import { outboundFetch } from "@/lib/server/outbound-fetch";
 
+import { firstEnglishSDHCatalog } from "@/lib/media/preferred-subtitle-catalog";
 import { subtitleAddonBaseUrl } from "@/lib/subtitle-provider";
 import { matchEpisodeSubtitleTracks } from "@/lib/media/subtitle-episode-identity";
 
@@ -66,6 +67,7 @@ export async function getSubtitleTracks(
     filename?: string;
     videoSize?: number;
     episodeTitle?: string;
+    navigatorEnglishSDH?: boolean;
     signal?: AbortSignal;
   }
 ): Promise<
@@ -131,10 +133,11 @@ export async function getSubtitleTracks(
       sdh?: boolean;
     }> = [];
 
-    const groups = await Promise.all(subtitleAddons.map(async (addon) => {
+    const discovery = new AbortController();
+    const groups = subtitleAddons.map(async (addon) => {
       const addonTracks: typeof tracks = [];
       const timeout = AbortSignal.timeout(8_000);
-      const signal = options?.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
+      const signal = AbortSignal.any([discovery.signal, timeout, ...(options?.signal ? [options.signal] : [])]);
       try {
         const base = subtitleAddonBaseUrl(addon.transportUrl, addon.manifest.id);
         const hintedPath = buildSubtitlePath();
@@ -173,11 +176,18 @@ export async function getSubtitleTracks(
         options?.signal?.throwIfAborted();
       }
       return addonTracks;
-    }));
-    tracks.push(...groups.flat());
+    });
+    try {
+      tracks.push(...(options?.navigatorEnglishSDH ? await firstEnglishSDHCatalog(groups, async group => {
+        if (!options.episodeTitle || !/:(\d+):(\d+)$/.test(itemId)) return group;
+        // Early completion must preserve the same episode-title evidence check.
+        const checked = await matchEpisodeSubtitleTracks(itemId, options.episodeTitle, group, async () => [], options.signal);
+        return checked !== group ? checked : undefined;
+      }) : (await Promise.all(groups)).flat()));
+    } finally { discovery.abort(); }
 
     return await matchEpisodeSubtitleTracks(itemId, options?.episodeTitle, tracks,
-      nearbyId => getSubtitleTracks(nearbyId, type, { signal: options?.signal }), options?.signal);
+      nearbyId => getSubtitleTracks(nearbyId, type, { signal: options?.signal, navigatorEnglishSDH: options?.navigatorEnglishSDH }), options?.signal);
   } catch (error) {
     options?.signal?.throwIfAborted();
     console.error("Failed to fetch subtitle tracks:", error);

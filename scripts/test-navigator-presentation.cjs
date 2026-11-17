@@ -75,6 +75,7 @@ let focusHookIndex = 0;
 let focusPhase = 'open', focusReducedMotion = true, completedFocusPhase;
 const focusReact = require('react');
 const { NavigatorFocus } = load('components/navigator/focus.tsx', {
+    '@/components/navigator/request-error': { NavigatorRequestError: widget('request-error') },
     react: { ...focusReact, useState: value => focusHookIndex++ === 0
         ? [focusPhase, value => { completedFocusPhase = value; }]
         : [value, () => {}],

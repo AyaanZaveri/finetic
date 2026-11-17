@@ -18,6 +18,11 @@ Web shows the app version and GitHub release button. It shows no desktop
 update message or native update controls.
 
 Playback and the owned local server stop before Sparkle continues a relaunch.
+Sparkle's `updaterWillRelaunchApplication:` callback then ends the native event
+loop. The post-cleanup loop continues to accept Cmd-Q and window-close events;
+it does not ignore quit requests while waiting for Sparkle. The update-available
+indicator clears when installation starts.
+
 The app keeps its bundle identifier and user-data location, so updates do not
 replace sign-in data or settings.
 

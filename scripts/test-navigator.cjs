@@ -545,9 +545,10 @@ async function main() {
     { src: 'https://official.test/en.srt', id: '1234', label: 'English', language: 'en' },
     { src: 'https://broken.test/eng.srt', id: 'release_eng', label: 'eng', language: 'eng' },
   ];
+  const priorityStart = subtitleDownloads.length;
   const priorityTools = createAllTools({ id: 'tt-priority', name: 'Priority', type: 'movie' }, 10, analysisModel, new AbortController().signal);
   await priorityTools.skipToSubtitleContent.execute({ userDescription: 'Earlier evidence' }, toolOptions);
-  assert.equal(subtitleDownloads.at(-1), 'https://official.test/en.srt', 'English filenames must not outrank explicit en language metadata');
+  assert.equal(subtitleDownloads[priorityStart], 'https://official.test/en.srt', 'English filenames must not outrank explicit en language metadata');
   subtitleContent = Array.from({ length: 1000 }, (_, index) => {
     const start = new Date(index * 10_000).toISOString().slice(11, 23).replace('.', ',');
     const end = new Date(index * 10_000 + 2000).toISOString().slice(11, 23).replace('.', ',');

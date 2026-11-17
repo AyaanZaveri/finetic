@@ -11,7 +11,7 @@ pub const FEED: &str =
     "https://raw.githubusercontent.com/AyaanZaveri/navigator/main/updates/macos.xml";
 pub const PUBLIC_KEY: &str = include_str!("../macos/update-public-key.txt");
 mod status;
-pub use status::Event;
+pub use status::{Event, install_should_exit};
 
 struct DelegateIvars {
     notify: Box<dyn Fn(Event)>,
@@ -34,6 +34,10 @@ define_class!(
         fn cancelled(&self, _updater: &AnyObject) { (self.ivars().notify)(Event::Finished); }
         #[unsafe(method(updater:didFinishUpdateCycleForUpdateCheck:error:))]
         fn finished(&self, _updater: &AnyObject, _check: isize, _error: Option<&NSError>) { (self.ivars().notify)(Event::Finished); }
+        #[unsafe(method(updaterWillRelaunchApplication:))]
+        fn will_relaunch(&self, _updater: &AnyObject) {
+            (self.ivars().notify)(Event::Relaunch);
+        }
         #[unsafe(method(updater:shouldPostponeRelaunchForUpdate:untilInvokingBlock:))]
         fn postpone(&self, _updater: &AnyObject, _item: &AnyObject, handler: &Block<dyn Fn()>) -> bool {
             // Copy the block before returning. Resume only after mpv and the

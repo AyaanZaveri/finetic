@@ -51,12 +51,13 @@ async function main() {
     const preload = store.file(tracks[2].src, canceled.signal, subtitleMediaKey(movie));
     const selection = store.file(tracks[2].src, undefined, subtitleMediaKey(movie));
     const snapshotPromise = store.snapshot(movie);
+    assert.equal(await snapshotPromise, undefined, 'Chat never waits for an unfinished subtitle download');
     await tick();
     assert.equal(requests.length, 1, 'Preload, selection and Navigator share one file download');
     canceled.abort(); await assert.rejects(preload);
     assert.equal(requests[0].signal.aborted, false, 'One canceled consumer cannot stop another');
     requests[0].resolve({ success: true, content: text });
-    const file = await selection, snapshot = await snapshotPromise;
+    const file = await selection, snapshot = await store.snapshot(movie);
     assert.equal(file.cues.length, 2);
     assert.equal(snapshot.track.label, 'English SDH');
     assert.equal(snapshotSubtitles(snapshot, movie)[0].timestamp, 11.5, 'Apply positive sync delay exactly once');
@@ -136,6 +137,12 @@ async function main() {
     assert.equal(discoveries, 0); assert.equal(downloads, 0); assert.equal(preparations, 0);
     await tools.loadParsedSubtitles({ ...movie, id: 'tt888' }, 0, undefined, snapshot);
     assert.equal(discoveries, 1); assert.equal(downloads, 1, 'Wrong title falls back to a fresh English SDH lookup');
+    const foreignSnapshot = { ...snapshot, track: { ...snapshot.track, language: 'es', label: 'Spanish SDH' } };
+    const beforeForeign = discoveries;
+    const english = await tools.loadParsedSubtitles(movie, 0, undefined, foreignSnapshot);
+    assert.equal(discoveries, beforeForeign + 1, 'Spanish cached cues cannot bypass English external discovery');
+    assert.equal(english.selectedTrackLanguage, tracks[2].language);
+    assert.equal(english.selectedTrackLabel, 'English SDH');
     authenticated = false;
     await assert.rejects(tools.loadParsedSubtitles(movie, 0, undefined, snapshot), /signed out/);
 

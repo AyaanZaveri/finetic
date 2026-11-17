@@ -886,8 +886,7 @@ export async function fetchResumeItems(): Promise<MediaItem[]> {
     });
 
     if (!response.ok) {
-      console.error("Failed to fetch resume items:", response.status);
-      return [];
+      throw new Error(`Resume library request failed (${response.status})`);
     }
 
     const data = await response.json();
@@ -1023,7 +1022,7 @@ export async function fetchResumeItems(): Promise<MediaItem[]> {
     return resolveArtworkList(resumeItems, true);
   } catch (error) {
     console.error("Failed to fetch resume items:", error);
-    return [];
+    throw new Error("Could not refresh Continue Watching");
   }
 }
 

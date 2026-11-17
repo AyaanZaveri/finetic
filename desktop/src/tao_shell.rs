@@ -195,7 +195,17 @@ pub fn run(mut app: App) -> Result<(), String> {
         // Sparkle now owns termination. Do not resize or refresh a video
         // surface that was released before the installation handoff.
         if installing {
-            *flow = ControlFlow::Wait;
+            // The installer is ready before it asks AppKit to quit. Our custom
+            // Cmd-Q menu sends Close, so it must remain live after the handoff.
+            let update = match &event {
+                Event::UserEvent(UserEvent::Update(event)) => Some(*event),
+                _ => None,
+            };
+            let quit = matches!(&event, Event::UserEvent(UserEvent::Close)
+                | Event::WindowEvent { event: WindowEvent::CloseRequested, .. });
+            *flow = if crate::macos_updater::install_should_exit(update, quit) {
+                ControlFlow::Exit
+            } else { ControlFlow::Wait };
             return;
         }
         // Own the backend for exactly as long as the native event loop.
@@ -237,7 +247,8 @@ pub fn run(mut app: App) -> Result<(), String> {
                     UpdateEvent::Current => { update_state = "current"; update_message = None; }
                     UpdateEvent::Error => { update_state = "error"; update_message = Some("Couldn’t check or download the update. Try again later.".into()); }
                     UpdateEvent::Finished => { if update_state == "checking" { update_state = "idle"; } }
-                    UpdateEvent::Install => { closing = true; player.begin_shutdown(); }
+                    UpdateEvent::Install => { update_state = "idle"; closing = true; player.begin_shutdown(); }
+                    UpdateEvent::Relaunch => { closing = true; player.begin_shutdown(); }
                 }
                 let _ = webview.evaluate_script(&receive(&json!({"type":"update-status", "version":env!("CARGO_PKG_VERSION"), "available":updater.is_some(), "automatic":automatic_updates, "state":update_state, "message":update_message})));
             }

@@ -47,6 +47,8 @@ assert.equal(field.style.overflowY, '', 'Restore stylesheet scrolling after meas
 for (const lines of [1, 2, 3, 4, 5, 12]) {
     const component = mount(lines);
     assert.equal(field.style.height, `${lines * 24 + 8}px`);
+    assert.equal(component.props.style.background, "transparent");
+    assert.equal(component.props.style.appearance, "none");
     assert.match(component.props.className, /max-h-/);
     assert.match(component.props.className, /overflow-y-auto/);
 }

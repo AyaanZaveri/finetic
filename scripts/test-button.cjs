@@ -72,3 +72,6 @@ assert.ok(link.props.className.includes('h-8'));
 assert.ok(link.props.className.includes('rounded-full'));
 assert.ok(!link.props.className.split(' ').includes('h-11'), 'Custom dimensions override shared defaults');
 console.log('PASS: button press/reset, inert/loading safety, focus retention, automatic dialog/menu/tooltip feedback, consumer handlers, Slot/ref forwarding, and custom styles');
+
+assert.ok(render().props.className.includes('motion-safe:[transform:translateZ(0)_scale(1)]'), 'Press starts from an explicit compositing transform');
+assert.ok(render().props.className.includes('motion-safe:data-[pressed=true]:[transform:translateZ(0)_scale(0.97)]'), 'Press retains the same transform functions at both endpoints');

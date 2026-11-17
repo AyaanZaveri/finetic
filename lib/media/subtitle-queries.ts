@@ -2,7 +2,7 @@ import { QueryObserver, queryOptions, type QueryClient } from "@tanstack/react-q
 import type { CurrentMediaWithSource } from "@/lib/atoms";
 import { fetchPlaybackSubtitles, fetchPlaybackSubtitleFile, type SubtitleHints, type PlaybackSubtitleTrack, type SubtitleFile } from "./playback-subtitles";
 import { parseSubtitleTextContent, type ParsedSubtitleEntry } from "./subtitle-content";
-import { isEnglishSubtitle, isForcedSubtitle, navigatorSubtitleRank } from "./subtitle-preference";
+import { isEnglishSubtitle, isForcedSubtitle, isSDHSubtitle, navigatorSubtitleRank } from "./subtitle-preference";
 import { subtitleMediaKey, subtitleSnapshotSchema, type SubtitleSnapshot } from "./subtitle-snapshot";
 
 const defaults = { retry: false, gcTime: 15 * 60_000, refetchOnWindowFocus: false, refetchOnReconnect: false } as const;
@@ -69,6 +69,9 @@ export function createSubtitleQueries(client: QueryClient, scope: string,
                 client.setQueryData(fileOptions(selectedSrc, owner.mediaKey).queryKey, { success: true, content: "", cues: selectedCues });
             }
             const preferred = tracks.filter(track => !isForcedSubtitle(track)).sort((a, b) => navigatorSubtitleRank(b) - navigatorSubtitleRank(a))[0];
+            // Prepare one full English transcript while playback is already
+            // active. Navigator then reads parsed cues without a catalog round trip.
+            if (preferred && isEnglishSubtitle(preferred)) void file(preferred.src, undefined, owner.mediaKey).catch(() => {});
             const stops = [...new Set([selectedSrc, preferred?.src])].flatMap(src => {
                 if (!src) return [];
                 const observer = new QueryObserver(client, { ...fileOptions(src, owner.mediaKey), enabled: false });
@@ -79,11 +82,13 @@ export function createSubtitleQueries(client: QueryClient, scope: string,
         async snapshot(media: CurrentMediaWithSource | null, signal?: AbortSignal): Promise<SubtitleSnapshot | undefined> {
             const owner = playback;
             if (!media || !owner || owner.mediaKey !== subtitleMediaKey(media)) return undefined;
-            // Reuse a full English transcript first. Forced-only cues cannot describe a whole scene.
-            const candidates = owner.tracks.filter(track => !isForcedSubtitle(track))
-                .filter(track => isEnglishSubtitle(track) || !owner.tracks.some(isEnglishSubtitle))
+            // A chat request never waits for a downloading transcript. Full English
+            // cues are prepared during playback; the server handles a cold lookup.
+            const english = owner.tracks.filter(track => !isForcedSubtitle(track) && isEnglishSubtitle(track));
+            const highestRank = Math.max(...english.map(navigatorSubtitleRank));
+            const candidates = english.filter(track => navigatorSubtitleRank(track) === highestRank)
                 .filter(track => { const state = client.getQueryState(fileOptions(track.src, owner.mediaKey).queryKey);
-                    return state?.status === "success" || state?.fetchStatus === "fetching"; })
+                    return state?.status === "success"; })
                 .sort((a, b) => navigatorSubtitleRank(b) - navigatorSubtitleRank(a)
                     || Number(b.src === owner.selectedSrc) - Number(a.src === owner.selectedSrc));
             for (const track of candidates) {
@@ -93,7 +98,7 @@ export function createSubtitleQueries(client: QueryClient, scope: string,
                     // Strip URLs and credentials. Only bounded transcript data crosses the chat boundary.
                     const snapshot = subtitleSnapshotSchema.safeParse({ mediaKey: owner.mediaKey,
                         delay: owner.delay,
-                        track: { label: track.label, language: track.language, filename: track.filename, provider: track.provider }, cues: result.cues });
+                        track: { label: track.label, language: track.language, filename: track.filename, provider: track.provider, sdh: isSDHSubtitle(track), forced: isForcedSubtitle(track) }, cues: result.cues });
                     if (snapshot.success) return snapshot.data;
                 } catch { signal?.throwIfAborted(); }
             }

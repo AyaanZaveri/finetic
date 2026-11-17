@@ -1,5 +1,7 @@
 "use client";
 
+import { NavigatorRequestError } from "@/components/navigator/request-error";
+
 import {
   type ComponentProps,
   memo,
@@ -586,15 +588,7 @@ export function NavigatorFocus({
                             />
                           </div>
                         ) : null}
-                        {error ? (
-                          <div
-                            className="px-2 text-sm text-destructive"
-                            role="alert"
-                          >
-                            {error.message}
-                            <button className="ml-3 cursor-pointer underline underline-offset-4 disabled:opacity-50" type="button" disabled={isBusy} onClick={onRetry}>Try again</button>
-                          </div>
-                        ) : null}
+                        {error ? <NavigatorRequestError error={error} busy={isBusy} onRetry={onRetry} /> : null}
                       </motion.div>
                     )}
                     <motion.form className="relative" onSubmit={submit}>
@@ -620,7 +614,7 @@ export function NavigatorFocus({
                           </button>
                         </div>
                       ) : null}
-                      <InputGroup className="h-auto! min-h-10 items-end rounded-lg! border-transparent bg-transparent py-[3px] shadow-none! ring-0 focus-within:border-transparent focus-within:ring-0 has-disabled:bg-transparent has-disabled:opacity-100 has-[[data-slot=input-group-control]:focus-visible]:border-transparent! has-[[data-slot=input-group-control]:focus-visible]:ring-0! dark:bg-transparent dark:has-disabled:bg-transparent">
+                      <InputGroup style={{ background: "transparent" }} className="h-auto! min-h-10 items-end rounded-lg! border-transparent bg-transparent py-[3px] shadow-none! ring-0 focus-within:border-transparent focus-within:ring-0 has-disabled:bg-transparent has-disabled:opacity-100 has-[[data-slot=input-group-control]:focus-visible]:border-transparent! has-[[data-slot=input-group-control]:focus-visible]:ring-0! dark:bg-transparent dark:has-disabled:bg-transparent">
                         <InputGroupAddon className="shrink-0 cursor-default self-end px-2.5">
                           <Ship
                             aria-hidden="true"

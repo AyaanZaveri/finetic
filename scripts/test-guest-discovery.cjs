@@ -71,6 +71,7 @@ async function main() {
     const components = Object.fromEntries([
         ['@/app/components/auth-error-handler', 'AuthErrorHandler'],
         ['@/components/home-catalog-sections-lazy', 'HomeCatalogSectionsLazy'],
+        ['@/components/home-continue-watching', 'ContinueWatchingSection'],
         ['@/components/media-section', 'MediaSection'], ['@/components/ui/loading-placeholder', 'LoadingPlaceholder'],
         ['@/components/ui/skeleton', 'Skeleton'], ['@/components/home-gradient-background', 'HomeGradientBackground'],
         ['@/components/ui/button', 'Button'],
@@ -88,14 +89,14 @@ async function main() {
     }, { URLSearchParams });
     const guest = await Home();
     assert.equal(resumeCalls, 0); assert.equal(addonCalls, 0);
-    assert.ok(!all(guest).some(node => node.type?.name === 'ContinueWatchingSection'));
+    assert.ok(!all(guest).some(node => node.type === 'ContinueWatchingSection'));
     const publicSections = all(guest).find(node => node.type?.name === 'DiscoverySections');
     assert.ok(publicSections);
     assert.ok(all(await publicSections.type()).some(node => node.type === 'HomeCatalogSectionsLazy'));
     signedIn = true;
     const account = await Home();
-    assert.equal(resumeCalls, 1); assert.equal(addonCalls, 1);
-    assert.ok(all(account).some(node => node.type?.name === 'ContinueWatchingSection'));
+    assert.equal(resumeCalls, 0, 'Home does not block on the client-cached resume request'); assert.equal(addonCalls, 1);
+    assert.ok(all(account).some(node => node.type === 'ContinueWatchingSection'));
 
     const h = hooks();
     let authenticated = false, signIns = 0;

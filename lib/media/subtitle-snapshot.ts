@@ -6,7 +6,7 @@ import { subtitleTimestamp, type ParsedSubtitleEntry } from "./subtitle-content"
 export const subtitleSnapshotSchema = z.object({
     mediaKey: z.string().max(5000),
     delay: z.number().finite().min(-30).max(30),
-    track: z.object({ label: z.string().max(1000), language: z.string().max(100),
+    track: z.object({ sdh: z.boolean().optional(), forced: z.boolean().optional(), label: z.string().max(1000), language: z.string().max(100),
         filename: z.string().max(2048).optional(), provider: z.string().max(1000).optional() }),
     cues: z.array(z.object({ timestamp: z.number().finite().nonnegative().max(604800),
         endTimestamp: z.number().finite().nonnegative().max(604800).optional(),

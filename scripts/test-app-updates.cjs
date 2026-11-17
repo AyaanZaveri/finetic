@@ -85,6 +85,10 @@ for (const file of ['desktop/src/windows_shell.rs', 'desktop/src/tao_shell.rs'])
 }
 const mac = fs.readFileSync('desktop/src/macos_updater.rs', 'utf8');
 assert.match(mac, /checkForUpdateInformation/);
+assert.match(mac, /method\(updaterWillRelaunchApplication:\)/, 'Sparkle readiness explicitly finishes our event loop shutdown');
+const shell = fs.readFileSync('desktop/src/tao_shell.rs', 'utf8');
+assert.match(shell, /install_should_exit\(update, quit\)/, 'The post-handoff branch must keep quit and relaunch events live');
+assert.match(shell, /UpdateEvent::Install => \{ update_state = "idle"/, 'The update button cannot remain available after installation starts');
 assert.doesNotMatch(mac, /setAutomaticallyChecksForUpdates: (?:true|automatic|enabled)/);
 const windows = fs.readFileSync('desktop/src/windows_updater.rs', 'utf8');
 assert.match(windows, /automatic_fn\(0\)/);

@@ -14,6 +14,7 @@ interface MediaSectionProps {
   mediaItems: MediaItem[];
   isLoading?: boolean;
   continueWatching?: boolean;
+  revealArtwork?: boolean;
   cardSubtitles?: React.ReactNode[];
 }
 
@@ -22,6 +23,7 @@ export function MediaSection({
   mediaItems,
   isLoading = false,
   continueWatching = false,
+  revealArtwork = true,
   cardSubtitles,
 }: MediaSectionProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -75,13 +77,14 @@ export function MediaSection({
           <ul className={styles.track}>
             {mediaItems.map((item, index) => (
               <li
-                key={`${item.type}:${item.id}:${item.addonName ?? "unknown"}:${item.catalogName ?? "unknown"}:${index}`}
+                key={continueWatching ? `${item.type}:${item.id}` : `${item.type}:${item.id}:${item.addonName ?? "unknown"}:${item.catalogName ?? "unknown"}:${index}`}
                 data-continue-watching-index={continueWatching ? index : undefined}
                 className="flex-shrink-0"
               >
                 <MediaCard
                   item={item}
                   continueWatching={continueWatching}
+                  revealArtwork={revealArtwork}
                   subtitleContent={cardSubtitles?.[index]}
                 />
               </li>

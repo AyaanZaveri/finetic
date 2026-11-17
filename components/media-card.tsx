@@ -131,6 +131,7 @@ export function MediaCard({
   return (
     <div
       data-continue-watching={continueWatching || undefined}
+      data-reveal-artwork={revealArtwork || undefined}
       onPointerEnter={event => {
         if (event.pointerType !== "mouse" || !window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
         warmOnIntent();
