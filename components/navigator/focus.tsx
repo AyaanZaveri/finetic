@@ -614,7 +614,7 @@ export function NavigatorFocus({
                           </button>
                         </div>
                       ) : null}
-                      <InputGroup style={{ background: "transparent" }} className="h-auto! min-h-10 items-end rounded-lg! border-transparent bg-transparent py-[3px] shadow-none! ring-0 focus-within:border-transparent focus-within:ring-0 has-disabled:bg-transparent has-disabled:opacity-100 has-[[data-slot=input-group-control]:focus-visible]:border-transparent! has-[[data-slot=input-group-control]:focus-visible]:ring-0! dark:bg-transparent dark:has-disabled:bg-transparent">
+                      <InputGroup style={{ background: "transparent", backdropFilter: "none", WebkitBackdropFilter: "none" }} className="backdrop-blur-none h-auto! min-h-10 items-end rounded-lg! border-transparent bg-transparent py-[3px] shadow-none! ring-0 focus-within:border-transparent focus-within:ring-0 has-disabled:bg-transparent has-disabled:opacity-100 has-[[data-slot=input-group-control]:focus-visible]:border-transparent! has-[[data-slot=input-group-control]:focus-visible]:ring-0! dark:bg-transparent dark:has-disabled:bg-transparent">
                         <InputGroupAddon className="shrink-0 cursor-default self-end px-2.5">
                           <Ship
                             aria-hidden="true"
