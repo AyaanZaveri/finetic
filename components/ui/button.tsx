@@ -64,6 +64,7 @@ function Button({
       data-variant={variant}
       data-size={size}
       {...props}
+      draggable={false}
       disabled={disabled}
       data-pressed={pressed && !inert ? "true" : undefined}
       aria-busy={loading || props["aria-busy"] || undefined}

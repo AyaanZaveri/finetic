@@ -227,7 +227,7 @@ export function MediaCard({
             onClick={handlePlayClick}
             onPointerEnter={preloadPlayer}
             onFocus={preloadPlayer}
-            className={`${styles.playButton} relative z-40 rounded-full p-3 backdrop-blur-md`}
+            className={`${styles.playButton} relative z-40 rounded-full p-3 backdrop-blur-md`} draggable={false}
           >
             <Play className="h-6 w-6 text-white fill-white" aria-hidden="true" />
           </button>

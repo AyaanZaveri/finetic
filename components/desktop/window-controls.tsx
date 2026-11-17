@@ -26,13 +26,13 @@ export function DesktopWindowControls() {
   const send = (action: "minimize" | "toggle-maximize" | "close") => desktopBridge()?.send({ type: "window-control", action });
   return (
     <div className={styles.controls} aria-label="Window controls" data-no-window-drag="" data-visible={visible} aria-hidden={!visible} inert={!visible}>
-      <button type="button" aria-label="Minimize" title="Minimize" onClick={() => send("minimize")}>
+      <button type="button" aria-label="Minimize" title="Minimize" onClick={() => send("minimize")} draggable={false}>
         <Minus size={12} strokeWidth={1.5} aria-hidden="true" />
       </button>
-      <button type="button" aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"} title={fullscreen ? "Exit fullscreen (F11)" : "Fullscreen (F11)"} onClick={() => send("toggle-maximize")}>
+      <button type="button" aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"} title={fullscreen ? "Exit fullscreen (F11)" : "Fullscreen (F11)"} onClick={() => send("toggle-maximize")} draggable={false}>
         {fullscreen ? <Minimize size={12} strokeWidth={1.5} aria-hidden="true" /> : <Maximize size={12} strokeWidth={1.5} aria-hidden="true" />}
       </button>
-      <button type="button" aria-label="Close window" title="Close" className={styles.close} onClick={() => send("close")}>
+      <button type="button" aria-label="Close window" title="Close" className={styles.close} onClick={() => send("close")} draggable={false}>
         <X size={12} strokeWidth={1.5} aria-hidden="true" />
       </button>
     </div>

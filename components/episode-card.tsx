@@ -78,7 +78,7 @@ export function EpisodeCard({
               onClick={handlePlayClick}
             onPointerEnter={preloadPlayer}
             onFocus={preloadPlayer}
-              className={styles.playButton + " rounded-full p-3"}
+              className={styles.playButton + " rounded-full p-3"} draggable={false}
             >
               <Play className="h-6 w-6 text-white fill-white" />
             </button>

@@ -149,7 +149,7 @@ export function ResultCard({
           {content}
         </IntentLink>
       ) : onClick ? (
-        <button type="button" className={rowClass} onClick={activate}>
+        <button type="button" className={rowClass} onClick={activate} draggable={false}>
           {content}
         </button>
       ) : (

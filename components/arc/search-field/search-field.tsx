@@ -100,7 +100,7 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(
                           opacity: { duration: motionTokens.duration.fast },
                           filter: { duration: motionTokens.duration.fast },
                         }
-                  }
+                  } draggable={false}
                 >
                   <Xmark width={16} height={16} aria-hidden="true" />
                 </motion.button>

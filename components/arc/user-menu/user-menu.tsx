@@ -377,7 +377,7 @@ export function UserMenu({ user, status: statusProp, defaultStatus = "available"
       {items.length > 0 && <>
         <div className={styles.separator} role="separator" />
         {items.map(item => <motion.button key={item.label} type="button" role="menuitem" tabIndex={-1} className={styles.item} data-stop="item" data-label={item.label} variants={row}
-          onPointerMove={onItemPointerMove} onClick={() => { close(true); item.onSelect?.(); }}>
+          onPointerMove={onItemPointerMove} onClick={() => { close(true); item.onSelect?.(); }} draggable={false}>
           <span className={styles.icon} aria-hidden="true">{item.icon}</span>
           <span className={styles.itemLabel}>{item.label}</span>
           {item.keys && <Keys keys={item.keys} />}
@@ -391,7 +391,7 @@ export function UserMenu({ user, status: statusProp, defaultStatus = "available"
       </>}
       <div className={styles.separator} role="separator" />
       <motion.button type="button" role="menuitem" tabIndex={-1} className={styles.item} data-stop="item" data-tone="danger" data-label="Sign out" variants={row}
-        aria-busy={signingOut || undefined} onPointerMove={onItemPointerMove} onClick={signOut}>
+        aria-busy={signingOut || undefined} onPointerMove={onItemPointerMove} onClick={signOut} draggable={false}>
         <span className={styles.icon} aria-hidden="true">{signingOut ? <LoaderCircle className={styles.spinner} size={16} strokeWidth={1.75} /> : <LogOut size={16} strokeWidth={1.75} />}</span>
         <span className={styles.itemLabel}><Rise text={signingOut ? "Signing out" : "Sign out"} reduced={reduced} /></span>
         {signOutKeys && <Keys keys={signOutKeys} />}
@@ -420,7 +420,7 @@ export function UserMenu({ user, status: statusProp, defaultStatus = "available"
   return <span ref={rootRef} className={styles.root}>
     <button ref={setTriggerRef} id={triggerId} type="button" className={[styles.trigger, className].filter(Boolean).join(" ")} data-state={open ? "open" : "closed"} data-name={showName || undefined}
       aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined} aria-label={`Account menu, ${user.name}${showStatus ? `, ${statusLabel(status)}` : ""}`}
-      onClick={onTriggerClick} onKeyDown={onTriggerKeyDown}>
+      onClick={onTriggerClick} onKeyDown={onTriggerKeyDown} draggable={false}>
       <Face user={user} status={showStatus ? status : undefined} size="sm" />
       {showName && <><span className={styles.triggerName}>{user.name}</span><ChevronDown className={styles.chevron} size={16} strokeWidth={1.75} aria-hidden="true" /></>}
     </button>

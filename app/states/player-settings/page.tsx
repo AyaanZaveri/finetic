@@ -96,7 +96,7 @@ export default function PlayerSettingsStates() {
         {groups.map(group => <div key={group.title} role="group" aria-labelledby={`states-${group.title.replaceAll(" ", "-")}`} className={styles.group}>
           <span id={`states-${group.title.replaceAll(" ", "-")}`} className={styles.heading}><CornerDownRight size={12} />{group.title}</span>
           {group.states.map(state => <button key={state.id} type="button" data-state={state.id} aria-pressed={active === state.id}
-            onClick={() => choose(state.id)}>{state.label}</button>)}
+            onClick={() => choose(state.id)} draggable={false}>{state.label}</button>)}
         </div>)}
       </nav>
       <div className={styles.select}>

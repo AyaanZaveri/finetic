@@ -280,7 +280,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
                   className={styles.streamRow}
                   disabled={!streamUrl}
                   aria-label={`Play ${getSourceLabel(stream)}${stream.title ? `: ${stream.title}` : ""}`}
-                  onClick={() => handlePlay(stream)}
+                  onClick={() => handlePlay(stream)} draggable={false}
                 >
                   <StreamSummary stream={stream} fallbackLabel={getSourceLabel(stream)} />
                   {(stream.behaviorHints?.filename ||

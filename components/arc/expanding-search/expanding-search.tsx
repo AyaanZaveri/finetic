@@ -340,7 +340,7 @@ export function ExpandingSearch({ label, items, suggestions = [], suggestionsLab
 
   return <div ref={rootRef} className={[styles.root, className].filter(Boolean).join(" ")} data-anchor={anchor} data-persistent={persistent || undefined}>
     <motion.div ref={shellRef} className={styles.shell} data-expanded={expanded || undefined} style={{ width: persistent ? "100%" : width }}>
-      <button ref={buttonRef} type="button" className={styles.trigger} aria-label={label} hidden={expanded} onClick={expand} />
+      <button ref={buttonRef} type="button" className={styles.trigger} aria-label={label} hidden={expanded} onClick={expand} draggable={false} />
       <Search className={styles.icon} width={18} height={18} strokeWidth={1.75} aria-hidden="true" />
       {/* The placeholder waits for the shape to start moving, then fades in; on close it leaves first. */}
       <motion.input ref={inputRef} className={styles.input} type="search" role="combobox" inert={!expanded} value={query} placeholder={placeholder ?? label}
@@ -367,7 +367,7 @@ export function ExpandingSearch({ label, items, suggestions = [], suggestionsLab
           onClick={() => { setQuery(""); setActive(-1); inputRef.current?.focus({ preventScroll: true }); }}
           initial={clearHidden} animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
           exit={{ ...clearHidden, transition: { duration: reduced ? .1 : motionTokens.duration.instant, ease: standard } }}
-          transition={reduced ? { duration: .15 } : { ...motionTokens.spring.snappy, opacity: { duration: motionTokens.duration.fast }, filter: { duration: motionTokens.duration.fast } }}>
+          transition={reduced ? { duration: .15 } : { ...motionTokens.spring.snappy, opacity: { duration: motionTokens.duration.fast }, filter: { duration: motionTokens.duration.fast } }} draggable={false}>
           <X width={16} height={16} strokeWidth={1.75} aria-hidden="true" />
         </motion.button>}
       </AnimatePresence>

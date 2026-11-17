@@ -698,7 +698,7 @@ const EpisodeCard = React.memo(function EpisodeCard({
             type="button"
             aria-label={"Play " + (episode.title || "Episode " + episode.episode)}
             onClick={handlePlay}
-            className={cardStyles.playButton + " relative rounded-full p-3 backdrop-blur-md"}
+            className={cardStyles.playButton + " relative rounded-full p-3 backdrop-blur-md"} draggable={false}
           >
             <Play aria-hidden="true" className="h-6 w-6 text-white fill-white" />
           </button>

@@ -349,7 +349,7 @@ function Chip({
               },
             }
       }
-      transition={enter}
+      transition={enter} draggable={false}
     >
       <span ref={body} className={styles.body} data-selected={selected}>
         <motion.span
@@ -429,7 +429,7 @@ function MoreChip({
       layout="position"
       transition={{
         layout: reduce ? { duration: 0 } : motionTokens.spring.morph,
-      }}
+      }} draggable={false}
     >
       <span ref={body} className={styles.body}>
         <motion.span

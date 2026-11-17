@@ -101,7 +101,7 @@ export function PlayerSkipSegments({ lookup, currentTime, mediaRef, onSeek, onSe
                             return;
                         }
                         onSeek(segment.end);
-                    }}
+                    }} draggable={false}
                 >
                     <FastForward aria-hidden="true" className="size-5 fill-current" />
                     {labels[kind]}

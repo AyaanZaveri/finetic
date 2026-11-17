@@ -122,7 +122,7 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
                 <p role="status" className="text-balance text-muted-foreground">Finish signing in in the Stremio window.</p>
                 <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
                     <a draggable={false} href={link.link} target="_blank" rel="noreferrer" className="font-medium text-foreground underline-offset-4 hover:underline">Open Stremio</a>
-                    <button type="button" className="font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" onClick={() => { popup.current?.close(); pendingLink.current = false; setLink(null); setLinking(false); }}>Cancel</button>
+                    <button type="button" className="font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" onClick={() => { popup.current?.close(); pendingLink.current = false; setLink(null); setLinking(false); }} draggable={false}>Cancel</button>
                 </div>
             </div>}
             <div className="flex items-center gap-3">

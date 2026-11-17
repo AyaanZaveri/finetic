@@ -15,7 +15,7 @@ export function SubtitleEvidenceLinks({ evidence = [], sourceId }: { evidence?: 
             title={entry.text}
             aria-label={`Jump to supporting dialogue at ${entry.timestampFormatted}: ${entry.text}`}
             className="cursor-pointer rounded border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-default disabled:opacity-50"
-            onClick={() => skipToTimestamp(entry.timestamp)}
+            onClick={() => skipToTimestamp(entry.timestamp)} draggable={false}
         >{entry.timestampFormatted}</button>)}
     </span>;
 }

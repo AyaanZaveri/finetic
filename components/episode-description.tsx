@@ -52,7 +52,7 @@ export function EpisodeDescription({ text }: { text: string }) {
                         onClick={event => {
                             setInstant(event.detail === 0);
                             setExpanded(value => !value);
-                        }}
+                        }} draggable={false}
                     >
                         {expanded ? "Show less" : "Show more"}
                     </button>

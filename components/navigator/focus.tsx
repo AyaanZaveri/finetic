@@ -127,7 +127,7 @@ const NavigatorMessageRow = memo(function NavigatorMessageRow({ row, duration, i
   const stoppedStatus = showCancelled ? (
     <div className="mt-2 px-2 text-sm text-muted-foreground" role="status">
       <p>Stopped — this request is incomplete. Partial results have been kept.</p>
-      <button type="button" className="mt-1 cursor-pointer underline underline-offset-4 disabled:opacity-50" disabled={isBusy} onClick={() => turn.user && onRetryRequest?.(turn.user.id)}>Retry request</button>
+      <button type="button" className="mt-1 cursor-pointer underline underline-offset-4 disabled:opacity-50" disabled={isBusy} onClick={() => turn.user && onRetryRequest?.(turn.user.id)} draggable={false}>Retry request</button>
     </div>
   ) : null;
   const segments =
@@ -603,7 +603,7 @@ export function NavigatorFocus({
                             }`}
                             onClick={() => scrollToLatest()}
                             title="Jump to latest"
-                            type="button"
+                            type="button" draggable={false}
                           >
                             <span className="flex h-9 w-12 items-center justify-center text-foreground">
                               <ArrowDown
