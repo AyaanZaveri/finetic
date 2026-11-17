@@ -48,8 +48,9 @@ export function LayoutContent({ children, email, userId }: LayoutContentProps) {
         viewportRef.current?.scrollTo({ top: 0, left: 0, behavior: "instant" });
     }, [scrollResetKey]);
     const overlayHeader = /^\/(movie|series)(?:\/|$)/.test(pathname);
-    const showHomeGradient = pathname === "/" || /^\/(search|settings|addons)(?:\/|$)/.test(pathname);
+    const showHomeGradient = pathname === "/" || /^\/(search|person|settings|addons)(?:\/|$)/.test(pathname);
     const useEmeraldBackdrop = /^\/(settings|addons)(?:\/|$)/.test(pathname);
+    const useSubduedBackdrop = useEmeraldBackdrop || /^\/person(?:\/|$)/.test(pathname);
     const [isAIAskOpen, setIsAIAskOpen] = useAtom(isAIAskOpenAtom);
     const [isFullscreen] = useAtom(isFullscreenAtom);
     const [isPlayerVisible] = useAtom(isPlayerVisibleAtom);
@@ -104,7 +105,7 @@ export function LayoutContent({ children, email, userId }: LayoutContentProps) {
                         <AppHeader email={email} overlay={overlayHeader} />
                         <ScrollAreaViewport ref={viewportRef} id="page-content" role="main" aria-label="Page content" tabIndex={-1} data-page-scroll="" data-header-overlay={overlayHeader ? "true" : "false"} className={`${styles.viewport} relative z-[1] col-start-1 min-h-0 min-w-0 overscroll-contain pb-[env(safe-area-inset-bottom)] ${overlayHeader ? "row-start-1 row-span-2 [scroll-padding-top:calc(var(--app-header-height,5.25rem)+1rem)]" : "row-start-2 scroll-pt-4"}`}>
                             <PersistentAuroraBackground />
-                            <HomeGradientBackground visible={showHomeGradient} emerald={useEmeraldBackdrop} />
+                            <HomeGradientBackground visible={showHomeGradient} emerald={useEmeraldBackdrop} subdued={useSubduedBackdrop} />
                             {children}
                         </ScrollAreaViewport>
                         <ScrollBar className={styles.scrollbar} style={{ top: "var(--app-header-height, 5.25rem)", bottom: "env(safe-area-inset-bottom, 0px)" }} />

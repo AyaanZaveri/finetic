@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CarouselAction } from "@/components/carousel-action";
@@ -41,7 +42,7 @@ function CastRole({ role, name }: { role: string; name: string }) {
                         event.preventDefault();
                         if (event.detail === 0) setOpen(current => !current);
                         else setOpen(!openOnPress.current);
-                    }}
+                    }} draggable={false}
                 >
                     {text}
                 </button>
@@ -100,13 +101,7 @@ export function CastScrollArea({ cast }: { cast: CastMember[] }) {
                 <ul className="flex w-max gap-6">
                     {cast.map((member) => (
                         <li key={member.id} className="w-28 shrink-0 text-center">
-                            <Avatar className="mx-auto size-24 outline outline-1 -outline-offset-1 outline-black/5 dark:outline-transparent">
-                                {member.image && <AvatarImage src={member.image} alt={member.name} loading="lazy" className="object-cover object-center" />}
-                                <AvatarFallback className="text-2xl font-medium text-muted-foreground">
-                                    {member.name.trim().split(/\s+/u).slice(0, 2).map((part) => Array.from(part)[0]).join("")}
-                                </AvatarFallback>
-                            </Avatar>
-                            <p className="mt-3 break-words text-sm font-semibold leading-snug text-foreground">{member.name}</p>
+                            <CastProfile member={member} />
                             {member.role && <CastRole role={member.role} name={member.name} />}
                         </li>
                     ))}
@@ -114,4 +109,20 @@ export function CastScrollArea({ cast }: { cast: CastMember[] }) {
             </div>
         </section>
     );
+}
+
+function CastProfile({ member }: { member: CastMember }) {
+    const content = <>
+        <Avatar className="mx-auto size-24 outline outline-1 -outline-offset-1 outline-black/5 dark:outline-transparent">
+            {member.image && <AvatarImage src={member.image} alt="" loading="lazy" className="object-cover object-center" />}
+            <AvatarFallback aria-hidden="true" className="text-2xl font-medium text-muted-foreground">
+                {member.name.trim().split(/\s+/u).slice(0, 2).map((part) => Array.from(part)[0]).join("")}
+            </AvatarFallback>
+        </Avatar>
+        <p className="mt-3 break-words text-sm font-semibold leading-snug text-foreground">{member.name}</p>
+    </>;
+    // Add-on fallback names are not TMDB IDs and cannot open a person lookup.
+    return /^[1-9]\d*$/.test(member.id)
+        ? <Link href={`/person/${member.id}`} prefetch={false} draggable={false} className="block rounded-lg outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/22">{content}</Link>
+        : <div>{content}</div>;
 }

@@ -1,0 +1,5 @@
+.surface {
+  min-width: 0;
+  --skullet-base: var(--accent);
+  --skullet-highlight: color-mix(in oklab, var(--foreground) 10%, transparent);
+}

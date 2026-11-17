@@ -12,7 +12,7 @@ export function PersonCard({ person, index = 0 }: {
         subtitle={person.knownFor?.length ? `Known for ${person.knownFor.map(title => title.name).join(", ")}` : undefined}
         icon={UserRound}
         image={person.poster}
-        href={`https://www.themoviedb.org/person/${person.id}`}
+        href={`/person/${person.id}`}
         index={index}
         metadata={person.department ? <ResultMeta>{person.department}</ResultMeta> : undefined}
         description={person.birthday || person.biography ? <>

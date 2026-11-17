@@ -15,7 +15,7 @@ const subscribe = () => () => {};
 const EMPTY: HomePaletteSnapshot = { colors: null, duration: 0 };
 const getEmpty = () => EMPTY;
 
-export function HomeGradientBackground({ dotOpacity = 0.85, visible = true, emerald = false }: { dotOpacity?: number; visible?: boolean; emerald?: boolean }) {
+export function HomeGradientBackground({ dotOpacity = 0.85, visible = true, emerald = false, subdued = emerald }: { dotOpacity?: number; visible?: boolean; emerald?: boolean; subdued?: boolean }) {
     const { resolvedTheme } = useTheme();
     const light = resolvedTheme !== "dark";
     const hydrated = useSyncExternalStore(subscribe, () => true, () => false);
@@ -23,12 +23,12 @@ export function HomeGradientBackground({ dotOpacity = 0.85, visible = true, emer
     const scene = useHomePaletteScene();
     const snapshot = useSyncExternalStore(scene?.subscribe ?? subscribe, scene?.getSnapshot ?? getEmpty, getEmpty);
     const colors = homePalette(emerald ? null : snapshot.colors, light);
-    const intensity = emerald ? 0.7 : 1;
+    const intensity = subdued ? 0.7 : 1;
 
     if (isPlayerVisible) return null;
 
     return (
-        <div aria-hidden="true" hidden={!visible} data-home-gradient="" data-subdued={emerald || undefined} className={`${styles.background} pointer-events-none fixed inset-0 z-0`}>
+        <div aria-hidden="true" hidden={!visible} data-home-gradient="" data-subdued={subdued || undefined} className={`${styles.background} pointer-events-none fixed inset-0 z-0`}>
             {/* CSS supplies both themes before hydration and during GPU loss. */}
             {hydrated && (
                 <div className={`${styles.animation} absolute inset-0`}>
