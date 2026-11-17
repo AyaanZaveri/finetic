@@ -28,6 +28,7 @@ async function run() {
     const artwork = load('lib/artwork.ts');
     let library = [];
     const writes = [], reads = [], metadataCalls = [];
+    let readError = false, writeError = false;
     const episodes = [
         { id: 'show:0:1', season: 0, episode: 1 },
         { id: 'show:1:2', season: 1, episode: 2 },
@@ -45,6 +46,8 @@ async function run() {
             if (name === '@/lib/stremio-watched') return bits;
             if (name === '@/lib/watch-history') return common;
             if (name === '@/lib/artwork') return artwork;
+            if (name === '@/lib/series-route') return load('lib/series-route.ts');
+            if (name === '@/lib/tmdb-discovery') return { resolveTMDBPlaybackId: async id => id === 'tmdb:123' ? 'tt123' : id };
             return {};
         },
         fetch: async (url, options) => {
@@ -53,15 +56,20 @@ async function run() {
             if (url.endsWith('/datastorePut')) {
                 writes.push(body.changes[0]);
                 library = library.filter(item => item._id !== body.changes[0]._id).concat(body.changes);
-                return { ok: true, json: async () => ({ result: true }) };
+                return { ok: true, json: async () => writeError ? ({ error: { message: 'rejected' } }) : ({ result: true }) };
             }
             reads.push(body);
             assert.equal(options.cache, 'no-store');
-            return { ok: true, json: async () => ({ result: library.filter(item => body.ids.includes(item._id)) }) };
+            return { ok: true, json: async () => readError ? ({ error: { message: 'rejected' } }) : ({ result: library.filter(item => body.ids.includes(item._id)) }) };
         },
     };
     const actions = load('app/actions/media.ts', globals);
     const history = load('app/actions/watch-history.ts', globals);
+    let session = 0;
+    const start = actions.reportPlaybackStart, progress = actions.reportPlaybackProgress, stop = actions.reportPlaybackStopped;
+    actions.reportPlaybackStart = value => start({ ...value, sessionId: `session-${++session}`, watchedTimeSeconds: 0 });
+    actions.reportPlaybackProgress = value => progress({ ...value, sessionId: `session-${session}`, watchedTimeSeconds: value.currentTimeSeconds });
+    actions.reportPlaybackStopped = value => stop({ ...value, sessionId: `session-${session}`, watchedTimeSeconds: value.currentTimeSeconds });
     const input = { libraryItemId: 'show', videoId: 'show:1:1', mediaType: 'series', mediaName: 'Show', currentTimeSeconds: 0, durationSeconds: 1000 };
     assert.equal(await actions.reportPlaybackStart(input), true);
     assert.equal(writes.at(-1).state.flaggedWatched, 0, 'Starting is not watched');
@@ -85,6 +93,26 @@ async function run() {
     assert.equal(final.timeOffset, 0);
     assert.equal(final.timesWatched, 2, 'Each episode counted once');
     assert.deepEqual([...bits.watchedVideoIds(final.watched, bits.orderedEpisodeIds(episodes))], ['show:1:1', 'show:1:2']);
+
+    const scrobble = { libraryItemId: 'scrobble', videoId: 'scrobble', mediaType: 'movie', mediaName: 'Scrobble', durationSeconds: 1000, sessionId: 'scrobble-session' };
+    await start({ ...scrobble, currentTimeSeconds: 0, watchedTimeSeconds: 0 });
+    await progress({ ...scrobble, currentTimeSeconds: 900, watchedTimeSeconds: 3 });
+    assert.equal(writes.at(-1).state.flaggedWatched, 0, 'Seeking near the end does not mark watched');
+    await progress({ ...scrobble, currentTimeSeconds: 30, watchedTimeSeconds: 4 });
+    assert.equal(writes.at(-1).state.timeOffset, 30000, 'Cloud resume saves backward seeks');
+    assert.equal(writes.at(-1).state.timeWatched, 4000);
+    await progress({ ...scrobble, currentTimeSeconds: 30, watchedTimeSeconds: 4 });
+    assert.equal(writes.at(-1).state.timeWatched, 4000, 'Retry is idempotent');
+    await start({ ...input, libraryItemId: 'tmdb:123', videoId: 'tmdb:123:1:2', sessionId: 'mapped', watchedTimeSeconds: 0 });
+    assert.equal(writes.at(-1)._id, 'tt123', 'Server also canonicalizes manual/additional callers');
+    assert.equal(writes.at(-1).state.video_id, 'tt123:1:2');
+    const countBeforeError = writes.length;
+    readError = true;
+    assert.equal(await progress({ ...scrobble, currentTimeSeconds: 31, watchedTimeSeconds: 5 }), false);
+    assert.equal(writes.length, countBeforeError, 'API read errors cannot overwrite existing history');
+    readError = false; writeError = true;
+    assert.equal(await progress({ ...scrobble, currentTimeSeconds: 31, watchedTimeSeconds: 5 }), false, 'HTTP 200 API errors are failures');
+    writeError = false;
 
     library.push({ _id: 'movie', type: 'movie', state: { timesWatched: 1, timeOffset: 0 } },
         { _id: 'started', type: 'movie', state: { timeOffset: 200000 } },

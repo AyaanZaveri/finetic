@@ -24,6 +24,8 @@ import { completeMediaDescription } from "@/lib/media-description";
 import { mergePlaybackDetails } from "@/lib/media/playback-details";
 import { markVideoWatched, orderedEpisodeIds } from "@/lib/stremio-watched";
 import { fetchEpisodes } from "./tv-shows";
+import { resolveTMDBPlaybackId } from "@/lib/tmdb-discovery";
+import { parseSeriesRouteId } from "@/lib/series-route";
 
 const STREMIO_API = "https://api.strem.io/api";
 const ADDON_RESOURCE_TIMEOUT_MS = 3_500;
@@ -540,6 +542,15 @@ const CREDITS_THRESHOLD_COEF = 0.9;
 
 type PlaybackMediaType = "movie" | "series";
 type PlaybackReportKind = "start" | "progress" | "stopped";
+export type PlaybackReportResult = boolean | { retryAfterMs: number };
+
+function playbackRequestFailure(response: Response): PlaybackReportResult {
+  const value = response.headers?.get("Retry-After");
+  if (!value) return false;
+  const seconds = Number(value);
+  const delay = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(value) - Date.now();
+  return Number.isFinite(delay) && delay > 0 ? { retryAfterMs: delay } : false;
+}
 
 export interface PlaybackReportInput {
   libraryItemId: string;
@@ -550,6 +561,8 @@ export interface PlaybackReportInput {
   currentTimeSeconds: number;
   durationSeconds?: number;
   ended?: boolean;
+  sessionId?: string;
+  watchedTimeSeconds?: number;
 }
 
 type LibraryItemState = {
@@ -564,6 +577,8 @@ type LibraryItemState = {
   watched: string | null;
   watchedEpisodes?: (number | boolean)[];
   noNotif: boolean;
+  navigatorSessionId?: string;
+  navigatorWatchedTime?: number;
 };
 
 type LibraryItemPayload = {
@@ -600,9 +615,15 @@ function firstString(...values: unknown[]): string | undefined {
 async function upsertPlaybackState(
   kind: PlaybackReportKind,
   input: PlaybackReportInput
-): Promise<boolean> {
+): Promise<PlaybackReportResult> {
   try {
     const { authKey } = await getAuthData();
+    // The cloud key is the title ID, never an episode ID. Manual stream
+    // selection and automatic selection must write the same record.
+    let titleId = input.mediaType === "series" ? parseSeriesRouteId(input.libraryItemId).seriesId : input.libraryItemId;
+    if (/^tmdb:[1-9]\d*$/.test(titleId)) titleId = await resolveTMDBPlaybackId(titleId, input.mediaType);
+    input = { ...input, libraryItemId: titleId, videoId: input.videoId?.startsWith(`${input.libraryItemId}:`)
+      ? titleId + input.videoId.slice(input.libraryItemId.length) : input.videoId };
     const nowIso = new Date().toISOString();
     const currentTimeMs = toMilliseconds(input.currentTimeSeconds);
     const durationMs = toMilliseconds(input.durationSeconds);
@@ -624,15 +645,15 @@ async function upsertPlaybackState(
         "Failed to fetch existing playback item:",
         existingResponse.status
       );
-      return false;
+      return playbackRequestFailure(existingResponse);
     }
 
     const existingData = await existingResponse.json();
-    const existingItem = Array.isArray(existingData?.result)
-      ? existingData.result[0]
-      : null;
+    if (existingData?.error || !Array.isArray(existingData?.result)) return false;
+    const existingItem = existingData.result.find((item: any) => (item?._id ?? item?.id) === input.libraryItemId) ?? null;
 
     const baseState: LibraryItemState = {
+      ...existingItem?.state,
       lastWatched: firstString(existingItem?.state?.lastWatched) || nowIso,
       timeWatched: toPositiveInt(existingItem?.state?.timeWatched),
       timeOffset: toPositiveInt(existingItem?.state?.timeOffset),
@@ -665,12 +686,24 @@ async function upsertPlaybackState(
 
     const previousOffset = baseState.timeOffset;
     // A new playback session can intentionally restart the same video at zero.
-    const nextOffset = kind === "start" ? currentTimeMs : Math.max(previousOffset, currentTimeMs);
-    const watchedDelta = Math.max(0, nextOffset - previousOffset);
+    const nextOffset = currentTimeMs;
+    const reportedWatched = toMilliseconds(input.watchedTimeSeconds);
+    const previousSessionTime = baseState.navigatorSessionId === input.sessionId
+      ? toPositiveInt(baseState.navigatorWatchedTime) : 0;
+    // New clients sample actual playback locally. Cumulative session counters
+    // make retries idempotent even when a successful response was lost.
+    const watchedDelta = input.sessionId && input.watchedTimeSeconds !== undefined
+      ? Math.max(0, reportedWatched - previousSessionTime)
+      : Math.min(Math.max(0, nextOffset - previousOffset), Math.max(0,
+        Date.now() - (Date.parse(existingItem?._mtime || "") || Date.now())));
+    if (input.sessionId) {
+      baseState.navigatorSessionId = input.sessionId;
+      baseState.navigatorWatchedTime = Math.max(previousSessionTime, reportedWatched);
+    }
 
     baseState.lastWatched = nowIso;
     baseState.timeOffset = nextOffset;
-    baseState.duration = Math.max(baseState.duration, durationMs);
+    if (durationMs > 0) baseState.duration = durationMs;
 
     // Keep watched durations monotonic on progress updates.
     if (kind !== "start") {
@@ -716,6 +749,7 @@ async function upsertPlaybackState(
       : poster;
 
     const payload: LibraryItemPayload = {
+      ...existingItem,
       _id: input.libraryItemId,
       name: existingItem?.name || input.mediaName,
       type: existingItem?.type || input.mediaType,
@@ -745,10 +779,11 @@ async function upsertPlaybackState(
 
     if (!writeResponse.ok) {
       console.error("Failed to update playback state:", writeResponse.status);
-      return false;
+      return playbackRequestFailure(writeResponse);
     }
 
-    return true;
+    const writeData = await writeResponse.json();
+    return !writeData?.error && (writeData?.result === true || writeData?.result?.success === true);
   } catch (error) {
     console.error("Failed to report playback state:", error);
     return false;
@@ -757,19 +792,19 @@ async function upsertPlaybackState(
 
 export async function reportPlaybackStart(
   input: PlaybackReportInput
-): Promise<boolean> {
+): Promise<PlaybackReportResult> {
   return upsertPlaybackState("start", input);
 }
 
 export async function reportPlaybackProgress(
   input: PlaybackReportInput
-): Promise<boolean> {
+): Promise<PlaybackReportResult> {
   return upsertPlaybackState("progress", input);
 }
 
 export async function reportPlaybackStopped(
   input: PlaybackReportInput
-): Promise<boolean> {
+): Promise<PlaybackReportResult> {
   return upsertPlaybackState("stopped", input);
 }
 
@@ -890,7 +925,39 @@ export async function fetchResumeItems(): Promise<MediaItem[]> {
     }
 
     const data = await response.json();
-    const libraryItems = Array.isArray(data?.result) ? data.result : [];
+    if (data?.error || !Array.isArray(data?.result)) throw new Error("Invalid library response");
+    const rawLibraryItems: any[] = data.result;
+    // Only resolve possible cross-provider duplicates. A name match selects
+    // candidates for an external-ID check; it never establishes identity.
+    const titleKey = (item: any) => `${item.type}:${String(item.name || "").trim().toLowerCase()}`;
+    const imdbCandidates = new Set(rawLibraryItems.filter(item => /^tt\d+(?::\d+:\d+)?$/.test(item?._id ?? item?.id ?? "")).map(titleKey));
+    const aliases = new Map<string, Promise<string>>();
+    const normalized = await Promise.all(rawLibraryItems.map(async item => {
+      const rawId = firstString(item?._id, item?.id);
+      if (!rawId) return null;
+      let id = item.type === "series" ? parseSeriesRouteId(rawId).seriesId : rawId;
+      if (/^tmdb:[1-9]\d*$/.test(id) && imdbCandidates.has(titleKey(item)) && (item.type === "series" || item.type === "movie")) {
+        const key = `${item.type}:${id}`;
+        if (!aliases.has(key)) aliases.set(key, resolveTMDBPlaybackId(id, item.type).catch(() => id));
+        id = await aliases.get(key)!;
+      }
+      const originalTitleId = item.type === "series" ? parseSeriesRouteId(rawId).seriesId : rawId;
+      const videoId = item?.state?.video_id;
+      return { ...item, id, _id: id, state: { ...item.state,
+        ...(typeof videoId === "string" && videoId.startsWith(`${originalTitleId}:`)
+          ? { video_id: id + videoId.slice(originalTitleId.length) } : {}),
+      } };
+    }));
+    // Latest record wins, including removals and cleared resume positions.
+    // Never match by title text: different releases can have the same name.
+    const latest = new Map<string, any>();
+    const modified = (item: any) => Date.parse(item?._mtime || item?.state?.lastWatched || "") || 0;
+    for (const item of normalized) {
+      if (!item) continue;
+      const key = `${item.type}:${item.id}`;
+      if (!latest.has(key) || modified(item) > modified(latest.get(key))) latest.set(key, item);
+    }
+    const libraryItems = [...latest.values()];
     const toNumberOrUndefined = (value: unknown): number | undefined => {
       const parsed = Number(value);
       return Number.isFinite(parsed) ? parsed : undefined;
@@ -914,11 +981,6 @@ export async function fetchResumeItems(): Promise<MediaItem[]> {
 
       return offset;
     };
-    const firstString = (...values: unknown[]): string | undefined =>
-      values.find((value) => typeof value === "string" && value.length > 0) as
-        | string
-        | undefined;
-
     // Matches Stremio core's continue-watching rules:
     // type !== "other", (!removed || temp), and state.timeOffset > 0.
     const resumeItems = libraryItems

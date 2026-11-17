@@ -27,7 +27,7 @@
     "test:runtime": "node scripts/test-runtime-format.cjs",
     "test:touch-scrubbing": "node scripts/test-touch-scrubbing.cjs && node scripts/test-seek-time.cjs && node scripts/test-surface-scrub.cjs",
     "test:resume": "node scripts/test-resume-items.cjs",
-    "test:watch-history": "node scripts/test-watch-history.cjs && node scripts/test-watch-toggle-optimistic.cjs && node scripts/test-watch-history-batching.cjs",
+    "test:watch-history": "node scripts/test-playback-reporter.cjs && node scripts/test-watch-history.cjs && node scripts/test-watch-toggle-optimistic.cjs && node scripts/test-watch-history-batching.cjs",
     "test:performance": "node scripts/test-logo-sampling.cjs && node scripts/test-home-logo-canvas.cjs && node scripts/test-watch-history-batching.cjs && node scripts/test-route-prefetch.cjs && node scripts/test-player-clock-work.cjs && node scripts/test-continue-watching-warmup.cjs && node scripts/test-home-row-streaming.cjs && node scripts/test-stream-queries.cjs && node scripts/test-navigator-render-work.cjs && node scripts/test-continue-watching-scheduler.cjs",
     "test:continue-watching": "node scripts/test-continue-watching-cache.cjs && node scripts/test-continue-watching-warmup.cjs && node scripts/test-continue-watching-scheduler.cjs && node scripts/test-continue-watching-navigation.cjs",
     "test:image-layout": "node scripts/test-image-layout.cjs",

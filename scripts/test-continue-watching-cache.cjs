@@ -52,5 +52,10 @@ assert.equal(row.props.revealArtwork,false,'Returning home does not replay cache
 assert.equal(row.props.cardSubtitles[0],undefined,'Known captions do not fetch metadata');
 const caption=row.props.cardSubtitles[1];
 assert.equal(caption.type(caption.props),'2014','Missing captions resolve separately from the row');
-listener();assert.equal(refreshed,1,'Watch-history changes refresh progress without clearing cards');
+listener({ detail: { playback: 'progress' } });
+listener({ detail: { playback: 'start' } });
+assert.equal(refreshed,0,'Heartbeats do not read the full library again');
+listener({ detail: { playback: 'stopped' } });
+assert.equal(refreshed,1,'Closing playback refreshes the row');
+listener({});assert.equal(refreshed,2,'Watch-history changes refresh progress without clearing cards');
 h.unmount();
