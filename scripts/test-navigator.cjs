@@ -110,7 +110,11 @@ async function main() {
   semanticLines[2083].text = 'I saw the napkin he burned.';
   semanticLines[2084].text = 'I saw him grab the gun.';
   semanticLines[2085].text = 'I saw him driving away that night.';
+  semanticLines[0].text = '<i>Earlier recap dialogue</i>';
   const passages = subtitles.sceneSubtitleCandidates(semanticLines);
+  assert.equal(passages[0].italicized, true, 'Grouping must preserve formatting evidence that can distinguish recap dialogue');
+  assert.equal(subtitles.sceneSubtitleCandidates([{ timestamp: 1, timestampFormatted: '00:00:01', text: '<i>A quote</i>' }])[0].italicized, true);
+  semanticLines[0].text = 'Earlier recap dialogue';
   assert.ok(passages.length <= 420);
   assert.equal(passages.map(passage => passage.text).join(' ').includes('I saw him grab the gun.'), true, 'Semantic admissions cannot disappear between timeline samples');
   for (const entry of semanticLines) assert.ok(passages.some(passage => passage.text.includes(entry.text)), 'Ordinary film dialogue retains full context');
