@@ -16,6 +16,8 @@ export interface AccordionProps {
   onOpenChange?: (index: number | null) => void;
   /** "sm" is a compact, borderless disclosure; "lg" suits page-level FAQs. */
   size?: "sm" | "md" | "lg";
+  /** Align compact disclosure labels with adjacent body text. */
+  flush?: boolean;
 }
 
 /** Height follows the content on a spring that never overshoots; closed panels leave the accessibility tree once they finish collapsing. */
@@ -36,14 +38,14 @@ const contentMotion: Variants = {
 const panelStill: Variants = { open: { ...panelOpen, transition: { duration: 0 } }, closed: { ...panelClosed, transition: { duration: 0 } } };
 const contentStill: Variants = { open: { ...contentOpen, transition: { duration: 0 } }, closed: { ...contentClosed, transition: { duration: 0 } } };
 
-export function Accordion({ items, defaultOpen = 0, onOpenChange, size = "md" }: AccordionProps) {
+export function Accordion({ items, defaultOpen = 0, onOpenChange, size = "md", flush = false }: AccordionProps) {
   const initialValue = defaultOpen >= 0 && defaultOpen < items.length ? String(defaultOpen) : "";
   const [openValue, setOpenValue] = useState(initialValue);
   const reduced = useReducedMotion();
-  return <AccordionPrimitive.Root className={[styles.accordion, size === "lg" ? styles.lg : size === "sm" ? styles.sm : ""].filter(Boolean).join(" ")} type="single" collapsible value={openValue} onValueChange={value => { setOpenValue(value); onOpenChange?.(value === "" ? null : Number(value)); }}>
+  return <AccordionPrimitive.Root className={[styles.accordion, size === "lg" ? styles.lg : size === "sm" ? styles.sm : "", flush ? styles.flush : ""].filter(Boolean).join(" ")} type="single" collapsible value={openValue} onValueChange={value => { setOpenValue(value); onOpenChange?.(value === "" ? null : Number(value)); }}>
     {items.map((item, index) => { const open = openValue === String(index); return <AccordionPrimitive.Item className={styles.item} value={String(index)} key={`${item.title}-${index}`}>
       <AccordionPrimitive.Header className={styles.header}>
-        <AccordionPrimitive.Trigger className={styles.trigger}>
+        <AccordionPrimitive.Trigger draggable={false} className={styles.trigger}>
           <span className={styles.label}>{item.icon && <span className={styles.leadingIcon} aria-hidden="true">{item.icon}</span>}<span>{item.title}</span></span><motion.span className={styles.icon} initial={false} animate={{ rotate: open ? 180 : 0 }} transition={reduced ? { duration: 0 } : motionTokens.spring.snappy}><ChevronDown width={17} height={17} aria-hidden="true" /></motion.span>
         </AccordionPrimitive.Trigger>
       </AccordionPrimitive.Header>

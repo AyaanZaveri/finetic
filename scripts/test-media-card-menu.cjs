@@ -96,22 +96,31 @@ function setup({ mobile = false, authenticated = true, continueWatching = true, 
 
     desktop.find('Group').props.onPointerMoveCapture({ pointerType: 'mouse', target: new Element({ offsetTop: 30, offsetHeight: 38 }) });
     desktop.refresh();
-    assert.equal(desktop.find('highlight').props.transition.duration, 0, 'First hover highlight appears immediately');
+    assert.equal(desktop.find('highlight').props.transition.default.duration, 0, 'First hover position appears immediately');
+    assert.equal(desktop.find('highlight').props.transition.opacity.duration, .12, 'Highlight fades with the same short avatar-menu transition');
     assert.equal(desktop.find('highlight').props.className, 'avatar-highlight', 'Use the avatar menu highlight style');
+    // Radix moves focus to its popup when leaving a row, before the next row focuses.
+    desktop.find('Group').props.onBlurCapture({ relatedTarget: new Element(), currentTarget: { contains: () => false } });
+    desktop.refresh();
+    assert.equal(desktop.find('highlight').props.animate.opacity, 1, 'A pointer-driven focus gap must retain the highlight for the next row glide');
     desktop.find('Group').props.onPointerMoveCapture({ pointerType: 'mouse', target: new Element({ offsetTop: 68, offsetHeight: 38 }) });
     desktop.refresh();
-    assert.equal(desktop.find('highlight').props.transition.type, 'spring', 'Mouse navigation glides between rows');
-    assert.equal(desktop.find('highlight').props.transition.visualDuration, .26, 'Use the exact avatar spring token');
+    assert.equal(desktop.find('highlight').props.transition.default.type, 'spring', 'Mouse navigation glides between rows');
+    assert.equal(desktop.find('highlight').props.transition.default.visualDuration, .26, 'Use the exact avatar spring token');
+    desktop.find('Group').props.onPointerLeave();
+    desktop.refresh();
+    assert.equal(desktop.find('highlight').props.animate.opacity, 0, 'Leaving the menu fades the highlight out');
     desktop.find('Group').props.onKeyDownCapture();
     desktop.find('Group').props.onFocusCapture({ target: new Element({ offsetTop: 30, offsetHeight: 38 }) });
     desktop.refresh();
-    assert.equal(desktop.find('highlight').props.transition.duration, 0, 'Keyboard focus always jumps immediately');
+    assert.equal(desktop.find('highlight').props.transition.default.duration, 0, 'Keyboard focus always jumps immediately');
     const reduced = setup({ reduced: true }); reduced.open();
     for (const offsetTop of [30, 68]) {
         reduced.find('Group').props.onPointerMoveCapture({ pointerType: 'mouse', target: new Element({ offsetTop, offsetHeight: 38 }) });
         reduced.refresh();
     }
-    assert.equal(reduced.find('highlight').props.transition.duration, 0, 'Reduced motion disables the glide');
+    assert.equal(reduced.find('highlight').props.transition.default.duration, 0, 'Reduced motion disables the glide');
+    assert.equal(reduced.find('highlight').props.transition.opacity.duration, 0, 'Reduced motion also skips the fade');
 
 
     const catalog = setup({ continueWatching: false, type: 'movie' });

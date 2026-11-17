@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
-import { LayoutGroup, motion, useReducedMotion } from "motion/react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./segmented-control.module.css";
 
@@ -20,6 +20,25 @@ export default function SegmentedControl({ options, value, onValueChange, label,
   const id = useId();
   const reduced = useReducedMotion();
   const track = useRef<HTMLDivElement>(null);
+  const [selection, setSelection] = useState<{ x: number; width: number } | null>(null);
+
+  // Local offsets never include the page scroll position. Shared layout projection
+  // can otherwise carry the scroll delta into the highlight's vertical animation.
+  useLayoutEffect(() => {
+    const node = track.current;
+    if (!node) return;
+    const measure = () => {
+      const button = node.querySelector<HTMLElement>('[aria-pressed="true"]');
+      if (!button) return;
+      const next = { x: button.offsetLeft, width: button.offsetWidth };
+      setSelection(previous => previous?.x === next.x && previous.width === next.width ? previous : next);
+    };
+    measure();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(node);
+    node.querySelectorAll("button").forEach(button => observer?.observe(button));
+    return () => observer?.disconnect();
+  }, [value, options.length]);
 
   // When the options are wider than the container, the track scrolls inside itself. Edges fade only on the side with more to see.
   useLayoutEffect(() => {
@@ -64,11 +83,13 @@ export default function SegmentedControl({ options, value, onValueChange, label,
   };
 
   return <div className={`${styles.root} ${className ?? ""}`} role="group" aria-label={label}>
-    <LayoutGroup id={id}><motion.div ref={track} layoutScroll className={styles.track}>
-      {options.map((option, index) => <button key={option.value} id={`${id}-${option.value}`} className={styles.button} type="button" data-value={option.value} aria-pressed={value === option.value} tabIndex={index === selectedIndex ? 0 : -1} onClick={() => onValueChange(option.value)} onKeyDown={onKeyDown} onPointerEnter={onOptionIntent ? () => onOptionIntent(option.value) : undefined} onFocus={onOptionIntent ? () => onOptionIntent(option.value) : undefined}>
-        {value === option.value && <motion.span className={styles.selection} layoutId="selection" layoutDependency={value} transition={reduced ? { duration: 0 } : motionTokens.spring.morph} aria-hidden="true" />}
+    <div ref={track} className={styles.track}>
+      {selection && <motion.span className={styles.selection} initial={false}
+        animate={{ x: selection.x, width: selection.width }}
+        transition={reduced ? { duration: 0 } : motionTokens.spring.snappy} aria-hidden="true" />}
+      {options.map((option, index) => <button key={option.value} id={`${id}-${option.value}`} className={styles.button} type="button" data-value={option.value} aria-pressed={value === option.value} tabIndex={index === selectedIndex ? 0 : -1} onClick={() => onValueChange(option.value)} onKeyDown={onKeyDown} onPointerEnter={onOptionIntent ? () => onOptionIntent(option.value) : undefined} onFocus={onOptionIntent ? () => onOptionIntent(option.value) : undefined} draggable={false}>
         <span className={styles.label}><span data-segment-label>{option.label}</span>{option.accessory}</span>
       </button>)}
-    </motion.div></LayoutGroup>
+    </div>
   </div>;
 }

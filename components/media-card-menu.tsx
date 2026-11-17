@@ -149,16 +149,21 @@ export function MediaCardMenu({ item, continueWatching, detailsHref, onPlay, onR
                         if (event.pointerType !== "mouse" || !window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
                         pointerHighlight.current = true; updateHighlight(event.target, true);
                     }}
-                    onPointerLeave={() => { pointerHighlight.current = false; }}
+                    onPointerLeave={() => { pointerHighlight.current = false; setHighlight(null); }}
                     onKeyDownCapture={() => { pointerHighlight.current = false; }}
                     onFocusCapture={event => { if (!pointerHighlight.current) updateHighlight(event.target, false); }}
                     onBlurCapture={event => {
-                        if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setHighlight(null);
+                        // Radix focuses the popup between hovered rows. Retain
+                        // the previous position so the next row can glide from it.
+                        if (!pointerHighlight.current && (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget))) setHighlight(null);
                     }}>
                     <motion.span aria-hidden="true" className={userMenuStyles.highlight} initial={false}
                         style={{ height: highlight?.height ?? 0 }}
                         animate={highlight ? { transform: `translateY(${highlight.top}px)`, opacity: 1 } : { opacity: 0 }}
-                        transition={highlight?.glide && !reducedMotion ? motionTokens.spring.snappy : { duration: 0 }} />
+                        transition={{
+                            default: highlight?.glide && !reducedMotion ? motionTokens.spring.snappy : { duration: 0 },
+                            opacity: { duration: reducedMotion ? 0 : motionTokens.duration.instant },
+                        }} />
                     <ContextMenuLabel className="truncate">{item.showName || item.name}{episodeLabel ? ` · ${episodeLabel}` : ""}</ContextMenuLabel>
                     {actions.map(({ id, label, icon: Icon, disabled, run }) => <Fragment key={id}>
                         {id === "remove" && <ContextMenuSeparator />}

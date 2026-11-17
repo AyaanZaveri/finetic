@@ -17,6 +17,8 @@
 @media (hover: hover) and (pointer: fine) { .sm .trigger:hover, .sm .trigger:hover .icon { color: var(--foreground); } }
 .sm .trigger:focus-visible, .sm .trigger:focus-visible .icon { color: var(--foreground); }
 .sm .panelInner { padding: 0; }
+.sm.flush .trigger { padding-inline: 0; }
+.sm.flush .panelInner { padding-block-end: var(--space-3); }
 .lg .trigger { min-height: 76px; gap: var(--space-8); padding-block: var(--space-5); font-size: var(--text-lg); letter-spacing: var(--tracking-body); }
 .lg .panel { font-size: var(--text-base); line-height: 1.65; }
 .lg .panelInner { max-width: 62ch; padding: 0 var(--space-12) var(--space-6) 0; }
