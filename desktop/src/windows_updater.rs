@@ -1,4 +1,4 @@
-//! WinSparkle owns downloads, signature verification and its native update UI.
+//! New packages use signed background downloads; WinSparkle remains a legacy fallback.
 //! Only fixed commands cross the web bridge; no URL, path or key comes from JS.
 use libloading::Library;
 use std::{ffi::CString, path::Path, sync::{OnceLock, Arc, atomic::{AtomicBool, Ordering}}, time::Duration};
@@ -6,6 +6,7 @@ use std::{ffi::CString, path::Path, sync::{OnceLock, Arc, atomic::{AtomicBool, O
 pub const FEED: &str =
     "https://raw.githubusercontent.com/AyaanZaveri/navigator/main/updates/windows.xml";
 pub const PUBLIC_KEY: &str = include_str!("../windows/update-public-key.txt");
+mod background;
 #[derive(Clone, Copy, Debug)]
 pub enum Event {
     Available,
@@ -16,6 +17,8 @@ pub enum Event {
     ProbeAvailable,
     ProbeCurrent,
     ProbeError,
+    Downloading,
+    Ready,
 }
 static NOTIFY: OnceLock<Box<dyn Fn(Event) + Send + Sync>> = OnceLock::new();
 fn notify(event: Event) {
@@ -48,6 +51,7 @@ pub struct Updater {
     check: Void,
     cleanup: Void,
     probing: Arc<AtomicBool>,
+    background: Option<background::Background>,
 }
 impl Updater {
     pub fn start(
@@ -170,15 +174,18 @@ impl Updater {
                 check,
                 cleanup,
                 probing: Arc::new(AtomicBool::new(false)),
+                background: background::Background::new(directory),
             })
         }
     }
     pub fn check(&self) {
+        if let Some(background) = &self.background { background.check(); return; }
         unsafe {
             (self.check)();
         }
     }
     pub fn probe(&self) -> bool {
+        if let Some(background) = &self.background { return background.probe(); }
         if self.probing.swap(true, Ordering::AcqRel) { return false; }
         let probing = self.probing.clone();
         let started = std::thread::Builder::new().name("navigator-update-check".into()).spawn(move || {

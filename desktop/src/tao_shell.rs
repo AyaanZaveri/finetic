@@ -189,6 +189,7 @@ pub fn run(mut app: App) -> Result<(), String> {
         // AppKit/Dock quit can destroy the loop without a CloseRequested event.
         // Stop the owned backend here rather than relying on process-exit drops.
         if matches!(&event, Event::LoopDestroyed) {
+            if !installing { if let Some(updater) = &updater { updater.cancel_pending_install(); } }
             drop(app._server.take());
             return;
         }
@@ -224,7 +225,7 @@ pub fn run(mut app: App) -> Result<(), String> {
         } else {
             ControlFlow::Wait
         };
-        if closing && !installing && player.finished() {
+        if closing && !installing && player.finished() && updater.as_ref().is_none_or(|updater| updater.can_close()) {
             surface.shutdown();
             player.join();
             drop(app._server.take());
@@ -244,6 +245,8 @@ pub fn run(mut app: App) -> Result<(), String> {
                 use crate::macos_updater::Event as UpdateEvent;
                 match event {
                     UpdateEvent::Available => { update_state = "available"; update_message = None; }
+                    UpdateEvent::Downloading => { update_state = "downloading"; update_message = None; }
+                    UpdateEvent::Ready => { update_state = "ready"; update_message = None; }
                     UpdateEvent::Current => { update_state = "current"; update_message = None; }
                     UpdateEvent::Error => { update_state = "error"; update_message = Some("Couldn’t check or download the update. Try again later.".into()); }
                     UpdateEvent::Finished => { if update_state == "checking" { update_state = "idle"; } }
@@ -299,6 +302,7 @@ pub fn run(mut app: App) -> Result<(), String> {
                 ));
             }
             Event::UserEvent(UserEvent::Close) => {
+                if let Some(updater) = &updater { updater.cancel_pending_install(); }
                 closing = true;
                 player.begin_shutdown();
             }
@@ -331,6 +335,7 @@ pub fn run(mut app: App) -> Result<(), String> {
                 event: WindowEvent::CloseRequested,
                 ..
             } => {
+                if let Some(updater) = &updater { updater.cancel_pending_install(); }
                 closing = true;
                 player.begin_shutdown();
             }

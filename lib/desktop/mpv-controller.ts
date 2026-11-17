@@ -46,6 +46,8 @@ export class MpvController extends EventTarget {
   tracks: NativeTrack[] = [];
   subtitleText = "";
   private previewId = 0;
+  private previewReceived = 0;
+  private previewPresented = 0;
   private previewFrames = new Map<number, string>();
   private previewAliases = new Map<number, number>();
   private previewRanges = new Map<number, number>();
@@ -196,6 +198,11 @@ export class MpvController extends EventTarget {
     }
     this.bridge.send({ type: "pause", session: this.session });
   }
+  get supportsSubtitleTiming() { return this.bridge.capabilities?.subtitleTiming === true; }
+  setSubtitleDelay(seconds: number) {
+    if (!this.supportsSubtitleTiming || this.disposed || !this.session) return;
+    this.bridge.send({ type: "subtitle-delay", session: this.session, seconds: Number.isFinite(seconds) ? Math.round(Math.max(-30, Math.min(30, seconds)) * 10) / 10 : 0 });
+  }
   selectTrack(kind: "audio" | "subtitle", id: string) {
     if (kind === "audio") this.audioChosen = true;
     if (kind === "subtitle" && id === "no") this.clearSubtitle();
@@ -259,7 +266,7 @@ export class MpvController extends EventTarget {
     this.failure = { code: 4, message };
     this.fire("error");
   }
-  private receive(message: NativeMessage) {
+  private receive(message: NativeMessage, previewOrder?: number) {
     if (this.disposed || !("session" in message) || message.session !== this.session) return;
     switch (message.type) {
       case "chapters":
@@ -268,11 +275,12 @@ export class MpvController extends EventTarget {
         break;
       case "thumbnail-frame":
       case "thumbnail": {
+        const order = previewOrder ?? ++this.previewReceived;
         if (nativePreviewUrl(message.src)) {
           const session = this.session;
           void this.previewImages.get(message.src!).then(src => {
             if (this.session !== session || this.disposed) return;
-            if (message.type === "thumbnail" || src) this.receive({ ...message, src } as NativeMessage);
+            if (message.type === "thumbnail" || src) this.receive({ ...message, src } as NativeMessage, order);
           });
           break;
         }
@@ -296,7 +304,12 @@ export class MpvController extends EventTarget {
           }
           pending.resolve(src);
         }
-        if (valid) this.dispatchEvent(new CustomEvent("previewframe", { detail: { position, src, range: message.range } }));
+        // Local JPEG fetches can finish out of order. Cache every valid image,
+        // but never replace a newer completed preview with an older delivery.
+        if (valid && order >= this.previewPresented) {
+          this.previewPresented = order;
+          this.dispatchEvent(new CustomEvent("previewframe", { detail: { position, src, range: message.range } }));
+        }
         break;
       }
       case "state": {

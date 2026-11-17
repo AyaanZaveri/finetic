@@ -108,11 +108,18 @@ console.log('PASS: fine-scrub tolerance prevents timer starvation and decoder ca
 
 // Native gestures bypass artificial settle delays; coalescing lives in the
 // scheduler/decoder, and warmed thumbnails must be available on first render.
-hooks.length = 0; timers.clear(); effects.length = 0; cursor = 0;
 const warmedMedia = { getAttribute: () => source, controller: { previewSession:'native-session' } };
-let nativeNode = context.exports.SeekPreview({media:warmedMedia,time:30.3,duration:1200,active:true,deferWhileMoving:true});
-assert.equal(nativeNode.props.active,true,'Android previews have no 100/120ms artificial settle delay');
-assert.equal(nativeNode.props.time,30.3,'Native requests follow the current finger target');
+for (const platform of ['android', 'macos', 'windows']) {
+  hooks.length = 0; timers.clear(); effects.length = 0; cursor = 0;
+  context.window.navigatorDesktop = { platform, capabilities: { nativePreviews: true } };
+  for (const movingTime of [30.3, 60.1, 90.7]) {
+    cursor = 0;
+    const nativeNode = context.exports.SeekPreview({media:warmedMedia,time:movingTime,duration:1200,active:true,deferWhileMoving:true});
+    assert.equal(nativeNode.props.active,true,`${platform} previews have no 100/120ms artificial settle delay`);
+    assert.equal(nativeNode.props.time,movingTime,'Native requests follow the moving target');
+    while (effects.length) effects.shift()();
+  }
+}
 
 // Exercise the actual preview component, including late native events and cache
 // lookup while the gesture's request policy is inactive.
@@ -143,7 +150,18 @@ const updating = renderSource();
 assert.equal(image(updating).props.src, 'data:image/jpeg;base64,TEN', 'Keep the previous image while fetching the new scene');
 assert.equal(image(updating).props.pending, true, 'An old scene must be explicitly marked as updating');
 assert.equal(updating.props['aria-busy'], true);
+deliver(14, 'data:image/jpeg;base64,FOURTEEN');
+assert.equal(image(renderSource()).props.src, 'data:image/jpeg;base64,FOURTEEN', 'A completed frame must display even after the moving pointer has passed its interval');
+assert.equal(image(renderSource()).props.pending, true, 'A moving preview must not claim to match the current cursor time');
+at = 30; renderSource();
+deliver(22, 'data:image/jpeg;base64,TWENTYTWO');
+assert.equal(image(renderSource()).props.src, 'data:image/jpeg;base64,TWENTYTWO', 'Continuous travel must keep advancing completed previews without a stationary cursor');
+requesting = false; renderSource();
+deliver(26, 'data:image/jpeg;base64,TWENTYSIX');
+requesting = true;
+assert.equal(image(renderSource()).props.src, 'data:image/jpeg;base64,TWENTYTWO', 'Hover exit must suppress late frame presentation');
+at = 20; renderSource();
 deliver(20, 'data:image/jpeg;base64,TWENTY'); renderSource();
 at = 10; requesting = false;
 assert.equal(image(renderSource()).props.src, 'data:image/jpeg;base64,TEN', 'Returning to a decoded point displays immediately without waiting for settle or a bridge request');
-console.log('PASS: pending preview retention, late-frame isolation, and synchronous cached preview reuse');
+console.log('PASS: continuous native preview delivery, hover exit, current-target priority, and synchronous cached preview reuse');

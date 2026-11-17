@@ -6,6 +6,11 @@ import { fileURLToPath } from "node:url";
 import { windowsPowerShellEnvironment } from "./package-windows.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+export function deltaArtifacts(version, mac, files) {
+    const pattern = new RegExp(`^Navigator-${version.replaceAll('.', '[.]')}-${mac ? 'macos-arm64' : 'windows-x64'}-from-[0-9]+[.][0-9]+[.][0-9]+${mac ? '[.]delta' : '-delta[.]exe'}$`);
+    return files.filter(file => pattern.test(file));
+}
+
 export async function releaseVersion(directory) {
     const pkg = JSON.parse(await readFile(join(directory, "package.json"), "utf8"));
     const lock = JSON.parse(await readFile(join(directory, "package-lock.json"), "utf8"));
@@ -71,6 +76,7 @@ async function collect() {
     }
     const files = mac ? [`Navigator-${version}-macos-arm64.zip`]
         : [`Navigator-${version}-windows-x64-setup.exe`, `Navigator-${version}-windows-x64-portable.zip`];
+    files.push(...deltaArtifacts(version, mac, await readdir(join(root, 'dist'))));
     const destination = join(root, "dist/artifacts");
     await mkdir(destination, { recursive: true });
     const hashes = [];

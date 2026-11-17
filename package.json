@@ -1,11 +1,11 @@
 {
   "name": "navigator",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "private": true,
   "scripts": {
     "desktop:dev": "node scripts/desktop.mjs dev",
     "desktop:check": "node scripts/desktop.mjs check",
-    "test:app-updates": "node scripts/test-app-updates.cjs && node scripts/test-macos-update-feed.mjs && node scripts/test-windows-update-feed.mjs && node scripts/test-update-release-notes.mjs",
+    "test:app-updates": "node scripts/test-app-updates.cjs && node scripts/test-macos-update-feed.mjs && node scripts/test-windows-update-feed.mjs && node scripts/test-update-release-notes.mjs && node scripts/test-background-updates.mjs && node scripts/test-macos-delta.mjs",
     "test:windows-desktop": "node scripts/test-windows-desktop.cjs && node scripts/test-windows-player-cursor.cjs && node scripts/test-player-desktop-shortcuts.cjs && node scripts/test-windows-install-readiness.cjs && node scripts/test-windows-install.cjs",
     "desktop:fetch-libs": "node scripts/fetch-desktop-libs.mjs",
     "desktop:package": "node scripts/desktop.mjs package",
@@ -17,7 +17,7 @@
     "test:openai-models": "node scripts/test-openai-models.cjs",
     "test:artwork-loading": "node scripts/test-motion-endpoints.cjs && node scripts/test-artwork-loading.cjs && node scripts/test-artwork-reveal.cjs && node scripts/test-episode-hero-resolution.cjs",
     "test:carousel-artwork": "node scripts/test-carousel-artwork.cjs",
-    "test:player-settings": "node scripts/test-player-settings.cjs && node scripts/test-subtitle-appearance.cjs && node scripts/test-subtitle-timing.cjs && node scripts/test-player-subtitles.cjs && node scripts/test-native-readiness.cjs && node scripts/test-playback-preferences.cjs && node scripts/test-audio-language.cjs && node scripts/test-player-clock-work.cjs",
+    "test:player-settings": "node scripts/test-player-settings.cjs && node scripts/test-subtitle-appearance.cjs && node scripts/test-subtitle-timing.cjs && node scripts/test-native-subtitle-timing.cjs && node scripts/test-player-subtitles.cjs && node scripts/test-native-readiness.cjs && node scripts/test-playback-preferences.cjs && node scripts/test-audio-language.cjs && node scripts/test-player-clock-work.cjs",
     "test:people": "node scripts/test-cast.cjs && node scripts/test-person-filmography.cjs && node scripts/test-tmdb-known-for.cjs && node scripts/test-person-skeleton.cjs && node scripts/test-episode-skeleton.cjs",
     "test:search": "node scripts/test-search-stream.cjs && node scripts/test-tmdb-search-page.cjs && node scripts/test-tmdb-playback-id.cjs && node scripts/test-tmdb-discovery.cjs && node scripts/test-search-infinite-scroll.cjs && node scripts/test-search-results-route.cjs && node scripts/test-search-people.cjs",
     "test:guest": "node scripts/test-guest-discovery.cjs && node scripts/test-guest-title-details.cjs && node scripts/test-guest-ratings.cjs && node scripts/test-sign-in-dialog.cjs && node scripts/test-stremio-link.cjs",

@@ -1,6 +1,8 @@
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Event {
     Available,
+    Downloading,
+    Ready,
     Current,
     Error,
     Finished,

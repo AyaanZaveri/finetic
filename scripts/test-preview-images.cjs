@@ -27,9 +27,10 @@ async function main() {
 
  class BrowserURL extends globalThis.URL {}
  BrowserURL.createObjectURL=URL.createObjectURL;BrowserURL.revokeObjectURL=URL.revokeObjectURL;
+ const transfers = new Map();
  const { MpvController } = load('lib/desktop/mpv-controller.ts', { '@/lib/media/playback-preferences': { readPlaybackPreferences: () => ({ audioLanguage:'en' }) } }, {
   URL:BrowserURL, crypto:require('node:crypto'), Event,EventTarget,CustomEvent,DOMException,
-  fetch:async()=>response(2),
+  fetch:async source=>transfers.get(source)?.promise ?? response(2),
  });
  let receive;const sent=[];
  const media=new MpvController({platform:'macos',send:m=>sent.push(m),subscribe:fn=>{receive=fn;return()=>{};}});
@@ -39,6 +40,21 @@ async function main() {
  const invalid=media.preview(20);receive({type:'thumbnail',session,request:sent.at(-1).request,position:20,src:'http://foreign.test/image.jpg'});
  assert.equal(await invalid,null);assert.equal(media.cachedPreview(20),undefined);
  media.load('https://fixture.test/next.mkv');assert.equal(media.cachedPreview(12),undefined);assert.ok(revoked.includes('blob:fixture-5'));media.dispose();
+
+ const ordered = new MpvController({platform:'windows',send:m=>sent.push(m),subscribe:fn=>{receive=fn;return()=>{};}});
+ ordered.load('https://fixture.test/moving.mkv');
+ const presented = [];
+ ordered.addEventListener('previewframe', event=>presented.push(event.detail.position));
+ const slow = deferred(), fast = deferred();
+ transfers.set(source(100),slow);transfers.set(source(200),fast);
+ receive({type:'thumbnail-frame',session:ordered.previewSession,position:100,src:source(100)});
+ receive({type:'thumbnail-frame',session:ordered.previewSession,position:200,src:source(200)});
+ fast.resolve(response(2));await flush();
+ receive({type:'thumbnail-frame',session:ordered.previewSession,position:50,src:'data:image/jpeg;base64,BACKWARD'});
+ slow.resolve(response(2));await flush();
+ assert.deepEqual(presented,[200,50], 'Follow backward scrubbing too, but a slower image transfer cannot replace a newer completed preview');
+ assert.ok(ordered.cachedPreview(100), 'Out-of-order images remain reusable in the cache');
+ ordered.dispose();
 
  const runtime = hooks(), images = [], analyses = [];
  class Image {

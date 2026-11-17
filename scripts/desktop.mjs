@@ -113,10 +113,16 @@ try {
             if (process.arch !== "arm64") throw new Error("The macOS release currently targets Apple Silicon");
             if (await exists(archive)) throw new Error(`Output already exists: ${archive}`);
             await run("ditto", ["-c", "-k", "--sequesterRsrc", "--keepParent", join(output, "Navigator.app"), archive]);
+            const deltas = [];
+            if (process.env.NAVIGATOR_PREVIOUS_MACOS_ARCHIVE) {
+                const { createMacOSDelta } = await import('./macos-delta.mjs');
+                const delta = await createMacOSDelta(archive, process.env.NAVIGATOR_PREVIOUS_MACOS_ARCHIVE, version, sparkle);
+                if (delta) deltas.push(delta);
+            }
             if (process.env.NAVIGATOR_RELEASE_TAG) {
                 const { signMacOSArchive } = await import("./macos-update-feed.mjs");
                 const feed = join(root, "dist", `Navigator-${version}-macos-arm64-appcast.xml`);
-                await signMacOSArchive(archive, version, process.env.NAVIGATOR_RELEASE_TAG, feed);
+                await signMacOSArchive(archive, version, process.env.NAVIGATOR_RELEASE_TAG, feed, deltas);
                 console.log(`Signed macOS appcast: ${feed}`);
             }
             console.log(`macOS update archive: ${archive}`);
@@ -127,6 +133,8 @@ try {
             await cp(join(winsparkle, "WinSparkle.dll"), join(resources, "lib", "WinSparkle.dll"));
             await cp(winsparkle, join(resources, "licenses", "WinSparkle"), { recursive: true, filter: source => !source.endsWith(".dll") });
             await cp(join(desktop, "windows", "prepare.cjs"), join(resources, "prepare.cjs"));
+            await cp(join(desktop, "windows", "background-update.cjs"), join(resources, "background-update.cjs"));
+            await cp(join(desktop, "windows", "update-public-key.txt"), join(resources, "update-public-key.txt"));
             await writeInstallManifest(resources);
             const artifacts = await packageWindows(output, version);
             if (artifacts.appcast) console.log(`Signed Windows appcast: ${artifacts.appcast}`);

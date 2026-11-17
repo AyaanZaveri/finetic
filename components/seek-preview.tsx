@@ -71,9 +71,10 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
     const invalidate = useCallback(() => { ticket.current++; }, []);
     const bucket = previewBucket(time, duration);
     const nativeFrames = !!native && typeof window !== "undefined" && (window.navigatorDesktop?.capabilities?.nativePreviews || window.navigatorDesktop?.platform === "android");
-    const browserMode = !native || fallback || (!nativeFrames && /\.(m3u8|mpd)(?:[?#]|$)/i.test(source));
     const muxPreview = /\.m3u8(?:[?#]|$)/i.test(source)
         || /^https:\/\/stream\.mux\.com\/[^/.?#]+(?:[?#]|$)/i.test(source);
+    // Native keyframe extraction handles indexed files, not streaming manifests.
+    const browserMode = !native || fallback || muxPreview || /\.mpd(?:[?#]|$)/i.test(source);
     const rangeMode = browserMode && !muxPreview && !rangeUnavailable && typeof VideoDecoder !== "undefined";
     const wanted = useRef<number | null>(null);
     useLayoutEffect(() => { wanted.current = active ? bucket : null; }, [active, bucket]);
@@ -83,8 +84,12 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
         const receive = (event: Event) => {
             const { position, src } = (event as CustomEvent<{ position: number; src: string }>).detail;
             const at = wanted.current;
-            if (at !== null && (at === position || native.cachedPreview(at) === src)) {
-                setFrame({ time: at, src, video: false, unavailable: false });
+            if (at !== null) {
+                // Show completed work during continuous motion. Requiring its
+                // interval to contain the cursor starves display on slow reads.
+                // A cached frame for the current target always takes priority.
+                const cached = native.cachedPreview(at);
+                setFrame({ time: cached ? at : position, src: cached || src, video: false, unavailable: false });
             }
         };
         native.addEventListener("previewframe", receive);

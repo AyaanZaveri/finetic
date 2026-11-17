@@ -27,7 +27,7 @@ export async function fetchSparkle() {
     try {
         const archive = join(temp, "archive.tar.xz");
         await writeFile(archive, bytes);
-        await exec("tar", ["-xf", archive, "-C", temp, "./Sparkle.framework", "./bin/generate_keys", "./bin/sign_update", "./LICENSE"]);
+        await exec("tar", ["-xf", archive, "-C", temp, "./Sparkle.framework", "./bin/generate_keys", "./bin/sign_update", "./bin/BinaryDelta", "./LICENSE"]);
         if (digest(await readFile(join(temp, "Sparkle.framework/Versions/B/Sparkle"))) !== binaryHash) throw new Error("Sparkle framework checksum mismatch");
         await rm(directory, { recursive: true, force: true });
         await mkdir(directory, { recursive: true });

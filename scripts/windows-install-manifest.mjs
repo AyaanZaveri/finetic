@@ -7,7 +7,7 @@ import { join, relative, resolve } from 'node:path';
 // its actual Node dependencies; unused Next tooling, source maps, notices and
 // catalogue artwork do not need to be opened during installation.
 export function isStartupFile(path) {
-  return path === 'prepare.cjs' || path === 'runtime/node.exe' || path === 'server/server.js'
+  return path === 'prepare.cjs' || path === 'background-update.cjs' || path === 'update-public-key.txt' || path === 'runtime/node.exe' || path === 'server/server.js'
     || (path.startsWith('lib/') && path.endsWith('.dll'))
     || (path.startsWith('server/.next/') && /\.(js|css|woff2)$/.test(path));
 }

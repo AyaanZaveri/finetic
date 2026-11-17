@@ -74,6 +74,7 @@ import {
 import { PlaybackSubtitles, type PlaybackSubtitleTrack } from "@/lib/media/playback-subtitles";
 import { useSettings } from "@/contexts/settings-context";
 import { PlayerSubtitles } from "@/components/player-subtitles";
+import { useNativeSubtitleTiming } from "@/lib/media/use-native-subtitle-timing";
 import { SubtitleTimingPopover } from "@/components/subtitle-timing-popover";
 import { useSubtitleTiming } from "@/lib/media/subtitle-timing";
 import { NAVIGATOR_PLAYBACK_EVENT } from "@/lib/navigator-playback-ack";
@@ -823,6 +824,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   });
   episodeContinuationRef.current = episodeContinuation;
 
+  const embeddedSubtitleTiming = useNativeSubtitleTiming(videoRef, subtitleTiming.seconds,
+    subtitleTracks.some(track => track.active), `${streamUrl}:${playerAttempt}`, nativePlayback);
+
   const subtitleTimingActions = useMemo(() => ({
     seconds: subtitleTiming.seconds, open: Boolean(subtitleTiming.key && timingOpenKey === subtitleTiming.key),
     onOpen: () => setTimingOpenKey(subtitleTiming.key), onClose: () => setTimingOpenKey(null),
@@ -862,7 +866,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         <SubtitleTimingPopover open={Boolean(subtitleTiming.key && timingOpenKey === subtitleTiming.key)}
           onOpenChange={open => setTimingOpenKey(open ? subtitleTiming.key : null)}
           seconds={subtitleTiming.seconds} onChange={subtitleTiming.onChange}
-          available={subtitleData.length > 0 && subtitleTracks.some(track => track.active) && !fetchingSubtitles}
+          available={embeddedSubtitleTiming || (subtitleData.length > 0 && subtitleTracks.some(track => track.active) && !fetchingSubtitles)}
           container={videoRef.current?.closest<HTMLElement>('[data-slot="media-player"]')} />
         <NativePlayerGlass mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} ready={videoReady && !loading && !playbackError} />
         <PlaybackWakeLock mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} enabled={!nativePlayback && !!streamUrl && !playbackError} />
