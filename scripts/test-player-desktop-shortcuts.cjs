@@ -10,12 +10,13 @@ const source = process.argv.includes('--baseline')
 const parsed = ts.createSourceFile('player.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const implementation = parsed.statements.find(n => ts.isFunctionDeclaration(n) && n.name?.text === 'MediaPlayerRootImpl');
 
-function mount({ native = true, autoFocus = true, scrubClock } = {}) {
+function mount({ native = true, autoFocus = true, platform = 'windows', scrubClock } = {}) {
   const host = hooks(), listeners = new Map(), sent = [], timers = new Map();
   let timerId = 0;
   class Element {
     constructor(kind = '') { this.kind = kind; }
     closest(selector) { return this.kind && selector.includes(this.kind) ? this : null; }
+    hasAttribute() { return false; }
   }
   const document = {
     activeElement: null, body: new Element(), focused: true, overlay: false,
@@ -46,7 +47,7 @@ function mount({ native = true, autoFocus = true, scrubClock } = {}) {
       if (action.type === actions.MEDIA_SEEK_REQUEST) media.currentTime = action.detail;
     },
     useStoreContext: () => store, useStoreSelector: selector => selector(state),
-    useMediaSelector: selector => selector({ mediaPaused: false }), desktopBridge: () => native ? { platform: 'windows' } : null,
+    useMediaSelector: selector => selector({ mediaPaused: false }), desktopBridge: () => native ? { platform } : null,
     setMacOSWindowControlsVisible() {}, playerControlsActive: () => false,
     MediaPlayerContext: { Provider: 'Provider' }, MediaPlayerVolumeIndicator: 'Volume',
     ROOT_NAME: 'MediaPlayer', FLOATING_MENU_SIDE_OFFSET: 10, cn: () => '', SEEK_STEP_SHORT: 5, MediaActionTypes: actions,
@@ -63,16 +64,63 @@ function mount({ native = true, autoFocus = true, scrubClock } = {}) {
   state.controlsVisible = false;
   function key(key, target = document.body, extra = {}) {
     const event = { key, target, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, ...extra };
-    if (target === root) tree.props.children.props.onKeyDown(event);
+    if (target === root || target.inPlayer) tree.props.children.props.onKeyDown(event);
     for (const listener of listeners.get('keydown') ?? []) listener(event);
     if (!extra.hold) release(key);
     return event;
   }
   function release(key) { for (const listener of listeners.get('keyup') ?? []) listener({ key }); }
   return { key, release, sent, state, root, media, Element, document, listeners, unmount: host.unmount,
+    mouseDown(target, extra = {}) {
+      const event = { target, button: 0, defaultPrevented: false,
+        preventDefault() { this.defaultPrevented = true; }, ...extra };
+      tree.props.children.props.onMouseDownCapture?.(event);
+      // The browser focuses the clicked button unless mousedown was canceled.
+      if (!event.defaultPrevented) document.activeElement = target;
+      return event;
+    },
     rerender() { tree = host.render(context.exports.Root, { autoFocus, autoHide: true }); host.flush(); return tree.props.value.keyboardScrubber; },
     get scrubber() { return tree.props.value.keyboardScrubber; } };
 }
+// Reproduce mouse fullscreen click -> Space using the real root handlers.
+// The same React controls are used by Windows, macOS and the web player.
+for (const options of [{ platform: 'windows' }, { platform: 'macos' }, { native: false }]) {
+  const player = mount(options);
+  player.rerender(); // Media ref is ready, including the browser video path.
+  for (const slot of ['fullscreen', 'play-button', 'seek-backward', 'seek-forward', 'volume-trigger', 'loop', 'pip', 'captions', 'download']) {
+    const button = new player.Element('button');
+    button.inPlayer = true;
+    button.getAttribute = name => name === 'data-slot' ? `media-player-${slot}` : null;
+    const down = player.mouseDown(button);
+    assert.equal(down.defaultPrevented, true, `${slot}: mouse must not leave button focused`);
+    assert.equal(player.document.activeElement, player.root, `${slot}: shortcuts stay on player`);
+    const before = player.sent.length;
+    const space = player.key(' ', player.document.activeElement);
+    assert.equal(space.defaultPrevented, true, `${slot}: suppress native Space activation`);
+    assert.equal(player.sent.length, before + 1, `${slot}: Space toggles playback exactly once`);
+    assert.equal(player.sent.at(-1).type, 'PAUSE');
+    const position = player.media.currentTime;
+    assert.equal(player.key('ArrowRight', player.document.activeElement).defaultPrevented, true);
+    assert.equal(player.sent.at(-1).detail, position + 10, `${slot}: Right seeks forward ten seconds after a mouse click`);
+    assert.equal(player.key('ArrowLeft', player.document.activeElement).defaultPrevented, true);
+    assert.equal(player.sent.at(-1).detail, position, `${slot}: Left seeks back ten seconds after a mouse click`);
+    // Tab focus must retain native Space/Enter activation of the button.
+    player.document.activeElement = button;
+    const keyboardBefore = player.sent.length;
+    assert.equal(player.key(' ', button).defaultPrevented, false);
+    assert.equal(player.sent.length, keyboardBefore, `${slot}: preserve keyboard button activation`);
+  }
+  for (const kind of ['input', '[role="slider"]', 'button']) {
+    const target = new player.Element(kind);
+    target.getAttribute = () => null; // Includes menu/settings and custom buttons.
+    assert.equal(player.mouseDown(target).defaultPrevented, false, `${kind}: keep normal focus`);
+  }
+  const fullscreen = new player.Element('button');
+  fullscreen.getAttribute = () => 'media-player-fullscreen';
+  assert.equal(player.mouseDown(fullscreen, { button: 2 }).defaultPrevented, false, 'Right click keeps normal behavior');
+  player.unmount();
+}
+console.log('PASS: mouse transport focus and keyboard button activation on Windows, macOS and web.');
 const p = mount();
 p.key('ArrowRight');
 assert.equal(p.sent.at(-1)?.detail, 40, 'Desktop seeks without a prior click on the player');

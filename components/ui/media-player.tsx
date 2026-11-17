@@ -489,6 +489,25 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     }
   };
 
+  const onMouseDownCapture = (event: React.MouseEvent<HTMLDivElement>) => {
+    rootImplProps.onMouseDownCapture?.(event);
+    if (event.defaultPrevented || disabled || event.button !== 0 || pointerTypeRef.current !== "mouse") return;
+    const button = event.target instanceof Element ? event.target.closest("button") : null;
+    if (!button || button.hasAttribute("disabled")) return;
+    const slot = button.getAttribute("data-slot");
+    if (![
+      "media-player-fullscreen", "media-player-play-button",
+      "media-player-seek-backward", "media-player-seek-forward",
+      "media-player-volume-trigger", "media-player-loop", "media-player-pip",
+      "media-player-captions", "media-player-download",
+    ].includes(slot ?? "")) return;
+    // Cancel only mouse focus, not the click action. Space then controls
+    // playback instead of activating the last clicked transport button.
+    // Tab focus and keyboard activation, menus and sliders stay unchanged.
+    event.preventDefault();
+    rootRef.current?.focus({ preventScroll: true });
+  };
+
   const onClickCapture = (event: React.MouseEvent<HTMLDivElement>) => {
     rootImplProps.onClickCapture?.(event);
     if (event.defaultPrevented || !autoHide || disabled) return;
@@ -963,6 +982,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
         {...rootImplProps}
         ref={composedRef}
         onPointerDownCapture={onPointerDownCapture}
+        onMouseDownCapture={onMouseDownCapture}
         onPointerMoveCapture={(event) => {
           rootImplProps.onPointerMoveCapture?.(event);
           pointerTypeRef.current = event.pointerType;
