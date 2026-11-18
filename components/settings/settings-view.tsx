@@ -1,7 +1,7 @@
 "use client";
 import { useMetadataQueries } from "@/components/stream-query-provider";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Cerebras, Gemini, Groq, Ollama, OpenAI, OpenRouter } from "@lobehub/icons";
 import { Eye, EyeOff, KeyRound, Link2, Cpu } from "lucide-react";
 import Link from "next/link";
@@ -10,6 +10,7 @@ import { useCatalogModels } from "./use-catalog-models";
 import { ModelIcon } from "@/components/model-icon";
 import { Switch } from "@/components/arc/switch/switch";
 import { Select } from "@/components/arc/select/select";
+import { ActivityTextShimmer } from "@/components/motion-primitives/activity-text-shimmer";
 import { Combobox } from "@/components/arc/combobox/combobox";
 import {
     InputGroup,
@@ -243,9 +244,7 @@ function WebSearchSettings({ variant }: { variant: "preference" | "connection" }
         finally { setPending(false); }
     }
     return <section aria-label={variant === "connection" ? "TinyFish connection" : "Web search"} className={styles.section}>
-        {variant === "connection" && <div className={styles.connectionHeader}>
-            <h2>TinyFish</h2>
-        </div>}
+        <h2 className="text-lg font-medium">Web search</h2>
         <div className={`flex min-w-0 flex-col ${variant === "preference" ? "gap-2" : "gap-4"}`}>
             {variant === "preference" && <Field orientation="horizontal">
                 <FieldContent><FieldLabel htmlFor="tinyfish-web-search"><TinyFishIcon size={16} className="shrink-0" />Use TinyFish web search</FieldLabel></FieldContent>
@@ -316,7 +315,7 @@ function ArtworkSettings() {
     return (
         <section id="tmdb" aria-labelledby="artwork-settings-title" className={styles.section}>
             <div className={styles.connectionHeader}>
-                <h2 id="artwork-settings-title">TMDB</h2>
+                <h2 id="artwork-settings-title">Artwork</h2>
             </div>
             <form autoComplete="off" data-form-type="other" className="min-w-0" aria-busy={loading || !!pending} onSubmit={(event) => { event.preventDefault(); if (!pending && token.trim()) void update("save"); }}>
                 <FieldGroup className="gap-4">
@@ -385,8 +384,42 @@ function SettingsSelect({ id, label, value, onValueChange, options, description,
 }
 
 function ModelCombobox({ id, value, onValueChange, options, description, loading, error, disabled, providerIcon }: Omit<SettingsSelectProps, "label"> & { providerIcon: ComponentType<{ className?: string }> }) {
-    const selected = options.find((option) => option.id === value) ?? (value ? { id: value, name: value } : null);
-    const unavailable = disabled || (loading && options.length === 0 && !selected);
+    const catalogModel = options.find(option => option.id === value);
+    const catalogName = catalogModel?.name !== value ? catalogModel?.name : undefined;
+    const cacheKey = `navigator-${id}-display-name`;
+    const [cached, setCached] = useState<{ id: string; name: string } | null | undefined>(undefined);
+
+    useLayoutEffect(() => {
+        try {
+            const saved = JSON.parse(localStorage.getItem(cacheKey) ?? "null");
+            setCached(typeof saved?.id === "string" && typeof saved?.name === "string" && saved.name
+                ? { id: saved.id, name: saved.name } : null);
+        } catch {
+            setCached(null);
+        }
+    }, [cacheKey]);
+
+    useEffect(() => {
+        if (!catalogName) return;
+        const selection = { id: value, name: catalogName };
+        setCached(selection);
+        try { localStorage.setItem(cacheKey, JSON.stringify(selection)); } catch { /* Storage can be unavailable. */ }
+    }, [cacheKey, catalogName, value]);
+
+    const savedName = cached?.id === value ? cached.name : undefined;
+    const waitingForName = !!value && !catalogModel && !savedName && !disabled && (cached === undefined || loading);
+    const selected = value && !waitingForName
+        ? { ...catalogModel, id: value, name: catalogName ?? savedName ?? value }
+        : null;
+    const unavailable = disabled || waitingForName;
+
+    if (waitingForName) {
+        return <Field aria-busy="true">
+            <FieldLabel>Model</FieldLabel>
+            <ActivityTextShimmer role="status">Loading model…</ActivityTextShimmer>
+        </Field>;
+    }
+
     const describedBy = [
         (loading || description) && `${id}-description`,
         error && `${id}-error`,
@@ -401,9 +434,9 @@ function ModelCombobox({ id, value, onValueChange, options, description, loading
                 label="Model"
                 value={value}
                 onValueChange={onValueChange}
-                options={(selected && !options.some((option) => option.id === value) ? [selected, ...options] : options).map((model) => ({
+                options={(selected && !catalogModel ? [selected, ...options] : options).map((model) => ({
                     value: model.id,
-                    label: model.name,
+                    label: model.id === selected?.id ? selected.name : model.name,
                     keywords: [model.id],
                     icon: <ModelIcon model={model} fallbackIcon={providerIcon} />,
                 }))}
@@ -478,7 +511,7 @@ function NavigatorSettings() {
         apiKey: openaiApiKey,
     });
     const [geminiModelsProvider, setGeminiModelsProvider] =
-    useState<ModelsDevProviderResponse["provider"]>(null);
+    useState<ModelsDevProviderResponse["provider"]>();
     const [isLoadingGeminiModels, setIsLoadingGeminiModels] = useState(false);
     const [geminiModelsError, setGeminiModelsError] = useState<string | null>(
         null
@@ -540,7 +573,9 @@ function NavigatorSettings() {
                 throw new Error(data.error || "Failed to fetch Cerebras models.");
             }
 
-            setCerebrasModels(Array.isArray(data.models) ? data.models : []);
+            const models = Array.isArray(data.models) ? data.models : [];
+            setCerebrasModels(models);
+            if (!models.length) setCerebrasModelsError("No models are currently available.");
         } catch (error) {
             console.error("Failed to load Cerebras models:", error);
             setCerebrasModels([]);
@@ -566,44 +601,6 @@ function NavigatorSettings() {
         return () => window.clearTimeout(timeout);
     }, [aiProvider, fetchCerebrasModels]);
 
-    const cerebrasModelOptions = useMemo(() => {
-        if (!cerebrasModel) return cerebrasModels;
-        if (cerebrasModels.includes(cerebrasModel)) return cerebrasModels;
-        return [cerebrasModel, ...cerebrasModels];
-    }, [cerebrasModel, cerebrasModels]);
-
-    const openaiModelOptions = useMemo(() => {
-        const providerModels = openaiModels;
-        if (!openaiModel) return providerModels;
-        if (providerModels.some((model) => model.id === openaiModel)) {
-            return providerModels;
-        }
-
-        return [
-            {
-                id: openaiModel,
-                name: openaiModel,
-            },
-            ...providerModels,
-        ];
-    }, [openaiModels, openaiModel]);
-
-    const geminiModelOptions = useMemo(() => {
-        const providerModels = geminiModelsProvider?.models ?? [];
-        if (!geminiModel) return providerModels;
-        if (providerModels.some((model) => model.id === geminiModel)) {
-            return providerModels;
-        }
-
-        return [
-            {
-                id: geminiModel,
-                name: geminiModel,
-            },
-            ...providerModels,
-        ];
-    }, [geminiModel, geminiModelsProvider]);
-
     const selectedProvider = PROVIDERS.find((provider) => provider.value === aiProvider)!;
     const apiKeySettings = {
         openai: { value: openaiApiKey, onValueChange: setOpenaiApiKey, keyUrl: openaiBaseUrl.replace(/\/+$/, "") === OPENAI_DEFAULT_BASE_URL ? "https://platform.openai.com/api-keys" : undefined },
@@ -615,12 +612,12 @@ function NavigatorSettings() {
     };
     const modelSettings: Record<AIProvider, Omit<SettingsSelectProps, "id" | "label" | "options"> & { options?: ModelOption[]; placeholder?: string }> = {
         openai: {
-            value: openaiModel, onValueChange: setOpenaiModel, options: openaiModelOptions,
+            value: openaiModel, onValueChange: setOpenaiModel, options: openaiModels,
             loading: isLoadingOpenAIModels, error: openaiModelsError,
         },
         gemini: {
-            value: geminiModel, onValueChange: setGeminiModel, options: geminiModelOptions,
-            loading: isLoadingGeminiModels, error: geminiModelsError,
+            value: geminiModel, onValueChange: setGeminiModel, options: geminiModelsProvider?.models ?? [],
+            loading: geminiModelsProvider === undefined || isLoadingGeminiModels, error: geminiModelsError,
         },
         ollama: {
             value: ollamaModel, onValueChange: setOllamaModel, placeholder: "phi3",
@@ -636,8 +633,8 @@ function NavigatorSettings() {
         },
         cerebras: {
             value: cerebrasModel, onValueChange: setCerebrasModel,
-            options: cerebrasModelOptions.map((id) => ({ id, name: id })),
-            loading: isLoadingCerebrasModels, error: cerebrasModelsError, disabled: !cerebrasApiKey.trim(),
+            options: cerebrasModels.map((id) => ({ id, name: id })),
+            loading: isLoadingCerebrasModels || (cerebrasModels.length === 0 && !cerebrasModelsError), error: cerebrasModelsError, disabled: !cerebrasApiKey.trim(),
         },
         opencode: {
             value: opencodeModel, onValueChange: setOpencodeModel, options: catalog.models,
@@ -646,7 +643,9 @@ function NavigatorSettings() {
     };
     const currentModel = modelSettings[aiProvider];
 
-    return <section aria-label="Assistant" className={`${styles.section} ${styles.navigatorSettings}`}>
+    return <>
+    <section aria-labelledby="settings-assistant-title" className={`${styles.section} ${styles.navigatorSettings}`}>
+        <h2 id="settings-assistant-title" className="text-lg font-medium">Assistant</h2>
         <FieldGroup className={styles.navigatorPreferences}>
             <Field orientation="horizontal">
                 <FieldContent>
@@ -658,7 +657,6 @@ function NavigatorSettings() {
                     onCheckedChange={setNavigatorEnabled}
                 />
             </Field>
-            {navigatorEnabled && <WebSearchSettings variant="preference" />}
         </FieldGroup>
         {navigatorEnabled && (
             <FieldGroup className={styles.navigatorFields} aria-label="AI configuration">
@@ -749,19 +747,24 @@ function NavigatorSettings() {
                 )}
             </FieldGroup>
         )}
-    </section>;
+    </section>
+    {navigatorEnabled && <WebSearchSettings variant="preference" />}
+    </>;
 }
 
 export function SettingsView({ category }: { category: SettingsCategory }) {
     switch (category) {
     case "about":
-        return <AppUpdates />;
-    case "playback":
-        return <><PlaybackSettings /><PlaybackLanguageSettings />
+        return <><AppUpdates />
+            <section aria-labelledby="settings-credits" className={styles.section}>
+            <h2 id="settings-credits" className="text-lg font-medium">Credits and licenses</h2>
             <p className={styles.credits}>Skip timings from <a draggable={false} href="https://theintrodb.org" target="_blank" rel="noreferrer">TheIntroDB</a>, <a draggable={false} href="https://introdb.app" target="_blank" rel="noreferrer">IntroDB</a>, and <a draggable={false} href="https://skipdb.tv" target="_blank" rel="noreferrer">SkipDB</a> (<a draggable={false} href="https://skipdb.tv/license" target="_blank" rel="noreferrer">ODbL license</a>).</p>
+            </section>
         </>;
+    case "playback":
+        return <PlaybackSettings />;
     case "subtitles":
-        return <SubtitleSettings />;
+        return <><PlaybackLanguageSettings kind="subtitles" /><SubtitleSettings /></>;
     case "navigator":
         return <NavigatorSettings />;
     case "connections":

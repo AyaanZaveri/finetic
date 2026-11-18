@@ -14,7 +14,8 @@ import styles from "@/app/(main)/settings/settings.module.css";
 
 export function SubtitleSettings() {
   const { subtitleSize, setSubtitleSize, subtitleOutline, setSubtitleOutline, subtitleWeight, setSubtitleWeight, subtitleColor, setSubtitleColor, subtitlePosition, setSubtitlePosition, resetSubtitleAppearance } = useSettings();
-  return <section aria-label="Subtitle appearance" className={`${styles.section} ${styles.subtitleSettings}`}>
+  return <section aria-labelledby="subtitle-appearance-title" className={`${styles.section} ${styles.subtitleSettings}`}>
+    <h2 id="subtitle-appearance-title" className="text-lg font-medium">Appearance</h2>
     <FieldGroup className="min-w-0">
       <figure className={styles.subtitlePreviewFigure} aria-labelledby="subtitle-preview-title">
         <div className={styles.subtitlePreview}>

@@ -33,17 +33,15 @@ function LanguageSelect({ id, label, value, onChange }: { id: string; label: str
   </Field>;
 }
 
-export function PlaybackLanguageSettings() {
+export function PlaybackLanguageSettings({ kind }: { kind: "audio" | "subtitles" }) {
   const { playbackPreferences: preferences, updatePlaybackPreferences: update } = useSettings();
   return <section aria-labelledby="playback-language-title" className={styles.section}>
-    <h2 id="playback-language-title" className="text-lg font-medium">Languages</h2>
+    <h2 id="playback-language-title" className="text-lg font-medium">{kind === "audio" ? "Languages" : "Defaults"}</h2>
     <FieldGroup className="min-w-0 gap-6">
-      <FieldGroup className={styles.pairedFields}>
-        <LanguageSelect id="preferred-audio-language" label="Audio language" value={preferences.audioLanguage}
-          onChange={audioLanguage => update({ audioLanguage })} />
-        <LanguageSelect id="preferred-subtitle-language" label="Subtitle language" value={preferences.subtitleLanguage}
-          onChange={subtitleLanguage => update({ subtitleLanguage })} />
-      </FieldGroup>
+      {kind === "audio" ? <LanguageSelect id="preferred-audio-language" label="Audio language" value={preferences.audioLanguage}
+        onChange={audioLanguage => update({ audioLanguage })} /> : <>
+      <LanguageSelect id="preferred-subtitle-language" label="Subtitle language" value={preferences.subtitleLanguage}
+        onChange={subtitleLanguage => update({ subtitleLanguage })} />
       <Field><Select id="preferred-subtitle-type" label="Subtitle type" value={preferences.subtitleMode}
         options={[{ value: "normal", label: "Normal subtitles" }, { value: "forced", label: "Forced subtitles only" }]}
         onValueChange={value => update({ subtitleMode: value === "forced" ? "forced" : "normal" })} />
@@ -56,6 +54,7 @@ export function PlaybackLanguageSettings() {
         <Switch id="subtitles-on-by-default" checked={preferences.subtitlesEnabledByDefault}
           onCheckedChange={subtitlesEnabledByDefault => update({ subtitlesEnabledByDefault })} />
       </Field>
+      </>}
     </FieldGroup>
   </section>;
 }

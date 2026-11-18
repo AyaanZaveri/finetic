@@ -17,6 +17,8 @@ export interface NumberFieldProps {
   min?: number;
   max?: number;
   step?: number;
+  /** Increment used by the plus and minus buttons. */
+  buttonStep?: number;
   /** PageUp, PageDown, and Shift with an arrow move this far. Defaults to ten steps. */
   largeStep?: number;
   description?: string;
@@ -231,7 +233,7 @@ function StepButton({ toward, label, disabled, controls, limit, pressed, iconRef
  * large steps, Home and End jump to the limits, and `scrub` lets the label be dragged. Typing edits a plain draft that
  * applies live while valid; the rolling digits return once it commits on Enter, blur, or the next step.
  */
-export function NumberField({ label, value, defaultValue = 0, onValueChange, min = 0, max = Number.MAX_SAFE_INTEGER, step: stepProp = 1, largeStep, description, disabled, id, prefix, suffix, scrub = false, locale = "en-US", formatOptions, size = "md", limitHint = true }: NumberFieldProps) {
+export function NumberField({ label, value, defaultValue = 0, onValueChange, min = 0, max = Number.MAX_SAFE_INTEGER, step: stepProp = 1, buttonStep, largeStep, description, disabled, id, prefix, suffix, scrub = false, locale = "en-US", formatOptions, size = "md", limitHint = true }: NumberFieldProps) {
   const reduced = useReducedMotion();
   const generatedId = useId();
   const inputId = id ?? generatedId;
@@ -440,6 +442,7 @@ export function NumberField({ label, value, defaultValue = 0, onValueChange, min
     setAnnouncement(spoken(latest.current));
   }
 
+  const buttonSteps = Math.max(1, Math.round((buttonStep ?? step) / step));
   const stepper = (toward: 1 | -1) => ({ toward, label, disabled, controls: inputId, limit: toward > 0 ? shown >= max : shown <= min, pressed: pressed === toward });
   /** A typed value past a limit holds a calm warning until it commits and springs back. */
   const outside: 1 | -1 | 0 = typed === null ? 0 : typed > max ? 1 : typed < min && underWarn ? -1 : 0;
@@ -454,7 +457,7 @@ export function NumberField({ label, value, defaultValue = 0, onValueChange, min
       <LimitNote id={limitId} edge={noteEdge} text={noteText} />
     </div>
     <div ref={controlRef} className={styles.control} data-scrubbing={scrubbing || undefined} data-disabled={disabled || undefined} data-warn={outside ? (outside > 0 ? "max" : "min") : undefined}>
-      <StepButton {...stepper(-1)} iconRef={minusIcon} onPress={() => startHold(-1, step, "button")} onRelease={stopHold} onActivate={() => { commitDraft(); nudge(-1, 1, "button"); }} />
+      <StepButton {...stepper(-1)} iconRef={minusIcon} onPress={() => startHold(-1, buttonSteps * step, "button")} onRelease={stopHold} onActivate={() => { commitDraft(); nudge(-1, buttonSteps, "button"); }} />
       <div className={styles.valueWrap} onMouseDown={event => { if (event.target !== inputRef.current) event.preventDefault(); }} onClick={event => { if (!disabled && event.target !== inputRef.current) { inputRef.current?.focus(); inputRef.current?.select(); } }}>
         <motion.span ref={groupRef} className={styles.value} style={{ x, y: bumpY }}>
           <AffixText text={affixText(prefix, shown)} direction={direction} className={styles.affix} />
@@ -469,7 +472,7 @@ export function NumberField({ label, value, defaultValue = 0, onValueChange, min
           <AffixText text={affixText(suffix, shown)} direction={direction} className={styles.affix} />
         </motion.span>
       </div>
-      <StepButton {...stepper(1)} iconRef={plusIcon} onPress={() => startHold(1, step, "button")} onRelease={stopHold} onActivate={() => { commitDraft(); nudge(1, 1, "button"); }} />
+      <StepButton {...stepper(1)} iconRef={plusIcon} onPress={() => startHold(1, buttonSteps * step, "button")} onRelease={stopHold} onActivate={() => { commitDraft(); nudge(1, buttonSteps, "button"); }} />
     </div>
     <FieldMessage id={hintId} text={description} className={styles.hint} />
     <span className={styles.srOnly} aria-live="polite" aria-atomic="true">{announcement}</span>
