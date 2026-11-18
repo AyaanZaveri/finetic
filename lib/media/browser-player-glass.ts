@@ -2,7 +2,7 @@ import type { WebGpuVideo } from "./webgpu-video";
 
 const selector = '[data-player-glass], [data-player-hdr-glass]';
 const properties = ['x', 'y', 'width', 'height', 'color', 'sheen'];
-const videoEvents = ['loadeddata', 'seeked'];
+const videoEvents = ['loadeddata', 'seeked', 'playing'];
 type Surface = { node: HTMLElement; canvas: HTMLCanvasElement; context: CanvasRenderingContext2D };
 
 /** Draw the playing frame into small live sRGB canvases. No JPEG encode/decode
@@ -140,15 +140,10 @@ export function attachBrowserPlayerGlass(video: HTMLVideoElement) {
         attributeFilter: ['data-controls-visible', 'aria-hidden', 'data-player-hdr-glass', 'data-player-video-fit'] });
     const repaint = () => { stop(); hasFrame = false; refresh(); };
     // Pause may arrive after the decoder stops supplying frames. Keep the
-    // last sample until a seek or the next frame presented after resuming.
+    // last sample for visible and newly opened controls until a seek or resume.
     const pause = () => { stop(); refresh(); };
-    const resume = () => {
-        if (typeof video.requestVideoFrameCallback === 'function') refresh();
-        else repaint();
-    };
     for (const event of videoEvents) video.addEventListener(event, repaint);
     video.addEventListener('pause', pause);
-    video.addEventListener('playing', resume);
     document.addEventListener('visibilitychange', refresh);
     window.addEventListener('resize', repaint);
     refresh();
@@ -156,7 +151,6 @@ export function attachBrowserPlayerGlass(video: HTMLVideoElement) {
         closed = true; stop(); observer.disconnect(); resized?.disconnect();
         for (const event of videoEvents) video.removeEventListener(event, repaint);
         video.removeEventListener('pause', pause);
-        video.removeEventListener('playing', resume);
         document.removeEventListener('visibilitychange', refresh);
         window.removeEventListener('resize', repaint);
         clear();
