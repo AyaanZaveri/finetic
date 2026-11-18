@@ -12,6 +12,8 @@ export type WebGpuVideo = HTMLVideoElement & { webgpu?: {
  * the embedded engine until a same-file fallback restores the browser API. */
 export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_source: string) => void): () => void {
     let player: WebGpuPlayer | undefined;
+    let lastStats: WebGpuStats | null = null;
+    let nextStatsSample = 0;
     let closed = false, opened = false, metadataSent = false, silent = false;
     let generation = 0, initialMetadata = false;
     let hdrAttempt = false, hdrRejected = false;
@@ -69,10 +71,20 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
         time = Math.max(0, atMs / 1000);
         const shouldPlay = !paused;
         const resume = time;
+        const reasonLabel = reasonCode(reason);
+        // The engine may tear down its active route before notifying the host.
+        const stats = player?.stats() ?? lastStats;
+        console.warn("WebGPU playback switched to the browser player", {
+            reason: reasonLabel, positionMs: atMs, seeking, width, height,
+            route: stats?.route, hdrOutput: stats?.hdrOutput,
+            framesPresented: stats?.framesPresented, framesDropped: stats?.framesDropped, framesLate: stats?.framesLate,
+            audioAheadMs: stats?.audioAheadMs, videoAheadMs: stats?.videoAheadMs,
+            audioUnderflows: stats?.audioUnderflows, clockMs: stats?.clockMs,
+        });
         hdrFallback("browser-fallback");
         cleanup();
         // Preserve a useful, URL-free cause when the browser reports a generic format error.
-        video.dataset.webgpuFallback = reasonCode(reason);
+        video.dataset.webgpuFallback = reasonLabel;
         // Restore preferences before loading the same URL through Mux/native.
         video.volume = volume; video.muted = muted; video.playbackRate = rate;
         fallbackMetadata = () => {
@@ -196,6 +208,8 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
     };
     const start = async () => {
         const current = ++generation;
+        lastStats = null;
+        nextStatsSample = 0;
         clearTimeout(startup);
         startup = setTimeout(() => recover("startup-timeout"), 30_000);
         const engineModule = await loadWebGpuModule();
@@ -221,6 +235,11 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
             },
             onTime(ms) {
                 if (closed || current !== generation) return;
+                const now = performance.now();
+                if (now >= nextStatsSample) {
+                    nextStatsSample = now + 1000;
+                    lastStats = player?.stats() ?? lastStats;
+                }
                 if (!metadataSent || (seeking && seekTarget !== undefined && Math.abs(ms / 1000 - seekTarget) > .5)) return;
                 time = ms / 1000;
                 if (seeking) { seeking = false; seekTarget = undefined; emit("seeked"); }

@@ -11,7 +11,11 @@ export type WebGpuOpened = { eligible: false; reason: string } | {
 };
 export interface WebGpuStats {
     hdrOutput?: boolean;
+    route?: string;
     framesPresented: number; framesDropped: number;
+    framesLate?: number;
+    videoAheadMs?: number | null;
+    audioUnderflows?: number;
     audio: unknown | null; audioAheadMs: number | null; clockMs: number;
 }
 export interface WebGpuPlayer {

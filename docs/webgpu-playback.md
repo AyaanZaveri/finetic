@@ -94,6 +94,17 @@ fetchable direct files with byte-range support and suitable CORS responses.
 It does not bypass CORS, authentication, custom request-header requirements,
 or DRM. Unknown playlist URLs may be attempted and then fall back.
 
+**Browser decoding with WebGPU** is an experimental, opt-in setting for direct files when
+HDR output is off. It checks the file header for the default audio codec
+and uses the custom engine if browser audio support cannot be established.
+For eligible files it tries the browser decoder, then renders its frames in
+WebGPU on the video frame callback. The browser retains its media controls,
+audio, and subtitle capabilities. If the file fails to open or fails to
+produce initial video data within eight seconds, Navigator tries its custom
+engine on the same element. A renderer failure reveals the native picture
+without restarting playback. When native text captions are enabled, the
+browser renders them over the native picture.
+
 Native speculative video preloading is skipped for files that will use WebGPU.
 This avoids downloading a buffer that the GPU engine cannot adopt. Playlist
 preloading still reuses the existing Mux element and engine.

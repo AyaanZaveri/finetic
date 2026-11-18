@@ -17,13 +17,15 @@ function fixture({ result, resolvedSource, audioFailure = false, deferred = fals
   let events, resolveOpen, resolveModule, fallbackSource, destroys = 0, fallbacks = 0, frameId = 0;
   const calls = [], timers = new Map(), raf = new Map();
   const stats = { hdrOutput: hdrDisplay && !hdrFailure, framesPresented: 1, framesDropped: 0, audio: {}, audioAheadMs: 100, clockMs: 0 };
+  const warnings = [];
+  let routeStopped = false;
   const opened = result || { eligible: true, audio: [
     { ordinal: 0, language: 'ru', title: 'Russian', isDefault: true },
     { ordinal: 1, language: 'en', title: 'English', isDefault: false },
   ], audioOrdinal: 1, width: 1920, height: 1080, durationMs: 100000 };
   let presented = 0;
   const player = { open(request) { calls.push(['open', request]); if (audioFailure && request.audioOrdinal !== -1) return Promise.resolve({ eligible: false, reason: 'audio-codec-unsupported' }); if (audioFailure) { stats.audio = null; stats.audioAheadMs = null; } return deferred ? new Promise(resolve => { resolveOpen = resolve; }) : Promise.resolve(opened); },
-    destroy() { destroys++; }, stats: () => stats, presentedMs: () => presented,
+    destroy() { destroys++; }, stats: () => routeStopped ? null : stats, presentedMs: () => presented,
     play() { calls.push(['play']); }, pause() { calls.push(['pause']); },
     seek(ms) { calls.push(['seek', ms]); }, setVolume(n) { calls.push(['volume', n]); },
     setMuted(n) { calls.push(['muted', n]); }, setRate(n) { calls.push(['rate', n]); },
@@ -35,6 +37,7 @@ function fixture({ result, resolvedSource, audioFailure = false, deferred = fals
     './webgpu-source': { resolveWebGpuSource: async url => resolvedSource || url },
     './playback-preferences': { readPlaybackPreferences: () => ({ audioLanguage: 'en', hdrOutput, hdrPeakNits }) },
   }, { window: { matchMedia: () => ({ matches: hdrDisplay }) }, Event, EventTarget, DOMException, navigator: { userActivation: { hasBeenActive: true } }, performance,
+    console: { warn: (...args) => warnings.push(args) },
     setTimeout(fn) { const id = ++frameId; timers.set(id, fn); return id; }, clearTimeout(id) { timers.delete(id); },
     requestAnimationFrame(fn) { const id = ++frameId; raf.set(id, fn); return id; }, cancelAnimationFrame(id) { raf.delete(id); } });
   const video = new Video(), notifications = [];
@@ -42,7 +45,8 @@ function fixture({ result, resolvedSource, audioFailure = false, deferred = fals
     video.addEventListener(name, () => notifications.push(name));
   }
   const detach = api.attachWebGpuVideo(video, 'https://example.test/film.mkv', source => { fallbackSource = source; fallbacks++; });
-  return { video, calls, notifications, timers, raf, stats, detach, get events() { return events; },
+  return { video, calls, notifications, timers, raf, stats, warnings, detach, get events() { return events; },
+    stopRoute: () => { routeStopped = true; },
     get destroys() { return destroys; }, get fallbacks() { return fallbacks; }, get fallbackSource() { return fallbackSource; },
     resolveOpen: () => resolveOpen(opened), resolveModule: () => resolveModule(module),
     frame(ms) { presented = ms; const list = [...raf.values()]; raf.clear(); list.forEach(fn => fn(ms)); } };
@@ -103,7 +107,18 @@ function fixture({ result, resolvedSource, audioFailure = false, deferred = fals
 
   const fallback = fixture(); await tick(); await fallback.video.play();
   fallback.video.volume = .3; fallback.video.muted = true; fallback.video.playbackRate = 1.25;
-  fallback.events.onFallback('device-lost', 57000);
+  Object.assign(fallback.stats, { route: 'native video-frame, audio decoded-pcm', framesDropped: 14,
+    framesLate: 12, videoAheadMs: 0, audioUnderflows: 2, clockMs: 56950 });
+  fallback.events.onTime(56950);
+  fallback.stopRoute();
+  fallback.events.onFallback('device-lost: https://example.test/private', 57000);
+  assert.equal(fallback.warnings.length, 1);
+  const [, diagnostic] = fallback.warnings[0];
+  assert.equal(diagnostic.reason, 'device-lost');
+  assert.equal(diagnostic.framesDropped, 14, 'Keep the last diagnostics after the engine tears down its route');
+  assert.equal(diagnostic.videoAheadMs, 0);
+  assert.equal(diagnostic.positionMs, 57000);
+  assert.ok(!JSON.stringify(diagnostic).includes('example.test'), 'Diagnostics exclude source URLs');
   assert.equal(fallback.fallbacks, 1); assert.equal(fallback.video.webgpu, undefined);
   fallback.video.dispatchEvent(new Event('loadedmetadata')); await tick();
   assert.equal(fallback.video.currentTime, 57, 'Same-file fallback resumes the engine position');

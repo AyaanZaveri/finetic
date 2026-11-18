@@ -95,7 +95,14 @@ export function verifyMediaElementPlayback(
         audioMetadata = metadataAudioSupport(trackMetadata, mime => Boolean(decoder.canPlayType?.(mime)), selectedLanguage);
       }
       const gpu = (video as WebGpuVideo).webgpu;
-      if (!captured && !gpu) {
+      if (gpu) {
+        const stats = gpu.stats();
+        const audio = gpu.silent || Boolean(stats?.audio && ((stats.audioAheadMs ?? -1) >= 0
+          || (playing && decoder.currentTime - baseline > .05)));
+        if (stats && stats.framesPresented > 0 && audio) finish("supported");
+        return;
+      }
+      if (!captured) {
         try {
           // Capture the element's own output, never a microphone or screen.
           // Per the capture-from-element spec, element.muted does not mute
@@ -114,8 +121,7 @@ export function verifyMediaElementPlayback(
         && decoder.currentTime - baseline > 0.05;
       const audio = Number(decoder.webkitAudioDecodedByteCount ?? 0) > 0
         || Boolean(captured?.getAudioTracks().some(active))
-        || (gpu ? Boolean(gpu.stats()?.audio && ((gpu.stats()?.audioAheadMs ?? -1) >= 0
-          || (playing && decoder.currentTime - baseline > .05))) || Boolean(gpu?.silent) : audioMetadata === "supported");
+        || audioMetadata === "supported";
       if (frames && audio) finish("supported");
     }
 

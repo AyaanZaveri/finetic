@@ -5,6 +5,7 @@ export interface PlaybackPreferences {
   episodePrefetch: boolean;
   autoSelectWebStream: boolean;
   webGpuPlayback: boolean;
+  nativeWebGpuDecoding: boolean;
   hdrOutput: boolean;
   hdrPeakNits: number;
   audioLanguage: string;
@@ -15,7 +16,7 @@ export interface PlaybackPreferences {
 export const DEFAULT_PLAYBACK_PREFERENCES: PlaybackPreferences = {
   continueWatchingPrefetch: true, metadataPrefetch: true,
   episodeAutoplay: true, episodePrefetch: true,
-  autoSelectWebStream: false, webGpuPlayback: true, hdrOutput: false, hdrPeakNits: 1000,
+  autoSelectWebStream: false, webGpuPlayback: true, nativeWebGpuDecoding: false, hdrOutput: false, hdrPeakNits: 1000,
   audioLanguage: "en", subtitleLanguage: "en", subtitleMode: "normal", subtitlesEnabledByDefault: false,
 };
 export const PLAYBACK_PREFERENCES_KEY = "navigator-playback-preferences";
@@ -51,6 +52,7 @@ export function normalizePlaybackPreferences(value: unknown): PlaybackPreference
     episodePrefetch: candidate.episodePrefetch !== false,
     autoSelectWebStream: candidate.autoSelectWebStream === true,
     webGpuPlayback: candidate.webGpuPlayback !== false,
+    nativeWebGpuDecoding: candidate.nativeWebGpuDecoding === true,
     hdrOutput: candidate.hdrOutput === true,
     hdrPeakNits: typeof candidate.hdrPeakNits === "number" && Number.isFinite(candidate.hdrPeakNits)
       ? Math.round(Math.max(203, Math.min(10000, candidate.hdrPeakNits))) : 1000,

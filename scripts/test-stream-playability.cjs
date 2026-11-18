@@ -54,13 +54,13 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   assert.equal(audio.stopped, true); assert.equal(picture.stopped, true);
 
   let gpuVideo = fake();
-  gpuVideo.webgpu = { stats: () => ({ audio: {}, audioAheadMs: 250 }) };
+  gpuVideo.webgpu = { stats: () => ({ framesPresented: 1, audio: {}, audioAheadMs: 250 }) };
   gpuVideo.getVideoPlaybackQuality = () => ({ totalVideoFrames: 1 });
   gpuVideo.captureStream = () => { throw Error('GPU probes must not capture a source-less video'); };
   assert.equal(await probe(gpuVideo, new AbortController().signal, 100), 'supported',
     'A presented GPU frame and submitted audio establish playback');
   gpuVideo = fake();
-  gpuVideo.webgpu = { stats: () => ({ audio: null, audioAheadMs: null }) };
+  gpuVideo.webgpu = { stats: () => ({ framesPresented: 1, audio: null, audioAheadMs: null }) };
   gpuVideo.getVideoPlaybackQuality = () => ({ totalVideoFrames: 1 });
   gpuVideo.canPlayType = () => 'probably';
   assert.equal(await probe(gpuVideo, new AbortController().signal, 5, Promise.resolve({
@@ -68,10 +68,25 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   })), 'unknown', 'Native MIME support cannot establish audio for a GPU session');
 
   gpuVideo = fake();
-  gpuVideo.webgpu = { silent: true, stats: () => ({ audio: null, audioAheadMs: null }) };
+  gpuVideo.webgpu = { silent: true, stats: () => ({ framesPresented: 1, audio: null, audioAheadMs: null }) };
   gpuVideo.getVideoPlaybackQuality = () => ({ totalVideoFrames: 1 });
   assert.equal(await probe(gpuVideo, new AbortController().signal, 100), 'supported',
     'A presented video-only GPU route is usable when the user accepts missing audio');
+
+  gpuVideo = fake();
+  const gpuStats = { framesPresented: 0, framesDropped: 12, audio: {}, audioAheadMs: 250 };
+  gpuVideo.webgpu = { stats: () => gpuStats };
+  gpuVideo.getVideoPlaybackQuality = () => ({ totalVideoFrames: 12 });
+  gpuVideo.play = function () {
+    Object.assign(this, { currentTime: .2, readyState: 4, videoWidth: 3840, videoHeight: 2160 });
+    return Promise.resolve();
+  };
+  const pendingFrame = probe(gpuVideo, new AbortController().signal, 100);
+  await tick();
+  assert.equal(gpuVideo.counts.remove, 0, 'Dropped frames and an advancing clock do not establish WebGPU presentation');
+  gpuStats.framesPresented = 1;
+  gpuVideo.fire('timeupdate');
+  assert.equal(await pendingFrame, 'supported', 'A WebGPU probe can succeed when the first frame arrives');
 
   const available = track('audio'); available.muted = true;
   brave = fake(); brave.webkitVideoDecodedByteCount = 1; brave.captureStream = () => capture([available]);
