@@ -461,6 +461,13 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     return () => document.removeEventListener("navigatornativeclose", close);
   }, [nativePlayback, isPlayerVisible, handleClose]);
 
+  useEffect(() => {
+    if (!isPlayerVisible) return;
+    const close = () => handleClose();
+    document.addEventListener("navigatorcloseplayer", close);
+    return () => document.removeEventListener("navigatorcloseplayer", close);
+  }, [isPlayerVisible, handleClose]);
+
   const handleVideoEnded = useCallback((event?: React.SyntheticEvent<HTMLVideoElement>) => {
     if (event && event.currentTarget !== videoRef.current) return;
     if (episodeContinuationRef.current) episodeContinuationRef.current.onEnded();

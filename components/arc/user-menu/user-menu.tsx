@@ -8,6 +8,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type { PanInfo, Transition, Variants } from "motion/react";
 import { ChevronDown, LoaderCircle, LogOut, Monitor, Moon, Sun, SunMoon } from "lucide-react";
 import { motionTokens } from "../lib/motion-tokens";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import styles from "./user-menu.module.css";
 import SegmentedControl from "../segmented-control/segmented-control";
 
@@ -134,7 +135,7 @@ function Rise({ text, reduced }: { text: string; reduced: boolean }) {
 }
 
 function Keys({ keys }: { keys: string[] }) {
-  return <kbd className={styles.keys} aria-hidden="true">{keys.map((key, index) => <kbd key={`${key}-${index}`} className={styles.key}>{key}</kbd>)}</kbd>;
+  return <KbdGroup className={styles.keys} aria-hidden="true">{keys.map((key, index) => <Kbd key={`${key}-${index}`}>{key}</Kbd>)}</KbdGroup>;
 }
 
 /** A compact inline switch. It is one stop in the menu: up and down pass over it, left and right choose within it. */
