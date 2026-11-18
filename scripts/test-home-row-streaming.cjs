@@ -13,8 +13,7 @@ const section = key => ({ key, sectionName: `Catalog ${key}`, mediaItems: [{ id:
         'next/navigation': { useRouter: () => ({ refresh() {} }) },
         '@/components/home-palette-provider': { HomeInitialPalette: () => null },
         '@/components/media-section': { MediaSection: ({ sectionName }) => React.createElement('section', null, sectionName) },
-        '@/components/ui/loading-placeholder': { LoadingPlaceholder: ({ children }) => React.createElement('div', null, children) },
-        '@/components/ui/skeleton': { Skeleton: () => React.createElement('span') }, '@/components/ui/button': { Button: 'button' },
+        '@/components/ui/button': { Button: 'button' },
     });
     const output = new PassThrough(); let html = '';
     output.on('data', chunk => { html += chunk; });
@@ -29,6 +28,9 @@ const section = key => ({ key, sectionName: `Catalog ${key}`, mediaItems: [{ id:
     }), { onShellReady() { view.pipe(output); }, onError(error) { throw error; } });
     await tick();
     assert.ok(html.includes('data-home-initial-pending'), 'Each unresolved initial row has its own Suspense fallback');
+    assert.match(html, /aria-hidden="true"[^>]+min-height:360px/);
+    assert.match(html, /aspect-\[2\/3\] w-full rounded-md bg-accent/);
+    assert.doesNotMatch(html, /animate-pulse/);
     fast.resolve({ status: 'ready', section: section('fast') }); await tick(); await tick();
     assert.ok(html.includes('Catalog fast'), 'A healthy row reaches the stream while another provider is still pending');
     assert.ok(!html.includes('Catalog slow'));

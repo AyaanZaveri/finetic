@@ -2,8 +2,12 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
+const { load } = require('./test-support/react-hooks.cjs');
+const metadataCache = load('lib/server/metadata-cache.ts', { 'server-only': {} });
 let token = 'first', requests = 0, now = 0, available = true;
-const context = { exports: {}, Date: { now: () => now }, require: name => name === '@/lib/tmdb-credentials'
+const context = { exports: {}, Date: { now: () => now }, require: name => name === 'next/cache' ? { unstable_cache: callback => callback }
+  : name === '@/lib/server/metadata-cache' ? metadataCache
+  : name === '@/lib/tmdb-credentials'
   ? { getTMDBToken: async () => token } : name === '@/lib/tmdb' ? {
     resolveTMDBId: async () => 10,
     fetchTMDB: async () => { requests++; await Promise.resolve(); return available ? { posters: [{ file_path: '/poster.jpg' }] } : null; },
