@@ -93,8 +93,8 @@
 /* Sign out is not destructive, so it stays neutral like every other row. */
 @media (hover: none) { .item:active { background: var(--surface-muted); } }
 
-.keys { display: inline-flex; flex: none; align-items: center; gap: 1px; margin-left: auto; color: var(--text-muted); font-family: var(--font-body); font-size: var(--text-xs); letter-spacing: 0; opacity: .8; font-variant-numeric: tabular-nums; }
-.key { display: inline-block; min-width: 1.05em; font: inherit; text-align: center; }
+.keys { display: inline-flex; flex: none; align-items: center; margin-left: auto; color: var(--text-muted); font-family: var(--font-body); font-size: var(--text-xs); letter-spacing: 0; opacity: .8; font-variant-numeric: tabular-nums; }
+.commaGlyph { position: relative; top: -2px; }
 
 .row { position: relative; display: flex; height: 40px; align-items: center; gap: 10px; padding: 0 4px 0 8px; }
 .rowLabel { flex: 1; color: var(--foreground); font-size: 13px; }
