@@ -7,11 +7,16 @@ const find = (node, predicate) => !node || typeof node !== 'object' ? [] : [
 (async () => {
     const h = hooks();
     let attempts = 0, invalidations = 0, released = 0;
+    let publishStreams;
     const queries = {
         acquire: () => {
             const failed = attempts++ === 0;
             return { release: () => released++, request: {
-                subscribe: listener => { listener({ streams: [], total: 2, pending: 0, complete: true }); return () => {}; },
+                subscribe: listener => {
+                    publishStreams = streams => listener({ streams, total: 2, pending: 0, complete: true });
+                    publishStreams([]);
+                    return () => {};
+                },
                 promise: failed ? Promise.reject(new Error('offline')) : Promise.resolve([]),
             } };
         },
@@ -31,6 +36,7 @@ const find = (node, predicate) => !node || typeof node !== 'object' ? [] : [
         '@/components/arc/chip-group/chip-group': { ChipGroup: 'chips' },
         '@/components/stream-summary': { StreamSummary: 'summary' },
         '@/components/sign-in-for-streams': { SignInForStreams: 'sign-in' },
+        '@/lib/desktop/bridge': { desktopBridge: () => null },
         './media-actions.module.css': {},
     }, { console: { error() {} } });
     const render = () => { const tree = h.render(MediaActions, { media: { id: 'tt123:2:2', type: 'series', name: 'Episode' } }); h.flush(); return tree; };
@@ -40,6 +46,16 @@ const find = (node, predicate) => !node || typeof node !== 'object' ? [] : [
     render(); await tick(); tree = render();
     assert.equal(attempts, 2); assert.equal(invalidations, 1); assert.equal(released, 1);
     assert.equal(find(tree, node => node.type === 'EmptyTitle')[0].props.children, 'No streams crawled out of hiding', 'A successful empty retry must clear the previous error');
+    const fileUrl = 'https://media.example.com/episode.mkv?token=signed';
+    publishStreams([
+        { url: fileUrl, behaviorHints: { filename: 'Episode.mkv' } },
+        { url: 'https://media.example.com/live.m3u8?token=signed' },
+        { externalUrl: 'https://provider.example.com/watch' },
+    ]);
+    const links = find(render(), node => node.type === 'a' && node.props.download !== undefined);
+    assert.equal(links.length, 1, 'Only the direct media file should have a download link');
+    assert.equal(links[0].props.href, fileUrl, 'Download should use the original signed media URL');
+    assert.equal(links[0].props.download, 'Episode.mkv');
     h.unmount();
-    console.log('PASS: stream failures have distinct copy, Retry invalidates and reacquires, and successful empty responses clear errors');
+    console.log('PASS: stream errors, retry, and direct media downloads');
 })().catch(error => { console.error(error); process.exitCode = 1; });

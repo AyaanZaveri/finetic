@@ -34,20 +34,6 @@ interface MediaActionsProps {
 
 const RESOLUTION_FILTERS = ["2160p", "1080p", "720p"] as const;
 
-function downloadStreamLink(url: string) {
-  const objectUrl = URL.createObjectURL(new Blob([url, "\n"], { type: "text/plain;charset=utf-8" }));
-  const link = document.createElement("a");
-  link.href = objectUrl;
-  link.download = "stream-link.txt";
-  document.body.appendChild(link);
-  try {
-    link.click();
-  } finally {
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-  }
-}
-
 export function MediaActions({ media, movie }: MediaActionsProps) {
   const { authenticated } = useAccountAccess();
   const activeMedia = media ?? movie;
@@ -288,9 +274,11 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
           <div className={styles.streamList}>
             {filteredStreams.map((stream, index) => {
               const streamUrl = stream.url || stream.externalUrl;
-              const canDownload = !!streamUrl && !desktopBridge() && /^https?:\/\//i.test(streamUrl);
+              const filePath = stream.url?.split(/[?#]/, 1)[0];
+              const downloadUrl = filePath && /^https?:\/\//i.test(filePath)
+                && !/\.(m3u8|mpd)$/i.test(filePath) && !desktopBridge() ? stream.url : undefined;
               return (
-                <div key={index} className={styles.streamEntry} data-download={canDownload || undefined}>
+                <div key={index} className={styles.streamEntry} data-download={!!downloadUrl || undefined}>
                   <button
                     type="button"
                     className={styles.streamRow}
@@ -314,12 +302,13 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
                       </span>
                     )}
                   </button>
-                  {canDownload && (
-                    <Button type="button" variant="ghost" size="icon" className={styles.streamDownload}
-                      draggable={false} title="Download stream link"
-                      aria-label={`Download stream link for ${getSourceLabel(stream)}${stream.title ? `: ${stream.title}` : ""}`}
-                      onClick={() => downloadStreamLink(streamUrl)}>
-                      <Download aria-hidden="true" />
+                  {downloadUrl && (
+                    <Button asChild variant="ghost" size="icon" className={styles.streamDownload}>
+                      <a href={downloadUrl} download={stream.behaviorHints?.filename || ""} target="_blank" rel="noreferrer"
+                        title="Download file"
+                        aria-label={`Download file for ${getSourceLabel(stream)}${stream.title ? `: ${stream.title}` : ""}`}>
+                        <Download aria-hidden="true" />
+                      </a>
                     </Button>
                   )}
                 </div>
