@@ -41,7 +41,7 @@ class Video extends EventTarget {
   play() { this.paused = false; return Promise.resolve(); }
   pause() { this.paused = true; }
 }
-function fixture({ result, resolvedSource, audioFailure = false, deferred = false, moduleDeferred = false, hdrOutput = false, hdrDisplay = false, hdrFailure = false, hdrPeakNits = 600 } = {}) {
+function fixture({ result, resolvedSource, audioFailure = false, deferred = false, moduleDeferred = false, hdrOutput = false, hdrDisplay = false, hdrFailure = false, hdrPeakNits = 600, startPosition } = {}) {
   let events, resolveOpen, resolveModule, fallbackSource, destroys = 0, fallbacks = 0, frameId = 0;
   const calls = [], timers = new Map(), raf = new Map();
   const stats = { hdrOutput: hdrDisplay && !hdrFailure, framesPresented: 1, framesDropped: 0, audio: {}, audioAheadMs: 100, clockMs: 0 };
@@ -72,7 +72,7 @@ function fixture({ result, resolvedSource, audioFailure = false, deferred = fals
   for (const name of ['loadedmetadata', 'loadeddata', 'canplay', 'playing', 'timeupdate', 'seeking', 'seeked', 'ended', 'trackschange', 'webgpu-hdr-unavailable']) {
     video.addEventListener(name, () => notifications.push(name));
   }
-  const detach = api.attachWebGpuVideo(video, 'https://example.test/film.mkv', source => { fallbackSource = source; fallbacks++; });
+  const detach = api.attachWebGpuVideo(video, 'https://example.test/film.mkv', source => { fallbackSource = source; fallbacks++; }, startPosition);
   return { video, calls, notifications, timers, raf, stats, warnings, detach, get events() { return events; },
     stopRoute: () => { routeStopped = true; },
     get destroys() { return destroys; }, get fallbacks() { return fallbacks; }, get fallbackSource() { return fallbackSource; },
@@ -104,6 +104,27 @@ function fixture({ result, resolvedSource, audioFailure = false, deferred = fals
   assert.ok(!sdr.calls.some(([name]) => name === 'hdr'), 'Keep SDR output on an SDR display'); sdr.detach();
   const disabledHdr = fixture({ hdrDisplay: true }); await tick();
   assert.ok(!disabledHdr.calls.some(([name]) => name === 'hdr'), 'Honor the disabled HDR preference'); disabledHdr.detach();
+  const resumed = fixture({ startPosition: 20 });
+  resumed.video.addEventListener('loadedmetadata', () => {
+    if (Math.abs(resumed.video.currentTime - 20) > .1) resumed.video.currentTime = 20;
+    void resumed.video.play();
+  });
+  await tick();
+  assert.equal(resumed.calls.find(([name]) => name === 'open')[1].startMs, 20000,
+    'Open the decoder at the saved position before requesting play');
+  assert.ok(!resumed.calls.some(([name]) => name === 'seek'), 'Resume must not interrupt the newly opened decoder with a second seek');
+  assert.ok(resumed.calls.some(([name]) => name === 'play'));
+  resumed.detach();
+  const earlyFallback = fixture({ startPosition: 20, deferred: true });
+  earlyFallback.video.addEventListener('loadedmetadata', () => void earlyFallback.video.play());
+  await tick();
+  earlyFallback.events.onFallback('source-unreadable', 0);
+  earlyFallback.video.dispatchEvent(new Event('loadedmetadata'));
+  assert.equal(earlyFallback.video.currentTime, 20, 'A startup failure before the clock begins retains the saved position');
+  assert.equal(earlyFallback.video.paused, false, 'The browser fallback can start from its own metadata event');
+  earlyFallback.resolveOpen();
+  await tick();
+  earlyFallback.detach();
   const f = fixture();
   await f.video.play(); await tick();
   assert.equal(f.video.duration, 100); assert.equal(f.video.videoWidth, 1920);

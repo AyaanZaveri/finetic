@@ -4,7 +4,7 @@ import { useCallback, useLayoutEffect, useRef, type ComponentProps, type Ref } f
 import { toast } from "sonner";
 import { createWebVideoSession, takeWebVideo, type WebVideoSession } from "@/lib/media/web-video-preload";
 
-type Props = ComponentProps<"video"> & { src: string };
+type Props = ComponentProps<"video"> & { src: string; startPosition?: number };
 const events = { onPause: "pause", onPlaying: "playing", onEnded: "ended", onLoadedMetadata: "loadedmetadata",
     onTimeUpdate: "timeupdate", onDurationChange: "durationchange", onCanPlay: "canplay", onLoadedData: "loadeddata",
     onError: "error", onClick: "click" } as const;
@@ -81,14 +81,14 @@ export function WebPlaybackVideo(props: Props) {
         };
         const warm = takeWebVideo(props.src);
         if (warm) install(warm, true);
-        else install(createWebVideoSession(props.src));
+        else install(createWebVideoSession(props.src, false, props.startPosition));
         return () => {
             cancelled = true; removers.forEach(remove => remove());
             if (registration.current?.cleanup) registration.current.cleanup();
             else if (registration.current) assign(registration.current.ref, null);
             registration.current = null; session.current?.dispose(); session.current = null;
         };
-    }, [props.src, update]);
+    }, [props.src, props.startPosition, update]);
     useLayoutEffect(update);
     return <div ref={host} style={{ position: "relative", width: "100%", height: "100vh" }} />;
 }

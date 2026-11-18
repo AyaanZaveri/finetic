@@ -22,7 +22,7 @@ let pending: { url: string; session: WebVideoSession; claimed: boolean; timer: R
 
 /** One paused, unmounted media element. Adoption moves this exact element and
  * its Mux engine into the player; changing src would discard the buffer. */
-export function createWebVideoSession(url: string, speculative = false): WebVideoSession {
+export function createWebVideoSession(url: string, speculative = false, startPosition = 0): WebVideoSession {
     const video = document.createElement("video");
     video.crossOrigin = "anonymous"; video.playsInline = true;
     video.preload = "auto"; video.autoplay = false;
@@ -45,8 +45,8 @@ export function createWebVideoSession(url: string, speculative = false): WebVide
         const useBrowserDecoder = preferences.nativeWebGpuDecoding && !preferences.hdrOutput
             && typeof video.requestVideoFrameCallback === "function";
         detachGpu = useBrowserDecoder
-            ? tryNativeWebGpuVideo(video, url, startNative)
-            : attachWebGpuVideo(video, url, startNative);
+            ? tryNativeWebGpuVideo(video, url, startNative, startPosition)
+            : attachWebGpuVideo(video, url, startNative, startPosition);
     } else {
         startNative();
     }
@@ -83,7 +83,7 @@ export function createWebVideoSession(url: string, speculative = false): WebVide
 }
 
 /** Keep the same element and its controls when the browser cannot open the file. */
-function tryNativeWebGpuVideo(video: HTMLVideoElement, url: string, fallback: (_source: string) => void): () => void {
+function tryNativeWebGpuVideo(video: HTMLVideoElement, url: string, fallback: (_source: string) => void, startPosition: number): () => void {
     const source = new AbortController();
     let disposeRenderer: (() => void) | undefined;
     let disposeEngine: (() => void) | undefined;
@@ -95,13 +95,12 @@ function tryNativeWebGpuVideo(video: HTMLVideoElement, url: string, fallback: (_
     };
     const startEngine = () => {
         stopAttempt();
-        const position = video.currentTime;
+        const position = video.readyState >= 1 ? video.currentTime : startPosition;
         const playing = !video.paused;
         video.pause();
         video.removeAttribute("src");
         video.load();
-        disposeEngine = attachWebGpuVideo(video, url, fallback);
-        if (position > 0) video.currentTime = position;
+        disposeEngine = attachWebGpuVideo(video, url, fallback, position);
         if (playing) void video.play().catch(() => {});
     };
     const onError = (event: Event) => {

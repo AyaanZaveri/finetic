@@ -930,7 +930,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
               ref={videoRef}
               src={streamUrl}
               {...(nativePlayback ? { requestHeaders, startPosition: currentMedia.type === "series" ? 0 : currentMedia.resumePositionTicks ?? 0,
-                onPreloadFallback: () => setVideoReady(false) } : {})}
+                onPreloadFallback: () => setVideoReady(false) } : { startPosition: currentMedia.resumePositionTicks })}
               {...(nativePlayback && !playerAttempt && currentMedia?.nativePreload?.source === streamUrl
                 ? { preloadSrc: currentMedia.nativePreload.url, preloadExpires: currentMedia.nativePreload.expires } : {})}
               crossOrigin=""

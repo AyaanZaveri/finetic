@@ -10,7 +10,7 @@ export type WebGpuVideo = HTMLVideoElement & { webgpu?: {
 
 /** Keep one real video element registered with the controls. Its media API drives
  * the embedded engine until a same-file fallback restores the browser API. */
-export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_source: string) => void): () => void {
+export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_source: string) => void, startPosition = 0): () => void {
     let player: WebGpuPlayer | undefined;
     let lastStats: WebGpuStats | null = null;
     let nextStatsSample = 0;
@@ -25,7 +25,8 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
     };
     let playbackUrl = url, sourceResolved = false;
     const sourceAbort = new AbortController();
-    let time = 0, duration = NaN, width = 0, height = 0, ready = 0;
+    let time = Number.isFinite(startPosition) ? Math.max(0, startPosition) : 0;
+    let duration = NaN, width = 0, height = 0, ready = 0;
     let paused = true, ended = false, seeking = false;
     let volume = video.volume, muted = video.muted, rate = video.playbackRate;
     let pendingSeek: number | undefined;
@@ -90,7 +91,7 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
         fallbackMetadata = () => {
             if (resume > 0) video.currentTime = Number.isFinite(video.duration) ? Math.min(resume, Math.max(0, video.duration - .1)) : resume;
             if (shouldPlay) void video.play().catch(() => {});
-            else video.pause();
+            else if (initialMetadata) video.pause();
         };
         video.addEventListener("loadedmetadata", fallbackMetadata, { once: true });
         fallback(playbackUrl);
@@ -193,18 +194,19 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
     };
     const recover = (reason: string, atMs = time * 1000) => {
         if (closed) return;
+        const resumeMs = !metadataSent || seeking ? time * 1000 : atMs;
         video.dataset.webgpuReason = reasonCode(reason);
         const retrySdr = hdrAttempt && !hdrRejected;
         if (retrySdr || (!silent && player && /audio|decode-failed|start-fallback|startup-timeout|route-start-failed/i.test(reason))) {
             if (retrySdr) { hdrRejected = true; hdrAttempt = false; hdrFallback("output-failed"); }
             else silent = true;
             opened = false; metadataSent = false; ready = 0;
-            time = seekTarget ?? Math.max(0, atMs / 1000);
+            time = Math.max(0, resumeMs / 1000);
             generation++; // Invalidate the failed route before synchronous teardown callbacks.
             player?.destroy();
             emit("waiting");
             void start().catch(() => recover("engine-initialization-failed"));
-        } else fail(atMs, reason);
+        } else fail(resumeMs, reason);
     };
     const start = async () => {
         const current = ++generation;
@@ -260,6 +262,8 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
             catch { hdrRejected = true; hdrAttempt = false; hdrFallback("output-failed"); await owned.setHDROutput(false); }
             if (closed || current !== generation) { owned.destroy(); return; }
         } else if (!hdrRejected && preferences.hdrOutput) hdrFallback("display-unavailable");
+        // A seek received before open is already covered by the opening position.
+        pendingSeek = undefined;
         const result = await owned.open({ url: playbackUrl, startMs: time * 1000, paused: true, audioOrdinal: silent ? -1 : null, volume, muted, rate });
         // An open can complete after destroy while its initial file read settles.
         if (closed || current !== generation) { owned.destroy(); return; }

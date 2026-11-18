@@ -80,8 +80,8 @@ const server = load('lib/server/desktop-video-preload.ts', { 'server-only': {} }
       const renderer = { video, disposed: false }; nativeRenderers.push(renderer);
       return () => { renderer.disposed = true; };
     } },
-    './webgpu-video': { attachWebGpuVideo(video) {
-      const engine = { video, disposed: false }; embeddedEngines.push(engine);
+    './webgpu-video': { attachWebGpuVideo(video, _url, _fallback, startPosition) {
+      const engine = { video, startPosition, disposed: false }; embeddedEngines.push(engine);
       return () => { engine.disposed = true; };
     } },
   },{...globals,document,
@@ -133,10 +133,11 @@ const server = load('lib/server/desktop-video-preload.ts', { 'server-only': {} }
   stalled.dispose();
 
   audioCodec = 'truehd';
-  const unsupportedAudio = web.createWebVideoSession('https://cdn.example/file.mkv');
+  const unsupportedAudio = web.createWebVideoSession('https://cdn.example/file.mkv', false, 20);
   await new Promise(setImmediate);
   assert.equal(unsupportedAudio.video.src, undefined, 'Do not start native playback with unsupported primary audio');
   assert.equal(embeddedEngines[2].video, unsupportedAudio.video);
+  assert.equal(embeddedEngines[2].startPosition, 20, 'Browser decoder rejection preserves the saved position before metadata');
   unsupportedAudio.dispose();
 
   hdrOutput = true;
@@ -166,6 +167,13 @@ const server = load('lib/server/desktop-video-preload.ts', { 'server-only': {} }
   retained.dispatchEvent(new Event('click'));assert.equal(clicks,1);
   host.render(component.WebPlaybackVideo,{...props,onClick:()=>clicks+=2});host.flush();retained.dispatchEvent(new Event('click'));assert.equal(clicks,3);
   host.unmount();assert.equal(mediaRef,null);assert.ok(retained.tornDown);
+  gpuEnabled = true;
+  const resumed = host.render(component.WebPlaybackVideo, { ...props, src: 'https://cdn.example/resume.mkv', startPosition: 20 });
+  resumed.props.ref.current = { append() {} };
+  host.flush(); await tick();
+  assert.equal(embeddedEngines.at(-1).startPosition, 20, 'Pass the resume position through the player component to the decoder');
+  host.unmount();
+  gpuEnabled = false;
   console.log('PASS: retained Mux/HLS engine and media element, bounded standby config, cancellation, single-use adoption, restored budgets, player refs/events and unmount cleanup');
 
   const conditions=load('lib/media/preload-next-video.ts',{'@/lib/desktop/bridge':{desktopBridge:()=>undefined},'./web-video-preload':web},
