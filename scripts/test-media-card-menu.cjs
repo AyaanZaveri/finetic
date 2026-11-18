@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const { QueryClient } = require('@tanstack/react-query');
 const { load, hooks } = require('./test-support/react-hooks.cjs');
 const nodes = node => !node || typeof node !== 'object' ? [] : [node, ...[node.props?.children].flat(Infinity).flatMap(nodes)];
 const tick = () => new Promise(setImmediate);
@@ -10,7 +11,7 @@ class Element extends Node {
 }
 class MouseEvent { constructor(type, init) { this.type = type; Object.assign(this, init); } }
 const primitives = Object.fromEntries(['Root', 'Trigger', 'Portal', 'Positioner', 'Popup', 'Group', 'GroupLabel', 'Item', 'Separator'].map(key => [key, key]));
-function setup({ mobile = false, authenticated = true, continueWatching = true, type = 'series', known = true, reduced = false, override = {} } = {}) {
+function setup({ mobile = false, authenticated = true, continueWatching = true, type = 'series', known = true, reduced = false, override = {}, queries, saveRemoval, saveWatched } = {}) {
     const h = hooks(), plays = [], routes = [], reads = [], toggles = [], errors = [], events = [];
     let signIns = 0;
     const item = { id: 'tt123', name: 'Show', type, ...(type === 'series' ? { mediaSourceId: 'tt123:1:2', seasonNumber: 1, episodeNumber: 2 } : {}),
@@ -23,10 +24,11 @@ function setup({ mobile = false, authenticated = true, continueWatching = true, 
         '@/components/ui/button': { Button: 'button' },
         'next/navigation': { useRouter: () => ({ push: (...args) => routes.push(args) }) },
         sonner: { toast: { error: message => errors.push(message) } },
+        '@/components/stream-query-provider': { useStreamQueries: () => queries },
         '@/contexts/account-context': { useAccountAccess: () => ({ authenticated, requestSignIn: () => signIns++ }) },
-        '@/contexts/watch-history-context': { useWatchStatus: (id, type, videoId) => ({ known, watched: false, toggle: async () => { toggles.push({ id, type, videoId }); return true; } }) },
+        '@/contexts/watch-history-context': { useWatchStatus: (id, type, videoId) => ({ known, watched: false, toggle: async () => { toggles.push({ id, type, videoId }); return saveWatched ? saveWatched() : true; } }) },
         '@/app/actions/media': { fetchPlaybackProgress: (id, videoId) => new Promise(resolve => reads.push({ id, videoId, resolve })) },
-        '@/app/actions/continue-watching': { removeFromContinueWatching: async input => { events.push(input); return true; } },
+        '@/app/actions/continue-watching': { removeFromContinueWatching: async input => { events.push(input); return saveRemoval ? saveRemoval() : true; } },
         '@/lib/media/fetch-playback-id': { fetchPlaybackId: async () => 'tt123' },
         '@/components/account-ui/drawer': Object.fromEntries(['Drawer', 'DrawerClose', 'DrawerContent', 'DrawerDescription', 'DrawerHeader', 'DrawerTitle'].map(key => [key, key])),
         '@/components/account-ui/surface.module.css': { surface: 'account-glass' },
@@ -88,6 +90,41 @@ function setup({ mobile = false, authenticated = true, continueWatching = true, 
     assert.equal(mobile.find('Drawer').props.open, false, 'The drawer stays mounted closed, exactly like sign-in');
     mobile.open('touchstart');
     assert.equal(mobile.find('Drawer').props.open, true, 'Reopening uses the same closed-to-open lifecycle');
+
+    const { continueWatchingKey, continueWatchingRemovalKey, continueWatchingCardKey } = load('lib/media/continue-watching-query.ts');
+    const client = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity }, mutations: { gcTime: Infinity } } });
+    const scope = 'test-account';
+    const queryKey = continueWatchingKey(scope);
+    const episode = { id: 'tt123', type: 'series', mediaSourceId: 'tt123:1:2' };
+    const newerEpisode = { ...episode, mediaSourceId: 'tt123:1:3' };
+    const pending = () => client.getMutationCache().findAll({ mutationKey: continueWatchingRemovalKey(scope), status: 'pending' });
+    let finishWatched, finishRemoval;
+    client.setQueryData(queryKey, [episode]);
+    const failedWatch = setup({ queries: { client, scope }, saveWatched: () => new Promise(resolve => { finishWatched = resolve; }) });
+    failedWatch.open();
+    const watching = failedWatch.action('Mark episode as watched').props.onSelect();
+    assert.equal(pending()[0].state.variables, continueWatchingCardKey(episode), 'Marking the current episode hides its resume card before saving');
+    await tick();
+    finishWatched(false);
+    await watching;
+    assert.equal(pending().length, 0, 'Failure releases the optimistic removal');
+    assert.deepEqual(client.getQueryData(queryKey), [episode], 'Failed actions preserve the original card in the cache');
+    assert.equal(failedWatch.errors.length, 1);
+
+    const removingOnMobile = setup({ mobile: true, queries: { client, scope }, saveRemoval: () => new Promise(resolve => { finishRemoval = resolve; }) });
+    removingOnMobile.open('touchstart');
+    const mobileRemove = nodes(removingOnMobile.find('Drawer')).find(node => node.type === 'button' && node.props.children.includes('Remove from Continue Watching'));
+    const removing = mobileRemove.props.onClick();
+    assert.equal(pending()[0].state.variables, continueWatchingCardKey(episode), 'The drawer shares the optimistic removal');
+    await tick();
+    client.setQueryData(queryKey, [episode, newerEpisode]);
+    removingOnMobile.h.unmount();
+    finishRemoval(true);
+    await removing;
+    assert.deepEqual(client.getQueryData(queryKey), [newerEpisode], 'Success removes the selected card after unmount and leaves a newer episode intact');
+    assert.equal(pending().length, 0);
+    client.clear();
+
     let dispatched;
     desktop.find('Trigger').props.onKeyDown({ key: 'F10', shiftKey: true, preventDefault() {}, stopPropagation() {},
         target: { getBoundingClientRect: () => ({ left: 20, top: 30 }), dispatchEvent: event => dispatched = event } });

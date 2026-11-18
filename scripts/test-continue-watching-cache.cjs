@@ -3,7 +3,7 @@ const { QueryClient, QueryObserver, timeoutManager } = require('@tanstack/react-
 const { load, hooks } = require('./test-support/react-hooks.cjs');
 timeoutManager.setTimeoutProvider({ setTimeout: (fn, ms) => { const timer = setTimeout(fn, ms); timer.unref(); return timer; }, clearTimeout,
  setInterval: (fn, ms) => { const timer = setInterval(fn, ms); timer.unref(); return timer; }, clearInterval });
-const { continueWatchingOptions } = load('lib/media/continue-watching-query.ts');
+const { continueWatchingOptions, continueWatchingCardKey } = load('lib/media/continue-watching-query.ts');
 (async () => {
  const client = new QueryClient();
  let finish, calls=0;
@@ -34,10 +34,10 @@ const { continueWatchingOptions } = load('lib/media/continue-watching-query.ts')
 // Exercise the row's actual cached render, including optional captions and watcher.
 const h = hooks();
 const cachedItems = [{id:'tt1',type:'movie',name:'Known',year:2014},{id:'tt2',type:'movie',name:'Missing'}];
-let refreshed=0, listener;
+let refreshed=0, listener, pendingRemovals=[];
 const { ContinueWatchingSection } = load('components/home-continue-watching.tsx', {
  react:h.react,'react/jsx-runtime':h.jsx,
- '@tanstack/react-query':{...require('@tanstack/react-query'),useQuery:options=>options.queryKey[0]==='resume-movie-year'?{data:2014}:{data:cachedItems,isPending:false,refetch:()=>{refreshed++;}}},
+ '@tanstack/react-query':{...require('@tanstack/react-query'),useMutationState:()=>pendingRemovals,useQuery:options=>options.queryKey[0]==='resume-movie-year'?{data:2014}:{data:cachedItems,isPending:false,refetch:()=>{refreshed++;}}},
  '@/components/stream-query-provider':{useStreamQueries:()=>({scope:'user:session',client:{getQueryData:()=>cachedItems}})},
  '@/app/actions/media':{fetchResumeItems(){},fetchResumeMovieYear(){}},
  '@/components/continue-watching-warmup':{ContinueWatchingWarmup:'warmup'},
@@ -58,4 +58,8 @@ assert.equal(refreshed,0,'Heartbeats do not read the full library again');
 listener({ detail: { playback: 'stopped' } });
 assert.equal(refreshed,1,'Closing playback refreshes the row');
 listener({});assert.equal(refreshed,2,'Watch-history changes refresh progress without clearing cards');
+pendingRemovals=[continueWatchingCardKey(cachedItems[0])];
+assert.deepEqual(Array.from(nodes(h.render(ContinueWatchingSection)).find(node=>node.type==='row').props.mediaItems),[cachedItems[1]],'A pending removal hides only the selected card');
+pendingRemovals=[];
+assert.deepEqual(Array.from(nodes(h.render(ContinueWatchingSection)).find(node=>node.type==='row').props.mediaItems),cachedItems,'A failed removal lets the card return in its original position');
 h.unmount();

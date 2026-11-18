@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutationState, useQuery } from "@tanstack/react-query";
 import { fetchResumeItems, fetchResumeMovieYear } from "@/app/actions/media";
-import { continueWatchingOptions } from "@/lib/media/continue-watching-query";
+import { continueWatchingCardKey, continueWatchingKey, continueWatchingOptions, continueWatchingRemovalKey } from "@/lib/media/continue-watching-query";
 import { WATCH_HISTORY_CHANGED } from "@/lib/watch-history";
 import { useStreamQueries } from "@/components/stream-query-provider";
 import { ContinueWatchingWarmup } from "@/components/continue-watching-warmup";
@@ -22,8 +22,12 @@ function ResumeMovieYear({ id, scope }: { id: string; scope: string }) {
 export function ContinueWatchingSection() {
     const queries = useStreamQueries();
     const scope = queries?.scope ?? "anonymous";
-    const [revealArtwork] = useState(() => !queries?.client.getQueryData(["continue-watching", scope]));
+    const [revealArtwork] = useState(() => !queries?.client.getQueryData(continueWatchingKey(scope)));
     const { data, isPending, refetch } = useQuery(continueWatchingOptions(scope, fetchResumeItems));
+    const pendingRemovals = useMutationState({
+        filters: { mutationKey: continueWatchingRemovalKey(scope), exact: true, status: "pending" },
+        select: mutation => mutation.state.variables,
+    });
     useEffect(() => {
         const refresh = (event: Event) => {
             // The player owns live progress. Refresh the row when playback
@@ -44,7 +48,8 @@ export function ContinueWatchingSection() {
         <p role="alert" className="text-sm text-muted-foreground">Could not load Continue Watching.</p>
         <Button type="button" variant="outline" size="sm" onClick={() => { void refetch(); }} className="mt-2">Try again</Button>
     </section>;
-    const items = data.slice(0, 20);
+    const visible = pendingRemovals.length ? data.filter(item => !pendingRemovals.includes(continueWatchingCardKey(item))) : data;
+    const items = visible.slice(0, 20);
     const artwork = items[0] ? mediaArtwork(items[0]) : null;
     return <>
         {artwork && <HomeInitialPalette primary={artwork.background} fallback={artwork.poster} />}

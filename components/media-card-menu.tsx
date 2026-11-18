@@ -17,6 +17,8 @@ import { removeFromContinueWatching } from "@/app/actions/continue-watching";
 import { fetchPlaybackId } from "@/lib/media/fetch-playback-id";
 import { buildSeriesPath, parseSeriesRouteId } from "@/lib/series-route";
 import { WATCH_HISTORY_CHANGED } from "@/lib/watch-history";
+import { removeContinueWatchingCard } from "@/lib/media/continue-watching-query";
+import { useStreamQueries } from "@/components/stream-query-provider";
 import type { MediaItem } from "@/types/stremio";
 import accountSurface from "@/components/account-ui/surface.module.css";
 import glass from "@/components/arc/floating-surface.module.css";
@@ -29,6 +31,7 @@ export function MediaCardMenu({ item, continueWatching, detailsHref, onPlay, onR
     onPlay: (_playback: CardPlayback) => Promise<void>; onResolvedId?: (_id: string) => void; children: ReactElement;
 }) {
     const router = useRouter();
+    const queries = useStreamQueries();
     const { authenticated, requestSignIn } = useAccountAccess();
     const [menuOpen, setMenuOpen] = useState(false);
     const [drawerOpen, setDrawerOpen] = useState(false);
@@ -88,6 +91,11 @@ export function MediaCardMenu({ item, continueWatching, detailsHref, onPlay, onR
         if (!authenticated) { requestSignIn(); return; }
         await onPlay({ fromBeginning, titleId, videoId, resumePosition: fromBeginning ? 0 : resumePosition });
     });
+    const clearResume = async (save: () => Promise<boolean>) => {
+        if (queries) await removeContinueWatchingCard(queries.client, queries.scope, item, save);
+        else if (!await save()) throw new Error("Could not update Continue Watching");
+        window.dispatchEvent(new CustomEvent(WATCH_HISTORY_CHANGED, { detail: { id: titleId } }));
+    };
     const actions = [
         { id: "play", label: canResume ? "Resume" : "Play", icon: Play, disabled: reading, run: () => play() },
         ...(canResume ? [{ id: "restart", label: "Play from beginning", icon: RotateCcw, disabled: reading, run: () => play(true) }] : []),
@@ -96,14 +104,16 @@ export function MediaCardMenu({ item, continueWatching, detailsHref, onPlay, onR
         ...(authenticated && (item.type === "movie" || isEpisode) ? [{
             id: "watched", label: isEpisode ? `Mark episode as ${status.watched ? "unwatched" : "watched"}` : `Mark as ${status.watched ? "unwatched" : "watched"}`,
             icon: status.watched ? Eye : Check, disabled: !status.known || reading,
-            run: () => act(async () => { if (!await status.toggle(item.showName || item.name)) throw new Error("Watch status failed"); }),
+            run: () => act(async () => {
+                const save = () => status.toggle(item.showName || item.name);
+                // Changing the watched flag for the current video clears its resume position.
+                if (continueWatching) await clearResume(save);
+                else if (!await save()) throw new Error("Watch status failed");
+            }),
         }] : []),
         ...(authenticated && continueWatching && (item.type === "movie" || item.type === "series") ? [{
             id: "remove", label: "Remove from Continue Watching", icon: X,
-            run: () => act(async () => {
-                if (!await removeFromContinueWatching({ id: titleId, type: item.type as "movie" | "series", videoId })) throw new Error("Remove failed");
-                window.dispatchEvent(new CustomEvent(WATCH_HISTORY_CHANGED, { detail: { id: titleId } }));
-            }),
+            run: () => act(() => clearResume(() => removeFromContinueWatching({ id: titleId, type: item.type as "movie" | "series", videoId }))),
         }] : []),
     ];
 
