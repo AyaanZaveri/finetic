@@ -4,7 +4,7 @@
     <title>Navigator for Windows</title>
     <language>en</language>
     <item>
-      <title>Navigator 0.6.1</title>
+      <title>Navigator 0.6.2</title>
       <description>&lt;!doctype html&gt;
 &lt;html lang=&quot;en&quot;&gt;
 &lt;head&gt;
@@ -22,9 +22,9 @@ p { margin: 0; }
 &lt;/head&gt;
 &lt;body&gt;&lt;p&gt;Update Navigator, then reopen it with your existing sign-in and settings.&lt;/p&gt;&lt;/body&gt;
 &lt;/html&gt;</description>
-      <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.6.1/Navigator-0.6.1-windows-x64-setup.exe" sparkle:version="0.6.1" sparkle:shortVersionString="0.6.1"
-        sparkle:os="windows" sparkle:installerArguments="/S /UPDATE" sparkle:edSignature="yONuRod7EQOMmzPb8w/oLs7vM/RHXFAEfe3eAKdm1HmqXD8LsqzMB877THzU5gXJRLCtL+WODKtKdQbhSzKQCA=="
-        length="80818164" type="application/octet-stream" />
+      <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.6.2/Navigator-0.6.2-windows-x64-setup.exe" sparkle:version="0.6.2" sparkle:shortVersionString="0.6.2"
+        sparkle:os="windows" sparkle:installerArguments="/S /UPDATE" sparkle:edSignature="Eu0G+1LRBEXaukJi6R+yP/chdtTERQWFpxchJhKYHVrxXPNBYFwCF5t4lUnqh+6rsj7t29k+iUh1dB/4/6KKCA=="
+        length="80851720" type="application/octet-stream" />
     </item>
   </channel>
 </rss>
