@@ -97,17 +97,6 @@
   grid-area: 1 / 1;
 }
 
-.streamEntry[data-download] .streamRow {
-  padding-inline-end: 3.75rem;
-}
-
-.streamDownload {
-  z-index: 1;
-  align-self: center;
-  justify-self: end;
-  margin-inline-end: 0.625rem;
-}
-
 .streamRow,
 .streamSkeleton {
   position: relative;

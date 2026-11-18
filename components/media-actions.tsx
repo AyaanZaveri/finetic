@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/empty";
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Download, Loader2, SearchX } from "lucide-react";
+import { Loader2, SearchX } from "lucide-react";
 import { usePlaybackActions } from "@/contexts/MediaPlayerContext";
 import { fetchPlaybackProgress } from "@/app/actions";
 import { SearchField } from "@/components/arc/search-field/search-field";
@@ -25,6 +25,7 @@ import { safeResumePosition } from "@/lib/media/resume-playback";
 import { useAccountAccess } from "@/contexts/account-context";
 import { Button } from "@/components/ui/button";
 import { desktopBridge } from "@/lib/desktop/bridge";
+import { StreamActionsMenu } from "@/components/stream-actions-menu";
 import { SignInForStreams } from "@/components/sign-in-for-streams";
 
 interface MediaActionsProps {
@@ -263,7 +264,8 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
               const downloadUrl = filePath && /^https?:\/\//i.test(filePath)
                 && !/\.(m3u8|mpd)$/i.test(filePath) && !desktopBridge() ? stream.url : undefined;
               return (
-                <div key={index} className={styles.streamEntry} data-download={!!downloadUrl || undefined}>
+                <div key={index} className={styles.streamEntry}>
+                  <StreamActionsMenu label={getSourceLabel(stream)} url={streamUrl} downloadUrl={downloadUrl} filename={stream.behaviorHints?.filename}>
                   <button
                     type="button"
                     className={styles.streamRow}
@@ -287,15 +289,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
                       </span>
                     )}
                   </button>
-                  {downloadUrl && (
-                    <Button asChild variant="ghost" size="icon" className={styles.streamDownload}>
-                      <a href={downloadUrl} download={stream.behaviorHints?.filename || ""} target="_blank" rel="noreferrer"
-                        title="Download file"
-                        aria-label={`Download file for ${getSourceLabel(stream)}${stream.title ? `: ${stream.title}` : ""}`}>
-                        <Download aria-hidden="true" />
-                      </a>
-                    </Button>
-                  )}
+                  </StreamActionsMenu>
                 </div>
               );
             })}
