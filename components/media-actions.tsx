@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/empty";
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, SearchX } from "lucide-react";
+import { Download, Loader2, SearchX } from "lucide-react";
 import { usePlaybackActions } from "@/contexts/MediaPlayerContext";
 import { fetchPlaybackProgress } from "@/app/actions";
 import { SearchField } from "@/components/arc/search-field/search-field";
@@ -23,6 +23,7 @@ import { useStreamQueries } from "@/components/stream-query-provider";
 import { projectPlaybackDetails } from "@/lib/media/playback-details";
 import { useAccountAccess } from "@/contexts/account-context";
 import { Button } from "@/components/ui/button";
+import { desktopBridge } from "@/lib/desktop/bridge";
 import { SignInForStreams } from "@/components/sign-in-for-streams";
 
 interface MediaActionsProps {
@@ -32,6 +33,20 @@ interface MediaActionsProps {
 
 
 const RESOLUTION_FILTERS = ["2160p", "1080p", "720p"] as const;
+
+function downloadStreamLink(url: string) {
+  const objectUrl = URL.createObjectURL(new Blob([url, "\n"], { type: "text/plain;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = "stream-link.txt";
+  document.body.appendChild(link);
+  try {
+    link.click();
+  } finally {
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  }
+}
 
 export function MediaActions({ media, movie }: MediaActionsProps) {
   const { authenticated } = useAccountAccess();
@@ -273,31 +288,41 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
           <div className={styles.streamList}>
             {filteredStreams.map((stream, index) => {
               const streamUrl = stream.url || stream.externalUrl;
+              const canDownload = !!streamUrl && !desktopBridge() && /^https?:\/\//i.test(streamUrl);
               return (
-                <button
-                  key={index}
-                  type="button"
-                  className={styles.streamRow}
-                  disabled={!streamUrl}
-                  aria-label={`Play ${getSourceLabel(stream)}${stream.title ? `: ${stream.title}` : ""}`}
-                  onClick={() => handlePlay(stream)} draggable={false}
-                >
-                  <StreamSummary stream={stream} fallbackLabel={getSourceLabel(stream)} />
-                  {(stream.behaviorHints?.filename ||
-                    stream.behaviorHints?.videoSize) && (
-                    <span className={styles.streamFile}>
-                      {stream.behaviorHints?.filename}
-                      {formatVideoSize(stream.behaviorHints?.videoSize) && (
-                        <span className={styles.streamSize}>
-                          {stream.behaviorHints?.filename && (
-                            <> <span aria-hidden="true">·</span> </>
-                          )}
-                          {formatVideoSize(stream.behaviorHints?.videoSize)}
-                        </span>
-                      )}
-                    </span>
+                <div key={index} className={styles.streamEntry} data-download={canDownload || undefined}>
+                  <button
+                    type="button"
+                    className={styles.streamRow}
+                    disabled={!streamUrl}
+                    aria-label={`Play ${getSourceLabel(stream)}${stream.title ? `: ${stream.title}` : ""}`}
+                    onClick={() => handlePlay(stream)} draggable={false}
+                  >
+                    <StreamSummary stream={stream} fallbackLabel={getSourceLabel(stream)} />
+                    {(stream.behaviorHints?.filename ||
+                      stream.behaviorHints?.videoSize) && (
+                      <span className={styles.streamFile}>
+                        {stream.behaviorHints?.filename}
+                        {formatVideoSize(stream.behaviorHints?.videoSize) && (
+                          <span className={styles.streamSize}>
+                            {stream.behaviorHints?.filename && (
+                              <> <span aria-hidden="true">·</span> </>
+                            )}
+                            {formatVideoSize(stream.behaviorHints?.videoSize)}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </button>
+                  {canDownload && (
+                    <Button type="button" variant="ghost" size="icon" className={styles.streamDownload}
+                      draggable={false} title="Download stream link"
+                      aria-label={`Download stream link for ${getSourceLabel(stream)}${stream.title ? `: ${stream.title}` : ""}`}
+                      onClick={() => downloadStreamLink(streamUrl)}>
+                      <Download aria-hidden="true" />
+                    </Button>
                   )}
-                </button>
+                </div>
               );
             })}
           </div>
