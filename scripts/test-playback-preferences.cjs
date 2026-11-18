@@ -10,7 +10,7 @@ const audio = load('lib/media/audio-language.ts');
 const subtitles = load('lib/media/subtitle-preference.ts', { './audio-language': audio });
 const appearance = load('lib/subtitle-appearance.ts');
 const plain = value => JSON.parse(JSON.stringify(value));
-const defaults = { continueWatchingPrefetch: true, metadataPrefetch: true, episodeAutoplay: true, episodePrefetch: true, autoSelectWebStream: false, webGpuPlayback: true, hdrOutput: false, hdrPeakNits: 1000, audioLanguage: 'en', subtitleLanguage: 'en', subtitleMode: 'normal', subtitlesEnabledByDefault: false };
+const defaults = { continueWatchingPrefetch: true, metadataPrefetch: true, episodeAutoplay: true, episodePrefetch: true, autoSelectWebStream: false, webGpuPlayback: true, nativeWebGpuDecoding: false, hdrOutput: false, hdrPeakNits: 1000, audioLanguage: 'en', subtitleLanguage: 'en', subtitleMode: 'normal', subtitlesEnabledByDefault: false };
 assert.deepEqual(plain(preferences.readPlaybackPreferences()), defaults);
 function mount() {
   const host = hooks();

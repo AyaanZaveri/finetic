@@ -143,6 +143,7 @@
     "@types/node": "^20.19.43",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@webgpu/types": "0.1.74",
     "eslint": "^9.39.5",
     "eslint-config-next": "16.4.6",
     "eslint-plugin-jest": "^29.17.0",

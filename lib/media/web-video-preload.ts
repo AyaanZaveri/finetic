@@ -1,5 +1,9 @@
 import { canUseWebGpu } from "./webgpu-module";
 import { attachWebGpuVideo } from "./webgpu-video";
+import { renderNativeVideoWithWebGpu } from "./native-webgpu-renderer";
+import { resolveWebGpuSource } from "./webgpu-source";
+import { readPlaybackPreferences } from "./playback-preferences";
+import { WEB_STARTUP_WATCHDOG_MS } from "./web-startup-watchdog";
 import { getWebPlaybackElement } from "./playback-source";
 import { initialize, teardown as teardownMux } from "@mux/playback-core";
 
@@ -33,8 +37,17 @@ export function createWebVideoSession(url: string, speculative = false): WebVide
             }, video);
         } else { video.src = source; video.load(); }
     };
-    const detachGpu = !speculative && canUseWebGpu(url) ? attachWebGpuVideo(video, url, startNative) : undefined;
-    if (!detachGpu) startNative();
+    let detachGpu: (() => void) | undefined;
+    if (!speculative && canUseWebGpu(url)) {
+        const preferences = readPlaybackPreferences();
+        const useBrowserDecoder = preferences.nativeWebGpuDecoding && !preferences.hdrOutput
+            && typeof video.requestVideoFrameCallback === "function";
+        detachGpu = useBrowserDecoder
+            ? tryNativeWebGpuVideo(video, url, startNative)
+            : attachWebGpuVideo(video, url, startNative);
+    } else {
+        startNative();
+    }
     const stop = () => {
         if (speculative && video.buffered.length && video.buffered.end(video.buffered.length - 1) >= VIDEO_PRELOAD_SECONDS) {
             // HLS can stop loading without detaching MediaSource or dropping packets.
@@ -64,6 +77,52 @@ export function createWebVideoSession(url: string, speculative = false): WebVide
             video.removeEventListener("progress", stop); detachGpu?.(); video.pause();
             teardown?.(video, core); video.removeAttribute("src"); video.load(); video.remove();
         },
+    };
+}
+
+/** Keep the same element and its controls when the browser cannot open the file. */
+function tryNativeWebGpuVideo(video: HTMLVideoElement, url: string, fallback: (_source: string) => void): () => void {
+    const source = new AbortController();
+    let disposeRenderer: (() => void) | undefined;
+    let disposeEngine: (() => void) | undefined;
+    const stopAttempt = () => {
+        clearTimeout(timer);
+        video.removeEventListener("loadeddata", onLoaded);
+        video.removeEventListener("error", onError, true);
+        source.abort();
+    };
+    const startEngine = () => {
+        stopAttempt();
+        const position = video.currentTime;
+        const playing = !video.paused;
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+        disposeEngine = attachWebGpuVideo(video, url, fallback);
+        if (position > 0) video.currentTime = position;
+        if (playing) void video.play().catch(() => {});
+    };
+    const onError = (event: Event) => {
+        event.stopImmediatePropagation();
+        startEngine();
+    };
+    const onLoaded = () => {
+        stopAttempt();
+        disposeRenderer = renderNativeVideoWithWebGpu(video);
+    };
+    video.addEventListener("loadeddata", onLoaded);
+    video.addEventListener("error", onError, true);
+    const timer = setTimeout(startEngine, WEB_STARTUP_WATCHDOG_MS);
+    void resolveWebGpuSource(url, source.signal).then(resolved => {
+        if (!source.signal.aborted) {
+            video.src = resolved;
+            video.load();
+        }
+    }).catch(() => { if (!source.signal.aborted) startEngine(); });
+    return () => {
+        stopAttempt();
+        disposeRenderer?.();
+        disposeEngine?.();
     };
 }
 
