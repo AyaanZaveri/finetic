@@ -4,7 +4,7 @@ import { useRef, useState, type ReactElement } from "react";
 import { Copy, Download } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuTrigger } from "@/components/ui/context-menu";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/account-ui/drawer";
 import accountSurface from "@/components/account-ui/surface.module.css";
 import glass from "@/components/arc/floating-surface.module.css";
@@ -75,14 +75,13 @@ export function StreamActionsMenu({ label, url, downloadUrl, filename, children 
           if (!returnFocus.current?.isConnected) return;
           event.preventDefault(); returnFocus.current.focus({ preventScroll: true });
         }}>
-        <ContextMenuLabel className="truncate">{label}</ContextMenuLabel>
         {downloadUrl && <ContextMenuItem onSelect={download}><Download aria-hidden="true" />Download</ContextMenuItem>}
         <ContextMenuItem onSelect={() => void copy()}><Copy aria-hidden="true" />Copy stream</ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
     <Drawer open={drawerOpen} onOpenChange={setDrawerOpen} showSwipeHandle>
       <DrawerContent className={`${accountSurface.surface} [--drawer-inset:0.5rem] after:hidden`} finalFocus={returnFocus}>
-        <DrawerHeader><DrawerTitle>{label}</DrawerTitle><DrawerDescription>Choose an action</DrawerDescription></DrawerHeader>
+        <DrawerHeader><DrawerTitle>Stream actions</DrawerTitle><DrawerDescription>Choose an action</DrawerDescription></DrawerHeader>
         <div className="flex min-h-0 flex-col overflow-y-auto p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           {downloadUrl && <Button type="button" variant="ghost" className="min-h-12 w-full justify-start" onClick={download}><Download data-icon="inline-start" aria-hidden="true" />Download</Button>}
           <Button type="button" variant="ghost" className="min-h-12 w-full justify-start" onClick={() => void copy()}><Copy data-icon="inline-start" aria-hidden="true" />Copy stream</Button>
