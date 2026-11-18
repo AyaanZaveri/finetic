@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { readFile, readdir, stat, rm, mkdir, copyFile, writeFile } from "node:fs/promises";
+import { readFile, readdir, stat, rm, mkdir, mkdtemp, symlink, readlink, copyFile, writeFile } from "node:fs/promises";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { windowsPowerShellEnvironment } from "./package-windows.mjs";
@@ -47,6 +47,38 @@ export async function verifyServer(directory, version) {
     return buildId;
 }
 
+function verifyMacApp(app, version) {
+    const plist = join(app, "Contents/Info.plist");
+    for (const key of ["CFBundleShortVersionString", "CFBundleVersion"]) {
+        const value = execFileSync("/usr/libexec/PlistBuddy", ["-c", `Print :${key}`, plist], { encoding: "utf8" }).trim();
+        if (value !== version) throw Error(`Packaged ${key} does not match`);
+    }
+    execFileSync("codesign", ["--verify", "--deep", "--strict", app]);
+}
+
+async function createMacDiskImage(archive, image, version) {
+    const staging = await mkdtemp(join(dirname(image), "mac-image-"));
+    const files = join(staging, "files");
+    const mount = join(staging, "mount");
+    let mounted = false;
+    try {
+        await mkdir(files);
+        await mkdir(mount);
+        execFileSync("ditto", ["-x", "-k", archive, files]);
+        verifyMacApp(join(files, "Navigator.app"), version);
+        await symlink("/Applications", join(files, "Applications"));
+        execFileSync("hdiutil", ["create", "-quiet", "-format", "UDZO", "-volname", `Navigator ${version}`, "-srcfolder", files, image]);
+        execFileSync("hdiutil", ["verify", "-quiet", image]);
+        execFileSync("hdiutil", ["attach", "-quiet", "-readonly", "-nobrowse", "-mountpoint", mount, image]);
+        mounted = true;
+        verifyMacApp(join(mount, "Navigator.app"), version);
+        if (await readlink(join(mount, "Applications")) !== "/Applications") throw Error("Disk image Applications shortcut is invalid");
+    } finally {
+        if (mounted) execFileSync("hdiutil", ["detach", "-quiet", mount]);
+        await rm(staging, { recursive: true, force: true });
+    }
+}
+
 async function collect() {
     const version = await releaseVersion(root);
     const mac = process.platform === "darwin";
@@ -56,13 +88,10 @@ async function collect() {
     const buildId = await verifyServer(join(resources, "server"), version);
     let nativeVersion;
     if (mac) {
-        const plist = join(bundle, "Navigator.app/Contents/Info.plist");
-        for (const key of ["CFBundleShortVersionString", "CFBundleVersion"]) {
-            const value = execFileSync("/usr/libexec/PlistBuddy", ["-c", `Print :${key}`, plist], { encoding: "utf8" }).trim();
-            if (value !== version) throw Error(`Packaged ${key} does not match`);
-        }
-        execFileSync("codesign", ["--verify", "--deep", "--strict", join(bundle, "Navigator.app")]);
-        execFileSync("unzip", ["-tq", join(root, "dist", `Navigator-${version}-macos-arm64.zip`)]);
+        const archive = join(root, "dist", `Navigator-${version}-macos-arm64.zip`);
+        const image = join(root, "dist", `Navigator-${version}-macos-arm64.dmg`);
+        execFileSync("unzip", ["-tq", archive]);
+        await createMacDiskImage(archive, image, version);
         nativeVersion = version;
     } else {
         const command = "$v = (Get-Item -LiteralPath $env:NAVIGATOR_VERIFY_EXE).VersionInfo; @{ ProductVersion=$v.ProductVersion; FileVersion=$v.FileVersion } | ConvertTo-Json -Compress";
@@ -74,7 +103,7 @@ async function collect() {
         }
         nativeVersion = info.ProductVersion;
     }
-    const files = mac ? [`Navigator-${version}-macos-arm64.zip`]
+    const files = mac ? [`Navigator-${version}-macos-arm64.zip`, `Navigator-${version}-macos-arm64.dmg`]
         : [`Navigator-${version}-windows-x64-setup.exe`, `Navigator-${version}-windows-x64-portable.zip`];
     files.push(...deltaArtifacts(version, mac, await readdir(join(root, 'dist'))));
     const destination = join(root, "dist/artifacts");
