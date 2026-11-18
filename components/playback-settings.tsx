@@ -78,7 +78,7 @@ export function PlaybackSettings() {
         <Field orientation="horizontal">
           <FieldContent>
             <FieldLabel htmlFor="webgpu-native-decoding">Browser decoding with WebGPU</FieldLabel>
-            <FieldDescription id="webgpu-native-decoding-description">Try the browser decoder first and render its video with WebGPU. Available when HDR output is off.</FieldDescription>
+            <FieldDescription id="webgpu-native-decoding-description">Experimental. Try browser decoding when HDR output is off and the browser supports the audio.</FieldDescription>
           </FieldContent>
           <Switch id="webgpu-native-decoding" aria-describedby="webgpu-native-decoding-description" checked={playbackPreferences.nativeWebGpuDecoding}
             disabled={!playbackPreferences.webGpuPlayback || playbackPreferences.hdrOutput}
