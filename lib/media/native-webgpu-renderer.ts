@@ -68,11 +68,11 @@ export function renderNativeVideoWithWebGpu(video: HTMLVideoElement): () => void
         void owned.lost.then(stop);
         owned.addEventListener("uncapturederror", stop, { once: true });
         const format = gpu.getPreferredCanvasFormat();
-        const module = owned.createShaderModule({ code: shader });
+        const shaderModule = owned.createShaderModule({ code: shader });
         const pipeline = await owned.createRenderPipelineAsync({
             layout: "auto",
-            vertex: { module, entryPoint: "vertex" },
-            fragment: { module, entryPoint: "fragment", targets: [{ format }] },
+            vertex: { module: shaderModule, entryPoint: "vertex" },
+            fragment: { module: shaderModule, entryPoint: "fragment", targets: [{ format }] },
         });
         if (stopped) return;
         const layout = pipeline.getBindGroupLayout(0);
