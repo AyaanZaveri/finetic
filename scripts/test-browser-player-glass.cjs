@@ -5,7 +5,8 @@ const ts = require('typescript');
 let blocked = false, draws = 0, samples = 0, reads = 0, mutation;
 const callbacks = new Map(), events = new Map(), contexts = [];
 let id = 0;
-const props = new Map(), attrs = new Map(), children = [];
+const props = new Map(), attrs = new Map(), children = [], skipChildren = [];
+const skipAttrs = new Map([['data-player-skip', '']]);
 const surface = {
   style: { setProperty: (k,v) => props.set(k,v), removeProperty: k => props.delete(k) },
   hasAttribute: k => attrs.has(k), getAttribute: k => attrs.get(k),
@@ -21,18 +22,18 @@ function makeCanvas() {
   const context = { filter: 'none', lastDraw: null, fillRect() {}, putImageData() {}, save() {}, restore() {}, beginPath() {}, rect() {}, clip() {},
     drawImage(...args) { this.lastDraw = args; draws++; if (args[0] instanceof Video) samples++; if (blocked) throw Error('SecurityError'); } };
   contexts.push(context);
-  return { width: 0, height: 0, style: {}, setAttribute() {}, remove() { const at = children.indexOf(this); if (at >= 0) children.splice(at, 1); },
+  return { width: 0, height: 0, style: {}, setAttribute() {}, remove() { for (const layers of [children, skipChildren]) { const at = layers.indexOf(this); if (at >= 0) layers.splice(at, 1); } },
     getContext: (_, options) => { assert.equal(options.colorSpace, 'srgb'); return context; },
     toDataURL() { throw Error('Live glass must never JPEG-encode or read back video pixels'); } };
 }
-let skipFrames = 0;
 const skip = {
   ...surface,
-  setAttribute() {},
-  removeAttribute() {},
-  hasAttribute: key => key === 'data-player-skip',
-  getAttribute: key => key === 'data-player-skip' ? '' : null,
-  appendChild() { skipFrames++; },
+  style: { setProperty() {}, removeProperty() {} },
+  setAttribute: (key, value) => skipAttrs.set(key, value),
+  removeAttribute: key => skipAttrs.delete(key),
+  hasAttribute: key => skipAttrs.has(key),
+  getAttribute: key => skipAttrs.get(key),
+  appendChild(canvas) { skipChildren.push(canvas); },
 };
 const doc = { hidden: false, body: {}, querySelectorAll: () => [surface, skip], createElement: makeCanvas,
   addEventListener: (k,v) => events.set(k,v), removeEventListener: k => events.delete(k) };
@@ -62,13 +63,14 @@ assert.ok(attrs.has('data-browser-glass'), 'Both SDR and HDR have glass, without
 assert.equal(children.length, 1, 'The surface displays a live canvas rather than a repeatedly encoded background image');
 assert.equal(props.get('--browser-glass-x'), '-10px');
 assert.equal(props.get('--browser-glass-y'), '-20px');
-const frame = children[0];
+const frame = children[0], skipFrame = skipChildren[0];
+assert.ok(skipAttrs.has('data-browser-glass') && skipFrame, 'Skip uses a sampled video blur');
 assert.ok(frame.width <= 640 && frame.height <= 360);
 const master = contexts.find(c => c.lastDraw?.[0] === video);
 assert.ok(master.lastDraw[1] > 0 && master.lastDraw[3] < frame.width, 'Fit mode keeps the same black bars as playback');
 const before = draws, beforeReads = reads;
 for (const time of [0, 16, 33, 50, 66, 83]) tick(time);
-assert.equal(draws - before, 12, 'Every presented frame updates the shared bitmap and visible canvas; there is no 250ms gate');
+assert.equal(draws - before, 18, 'Every presented frame updates the shared bitmap and visible canvas; there is no 250ms gate');
 assert.equal(reads, beforeReads, 'Frame updates must not measure layout');
 const beforeMutation = samples;
 mutation([]); mutation([]);
@@ -77,6 +79,7 @@ video.paused = true;
 video.dispatchEvent(new Event('pause'));
 assert.equal(callbacks.size, 0, 'Pause stops requesting video frames');
 assert.ok(attrs.has('data-browser-glass'), 'Pause keeps the visible glass');
+assert.equal(skipChildren[0], skipFrame, 'Pausing retains the Skip blur layer');
 attrs.set('hidden', ''); mutation([]);
 attrs.delete('hidden'); mutation([]);
 assert.equal(samples, beforeMutation, 'A control that reappears while paused reuses the displayed frame');
@@ -86,12 +89,15 @@ assert.equal(callbacks.size, 0, 'A paused seek does not restart frame requests')
 video.paused = false;
 video.dispatchEvent(new Event('playing'));
 assert.equal(callbacks.size, 1, 'Playing resumes frame requests');
-assert.equal(skipFrames, 0, 'The web Skip background stays free of sampled video during play, pause and resume');
+assert.equal(skipChildren[0], skipFrame, 'Resuming retains the same Skip blur layer');
+assert.equal(samples, beforeMutation + 1, 'Resume waits for a presented frame before taking a new sample');
+tick(100);
+assert.equal(samples, beforeMutation + 2, 'The first presented frame resumes live blur');
 attrs.set('hidden', ''); mutation([]); assert.equal(callbacks.size, 0);
 attrs.delete('hidden'); mutation([]); assert.equal(callbacks.size, 1);
 doc.hidden = true; events.get('visibilitychange')(); assert.equal(callbacks.size, 0);
 cleanup();
-assert.equal(children.length, 0); assert.equal(props.size, 0); assert.equal(attrs.has('data-browser-glass'), false); assert.equal(events.size, 0);
+assert.equal(children.length, 0); assert.equal(skipChildren.length, 0); assert.equal(props.size, 0); assert.equal(attrs.has('data-browser-glass'), false); assert.equal(events.size, 0);
 doc.hidden = false; blocked = true;
 cleanup = context.exports.attachBrowserPlayerGlass(new Video());
 assert.equal(attrs.has('data-browser-glass'), false, 'Protected frames retain CSS glass without a failing capture loop');
