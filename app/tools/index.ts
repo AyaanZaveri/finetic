@@ -4,7 +4,7 @@ import type { JSONValue, LanguageModel, ToolSet } from "ai";
 import type { SceneRequestContext } from "@/lib/navigator-scene-context";
 import { actionToolNames, modelToolOutput, record } from "@/lib/navigator-chat";
 import { completeAction } from "./browser-action";
-import { searchPeople, getPersonDetails, getFilmography } from "./people";
+import { searchPeople, getPersonDetails, getFilmography, navigateToPerson } from "./people";
 import { createEpisodeTools } from "./episodes";
 import {
     searchMedia,
@@ -108,6 +108,7 @@ export function createAllTools(
         searchPeople,
         getPersonDetails,
         getFilmography,
+        navigateToPerson,
 
         // Theme tools
         themeToggle,

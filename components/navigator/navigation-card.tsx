@@ -1,7 +1,7 @@
 "use client";
 
 
-import { Film, Tv } from "lucide-react";
+import { Film, Tv, User } from "lucide-react";
 import { ResultCard, ResultMeta } from "./result-card";
 
 interface NavigationCardProps {
@@ -31,7 +31,8 @@ export function NavigationCard({
   className,
   index = 0,
 }: NavigationCardProps) {
-  const episode = result.mediaType?.toLowerCase() === "episode" ||
+  const mediaType = result.mediaType?.toLowerCase();
+  const episode = mediaType === "episode" ||
     result.episodeNumber != null ||
     /(?:\/\d+\/\d+(?:[?#]|$)|[?&]episode=\d+)/.test(result.url || "");
   return (
@@ -43,7 +44,7 @@ export function NavigationCard({
           ? result.mediaName || "Opening title…"
           : "Navigation failed"
       }
-      icon={result.mediaType?.toLowerCase() === "movie" ? Film : Tv}
+      icon={mediaType === "person" ? User : mediaType === "movie" ? Film : Tv}
       subtitle={result.seriesName}
       image={(episode ? result.thumbnail : result.poster)}
       imageAspect={episode ? "landscape" : "portrait"}

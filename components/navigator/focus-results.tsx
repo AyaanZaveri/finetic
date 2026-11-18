@@ -89,6 +89,7 @@ const toolLabels: Record<string, [string, string, Trace["icon"]]> = {
   getMediaStreams: ["Finding streams", "Found streams", Radio],
   navigateToMedia: ["Opening title", "Opened title", ArrowUpRight],
   navigateToEpisode: ["Opening episode", "Opened episode", ArrowUpRight],
+  navigateToPerson: ["Opening profile", "Opened profile", ArrowUpRight],
   navigateToMediaByQuery: [
     "Finding and opening title",
     "Opened title",
@@ -121,6 +122,7 @@ function baseToolCards(
       );
     case "navigateToMedia":
     case "navigateToEpisode":
+    case "navigateToPerson":
     case "navigateToMediaByQuery":
       return (
         <NavigationCard

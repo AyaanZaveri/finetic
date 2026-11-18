@@ -92,6 +92,7 @@ function activeToolLabel(part: Record<string, unknown>) {
     findEpisodeByTitle: "Finding the right episode",
     getMediaStreams: "Finding a way to watch",
     navigateToMedia: "Opening your selection",
+    navigateToPerson: "Opening person profile",
     navigateToEpisode: "Opening your selection",
     navigateToMediaByQuery: "Opening your selection",
     playMedia: "Getting playback ready",

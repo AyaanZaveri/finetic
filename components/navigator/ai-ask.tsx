@@ -6,7 +6,7 @@ import { useAtom, useStore } from "jotai";
 import { toast } from "sonner";
 import { useRouter, usePathname } from "next/navigation";
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls, type UIMessage } from "ai";
-import { preparedNavigatorActions, shouldContinueAfterNavigatorAction, record, markNavigatorRequestStopped } from "@/lib/navigator-chat";
+import { preparedNavigatorActions, shouldContinueAfterNavigatorAction, record, markNavigatorRequestStopped, pageTargetFromPath } from "@/lib/navigator-chat";
 import { acknowledgePlayback, type ActionOutcome } from "@/lib/navigator-playback-ack";
 import { useStreamQueries } from "@/components/stream-query-provider";
 import type { SubtitleSnapshot } from "@/lib/media/subtitle-snapshot";
@@ -241,10 +241,13 @@ const AIAsk = ({ userId }: { userId: string }) => {
         try {
             switch (action.action) {
             case "navigate": {
-                if (typeof action.url !== "string" || !/^\/(movie|series)\/[^?#]+$/.test(action.url)) throw new Error("Invalid title destination.");
-                router.push(action.url);
+                const url = action.url;
+                if (typeof url !== "string") throw new Error("Invalid navigation destination.");
+                const person = pageTargetFromPath(url)?.type === "person";
+                if (!person && !/^\/(movie|series)\/[^?#]+$/.test(url)) throw new Error("Invalid navigation destination.");
+                router.push(url);
                 setIsAskOpen(false);
-                return { success: true, status: "requested", message: "Navigation to the selected title was requested." };
+                return { success: true, status: "requested", message: person ? "Navigation to the selected profile was requested." : "Navigation to the selected title was requested." };
             }
             case "play": {
                 if (!action.mediaId || !action.mediaName || !["Movie", "Series", "Episode"].includes(action.mediaType)) throw new Error("Missing playback details.");
