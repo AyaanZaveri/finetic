@@ -95,7 +95,9 @@ It does not bypass CORS, authentication, custom request-header requirements,
 or DRM. Unknown playlist URLs may be attempted and then fall back.
 
 **Browser decoding with WebGPU** is an opt-in setting for direct files when
-HDR output is off. It tries the browser decoder, then renders its frames in
+HDR output is off. It checks the file header for the default audio codec
+and uses the custom engine if browser audio support cannot be established.
+For eligible files it tries the browser decoder, then renders its frames in
 WebGPU on the video frame callback. The browser retains its media controls,
 audio, and subtitle capabilities. If the file fails to open or fails to
 produce initial video data within eight seconds, Navigator tries its custom

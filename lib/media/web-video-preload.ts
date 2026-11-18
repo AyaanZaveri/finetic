@@ -2,6 +2,8 @@ import { canUseWebGpu } from "./webgpu-module";
 import { attachWebGpuVideo } from "./webgpu-video";
 import { renderNativeVideoWithWebGpu } from "./native-webgpu-renderer";
 import { resolveWebGpuSource } from "./webgpu-source";
+import { probeStreamMetadata } from "./stream-metadata";
+import { audioTrackMime } from "./stream-codecs";
 import { readPlaybackPreferences } from "./playback-preferences";
 import { WEB_STARTUP_WATCHDOG_MS } from "./web-startup-watchdog";
 import { getWebPlaybackElement } from "./playback-source";
@@ -113,11 +115,19 @@ function tryNativeWebGpuVideo(video: HTMLVideoElement, url: string, fallback: (_
     video.addEventListener("loadeddata", onLoaded);
     video.addEventListener("error", onError, true);
     const timer = setTimeout(startEngine, WEB_STARTUP_WATCHDOG_MS);
-    void resolveWebGpuSource(url, source.signal).then(resolved => {
-        if (!source.signal.aborted) {
-            video.src = resolved;
-            video.load();
+    void resolveWebGpuSource(url, source.signal).then(async resolved => {
+        const metadata = await probeStreamMetadata({ url: resolved }, { signal: source.signal });
+        if (source.signal.aborted) return;
+        const audio = metadata?.audio.find(track => track.primary) ?? metadata?.audio[0];
+        const mime = audio && audioTrackMime(audio);
+        // A decodable picture does not establish that the native element can
+        // play the file's default audio. Do not select a likely silent route.
+        if (!metadata?.video || (audio && (!mime || !video.canPlayType(mime)))) {
+            startEngine();
+            return;
         }
+        video.src = resolved;
+        video.load();
     }).catch(() => { if (!source.signal.aborted) startEngine(); });
     return () => {
         stopAttempt();

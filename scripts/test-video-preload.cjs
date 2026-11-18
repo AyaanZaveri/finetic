@@ -69,11 +69,13 @@ const server = load('lib/server/desktop-video-preload.ts', { 'server-only': {} }
   },teardown(video){video.tornDown=true;}};
   const document={visibilityState:'visible',createElement(){const video=new Video();videos.push(video);return video;},addEventListener(){},removeEventListener(){}};
   let gpuEnabled = false, nativeDecoding = false, hdrOutput = false;
+  let audioCodec = 'aac';
   const nativeRenderers = [], embeddedEngines = [];
   const web=load('lib/media/web-video-preload.ts',{
     '@mux/playback-core':fakeMux, './webgpu-module': { canUseWebGpu: () => gpuEnabled },
     './playback-preferences': { readPlaybackPreferences: () => ({ nativeWebGpuDecoding: nativeDecoding, hdrOutput }) },
     './webgpu-source': { resolveWebGpuSource: async () => 'https://cdn.example/resolved.mkv' },
+    './stream-metadata': { probeStreamMetadata: async () => ({ video: { codec: 'avc' }, audio: [{ codec: audioCodec, primary: true }] }) },
     './native-webgpu-renderer': { renderNativeVideoWithWebGpu(video) {
       const renderer = { video, disposed: false }; nativeRenderers.push(renderer);
       return () => { renderer.disposed = true; };
@@ -103,9 +105,10 @@ const server = load('lib/server/desktop-video-preload.ts', { 'server-only': {} }
   assert.equal(await web.preloadWebVideo(url, new AbortController().signal), undefined);
   assert.equal(videos.length, count, 'WebGPU playback avoids a duplicate native preload');
   Video.prototype.requestVideoFrameCallback = () => 1;
+  Video.prototype.canPlayType = mime => mime.includes('mp4a') ? 'probably' : '';
   nativeDecoding = true;
   const browserSession = web.createWebVideoSession('https://cdn.example/file.mkv');
-  await Promise.resolve();
+  await new Promise(setImmediate);
   assert.equal(browserSession.video.src, 'https://cdn.example/resolved.mkv');
   assert.equal(embeddedEngines.length, 0);
   browserSession.video.dispatchEvent(new Event('loadeddata'));
@@ -115,7 +118,7 @@ const server = load('lib/server/desktop-video-preload.ts', { 'server-only': {} }
   assert.equal(nativeRenderers[0].disposed, true);
 
   const rejected = web.createWebVideoSession('https://cdn.example/file.mkv');
-  await Promise.resolve();
+  await new Promise(setImmediate);
   rejected.video.dispatchEvent(new Event('error'));
   assert.equal(embeddedEngines[0].video, rejected.video, 'Decode errors retry through WebGPU on the same element');
   assert.equal(nativeRenderers.length, 1);
@@ -129,9 +132,16 @@ const server = load('lib/server/desktop-video-preload.ts', { 'server-only': {} }
   assert.equal(stalled.video.src, undefined, 'Late source resolution cannot replace the custom engine');
   stalled.dispose();
 
+  audioCodec = 'truehd';
+  const unsupportedAudio = web.createWebVideoSession('https://cdn.example/file.mkv');
+  await new Promise(setImmediate);
+  assert.equal(unsupportedAudio.video.src, undefined, 'Do not start native playback with unsupported primary audio');
+  assert.equal(embeddedEngines[2].video, unsupportedAudio.video);
+  unsupportedAudio.dispose();
+
   hdrOutput = true;
   const hdr = web.createWebVideoSession('https://cdn.example/file.mkv');
-  assert.equal(embeddedEngines[2].video, hdr.video, 'HDR output uses the custom engine');
+  assert.equal(embeddedEngines[3].video, hdr.video, 'HDR output uses the custom engine');
   hdr.dispose();
   gpuEnabled = false;
 
