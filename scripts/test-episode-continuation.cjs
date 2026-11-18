@@ -69,22 +69,50 @@ function controller(overrides={}) {
   let lookups=0; ({instance,calls}=controller({lookup:async()=>{if(!lookups++) throw Error('offline');return next;}}));
   assert.equal(await instance.next(),null); assert.ok(await instance.advance(true),'A transient lookup failure can recover on advance');
 
-  function hookHarness(preferences={...prefs.DEFAULT_PLAYBACK_PREFERENCES,episodePrefetch:true}) {
+  function hookHarness(preferences={...prefs.DEFAULT_PLAYBACK_PREFERENCES,episodePrefetch:true}, hasNext=true) {
     const host=hooks(),played=[],stopped=[],finished=[],requests=[],prepared=[],warmed=[];
+    const timers=new Map();
+    let timerId=0;
     const {useEpisodeContinuation}=load('lib/media/use-episode-continuation.ts',{
       react:{...host.react,useLayoutEffect:host.react.useEffect},'@/contexts/settings-context':{useSettings:()=>({playbackPreferences:preferences})},
       './episode-continuation':sequence,'./playback-preferences':prefs,'./playback-titles':titles,
-      './prefetch-next-episode':{fetchFollowingEpisode:async(id,season,episode,signal)=>{requests.push(signal);return {...next,id:`${id}:${season}:${episode+1}`,season,episode:episode+1};},
+      './prefetch-next-episode':{fetchFollowingEpisode:async(id,season,episode,signal)=>{requests.push(signal);return hasNext ? {...next,id:`${id}:${season}:${episode+1}`,season,episode:episode+1} : null;},
         prepareNextEpisode:async target=>{prepared.push(target);return {...target,streamUrl:'https://test/prepared.mp4'};}},
       './preload-next-video':{preloadNextVideo:async target=>{warmed.push(target);},videoPreloadAllowed:()=>true},
-    },{document:{addEventListener(){},removeEventListener(){}}});
+    },{document:{addEventListener(){},removeEventListener(){}},
+      setTimeout(callback,delay){assert.equal(delay,1000);timers.set(++timerId,callback);return timerId;},
+      clearTimeout(id){timers.delete(id);}});
     const options={media,visible:true,native:false,time:0,duration:1000,play:target=>played.push(target),beforeAdvance:value=>stopped.push(value),finish:()=>finished.push(true)};
     const render=()=>{ const value=host.render(()=>useEpisodeContinuation(options));host.flush();return value; };
-    return {host,render,preferences,options,played,stopped,finished,requests,prepared,warmed};
+    const tickCountdown=async()=>{
+      assert.equal(timers.size,1);
+      const [id, callback]=timers.entries().next().value;
+      timers.delete(id);callback();await tick();return render();
+    };
+    return {host,render,preferences,options,played,stopped,finished,requests,prepared,warmed,timers,tickCountdown};
   }
   let h=hookHarness(); h.render(); await tick(); h.options.time=920; let value=h.render(); await tick();
   value=h.render();value.onEnded();value.onEnded(); await tick();
+  for (let seconds=5;seconds>0;seconds--) {
+    assert.equal(h.render().upNext.seconds,seconds);
+    assert.equal(h.played.length,0);
+    await h.tickCountdown();
+  }
   assert.equal(h.played.length,1);assert.deepEqual(h.stopped,[true]);assert.equal(h.finished.length,0);assert.equal(h.played[0].streamUrl,'https://test/prepared.mp4');h.host.unmount();
+  h=hookHarness();h.render();await tick();h.render().onEnded();await tick();value=h.render();
+  assert.equal(value.upNext.next.title,next.title);
+  const expired=h.timers.values().next().value;
+  value.cancelUpNext();value.cancelUpNext();expired();await tick();
+  assert.equal(h.played.length,0);assert.deepEqual(h.finished,[true]);assert.equal(h.render().upNext,null);assert.equal(h.timers.size,0);h.host.unmount();
+  h=hookHarness();h.render();await tick();h.render().onEnded();await tick();value=h.render();
+  value.playUpNext();value.playUpNext();await tick();
+  assert.equal(h.played.length,1);assert.deepEqual(h.stopped,[true]);assert.equal(h.render().upNext,null);h.host.unmount();
+  h=hookHarness();h.options.session=media;h.render();await tick();h.render().onEnded();await tick();h.render();
+  const staleTimer=h.timers.values().next().value;
+  h.options.session={...media};h.render();staleTimer();await tick();
+  assert.equal(h.played.length,0);assert.equal(h.render().upNext,null);h.host.unmount();
+  h=hookHarness(prefs.DEFAULT_PLAYBACK_PREFERENCES,false);h.render();await tick();h.render().onEnded();await tick();
+  assert.deepEqual(h.finished,[true]);assert.equal(h.render().upNext,null);h.host.unmount();
   h=hookHarness();h.render();await tick();value=h.render();value.advance();await tick();value.onEnded();await tick();
   assert.equal(h.played.length,1);assert.equal(h.finished.length,0,'An ended event after manual Next cannot close the next episode');h.host.unmount();
   h=hookHarness({...prefs.DEFAULT_PLAYBACK_PREFERENCES,episodeAutoplay:false});value=h.render();await tick();value=h.render();value.onEnded();value.onEnded();await tick();
@@ -93,7 +121,7 @@ function controller(overrides={}) {
   assert.equal(h.finished.length,0,'An old ended callback cannot close the newly selected episode');h.host.unmount();
   h=hookHarness();h.render();h.host.replay();await tick();value=h.render();
   assert.ok(h.requests[0].aborted);assert.equal(h.requests.at(-1).aborted,false,'Strict Mode replay creates a live continuation');
-  value.onEnded();await tick();assert.equal(h.played.length,1);h.host.unmount();
+  value.onEnded();await tick();h.render().playUpNext();await tick();assert.equal(h.played.length,1);h.host.unmount();
   h=hookHarness();h.options.media={id:'movie',type:'movie',name:'Movie'};value=h.render();value.onEnded();await tick();assert.equal(h.requests.length,0);assert.equal(h.finished.length,1);h.host.unmount();
 
   // Exercise actual native state events rather than supplying a synthetic
@@ -122,7 +150,7 @@ function controller(overrides={}) {
     assert.equal(h.warmed.length,1,`${platform}: native playback now requests reusable video bytes too`);
     assert.equal(commands.filter(command=>command.type==='load').length,1,'No next-file load reaches mpv before advance');
     h.options.play=target=>{h.played.push(target);adapter.load(target.streamUrl,target.requestHeaders);};
-    value=h.render();value.onEnded();await tick();
+    value=h.render();value.onEnded();await tick();h.render().playUpNext();await tick();
     assert.equal(h.played[0].streamUrl,'https://test/prepared.mp4');
     assert.equal(commands.filter(command=>command.type==='load').at(-1).url,'https://test/prepared.mp4','Advance passes the prepared URL to the native adapter');
     assert.equal(h.prepared.length,1,'Advance reuses preparation');
@@ -183,7 +211,8 @@ function controller(overrides={}) {
   await tick();
   assert.equal(h.played.length,0,'Detached or superseded video events are ignored');
   activePlaybackRequestRef.current=playbackRequest;
-  onEnded({currentTarget:video},2);onEnded({currentTarget:video},2);await tick();assert.equal(h.played.length,1);h.host.unmount();
+  onEnded({currentTarget:video},2);onEnded({currentTarget:video},2);await tick();h.render().playUpNext();
+  await tick();assert.equal(h.played.length,1);h.host.unmount();
 
   const {GET}=load('app/api/playback/next-episode/route.ts',{'@/app/actions/auth':{getAuthData:async()=>({})}, "@/lib/server/auth": { getAuthData:async()=>({}) },'@/app/actions/tv-shows':{getFollowingEpisodeForSeries:async()=>next}},globals);
   assert.equal((await GET(new Request('http://test/api/playback/next-episode?id=tt1442437&season=6&episode=6'))).status,200);

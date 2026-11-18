@@ -17,7 +17,7 @@ import { subtitleMediaKey } from "@/lib/media/subtitle-snapshot";
 import { createSubtitleCueIndex } from "@/lib/media/subtitle-cue-index";
 import { useEpisodeContinuation } from "@/lib/media/use-episode-continuation";
 import { safeResumePosition } from "@/lib/media/resume-playback";
-import { PlayerNextEpisode } from "@/components/player-next-episode";
+import { PlayerNextEpisode, PlayerUpNext } from "@/components/player-next-episode";
 import { formatRuntime } from "@/lib/format-runtime";
 
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect, useMemo } from "react";
@@ -825,7 +825,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   const episodeContinuation = useEpisodeContinuation({
     media: currentMedia ? { ...currentMedia, details: mediaDetails || currentMedia.details } : null,
-    visible: isPlayerVisible, native: nativePlayback, mediaRef: videoRef, duration,
+    visible: isPlayerVisible, native: nativePlayback, mediaRef: videoRef, duration, session: playbackRequest,
     creditsStart: skipTimeline.source === streamUrl ? skipTimeline.segments.find(segment => segment.kind === "credits")?.start : undefined,
     play: media => { void playMedia(media); },
     beforeAdvance: ended => sendPlaybackUpdate("stopped", { ended }),
@@ -1055,6 +1055,11 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             <Loader2 aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />
             <PlayerLoadingStatus label="Fetching subtitles" />
           </div>
+        )}
+
+        {episodeContinuation.upNext && (
+          <PlayerUpNext next={episodeContinuation.upNext.next} seconds={episodeContinuation.upNext.seconds}
+            onPlay={episodeContinuation.playUpNext} onCancel={episodeContinuation.cancelUpNext} />
         )}
 
         {!playbackError && streamUrl && duration > 0

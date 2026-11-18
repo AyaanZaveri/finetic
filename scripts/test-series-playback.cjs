@@ -57,15 +57,34 @@ async function run() {
     play({ id: 'movie', type: 'movie', backdropUrl: '/movie.jpg' });
     assert.equal(updates.get(atoms.currentMediaAtom).backdropUrl, '/movie.jpg');
     let advanced = false;
-    const { PlayerNextEpisode } = load('components/player-next-episode.tsx', name => {
+    const { PlayerNextEpisode, PlayerUpNext } = load('components/player-next-episode.tsx', name => {
+        if (name === 'react') return { useEffect() {}, useId: () => 'up-next-title', useRef: () => ({ current: null }) };
         if (name === 'react/jsx-runtime') return { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) };
         return new Proxy({}, { get: (_, key) => key });
     });
-    const nextButton = PlayerNextEpisode({ next: { id: 'tt123:2:1', title: 'Next season', season: 2, episode: 1 }, advancing: false,
-        onAdvance: () => { advanced = true; } }).props.children;
-    assert.equal(nextButton.props.children[1], 'Next episode');
+    const next = { id: 'tt123:2:1', title: 'Next season', season: 2, episode: 1 };
+    const control = PlayerNextEpisode({ next, advancing: false, onAdvance: () => { advanced = true; } });
+    const nextButton = control.props.children;
+    assert.equal(control.props.tooltip, 'S2 E1 · Next season');
+    assert.equal(nextButton.props['aria-label'], 'Play next episode: Next season');
+    assert.equal(nextButton.props.size, 'icon-sm');
     nextButton.props.onClick(); assert.ok(advanced, 'Manual Next shares the continuation controller');
-    assert.equal(PlayerNextEpisode({ next: null, advancing: false, onAdvance() {} }), null);
+    const busyButton = PlayerNextEpisode({ next, advancing: true, onAdvance() {} }).props.children;
+    assert.equal(busyButton.props.size, nextButton.props.size);
+    assert.equal(busyButton.props.loading, true);
+    const spacer = PlayerNextEpisode({ next: null, advancing: false, onAdvance() {} });
+    assert.equal(spacer.type, 'span');
+    assert.equal(spacer.props['data-player-next-slot'], '');
+    let cancelled = 0, played = 0;
+    const prompt = PlayerUpNext({ next, seconds: 5, onPlay: () => played++, onCancel: () => cancelled++ });
+    const [heading, title, actions] = prompt.props.children;
+    assert.equal(heading.props.children[1].props.children[0], 5);
+    assert.equal(title.props.children, next.title);
+    actions.props.children[0].props.onClick();
+    actions.props.children[1].props.onClick();
+    prompt.props.onKeyDown({ key: 'Escape', preventDefault() {}, stopPropagation() {} });
+    assert.equal(cancelled, 2);
+    assert.equal(played, 1);
     console.log('PASS: series Play starts S1E1, skips specials, and episode playback uses the show backdrop.');
 }
 run().catch(error => { console.error(error); process.exitCode = 1; });
