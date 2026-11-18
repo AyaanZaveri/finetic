@@ -119,10 +119,34 @@ const episode = (season, number = 1) => ({ id: `tmdb:20:${season}:${number}`, ti
 
   const h = hooks(), uiRequests = [];
   let failedSeason = 1;
+  let reducedMotion = false;
+  const scrolls = [], onScroll = new Set(), onResize = new Set();
+  const windowFixture = {
+    matchMedia: () => ({ matches: reducedMotion }),
+    addEventListener: (_, callback) => onResize.add(callback),
+    removeEventListener: (_, callback) => onResize.delete(callback),
+  };
+  const viewport = {
+    clientWidth: 320, scrollWidth: 900, scrollLeft: 0,
+    getBoundingClientRect: () => ({ left: 0 }),
+    addEventListener: (_, callback) => onScroll.add(callback),
+    removeEventListener: (_, callback) => onScroll.delete(callback),
+    scrollBy(command) {
+      scrolls.push(command);
+      this.scrollLeft = Math.max(0, Math.min(this.scrollWidth - this.clientWidth, this.scrollLeft + command.left));
+      onScroll.forEach(callback => callback());
+    },
+  };
+  const track = {
+    closest: () => ({ querySelector: () => viewport }),
+    querySelector: () => ({ clientWidth: 288, getBoundingClientRect: () => ({ left: 220 - viewport.scrollLeft }) }),
+  };
   const modules = new Proxy({
     react: { ...require('react'), ...h.react }, 'react/jsx-runtime': h.jsx,
     '@/contexts/account-context': { useAccountAccess: () => ({ authenticated: true }) },
     '@/lib/artwork': { episodeThumbnailUrl: url => url },
+    '@/lib/media/resume-playback': load('lib/media/resume-playback.ts'),
+    '@/lib/media/carousel-controls': load('lib/media/carousel-controls.ts', {}, { window: windowFixture }),
     '@/lib/media/series-season': { acquireSeriesSeason: (id, season) => {
       const record = { id, season, released: false };
       uiRequests.push(record);
@@ -131,12 +155,37 @@ const episode = (season, number = 1) => ({ id: `tmdb:20:${season}:${number}`, ti
     '@/app/actions': { fetchPlaybackProgress: async () => null },
     '@/app/actions/tv-shows': { fetchSeasons: () => { throw Error('Known seasons cannot be fetched again'); }, fetchEpisodes: () => { throw Error('TMDB reads must avoid the client action queue'); } },
   }, { has: () => true, get: (object, name) => name in object ? object[name] : new Proxy({}, { get: (_, key) => key }) });
-  const { SeasonEpisodes } = load('components/season-episodes.tsx', modules, { document: { querySelector: () => null }, console: { error() {} } });
+  const { SeasonEpisodes } = load('components/season-episodes.tsx', modules, { window: windowFixture, console: { error() {} } });
   const embeddedVideos = [episode(20)];
-  const render = () => { const tree = h.render(SeasonEpisodes.type, { showId: 'tmdb:20', initialSeasons: seasonList, currentSeasonNumber: 20, currentEpisodeNumber: 1, prefetchedVideos: embeddedVideos }); h.flush(); return tree; };
   const find = (node, predicate) => !node || typeof node !== 'object' ? [] : [...(predicate(node) ? [node] : []), ...[].concat(node.props?.children ?? []).flatMap(child => find(child, predicate))];
+  let trackRef;
+  const render = () => {
+    const tree = h.render(SeasonEpisodes.type, { showId: 'tmdb:20', initialSeasons: seasonList, currentSeasonNumber: 20, currentEpisodeNumber: 1, prefetchedVideos: embeddedVideos });
+    if (trackRef) trackRef.current = null;
+    trackRef = find(tree, node => node.type === 'div' && node.props?.ref && node.props.className?.includes('w-max'))[0]?.props.ref;
+    if (trackRef) trackRef.current = track;
+    h.flush();
+    return tree;
+  };
   render(); await tick(); let tree = render();
   assert.deepEqual(uiRequests.map(row => row.season), [20]);
+  assert.equal(scrolls[0].behavior, 'instant', 'The selected episode is positioned before paint');
+  const getArrow = (tree, direction) => find(tree, node => node.props?.['aria-label'] === `Scroll ${direction}`)[0];
+  viewport.scrollLeft = 0; onScroll.forEach(callback => callback());
+  tree = render();
+  assert.equal(getArrow(tree, 'left').props.disabled, true);
+  getArrow(tree, 'right').props.onClick({ detail: 1 });
+  assert.equal(scrolls.at(-1).behavior, 'smooth', 'Pointer clicks slide the episode rail');
+  getArrow(tree, 'right').props.onClick({ detail: 0 });
+  assert.equal(scrolls.at(-1).behavior, 'instant', 'Keyboard activation moves the rail immediately');
+  reducedMotion = true;
+  getArrow(tree, 'right').props.onClick({ detail: 1 });
+  assert.equal(scrolls.at(-1).behavior, 'instant', 'Reduced motion moves the rail immediately');
+  tree = render();
+  assert.equal(getArrow(tree, 'right').props.disabled, true);
+  viewport.scrollWidth = viewport.clientWidth; onResize.forEach(callback => callback());
+  tree = render();
+  assert.equal(getArrow(tree, 'right'), undefined, 'Hide arrows when the cards fit');
   const select = find(tree, node => node.type === 'Select')[0];
   assert.deepEqual(Array.from(select.props.options, option => option.value), ['1', '20', '0'], 'Regular seasons precede explicit specials');
   select.props.onValueChange('0'); render(); await tick(); tree = render();
@@ -145,6 +194,7 @@ const episode = (season, number = 1) => ({ id: `tmdb:20:${season}:${number}`, ti
   find(tree, node => node.type === 'Select')[0].props.onValueChange('1'); render(); await tick(); tree = render();
   const retryButton = find(tree, node => node.type === 'Button' && node.props.children === 'Retry')[0];
   assert.ok(retryButton, 'Season failures expose recovery rather than old-season cards');
+  assert.equal(find(tree, node => node.props?.children === 'No episodes found for this season').length, 0);
   failedSeason = -1; retryButton.props.onClick(); render(); await tick(); tree = render();
   assert.equal(find(tree, node => node.type === 'Button' && node.props.children === 'Retry').length, 0);
   assert.equal(uiRequests.at(-1).season, 1);

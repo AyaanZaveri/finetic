@@ -68,6 +68,10 @@ const track = visual.props.children.find(node => node?.props?.['data-slot'] === 
 const fill = track.props.children.find(node => node?.props?.['data-slot'] === 'media-player-keyboard-range');
 assert.equal(visual.props.children.some(node => node?.props?.['data-slot'] === 'media-player-keyboard-thumb'), false, 'Continuous scrubbing uses the bar without an extra dot');
 fill.props.ref.current = { style: style() };
+visual.props.onKeyDown({ key: 'ArrowRight', nativeEvent: {}, repeat: true, preventDefault() {} });
+assert.equal(attributes.has('data-arrow-seeking'), true, 'Horizontal arrow seeking suppresses the timeline ring immediately');
+visual.props.onBlur({});
+assert.equal(attributes.has('data-arrow-seeking'), false, 'Returning focus with Tab can show the ring again');
 visualHost.flush();
 context.keyboardInstance.press('arrowright'); now = 300; begin();
 const measuredAtStart = measurements, rendersAtStart = visualHost.updates;

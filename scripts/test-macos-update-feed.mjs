@@ -23,4 +23,12 @@ for (const invalid of [{ filename: "../Navigator.zip" }, { filename: "Navigator-
 assert.equal(KEYCHAIN_ACCOUNT, "app.navigator.desktop.sparkle");
 const key = readFileSync("desktop/macos/update-public-key.txt", "utf8").trim();
 assert.equal(Buffer.from(key, "base64").length, 32);
+const deltaBytes = Buffer.from('small delta');
+const delta = {from:'0.5.2',filename:'Navigator-0.5.3-macos-arm64-from-0.5.2.delta',bytes:deltaBytes,signature:sign(null,deltaBytes,privateKey).toString('base64')};
+const incremental = makeMacOSFeed({...options,deltas:[delta]});
+assert.match(incremental, /<sparkle:deltas>/);
+assert.match(incremental, /sparkle:deltaFrom="0.5.2"/);
+assert.ok(incremental.includes(options.filename), 'Delta feeds retain the signed full archive for fallback');
+assert.throws(()=>makeMacOSFeed({...options,deltas:[{...delta,bytes:Buffer.from('corrupted')}]}),/delta/);
+assert.throws(()=>makeMacOSFeed({...options,deltas:[delta,delta]}),/delta/);
 console.log("PASS: macOS archive signatures, tamper and wrong-key rejection, stable release metadata, platform isolation and minimum OS.");

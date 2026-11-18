@@ -128,8 +128,40 @@ html[data-native-engine="exoplayer"] [data-native-player-shell] [data-slot="medi
 }
 [data-player-title] { min-width: 0; line-height: 1.3; letter-spacing: -.01em; }
 /* Keep the action anchored as playback controls fade in and out. */
-[data-player-skip] {
+[data-player-skip], [data-player-up-next] {
   bottom: max(calc(var(--player-controls-height, 12rem) + 1rem), env(safe-area-inset-bottom));
+}
+[data-player-up-next][data-player-hdr-glass] {
+  position: absolute;
+  animation: player-up-next-fade var(--duration-standard) var(--ease-out) backwards;
+}
+@keyframes player-up-next-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+/* Keep the glass at its measured position while the content rises into place. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-player-up-next-content] {
+    animation: player-up-next-rise var(--duration-standard) var(--ease-out) backwards;
+  }
+}
+@keyframes player-up-next-rise {
+  from { transform: translateY(8px); }
+  to { transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-player-up-next][data-player-hdr-glass] { animation-duration: var(--duration-instant); }
+}
+html[data-native-platform="windows"][data-native-playing] [data-slot="media-player"] [data-player-up-next] {
+  --dropdown-opacity: 90%;
+}
+@media (prefers-reduced-transparency: reduce) {
+  html[data-native-platform="windows"][data-native-playing] [data-slot="media-player"] [data-player-up-next] {
+    --dropdown-opacity: 100%;
+  }
+}
+@media (height < 30rem) {
+  [data-player-up-next] { top: 50%; bottom: auto; translate: 0 -50%; }
 }
 [data-player-toolbar] button { color: var(--foreground); }
 /* Android already exposes system volume through its native side control. */
@@ -168,6 +200,7 @@ html[data-native-engine="exoplayer"] [data-slot="media-player-volume-container"]
   [data-player-toolbar] > div:first-child { flex-wrap: wrap; }
   [data-player-toolbar] > div:last-child { max-width: 100%; flex-wrap: wrap; justify-content: flex-end; margin-inline-start: auto; }
   [data-player-toolbar] button { min-width: 2.75rem; min-height: 2.75rem; }
+  [data-player-next-slot] { width: 2.75rem; height: 2.75rem; }
   [data-player-toolbar] button > svg { width: 1.25rem; height: 1.25rem; }
   [data-slot="media-player-time"] { max-width: 100%; flex-wrap: wrap; font-size: .875rem; font-weight: 400; line-height: 1.4; white-space: nowrap; }
 }
@@ -266,7 +299,7 @@ html[data-native-platform="windows"] [data-player-shell] [data-slot="media-playe
 [data-keyboard-scrubbing] [data-slot="media-player-keyboard-range"] { display: block; }
 [data-keyboard-scrubbing] [data-slot="media-player-seek-range"],
 [data-keyboard-scrubbing] [data-slot="media-player-seek-thumb"] { opacity: 0 !important; }
-[data-slot="media-player-seek"]:has([data-slot="media-player-seek-thumb"]:focus-visible) {
+[data-slot="media-player-seek"]:not([data-arrow-seeking]):has([data-slot="media-player-seek-thumb"]:focus-visible) {
   outline: 2px solid var(--ring);
   outline-offset: 4px;
   border-radius: 9999px;

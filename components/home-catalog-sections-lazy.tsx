@@ -3,44 +3,12 @@
 import { Suspense, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import { MediaSection } from "@/components/media-section";
-import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
-import { Skeleton } from "@/components/ui/skeleton";
+import { CATALOG_ROW_HEIGHT, HomeCatalogSkeleton } from "@/components/home-catalog-skeleton";
 import { Button } from "@/components/ui/button";
 import type { HomeCatalogEntry, HomeCatalogSection, InitialHomeCatalog } from "@/lib/home-catalogs";
 import { HomeInitialPalette } from "@/components/home-palette-provider";
 import { mediaArtwork } from "@/lib/artwork";
 import { readHomeCatalogRows, retryInitialHomeCatalog } from "@/lib/home-catalog-stream";
-
-function PosterCardSkeleton() {
-  return (
-    <div className="flex-shrink-0 w-36">
-      <Skeleton className="w-full aspect-[2/3] rounded-md" />
-      <div className="px-1 mt-2.5 space-y-1.5">
-        <Skeleton className="h-4 w-11/12 rounded" />
-        <Skeleton className="h-3 w-2/5 rounded" />
-      </div>
-    </div>
-  );
-}
-
-function HomeSectionSkeleton() {
-  return (
-    <LoadingPlaceholder className="relative z-10 mb-8">
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <Skeleton className="h-8 w-56 rounded-full" />
-        <div className="flex items-center gap-2">
-          <Skeleton className="hidden md:block size-8 rounded-full" />
-          <Skeleton className="hidden md:block size-8 rounded-full" />
-        </div>
-      </div>
-      <div className="flex gap-4 overflow-hidden">
-        {Array.from({ length: 16 }).map((_, index) => (
-          <PosterCardSkeleton key={`home-catalog-lazy-skeleton-${index}`} />
-        ))}
-      </div>
-    </LoadingPlaceholder>
-  );
-}
 
 interface HomeCatalogSectionsLazyProps {
   initialSections: HomeCatalogSection[];
@@ -79,9 +47,6 @@ type CatalogState =
   | { status: "loading" }
   | { status: "error" }
   | { status: "ready"; section: HomeCatalogSection | null };
-
-// Reserve the same minimum space for a skeleton, loaded row, or empty catalog.
-const CATALOG_ROW_HEIGHT = 360;
 
 export function HomeCatalogSectionsLazy({ initialSections, initialRows, remainingEntries, batchSize }: HomeCatalogSectionsLazyProps) {
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -225,7 +190,7 @@ export function HomeCatalogSectionsLazy({ initialSections, initialRows, remainin
             className="absolute left-0 top-0 w-full flow-root"
             aria-busy={entry && (!state || state.status === "loading") ? true : undefined}
             style={{ minHeight: CATALOG_ROW_HEIGHT, transform: `translateY(${row.start - (scrollMargin ?? 0)}px)` }}>
-            {initialRows?.[row.index] ? <Suspense fallback={<div data-home-initial-pending><HomeSectionSkeleton /></div>}>
+            {initialRows?.[row.index] ? <Suspense fallback={<div data-home-initial-pending><HomeCatalogSkeleton /></div>}>
               <InitialCatalogRow row={initialRows[row.index]} />
             </Suspense> : section ? <MediaSection sectionName={section.sectionName} mediaItems={section.mediaItems} />
               : state?.status === "error" ? <section className="relative z-10 mb-8">
@@ -237,7 +202,7 @@ export function HomeCatalogSectionsLazy({ initialSections, initialRows, remainin
                 <h2 className="mb-4 text-xl sm:text-2xl font-semibold">{entry.sectionName}</h2>
                 <p className="text-sm text-muted-foreground">No titles available in this catalog.</p>
               </section>
-              : <HomeSectionSkeleton />}
+              : <HomeCatalogSkeleton />}
           </div>
         );
       })}

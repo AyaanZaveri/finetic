@@ -8,33 +8,66 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 const section = key => ({ key, sectionName: `Catalog ${key}`, mediaItems: [{ id: key, name: 'Title', type: 'movie' }] });
 (async () => {
-    const slow = deferred(), fast = deferred();
+    const addons = deferred(), slow = deferred(), fast = deferred(), failed = deferred();
+    const catalogWork = new Map([
+        ['slow', slow.promise],
+        ['fast', fast.promise],
+        ['error', failed.promise],
+    ]);
+    const { INITIAL_CATALOG_COUNT } = load('lib/home-catalogs.ts');
+    const loadingClass = 'fixture-delayed-placeholder';
+    const delayedPlaceholder = ({ children }) => React.createElement('div', { className: loadingClass }, children);
     const { HomeCatalogSectionsLazy } = load('components/home-catalog-sections-lazy.tsx', {
-        'next/navigation': { useRouter: () => ({ refresh() {} }) },
         '@/components/home-palette-provider': { HomeInitialPalette: () => null },
         '@/components/media-section': { MediaSection: ({ sectionName }) => React.createElement('section', null, sectionName) },
-        '@/components/ui/loading-placeholder': { LoadingPlaceholder: ({ children }) => React.createElement('div', null, children) },
-        '@/components/ui/skeleton': { Skeleton: () => React.createElement('span') }, '@/components/ui/button': { Button: 'button' },
+        '@/components/ui/button': { Button: 'button' },
+        '@/components/ui/loading-placeholder': { LoadingPlaceholder: delayedPlaceholder },
+    });
+    const { default: Home } = load('app/(main)/page.tsx', {
+        '@/app/actions/auth': { getUser: async () => ({ _id: 'fixture' }), getInstalledAddons: () => addons.promise },
+        '@/app/actions/media': { fetchCatalogItems: (_type, id) => catalogWork.get(id) },
+        '@/lib/tmdb-discovery': { getTMDBHomeRows: () => { throw new Error('Expected installed add-on catalogs'); } },
+        '@/app/components/auth-error-handler': { AuthErrorHandler: React.Fragment },
+        '@/components/home-catalog-sections-lazy': { HomeCatalogSectionsLazy },
+        '@/components/home-continue-watching': { ContinueWatchingSection: () => React.createElement('section', null, 'Continue Watching') },
+        '@/components/ui/loading-placeholder': { LoadingPlaceholder: delayedPlaceholder },
     });
     const output = new PassThrough(); let html = '';
     output.on('data', chunk => { html += chunk; });
     const completed = once(output, 'end');
-    const view = renderToPipeableStream(React.createElement(HomeCatalogSectionsLazy, {
-        initialSections: [], remainingEntries: [], batchSize: 2,
-        initialRows: [
-            { key: 'slow', sectionName: 'Slow', result: slow.promise },
-            { key: 'fast', sectionName: 'Fast', result: fast.promise },
-            { key: 'error', sectionName: 'Failed provider', result: Promise.resolve({ status: 'error' }) },
-        ],
-    }), { onShellReady() { view.pipe(output); }, onError(error) { throw error; } });
+    const view = renderToPipeableStream(await Home(), {
+        onShellReady() { view.pipe(output); },
+        onError(error) { throw error; },
+    });
     await tick();
-    assert.ok(html.includes('data-home-initial-pending'), 'Each unresolved initial row has its own Suspense fallback');
-    fast.resolve({ status: 'ready', section: section('fast') }); await tick(); await tick();
-    assert.ok(html.includes('Catalog fast'), 'A healthy row reaches the stream while another provider is still pending');
-    assert.ok(!html.includes('Catalog slow'));
+    const bootstrap = html;
+    assert.ok(bootstrap.includes('Continue Watching'));
+    assert.ok(!bootstrap.includes('data-home-catalogs'));
+    const placeholderSlots = markup => (markup.match(/aria-hidden="true"[^>]+min-height:360px/g) ?? []).length;
+    const assertVisiblePlaceholders = markup => {
+        assert.ok(!markup.includes(loadingClass), 'Catalog handoffs cannot restart the hidden placeholder delay');
+        assert.match(markup, /aspect-\[2\/3\] w-full rounded-md bg-accent/);
+        assert.doesNotMatch(markup, /animate-pulse/);
+    };
+    assertVisiblePlaceholders(bootstrap);
+    assert.equal(placeholderSlots(bootstrap), INITIAL_CATALOG_COUNT);
+
+    addons.resolve([{ transportUrl: 'https://addon.test/manifest.json', manifest: {
+        catalogs: ['slow', 'fast', 'error'].map(id => ({ id, type: 'movie', name: `Catalog ${id}` })),
+    } }]);
+    await tick(); await tick();
+    const streamed = html.slice(bootstrap.length);
+    assert.ok(streamed.includes('data-home-catalogs'));
+    assertVisiblePlaceholders(streamed);
+    assert.equal(placeholderSlots(streamed), catalogWork.size, 'Each pending row keeps a visible placeholder at the same height');
+    fast.resolve(section('fast').mediaItems);
+    failed.reject(new Error('offline'));
+    await tick(); await tick();
+    assert.ok(html.includes('Catalog Fast'), 'A healthy row reaches the stream while another provider is still pending');
+    assert.ok(!html.includes('Catalog Slow'));
     assert.ok(html.includes('Could not load this catalog.'), 'A failed feed stays local to its own row');
-    slow.resolve({ status: 'ready', section: section('slow') }); await completed;
-    assert.ok(html.includes('Catalog slow'));
+    slow.resolve(section('slow').mediaItems); await completed;
+    assert.ok(html.includes('Catalog Slow'));
 
     const pending = new Map(), signals = [];
     const { POST } = load('app/api/home/catalogs/route.ts', {

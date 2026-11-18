@@ -4,8 +4,7 @@ import { getTMDBHomeRows } from "@/lib/tmdb-discovery";
 import { AuthErrorHandler } from "@/app/components/auth-error-handler";
 import { HomeCatalogSectionsLazy } from "@/components/home-catalog-sections-lazy";
 import { ContinueWatchingSection } from "@/components/home-continue-watching";
-import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
-import { Skeleton } from "@/components/ui/skeleton";
+import { HomeCatalogSkeleton } from "@/components/home-catalog-skeleton";
 import type { HomeCatalogEntry, HomeCatalogSection, InitialHomeCatalog } from "@/lib/home-catalogs";
 import { CATALOG_BATCH_SIZE, INITIAL_CATALOG_COUNT } from "@/lib/home-catalogs";
 import type { StremioAddonCatalog } from "@/types/stremio";
@@ -28,46 +27,11 @@ function formatCatalogLabel(catalogName: string | null, catalogId: string): stri
     .join(" ");
 }
 
-function PosterCardSkeleton() {
-  return (
-    <div className="flex-shrink-0 w-36">
-      <Skeleton className="w-full aspect-[2/3] rounded-md" />
-      <div className="px-1 mt-2.5 space-y-1.5">
-        <Skeleton className="h-4 w-11/12 rounded" />
-        <Skeleton className="h-3 w-2/5 rounded" />
-      </div>
-    </div>
-  );
-}
-
-function HomeSectionSkeleton() {
-  const skeletonCount = 16;
-
-  return (
-    <LoadingPlaceholder className="relative z-10 mb-8">
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <Skeleton className="h-8 w-56 rounded-full" />
-        <div className="flex items-center gap-2">
-          <Skeleton className="hidden md:block size-8 rounded-full" />
-          <Skeleton className="hidden md:block size-8 rounded-full" />
-        </div>
-      </div>
-      <div className="flex gap-4 overflow-hidden">
-        {Array.from({ length: skeletonCount }).map((_, index) => (
-          <PosterCardSkeleton key={`poster-card-skeleton-${index}`} />
-        ))}
-      </div>
-    </LoadingPlaceholder>
-  );
-}
-
 function HomeCatalogsFallback() {
   return (
     <>
-      {Array.from({ length: 3 }).map((_, index) => (
-        <HomeSectionSkeleton
-          key={`home-catalog-loading-${index}`}
-        />
+      {Array.from({ length: INITIAL_CATALOG_COUNT }, (_, index) => (
+        <HomeCatalogSkeleton key={index} />
       ))}
     </>
   );
@@ -152,7 +116,7 @@ async function CatalogSectionsBootstrap({
   );
 }
 
-async function DiscoverySections() {
+function DiscoverySections() {
   const { rows, region } = getTMDBHomeRows();
   return <>
     <HomeCatalogSectionsLazy initialSections={[]} initialRows={rows} remainingEntries={[]} batchSize={CATALOG_BATCH_SIZE} />
@@ -173,9 +137,11 @@ export default async function Home() {
         <h1 className="sr-only">Home</h1>
         {user && <ContinueWatchingSection />}
 
-        <Suspense fallback={<div data-home-initial-pending><HomeCatalogsFallback /></div>}>
-          {catalogEntriesPromise ? <CatalogSectionsBootstrap catalogEntriesPromise={catalogEntriesPromise} /> : <DiscoverySections />}
-        </Suspense>
+        {catalogEntriesPromise ? (
+          <Suspense fallback={<div data-home-initial-pending><HomeCatalogsFallback /></div>}>
+            <CatalogSectionsBootstrap catalogEntriesPromise={catalogEntriesPromise} />
+          </Suspense>
+        ) : <DiscoverySections />}
       </div>
     </AuthErrorHandler>
   );

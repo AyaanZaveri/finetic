@@ -1731,7 +1731,6 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
   const seekRef = React.useRef<HTMLDivElement>(null);
   const keyboardRangeRef = React.useRef<HTMLSpanElement>(null);
   const tooltipRef = React.useRef<HTMLDivElement>(null);
-  const justCommittedRef = React.useRef<boolean>(false);
   const touchScrubbingRef = React.useRef(false);
   const [touchScrubSpeed, setTouchScrubSpeed] = React.useState<number | null>(null);
 
@@ -1752,14 +1751,8 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
 
   const rafIdRef = React.useRef<number | null>(null);
   const seekThrottleRef = React.useRef<number | null>(null);
-  const hoverTimeoutRef = React.useRef<number | null>(null);
   const lastPointerXRef = React.useRef<number>(0);
-  const lastPointerYRef = React.useRef<number>(0);
   const previewDebounceRef = React.useRef<number | null>(null);
-  const pointerEnterTimeRef = React.useRef<number>(0);
-  const horizontalMovementRef = React.useRef<number>(0);
-  const verticalMovementRef = React.useRef<number>(0);
-  const lastSeekCommitTimeRef = React.useRef<number>(0);
 
   const timeCache = React.useRef<Map<number, string>>(new Map());
 
@@ -2071,44 +2064,19 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
     }
 
     collisionDataRef.current = null;
-    pointerEnterTimeRef.current = Date.now();
-    horizontalMovementRef.current = 0;
-    verticalMovementRef.current = 0;
     lastPointerXRef.current = event.clientX;
-    lastPointerYRef.current = event.clientY;
 
-    if (seekableEnd > 0) {
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current);
-      }
-
-      if (!tooltipDisabled) {
-        if (seekRectRef.current && seekRectRef.current.width > 0) {
-          const fraction = Math.max(0, Math.min(1, (event.clientX - seekRectRef.current.left) / seekRectRef.current.width));
-          hoverTimeRef.current = seekableStart + fraction * (seekableEnd - seekableStart);
-          onPreviewUpdate(hoverTimeRef.current);
-          hoverTimeoutRef.current = window.setTimeout(() => {
-            setSeekState((previous) => ({ ...previous, isHovering: true }));
-            onTooltipPositionUpdate(lastPointerXRef.current);
-          }, 60);
-        }
-        if (lastPointerXRef.current && seekRectRef.current) {
-          const clientX = Math.max(
-            seekRectRef.current.left,
-            Math.min(lastPointerXRef.current, seekRectRef.current.right)
-          );
-          onTooltipPositionUpdate(clientX);
-        }
-      }
-    }
+    const rect = seekRectRef.current;
+    if (tooltipDisabled || seekableEnd <= 0 || !rect || rect.width <= 0) return;
+    const fraction = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+    hoverTimeRef.current = seekableStart + fraction * (seekableEnd - seekableStart);
+    onPreviewUpdate(hoverTimeRef.current);
+    onTooltipPositionUpdate(event.clientX);
+    setSeekState(previous => ({ ...previous, isHovering: true }));
   }, [seekableStart, seekableEnd, onTooltipPositionUpdate, onPreviewUpdate, tooltipDisabled]);
 
   const onPointerLeave = React.useCallback(() => {
     if (touchScrubbingRef.current) return;
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-      hoverTimeoutRef.current = null;
-    }
     if (rafIdRef.current) {
       cancelAnimationFrame(rafIdRef.current);
       rafIdRef.current = null;
@@ -2124,16 +2092,10 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
       hasInitialPosition: false,
     }));
 
-    justCommittedRef.current = false;
     seekRectRef.current = null;
     collisionDataRef.current = null;
 
-    pointerEnterTimeRef.current = 0;
-    horizontalMovementRef.current = 0;
-    verticalMovementRef.current = 0;
     lastPointerXRef.current = 0;
-    lastPointerYRef.current = 0;
-    lastSeekCommitTimeRef.current = 0;
 
     if (!tooltipDisabled) {
       dispatch({
@@ -2153,30 +2115,13 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
 
       if (!seekRectRef.current) return;
 
-      const currentX = event.clientX;
-      const currentY = event.clientY;
-
-      if (lastPointerXRef.current !== 0 && lastPointerYRef.current !== 0) {
-        const deltaX = Math.abs(currentX - lastPointerXRef.current);
-        const deltaY = Math.abs(currentY - lastPointerYRef.current);
-
-        horizontalMovementRef.current += deltaX;
-        verticalMovementRef.current += deltaY;
-      }
-
-      lastPointerXRef.current = currentX;
-      lastPointerYRef.current = currentY;
+      lastPointerXRef.current = event.clientX;
 
       if (rafIdRef.current) {
         cancelAnimationFrame(rafIdRef.current);
       }
 
       rafIdRef.current = requestAnimationFrame(() => {
-        const wasJustCommitted = justCommittedRef.current;
-        if (wasJustCommitted) {
-          justCommittedRef.current = false;
-        }
-
         const seekRect = seekRectRef.current;
         if (!seekRect) {
           rafIdRef.current = null;
@@ -2199,26 +2144,9 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
         const isCurrentlyHovering =
           clientX >= seekRect.left && clientX <= seekRect.right;
 
-        const timeHovering = Date.now() - pointerEnterTimeRef.current;
-        const totalMovement =
-          horizontalMovementRef.current + verticalMovementRef.current;
-        const horizontalRatio =
-          totalMovement > 0 ? horizontalMovementRef.current / totalMovement : 0;
-
-        const timeSinceSeekCommit = Date.now() - lastSeekCommitTimeRef.current;
-        const isInSeekCooldown = timeSinceSeekCommit < 300;
-
-        const shouldShowTooltip =
-          !wasJustCommitted &&
-          !isInSeekCooldown &&
-          (timeHovering > 150 ||
-            horizontalRatio > 0.6 ||
-            (totalMovement < 10 && timeHovering > 50));
-
         if (
           !wasHovering &&
           isCurrentlyHovering &&
-          shouldShowTooltip &&
           !tooltipDisabled
         ) {
           setSeekState((prev) => ({ ...prev, isHovering: true }));
@@ -2227,7 +2155,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
         if (!tooltipDisabled) {
           onPreviewUpdate(calculatedHoverTime);
 
-          if (isCurrentlyHovering && (wasHovering || shouldShowTooltip)) {
+          if (isCurrentlyHovering) {
             onTooltipPositionUpdate(clientX);
           }
         }
@@ -2267,10 +2195,6 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
       store.setState("seekPreviewTime", time);
       store.setState("seekMode", null);
 
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current);
-        hoverTimeoutRef.current = null;
-      }
       if (rafIdRef.current) {
         cancelAnimationFrame(rafIdRef.current);
         rafIdRef.current = null;
@@ -2280,8 +2204,6 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
         previewDebounceRef.current = null;
       }
 
-      lastSeekCommitTimeRef.current = Date.now();
-
       setSeekState((prev) => ({
         ...prev,
         pendingSeekTime: time,
@@ -2289,14 +2211,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
         hasInitialPosition: false,
       }));
 
-      justCommittedRef.current = true;
       collisionDataRef.current = null;
-      lastSeekCommitTimeRef.current = Date.now();
-
-      // Reset movement tracking after seek commit
-      pointerEnterTimeRef.current = Date.now();
-      horizontalMovementRef.current = 0;
-      verticalMovementRef.current = 0;
 
       if (store.getState().dragging) {
         store.setState("dragging", false);
@@ -2319,9 +2234,6 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
     return () => {
       if (seekThrottleRef.current) {
         cancelAnimationFrame(seekThrottleRef.current);
-      }
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current);
       }
       if (rafIdRef.current) {
         cancelAnimationFrame(rafIdRef.current);
@@ -2483,6 +2395,9 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
           const direction = event.key === "ArrowRight" || event.key === "ArrowUp" ? 1
             : event.key === "ArrowLeft" || event.key === "ArrowDown" ? -1 : 0;
           if (!direction) return;
+          if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+            seekRef.current?.setAttribute("data-arrow-seeking", "");
+          }
           // Pointer precision is 0.01s. Keyboard transport uses ten seconds,
           // even when the thumb still owns focus after a pointer seek.
           event.preventDefault();
@@ -2494,6 +2409,10 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
           if (!Number.isFinite(current) || seekableEnd <= seekableStart) return;
           const time = Math.min(seekableEnd, Math.max(seekableStart, current + direction * KEYBOARD_SEEK_STEP));
           onSeekCommit([time]);
+        }}
+        onBlur={(event) => {
+          seekProps.onBlur?.(event);
+          seekRef.current?.removeAttribute("data-arrow-seeking");
         }}
         onValueChange={onSeek}
         onValueCommit={onSeekCommit}

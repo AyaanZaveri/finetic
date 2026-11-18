@@ -261,8 +261,15 @@ export async function getTMDBEpisode(seriesId: string, season: number, episode: 
     };
 }
 
-/** Small chat context, not full title/credits or a season enumeration. */
-export async function getTMDBPageContext(target: { id: string; type: TMDBMediaType; season?: number; episode?: number }, signal?: AbortSignal) {
+/** Small chat context for a viewed profile, title, or episode. */
+export async function getTMDBPageContext(
+    target: { id: string; type: TMDBMediaType; season?: number; episode?: number } | { id: number; type: "person" },
+    signal?: AbortSignal,
+) {
+    if (target.type === "person") {
+        const { id, name, department } = await getTMDBPerson(target.id, signal);
+        return { id, name, department, type: target.type, source: "TMDB" as const };
+    }
     const tmdbId = await tmdbIdForTitle(target.id, target.type, signal);
     const id = `tmdb:${tmdbId}`;
     const episodeTarget = target.type === "series" && target.season !== undefined && target.episode !== undefined;

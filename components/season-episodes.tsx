@@ -7,11 +7,14 @@ import { ArtworkImage } from "@/components/artwork-image";
 import React, {
   useState,
   useEffect,
+  useLayoutEffect,
   useCallback,
   useRef,
   useMemo,
 } from "react";
 import { acquireSeriesSeason } from "@/lib/media/series-season";
+import { safeResumePosition } from "@/lib/media/resume-playback";
+import { observeCarouselControls } from "@/lib/media/carousel-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CarouselAction } from "@/components/carousel-action";
@@ -185,6 +188,20 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
   const lastScrolledEpisodeRef = useRef<string | null>(null);
   const scrollContentRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const [carouselPosition, setCarouselPosition] = useState({ overflow: false, start: true, end: true });
+
+  useLayoutEffect(() => {
+    const track = episodesLoading ? null : scrollContentRef.current;
+    const viewport = track?.closest('[data-slot="scroll-area"]')
+      ?.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]') ?? null;
+    viewportRef.current = viewport;
+    if (!viewport) {
+      setCarouselPosition(previous => previous.overflow ? { overflow: false, start: true, end: true } : previous);
+      return;
+    }
+    return observeCarouselControls(viewport, next => setCarouselPosition(previous =>
+      previous.overflow === next.overflow && previous.start === next.start && previous.end === next.end ? previous : next));
+  }, [episodesLoading, episodes, selectedSeason]);
 
   useEffect(() => {
     if (hasPrefetchedSeasons) {
@@ -332,7 +349,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
       const next = {
         videoId: progress?.videoId,
         progressPercent: progress?.progressPercent,
-        resumePositionTicks: progress?.resumePositionTicks,
+        resumePositionTicks: safeResumePosition(progress?.resumePositionTicks, progress?.totalDuration, true),
       };
       playbackProgressCache.set(showId, next);
 
@@ -359,64 +376,36 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
     };
   }, [showId, authenticated]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    if (selectedSeason !== currentSeasonNumber) {
+      lastScrolledEpisodeRef.current = null;
+      return;
+    }
     if (
       episodesLoading ||
       currentSeasonNumber === undefined ||
-      !currentEpisodeNumber ||
-      selectedSeason !== currentSeasonNumber
+      !currentEpisodeNumber
     ) {
       return;
     }
 
     const key = `${currentSeasonNumber}:${currentEpisodeNumber}`;
-    if (lastScrolledEpisodeRef.current === key) {
+    const identity = `${showId}:${key}`;
+    if (lastScrolledEpisodeRef.current === identity) {
       return;
     }
 
-    const element = document.querySelector(
-      `[data-episode-key="${key}"]`
-    ) as HTMLElement | null;
+    const element = scrollContentRef.current?.querySelector<HTMLElement>(`[data-episode-key="${key}"]`);
+    const viewport = viewportRef.current;
+    if (!element || !viewport) return;
+    const offset = element.getBoundingClientRect().left - viewport.getBoundingClientRect().left;
+    viewport.scrollBy({ left: offset - (viewport.clientWidth - element.clientWidth) / 2, behavior: "instant" });
+    lastScrolledEpisodeRef.current = identity;
+  }, [episodes, episodesLoading, showId, currentSeasonNumber, currentEpisodeNumber, selectedSeason]);
 
-    if (element) {
-      const viewport =
-        viewportRef.current ??
-        (element
-          .closest('[data-slot="scroll-area"]')
-          ?.querySelector(
-            '[data-slot="scroll-area-viewport"]'
-          ) as HTMLDivElement | null);
-
-      if (viewport) {
-        const targetLeft =
-          element.offsetLeft - (viewport.clientWidth - element.clientWidth) / 2;
-
-        viewport.scrollTo({
-          left: Math.max(0, targetLeft),
-          behavior: "smooth",
-        });
-      }
-
-      lastScrolledEpisodeRef.current = key;
-    }
-  }, [episodes, episodesLoading, currentSeasonNumber, currentEpisodeNumber, selectedSeason]);
-
-  useEffect(() => {
-    if (!scrollContentRef.current) return;
-    const viewport = scrollContentRef.current
-      .closest('[data-slot="scroll-area"]')
-      ?.querySelector('[data-slot="scroll-area-viewport"]') as HTMLDivElement | null;
-    viewportRef.current = viewport;
-  }, [episodesLoading, episodes, selectedSeason]);
-
-  const scrollLeft = () => {
-    if (!viewportRef.current) return;
-    viewportRef.current.scrollBy({ left: -300, behavior: "smooth" });
-  };
-
-  const scrollRight = () => {
-    if (!viewportRef.current) return;
-    viewportRef.current.scrollBy({ left: 300, behavior: "smooth" });
+  const scrollEpisodes = (direction: -1 | 1, keyboard: boolean) => {
+    const behavior = keyboard || window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth";
+    viewportRef.current?.scrollBy({ left: direction * 300, behavior });
   };
 
   if (loading) {
@@ -468,27 +457,26 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
             }))}
           />
         </div>
-        <div className="ms-auto flex shrink-0 items-center gap-2">
+        {!episodesLoading && carouselPosition.overflow && <div className="ms-auto flex shrink-0 items-center gap-2">
           <CarouselAction
             size="icon-sm"
             aria-label="Scroll left"
-            onClick={scrollLeft}
+            disabled={carouselPosition.start}
+            onClick={event => scrollEpisodes(-1, event.detail === 0)}
           >
             <ChevronLeft className="h-4 w-4" />
           </CarouselAction>
           <CarouselAction
             size="icon-sm"
             aria-label="Scroll right"
-            onClick={scrollRight}
+            disabled={carouselPosition.end}
+            onClick={event => scrollEpisodes(1, event.detail === 0)}
           >
             <ChevronRight className="h-4 w-4" />
           </CarouselAction>
-        </div>
+        </div>}
       </div>
 
-      {!episodesLoading && !episodes.length && episodeError === `${showId}:${selectedSeason}` && <div role="alert" className="mb-4 flex items-center gap-3 text-sm text-muted-foreground">
-        <span>Couldn’t load this season.</span><Button variant="secondary" size="sm" onClick={() => setEpisodeRetry(value => value + 1)}>Retry</Button>
-      </div>}
       {episodesLoading ? (
         <LoadingPlaceholder>
           <ScrollArea className="w-full whitespace-nowrap -ml-3">
@@ -517,7 +505,12 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
           </ScrollArea>
         </LoadingPlaceholder>
       ) : episodes.length === 0 ? (
-        <div className="text-muted-foreground">
+        episodeError === `${showId}:${selectedSeason}` ? (
+          <div role="alert" className="mb-4 flex items-center gap-3 text-sm text-muted-foreground">
+            <span>Couldn’t load this season.</span>
+            <Button variant="secondary" size="sm" onClick={() => setEpisodeRetry(value => value + 1)}>Retry</Button>
+          </div>
+        ) : <div className="text-muted-foreground">
           No episodes found for this season
         </div>
       ) : (
@@ -536,7 +529,8 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
                     episode.progressPercent,
                   resumePositionTicks:
                     playbackProgressByEpisodeId[episode.id]
-                      ?.resumePositionTicks ?? episode.resumePositionTicks,
+                      ? playbackProgressByEpisodeId[episode.id].resumePositionTicks
+                      : episode.resumePositionTicks,
                 }}
                 showId={showId}
                 isActive={
@@ -563,7 +557,6 @@ const EpisodeCard = React.memo(function EpisodeCard({
   isActive?: boolean;
 }) {
   const { playMedia } = usePlaybackActions();
-  const [pressed, setPressed] = useState(false);
   const handlePlay = (event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
@@ -610,10 +603,6 @@ const EpisodeCard = React.memo(function EpisodeCard({
       className={cardStyles.card + " relative shrink-0 w-72 group"}
       data-episode-id={episode.id}
       data-episode-key={`${episode.season}:${episode.episode}`}
-      onPointerDown={(event) => { if (event.button === 0) setPressed(true); }}
-      onPointerUp={() => setPressed(false)}
-      onPointerLeave={() => setPressed(false)}
-      onPointerCancel={() => setPressed(false)}
     >
       <IntentLink
         href={buildEpisodePath(showId, episode.season, episode.episode)}
@@ -625,7 +614,6 @@ const EpisodeCard = React.memo(function EpisodeCard({
           {/* Episode Thumbnail */}
           <div
             data-episode-artwork=""
-            data-pressed={pressed || undefined}
             className={`${artworkStyles.surface} ${cardStyles.frame} relative aspect-video overflow-hidden ${isUpcoming ? "bg-gradient-to-br from-accent via-accent to-accent/70 border border-border/70" : "bg-muted"} ${isActive ? "ring-2 ring-primary ring-offset-3 ring-offset-background" : ""}`}
           >
             {isUpcoming ? (

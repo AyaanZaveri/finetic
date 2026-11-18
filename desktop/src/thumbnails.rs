@@ -79,7 +79,8 @@ impl Previews {
                     // evict its current frame and trigger a duplicate download.
                     cache: if opened.images.is_some() { 4 } else { 96 },
                     workers: 2,
-                    fetches: 2,
+                    // Give the latest target a slot when two older range reads stall.
+                    fetches: crate::media_cache::PREVIEW_READ_SLOTS,
                     ..Settings::default()
                 };
                 let weak = Arc::downgrade(&opened);

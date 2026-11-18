@@ -18,7 +18,8 @@ export function AppUpdates() {
         bridge.send({ type: "update-status" });
         return unsubscribe;
     }, []);
-    const checking = status?.state === "checking";
+    const checking = status?.state === "checking" || status?.state === "downloading";
+    const ready = status?.state === "ready";
     return <section className={styles.section} aria-label="About Navigator">
         <h2>Navigator {status?.version ?? version}</h2>
         {status ? <>
@@ -26,18 +27,18 @@ export function AppUpdates() {
             {status.available ? <>
                 <Field orientation="horizontal">
                     <FieldContent>
-                        <FieldLabel htmlFor="automatic-app-updates">Check for updates automatically</FieldLabel>
-                        <FieldDescription>Check in the background. Updates are installed only when you choose.</FieldDescription>
+                        <FieldLabel htmlFor="automatic-app-updates">Download updates automatically</FieldLabel>
+                        <FieldDescription>Check and download in the background. Choose when to restart and install.</FieldDescription>
                     </FieldContent>
                     <Switch id="automatic-app-updates" checked={status.automatic}
                         onCheckedChange={enabled => desktopBridge()?.send({ type: "update-automatic", enabled })} />
                 </Field>
                 <div><Button variant="outline" disabled={checking} onClick={() => desktopBridge()?.send({ type: "update-check" })}>
-                    {checking ? "Checking…" : "Check for updates"}
+                    {ready ? "Restart to update" : status.state === "downloading" ? "Downloading…" : checking ? "Checking…" : "Check for updates"}
                 </Button></div>
             </> : <p className={styles.credits}>In-app updates require an installed desktop app. Install the latest version to enable updates.</p>}
             <p role="status" aria-live="polite" className={styles.credits}>
-                {status.message ?? (checking ? "Checking for updates…" : status.state === "current" ? "You’re up to date." : status.state === "available" ? "An update is available. Continue in the update window." : "")}
+                {status.message ?? (ready ? "The update is ready. Restart when it suits you." : status.state === "downloading" ? "Downloading the update in the background…" : checking ? "Checking for updates…" : status.state === "current" ? "You’re up to date." : status.state === "available" ? "An update is available." : "")}
             </p>
         </> : null}
         <div><Button asChild variant="outline" size="sm">

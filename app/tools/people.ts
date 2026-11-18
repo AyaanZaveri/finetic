@@ -33,6 +33,23 @@ export const getPersonDetails = tool({
     },
 });
 
+export const navigateToPerson = tool({
+    description: "Open a person's profile in Navigator. Use a numeric TMDB person ID from the viewed profile, people search, person details, or title credits.",
+    inputSchema: z.object({ personId: z.number().int().positive() }),
+    execute: async ({ personId }, { abortSignal }) => {
+        try {
+            const person = await getTMDBPerson(personId, abortSignal);
+            return {
+                success: true, action: "navigate", personId: person.id, url: `/person/${person.id}`,
+                mediaName: person.name, mediaType: "Person", poster: person.poster,
+            };
+        } catch (error) {
+            abortSignal?.throwIfAborted();
+            return { success: false, error: error instanceof Error ? error.message : "Person profile could not be opened." };
+        }
+    },
+});
+
 export const getFilmography = tool({
     description: "Get a person's movie and TV credits directly from TMDB. Filter by acting, directing, writing, or producing to answer questions such as 'movies directed by Nolan'. Results are deduplicated by title and include roles and characters. Use pagination to see further credits; do not claim the first page is a complete filmography.",
     inputSchema: z.object({

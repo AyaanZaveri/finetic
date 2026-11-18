@@ -35,6 +35,7 @@ async function main() {
     const endpoint = url.pathname.replace('/3/', '');
     let data;
     if (endpoint.startsWith('search/')) data = { page: 1, total_pages: 1, total_results: 1, results: tmdbSearchFixtures || [movieFixture] };
+    else if (endpoint === 'person/42') data = { id: 42, name: 'Example Director', known_for_department: 'Directing', biography: 'Full biography', profile_path: '/director.jpg' };
     else if (endpoint.startsWith('find/')) data = { movie_results: [movieFixture], tv_results: [] };
     else if (endpoint === 'movie/123/external_ids') data = { imdb_id: 'tt123' };
     else if (endpoint === 'movie/123') data = { ...movieFixture, title: 'Viewed title', external_ids: { imdb_id: 'tt123' }, genres: [], credits: { cast: [], crew: [] } };
@@ -184,6 +185,10 @@ async function main() {
   assert.deepEqual(clone(chat.pageTargetFromPath('/series/show%3A123/1/2')), { id: 'show:123', type: 'series', season: 1, episode: 2 });
   assert.equal(chat.pageTargetFromPath('/settings'), null);
   assert.equal(chat.pageTargetFromPath('/movie/%E0%A4%A'), null);
+  assert.deepEqual(clone(chat.pageTargetFromPath('/person/42')), { id: 42, type: 'person' });
+  for (const path of ['/person/0', '/person/01', '/person/9007199254740992', '/person/42/credits', '/person/42?x=1']) {
+    assert.equal(chat.pageTargetFromPath(path), null);
+  }
   const entries = [
     { timestamp: 5, endTimestamp: 8, timestampFormatted: '00:05', text: 'Earlier evidence' },
     { timestamp: 9, endTimestamp: 15, timestampFormatted: '00:09', text: 'A sentence still being spoken' },
@@ -693,6 +698,21 @@ async function main() {
   assert.equal(failedSceneTurn.parts.find(part => part.type === 'tool-skipToSubtitleContent').output.success, false);
   assert.equal(failedSceneSteps, 1, 'A failed scene seek must end the turn instead of giving the agent a chance to substitute navigation/playback');
 
+
+  activeModel = new MockLanguageModelV4({ doStream: async options => {
+    const prompt = JSON.stringify(options.prompt);
+    assert.match(prompt, /Example Director/);
+    assert.match(prompt, /Directing/);
+    assert.doesNotMatch(prompt, /Full biography|director\.jpg/);
+    assert.ok(options.tools.some(tool => tool.name === 'navigateToPerson'));
+    return stream([{ type: 'tool-call', toolCallId: 'open-person', toolName: 'navigateToPerson', input: JSON.stringify({ personId: 42 }) }], 'tool-calls');
+  } });
+  const personTurn = [user('profile-request', 'Open the profile for this director')];
+  const profileResponse = await readResponse(await POST(request({ ...payload, pathname: '/person/42', messages: personTurn })));
+  const [profileAction] = chat.preparedNavigatorActions([...personTurn, profileResponse]);
+  assert.equal(profileAction.output.url, '/person/42');
+  assert.equal(profileAction.output.mediaName, 'Example Director');
+  assert.equal(profileAction.output.execution, 'prepared');
 
   activeModel = new MockLanguageModelV4({ provider: 'openai-compatible.chat', modelId: 'gpt-6-luna',
     doStream: async () => stream([{ type: 'text-start', id: 'custom' }, { type: 'text-delta', id: 'custom', delta: 'Hello' }, { type: 'text-end', id: 'custom' }], 'stop'),

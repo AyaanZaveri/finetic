@@ -27,7 +27,7 @@ mod wake_lock;
 mod window_state;
 #[cfg(windows)]
 mod windows_install;
-#[cfg(windows)]
+#[cfg(any(windows, test))]
 mod windows_updater;
 #[cfg(any(windows, target_os = "macos", test))]
 mod update_feed;

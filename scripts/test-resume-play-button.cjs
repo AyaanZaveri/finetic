@@ -22,9 +22,10 @@ assert.equal(formatResumePosition(3754), '1:02:34');
 assert.equal(resumePlaybackTarget(media, progress).resumePositionTicks, 754);
 assert.equal(resumePlaybackTarget(media, { ...progress, videoId: 'show:1:2' }).resumePositionTicks, undefined,
     'Another episode’s progress must never become this episode’s resume position');
-for (const position of [0, -1, NaN, Infinity, 1800]) {
+for (const position of [0, -1, NaN, Infinity, 1799, 1800, 1801]) {
     assert.equal(resumePlaybackTarget(media, { ...progress, resumePositionTicks: position }).resumePositionTicks, undefined);
 }
+assert.equal(resumePlaybackTarget(media, { ...progress, resumePositionTicks: 1790 }).resumePositionTicks, 1790);
 const overview = { id: 'show', type: 'series', name: 'Show' };
 const resumed = resumePlaybackTarget(overview, progress);
 assert.equal(resumed.mediaSourceId, 'show:1:3');
@@ -47,6 +48,8 @@ const { MediaPlayButton } = load('components/media-page/play-button.tsx', {
         if (name === 'react/jsx-runtime') return { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) };
         if (name === '@/lib/media/resume-playback') return helpers;
         if (name === '@/contexts/MediaPlayerContext') return { usePlaybackActions: () => ({ playMedia: target => played.push(target) }) };
+        if (name === '@/contexts/account-context') return { useAccountAccess: () => ({ authenticated: true }) };
+        if (name === '@/components/metadata-preload') return { useMetadataIntent: () => ({}) };
         if (name === '@/components/ui/button') return { Button: 'button' };
         return new Proxy({}, { get: (_, key) => key });
     },
@@ -68,7 +71,7 @@ resumeButton.props.onClick();
 assert.equal(played.at(-1).resumePositionTicks, 754);
 assert.equal(tooltip.props.delayDuration, 600);
 const restart = tooltip.props.children[0].props.children;
-assert.equal(restart.props.variant, 'secondary');
+assert.equal(restart.props.variant, 'media-secondary');
 assert.equal(restart.props.size, 'icon-lg');
 assert.ok(restart.props.className.includes('rounded-full'));
 assert.equal(restart.props['aria-label'], 'Play from start');

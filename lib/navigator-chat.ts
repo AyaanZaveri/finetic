@@ -1,7 +1,7 @@
 import type { ModelMessage, UIMessage } from "ai";
 
 export const actionToolNames = new Set([
-    "navigateToMedia", "navigateToEpisode", "navigateToMediaByQuery",
+    "navigateToMedia", "navigateToEpisode", "navigateToMediaByQuery", "navigateToPerson",
     "playMedia", "skipToSubtitleContent", "themeToggle",
 ]);
 
@@ -164,6 +164,10 @@ export function findPreparedAction(messages: UIMessage[], toolCallId: string) {
 }
 
 export function pageTargetFromPath(pathname: string) {
+    const person = /^\/person\/([1-9]\d*)\/?$/.exec(pathname);
+    if (person && Number.isSafeInteger(Number(person[1]))) {
+        return { id: Number(person[1]), type: "person" as const };
+    }
     const match = /^\/(movie|series)\/([^/]+)(?:\/(\d+)\/(\d+))?\/?$/.exec(pathname);
     if (!match || (match[1] === "movie" && match[3])) return null;
     try {

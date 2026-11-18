@@ -427,6 +427,49 @@ and does not start a backend.
 
 ## Implementation
 
+### Background and delta updates
+
+The desktop shell checks at launch and hourly when automatic downloads are on.
+It downloads updates while the app remains open. The header and Settings show
+`Restart to update` after preparation. The local Next.js server, routes, sign-in
+profile, and settings locations are unchanged. A manual check also prepares a
+download; installation needs a separate restart action.
+
+macOS uses Sparkle with a custom user driver. Sparkle verifies the archive,
+extracts it, and waits for the restart choice. Normal quit cancels a pending
+installation. It can use signed binary deltas and falls back to the full ZIP
+when a delta cannot apply. The native shutdown handoff still stops mpv and the
+owned server before replacement.
+
+Windows uses the bundled Node runtime for update downloads, separately from
+the local server. Both the JSON release manifest and the installer bytes are
+verified with the existing pinned Ed25519 key. A delta installer contains changed
+files and a complete target manifest. It copies and checks unchanged files into
+a new staging directory. It never modifies the active installation in place.
+A mismatched base triggers the signed full-installer fallback. The existing
+NSIS preparation, atomic activation, and recovery checks still apply.
+
+The manual `desktop-build.yml` workflow accepts `delta_base_tag`. If empty, it
+tries the latest stable release in the current repository. It requires GitHub's
+SHA256 asset digest and otherwise builds full packages. Windows bases must have
+`release-manifest.json`, so existing users need one full update to install this
+updater and establish a reusable base. Deltas are kept only when smaller than
+90% of the full package. CI collects them with the ordinary artifacts and hashes.
+No signing key is uploaded to CI.
+
+Release signing stays separate from building and publishing. Pass generated
+`.delta` files after the output XML argument to `macos-update-feed.mjs`. Pass
+Windows `-delta.exe` files after the output XML argument to
+`windows-update-feed.mjs`. That script emits the legacy XML and a signed JSON
+feed. Publish the JSON as `updates/windows.json` with the XML feeds, and upload
+every payload named by those feeds before advancing them. Keep both full
+packages available for fallback and for older updater versions. Do not publish
+unsigned CI output as an update feed.
+
+`npm run test:app-updates` checks signatures, tampering, cache reuse, base
+selection, reconstruction, removed files, path confinement, and full fallback
+with fixture files. It does not install or launch a desktop app.
+
 | Platform | Native surface | React overlay |
 | --- | --- | --- |
 | macOS | libmpv render API into `CAOpenGLLayer` | Transparent WKWebView in the same window |
@@ -510,10 +553,14 @@ enables on-demand extraction when a stream supplies no storyboard.
   cannot open media URLs or files. The page retains bounded Blob copies so
   native eviction cannot break an image it has cached. Older runtimes and an
   unavailable local image endpoint retain base64 compatibility.
-  Useful late frames populate the cache. A frame can answer any current request
-  inside its keyframe interval, while results from replaced sessions are ignored.
-  The previous picture stays visible with an updating label until the next
-  picture is ready. Replacement images decode before display. Black-bar analysis
+  Useful late frames populate the cache. During continuous scrubbing, each
+  completed frame can update the picture even if the cursor has passed its
+  keyframe interval. A cached frame for the current target takes priority.
+  Image transfers that finish out of order cannot replace a newer preview.
+  Hover exit suppresses display, and replaced sessions are ignored. Requests
+  start immediately and coalesce every 60 ms without waiting for the mouse to
+  stop. The previous picture stays visible with a quiet pending overlay until
+  the next picture is ready. Replacement images decode before display. Black-bar analysis
   runs in an optional worker and never blocks showing an otherwise ready image.
 - Web uses a separate muted HTML video decoder (Mux/MSE for manifest streams),
   preloads metadata, uses `fastSeek` where supported, and captures small sRGB

@@ -15,11 +15,12 @@ export function DesktopUpdateButton() {
         bridge.send({ type: "update-status" });
         return unsubscribe;
     }, []);
-    if (!status?.available || status.state !== "available") return null;
+    if (!status?.available || !["available", "ready"].includes(status.state)) return null;
+    const ready = status.state === "ready";
     return <Button variant="outline" className="max-sm:size-11 max-sm:p-0"
-        aria-label="Update available. Open the updater to download." title="Update available"
+        aria-label={ready ? "Update ready. Restart to update." : "Update available. Open the updater to download."} title={ready ? "Restart to update" : "Update available"}
         onClick={() => desktopBridge()?.send({ type: "update-check" })}>
         <Download data-icon="inline-start" aria-hidden="true" />
-        <span className="hidden sm:inline">Update available</span>
+        <span className="hidden sm:inline">{ready ? "Restart to update" : "Update available"}</span>
     </Button>;
 }

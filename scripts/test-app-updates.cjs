@@ -49,7 +49,7 @@ for (const platform of ['windows', 'macos']) {
         '@/lib/desktop/bridge': { desktopBridge: () => bridge }, './app-header.module.css': { signIn: 'sign-in-material' },
     });
     header.render(DesktopUpdateButton); header.flush();
-    for (const state of ['idle', 'checking', 'current', 'error']) {
+    for (const state of ['idle', 'checking', 'downloading', 'current', 'error']) {
         listener({ type: 'update-status', version: '0.5.2', available: true, automatic: true, state });
         assert.equal(header.render(DesktopUpdateButton), null);
     }
@@ -64,6 +64,10 @@ for (const platform of ['windows', 'macos']) {
     assert.equal(indicator.props.variant, 'outline');
     assert.equal(indicator.props.className, 'max-sm:size-11 max-sm:p-0', 'Update and Sign in share default button geometry and material');
     assert.equal(indicator.props.size, undefined, 'Use the same default size as Sign in');
+    listener({ type: 'update-status', version: '0.5.2', available: true, automatic: true, state: 'ready' });
+    const ready = header.render(DesktopUpdateButton);
+    assert.equal(find(ready, 'span')[0].props.children, 'Restart to update');
+    ready.props.onClick(); assert.equal(sent.at(-1).type, 'update-check');
     listener({ type: 'update-status', version: '0.5.2', available: false, automatic: true, state: 'available' });
     assert.equal(header.render(DesktopUpdateButton), null);
     header.unmount();
@@ -84,7 +88,11 @@ for (const file of ['desktop/src/windows_shell.rs', 'desktop/src/tao_shell.rs'])
     assert.match(shell, /ControlFlow::WaitUntil\(next_update_probe\)/, 'Periodic checks must wake an idle app');
 }
 const mac = fs.readFileSync('desktop/src/macos_updater.rs', 'utf8');
-assert.match(mac, /checkForUpdateInformation/);
+assert.match(mac, /checkForUpdatesInBackground/);
+assert.match(mac, /self\.driver\.install\(\)/);
+const driver = fs.readFileSync('desktop/src/macos_updater/driver.rs', 'utf8');
+assert.match(driver, /showReadyToInstallAndRelaunch:/);
+assert.match(driver, /ready\.call\(\(0,\)\)/, 'Normal quit cancels a pending installation instead of selecting restart');
 assert.match(mac, /method\(updaterWillRelaunchApplication:\)/, 'Sparkle readiness explicitly finishes our event loop shutdown');
 const shell = fs.readFileSync('desktop/src/tao_shell.rs', 'utf8');
 assert.match(shell, /install_should_exit\(update, quit\)/, 'The post-handoff branch must keep quit and relaunch events live');

@@ -179,6 +179,7 @@ function testBridge() {
     const script = fs.readFileSync("desktop/src/bridge.js", "utf8").replace("__PROTOCOL__", "1").replace("__ORIGIN__", JSON.stringify("http://localhost:3000")).replace("__PLATFORM__", JSON.stringify("macos"));
     vm.runInNewContext(script, { window, document, location: { origin: "http://localhost:3000" }, console });
     assert.equal(window.navigatorDesktop.protocol, 1);
+    assert.equal(window.navigatorDesktop.capabilities.nativePreviews, true, 'The real desktop bridge must enable continuous native thumbnail delivery');
     assert.ok(Object.isFrozen(window.navigatorDesktop));
     assert.equal(document.documentElement.dataset.nativePlatform, "macos");
     assert.equal(document.documentElement.dataset.desktopFullscreen, "false");
@@ -238,6 +239,7 @@ function testBridge() {
         });
         assert.equal(handlers.has("mousedown"), platform === "windows", "Frameless macOS and Windows support blank-header dragging; Linux keeps its system frame");
         assert.equal(otherDocument.documentElement.dataset.nativePlatform, platform);
+        assert.equal(otherWindow.navigatorDesktop.capabilities.nativePreviews, true, `${platform} advertises the real native preview producer`);
     }
 }
 

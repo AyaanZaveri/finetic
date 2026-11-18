@@ -11,6 +11,11 @@ on:
         options: [all, macos, windows]
         default: all
         required: true
+      delta_base_tag:
+        description: Previous stable release for delta packages (empty selects latest)
+        type: string
+        default: ""
+        required: false
 
 permissions:
   contents: read
@@ -26,6 +31,7 @@ env:
   # Never try to use the upstream owner's private update-signing keys.
   NAVIGATOR_RELEASE_TAG: ""
   NAVIGATOR_UPDATE_SIGNING_KEY: ""
+  NAVIGATOR_DELTA_BASE_TAG: ${{ inputs.delta_base_tag }}
 
 jobs:
   macos:
@@ -74,6 +80,10 @@ jobs:
           cargo test --manifest-path desktop/Cargo.toml --locked
       - name: Download verified playback libraries
         run: node scripts/fetch-desktop-libs.mjs
+      - name: Prepare verified delta base
+        run: node scripts/prepare-update-base.mjs macos
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Build fresh frontend, native runtime and app archive
         run: npm run desktop:package
       - name: Verify packaged files and collect checksums
@@ -142,6 +152,10 @@ jobs:
           cargo test --manifest-path desktop/Cargo.toml --locked
       - name: Download verified playback libraries
         run: node scripts/fetch-desktop-libs.mjs
+      - name: Prepare verified delta base
+        run: node scripts/prepare-update-base.mjs windows
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Build fresh frontend, native runtime and installers
         run: npm run desktop:package
       - name: Verify packaged files and collect checksums

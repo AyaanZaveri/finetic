@@ -484,6 +484,8 @@ pub fn run(app: App) -> Result<(), String> {
                     UpdateEvent::ProbeCurrent if automatic_updates && update_state != "checking" => { update_state = "current"; update_message = None; }
                     UpdateEvent::ProbeAvailable | UpdateEvent::ProbeCurrent | UpdateEvent::ProbeError => {}
                     UpdateEvent::Available => { update_state = "available"; update_message = None; }
+                    UpdateEvent::Downloading => { update_state = "downloading"; update_message = None; }
+                    UpdateEvent::Ready => { update_state = "ready"; update_message = None; }
                     UpdateEvent::Current => { update_state = "current"; update_message = None; }
                     UpdateEvent::Error => { update_state = "error"; update_message = Some("Couldn’t check or download the update. Try again later.".into()); }
                     UpdateEvent::Dismissed => { if update_state == "checking" { update_state = "idle"; } }

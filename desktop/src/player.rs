@@ -38,9 +38,11 @@ fn bitmap_subtitles_selected(tracks: &Value) -> bool {
     }))
 }
 
-fn sync_subtitle_visibility(mpv: &Mpv) -> Result<Value, String> {
+fn sync_subtitle_visibility(mpv: &Mpv, delay: f64) -> Result<Value, String> {
     let tracks = mpv.get_property("track-list", Kind::Json).unwrap_or(json!([]));
     mpv.set_property("sub-visibility", if bitmap_subtitles_selected(&tracks) { "yes" } else { "no" })?;
+    let applied_delay = if bitmap_subtitles_selected(&tracks) { 0.0 } else { delay };
+    mpv.set_property("sub-delay", &applied_delay.to_string())?;
     Ok(tracks)
 }
 
@@ -125,6 +127,7 @@ impl Player {
             let mut wake_file_open = false;
             let mut session = String::new();
             let mut desired = String::new();
+            let mut subtitle_delay = 0.0;
             let mut entries = HashMap::<i64, String>::new();
             let mut playing_id = -1;
             let mut last_colour = (None, None);
@@ -146,13 +149,15 @@ impl Player {
                     let target = match &command {
                         Command::Load { session, .. } | Command::Play { session } | Command::Pause { session }
                         | Command::Seek { session, .. } | Command::Volume { session, .. } | Command::Muted { session, .. }
-                        | Command::Rate { session, .. } | Command::Track { session, .. } | Command::Stop { session } | Command::Thumbnail { session, .. } | Command::VideoFit { session, .. } | Command::Glass { session, .. } => session,
+                        | Command::SubtitleDelay { session, .. } | Command::Rate { session, .. } | Command::Track { session, .. } | Command::Stop { session } | Command::Thumbnail { session, .. } | Command::VideoFit { session, .. } | Command::Glass { session, .. } => session,
                         Command::UpdateStatus {} | Command::UpdateCheck {} | Command::UpdateAutomatic { .. } | Command::WindowControlsVisible { .. } | Command::Fullscreen { .. } | Command::WindowDrag {} | Command::WindowControl { .. } | Command::AppReady { .. } | Command::ClientStage { .. } | Command::GlassConsumed { .. } => continue,
                     };
                     if !matches!(command, Command::Load { .. }) && target != &desired { continue; }
                     let target = target.clone();
                     let result = match command {
                         Command::Load { session: next, url, headers, start_position } => {
+                            subtitle_delay = 0.0;
+                            let _ = client.set_property("sub-delay", "0");
                             wake_file_open = false;
                             load_started = Some(Instant::now());
                             first_ready_logged = false;
@@ -218,7 +223,7 @@ impl Player {
                         }
                         Command::Track { kind, id, .. } => {
                             client.set_property(match kind { TrackKind::Audio => "aid", TrackKind::Subtitle => "sid" }, &id)
-                                .and_then(|_| sync_subtitle_visibility(&client).map(|_| ()))
+                                .and_then(|_| sync_subtitle_visibility(&client, subtitle_delay).map(|_| ()))
                         },
                         Command::Stop { .. } => {
                             wake_file_open = false;
@@ -234,6 +239,10 @@ impl Player {
                             #[cfg(not(windows))]
                             let _ = (session, active);
                             Ok(())
+                        }
+                        Command::SubtitleDelay { seconds, .. } => {
+                            subtitle_delay = seconds;
+                            sync_subtitle_visibility(&client, subtitle_delay).map(|_| ())
                         }
                         Command::Thumbnail { request, position, .. } => {
                             if let Some(previews) = &previews { previews.want(request, position); }
@@ -277,7 +286,7 @@ impl Player {
                         }
                         // Publish the complete track snapshot before loadedmetadata so an
                         // external subtitle default cannot win a delayed embedded-track event.
-                        if let Ok(tracks) = sync_subtitle_visibility(&client) {
+                        if let Ok(tracks) = sync_subtitle_visibility(&client, subtitle_delay) {
                             emit(json!({"type":"tracks","session":session,"tracks":tracks}));
                         }
                         let chapters = client.get_property("chapter-list", Kind::Json).unwrap_or(json!([]));
@@ -361,7 +370,7 @@ impl Player {
                         if name == "track-list" {
                             // Query current selection: queued observations can predate Off
                             // or a newer selection and must not re-enable a bitmap overlay.
-                            if let Ok(tracks) = sync_subtitle_visibility(&client) {
+                            if let Ok(tracks) = sync_subtitle_visibility(&client, subtitle_delay) {
                                 emit(json!({"type":"tracks","session":session,"tracks":tracks}));
                             }
                             continue;

@@ -139,7 +139,22 @@ Section "Navigator"
   IfFileExists "$INSTDIR.update-stage\*" staging_recovery_needed
   SetOutPath "$INSTDIR.update-stage"
   ClearErrors
+!ifdef DELTA_DIR
+  !include "${DELTA_DIR}\payload.nsh"
+  IfErrors preparation_failed
+  InitPluginsDir
+  SetOutPath "$PLUGINSDIR"
+  File /oname=delta.cjs "${DELTA_SCRIPT}"
+  File /oname=delta-manifest.json "${DELTA_DIR}\manifest.json"
+  ClearErrors
+  ExecWait '"$INSTDIR\resources\runtime\node.exe" "$PLUGINSDIR\delta.cjs" "$INSTDIR" "$INSTDIR.update-stage" "$PLUGINSDIR\delta-manifest.json"' $1
+  IfErrors preparation_failed
+  ${If} $1 != 0
+    Goto preparation_failed
+  ${EndIf}
+!else
   File /r "${PACKAGE_DIR}\*"
+!endif
   IfErrors preparation_failed
   DetailPrint "Verifying startup files and preparing Navigator's local services…"
   ; Installation-only preparation loads the bundled service and video engine.
@@ -227,6 +242,11 @@ Section "Navigator"
     SetOutPath "$TEMP"
     RMDir /r "$INSTDIR.update-stage"
     SetErrorLevel 1
+!ifdef DELTA_DIR
+    ; The background helper retries with the verified full installer. Do not
+    ; reopen the old app while that repair is starting.
+    Abort
+!endif
     ${If} $UpdateMode == 1
       MessageBox MB_OK|MB_ICONSTOP "Navigator could not finish the update. The previous installation was retained and will reopen. See %LOCALAPPDATA%\Navigator Desktop\installation.log."
       IfFileExists "$INSTDIR\navigator-desktop.exe" 0 +2

@@ -1,10 +1,14 @@
 import { resolveWebGpuSource } from './webgpu-source';
 import { PreviewCache } from './preview-frames';
-import type { CanvasSink, Input } from 'mediabunny';
+import type { CanvasSink, EncodedPacketSink, Input } from 'mediabunny';
+
+const MAX_KEYFRAME_RANGES = 256;
 
 /** Sparse WebCodecs decoding avoids a second full-size HTML video playback pipeline. */
 export class RangePreviewFrames {
-    readonly cache = new PreviewCache(256, src => URL.revokeObjectURL(src));
+    private cache = new PreviewCache(256, src => URL.revokeObjectURL(src));
+    private keyframeRanges = new Map<number, number>();
+    private packets?: EncodedPacketSink;
     private input?: Input;
     private sink?: CanvasSink;
     private wanted: number | null = null;
@@ -19,12 +23,20 @@ export class RangePreviewFrames {
     constructor(source: string, ready: (_time: number, _src: string) => void, unavailable: () => void) {
         this.source = source; this.ready = ready; this.unavailable = unavailable;
     }
+    cached(time: number) {
+        return this.cache.get(time) ?? this.keyframeAt(time);
+    }
+    private keyframeAt(time: number) {
+        for (const [start, end] of this.keyframeRanges) {
+            if (time >= start && time <= end) return this.cache.get(start);
+        }
+    }
     want(time: number) {
-        if (this.closed) return;
+        if (this.closed || this.wanted === time) return;
         this.wanted = time;
-        const cached = this.cache.get(time);
-        if (cached) { this.ready(time, cached); return; }
-        void this.pump();
+        const cached = this.cached(time);
+        if (cached) this.ready(time, cached);
+        else void this.pump();
     }
     cancel() { this.wanted = null; }
     /** Warm the demuxer after playback starts, without decoding or scanning frames. */
@@ -34,7 +46,7 @@ export class RangePreviewFrames {
         const [module, source] = await Promise.all([
             import('mediabunny'), resolveWebGpuSource(this.source, AbortSignal.any([this.abort.signal, AbortSignal.timeout(5_000)])),
         ]);
-        const { Input, UrlSource, CanvasSink, MP4, MATROSKA, WEBM, QTFF } = module;
+        const { Input, UrlSource, CanvasSink, EncodedPacketSink, MP4, MATROSKA, WEBM, QTFF } = module;
         if (this.closed) return;
         this.input = new Input({ formats: [MP4, MATROSKA, WEBM, QTFF], source: new UrlSource(source, {
             maxCacheSize: 16 * 1024 * 1024, parallelism: 2,
@@ -58,10 +70,48 @@ export class RangePreviewFrames {
         if (this.closed) return;
         const width = await track.getDisplayWidth(), height = await track.getDisplayHeight();
         if (this.closed) return;
+        this.packets = new EncodedPacketSink(track);
         const scale = Math.min(448 / width, 252 / height, 1);
         this.sink = new CanvasSink(track, { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)),
             fit: 'contain', poolSize: 1, decoderOptions: { optimizeForLatency: true } });
         return this.sink;
+    }
+    private async extract(sink: CanvasSink, time: number) {
+        const cached = this.cached(time);
+        if (cached) return cached;
+
+        // Looking up metadata avoids reading a keyframe's payload just to find
+        // out that we already decoded it for a nearby pointer position.
+        const keyframe = await this.packets?.getKeyPacket(time, { metadataOnly: true });
+        if (this.closed) return;
+        const start = keyframe?.timestamp ?? time;
+        let src = this.cache.get(start);
+        let decodedAt = start;
+        if (!src) {
+            let frame = await sink.getCanvas(start);
+            if (this.closed) return;
+            if (!frame && start !== time) {
+                decodedAt = time;
+                frame = await sink.getCanvas(time);
+            }
+            if (this.closed) return;
+            if (!frame) throw new Error('No frame at the requested time');
+            const { canvas } = frame;
+            const blob = 'convertToBlob' in canvas
+                ? await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.72 })
+                : await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.72));
+            if (this.closed) return;
+            if (!blob) throw new Error('Preview encoding unavailable');
+            src = URL.createObjectURL(blob);
+            this.cache.set(decodedAt, src, blob.size);
+        }
+        if (keyframe && decodedAt === start && start <= time) {
+            const end = Math.max(time, this.keyframeRanges.get(start) ?? start);
+            this.keyframeRanges.delete(start);
+            this.keyframeRanges.set(start, end);
+            if (this.keyframeRanges.size > MAX_KEYFRAME_RANGES) this.keyframeRanges.delete(this.keyframeRanges.keys().next().value!);
+        }
+        return src;
     }
     private async pump() {
         if (this.running || this.closed || this.wanted === null) return;
@@ -71,37 +121,24 @@ export class RangePreviewFrames {
             const sink = await this.initialize();
             while (sink && !this.closed && this.wanted !== null) {
                 const time: number = this.wanted;
-                const cached = this.cache.get(time);
-                if (cached) { this.ready(time, cached); break; }
                 clearTimeout(this.timer);
                 this.timer = setTimeout(() => this.fail(), 6_000);
-                const result = await sink.getCanvas(time);
-                if (this.closed) break;
-                if (!result) throw new Error('No frame at the requested time');
-                // Encode asynchronously and keep binary JPEGs. Do not copy the
-                // canvas or create large base64 strings on the pointer path.
-                const canvas = result.canvas;
-                const blob = 'convertToBlob' in canvas
-                    ? await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.72 })
-                    : await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.72));
-                if (this.closed) break;
-                if (!blob) throw new Error('Preview encoding unavailable');
-                const src = URL.createObjectURL(blob);
-                this.cache.set(time, src, blob.size);
-                if (this.wanted !== null) {
-                    const selected = this.cache.get(this.wanted);
-                    this.ready(selected ? this.wanted : time, selected || src);
-                }
-                if (this.wanted === time) break;
-                // A moving pointer skips obsolete positions; no parallel decoders.
+                const src = await this.extract(sink, time);
+                const selected = this.wanted;
+                if (this.closed || !src || selected === null) break;
+                const latest = this.cached(selected);
+                if (latest) this.ready(selected, latest);
+                else this.ready(time, src);
+                if (selected === time) break;
+                // Skip obsolete requests without starting parallel decoders.
             }
         } catch { if (!this.closed) this.fail(); }
         finally { clearTimeout(this.timer); this.timer = undefined; this.running = false; }
     }
     private fail() { if (!this.closed) { this.dispose(); this.unavailable(); } }
     dispose() {
-        this.closed = true; this.wanted = null; this.abort.abort();
+        this.closed = true; this.cancel(); this.abort.abort();
         clearTimeout(this.timer); this.timer = undefined;
-        this.input?.dispose(); this.cache.clear();
+        this.input?.dispose(); this.cache.clear(); this.keyframeRanges.clear();
     }
 }

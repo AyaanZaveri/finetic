@@ -46,4 +46,10 @@ assert.equal(resolve(browserLayer['background-color'], { ...captured, ...control
   'Hover continues to override the base material');
 assert.equal(resolve(browserLayer['background-color'], captured), captured['--browser-glass-color'],
   'Surfaces without a live material keep the captured-color fallback');
+const upNext = declarations(css, '[data-player-up-next][data-player-hdr-glass]');
+assert.equal(upNext.position, 'absolute', 'Sampled glass must not move Up Next into the player layout');
+assert.match(upNext.animation, /player-up-next-fade/);
+assert.match(declarations(css.nodes.find(rule => rule.params === '(prefers-reduced-motion: no-preference)' &&
+  rule.nodes.some(node => node.selector === '[data-player-up-next-content]')), '[data-player-up-next-content]').animation, /player-up-next-rise/);
+assert.equal(declarations(css, 'html[data-native-platform="windows"][data-native-playing] [data-slot="media-player"] [data-player-up-next]')['--dropdown-opacity'], '90%');
 console.log('PASS: mounted web/native glass follows light/dark tokens and transparency while retaining control themes, hover and captured fallbacks');

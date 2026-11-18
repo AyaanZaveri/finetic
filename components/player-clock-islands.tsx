@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useSyncExternalStore, type ComponentProps, type RefObject } from "react";
-import { usePlaybackTimestamp } from "@/contexts/MediaPlayerContext";
 import { SubtitleText } from "@/components/subtitle-text";
 import { PlayerSkipSegments } from "@/components/player-skip-segments";
 import type { WebGpuVideo } from "@/lib/media/webgpu-video";
@@ -37,7 +36,23 @@ export function PlayerSubtitleLayer({ mediaRef, lookup, delay, native, enabled, 
 }
 
 export function ClockedSkipSegments(props: Omit<ComponentProps<typeof PlayerSkipSegments>, "currentTime">) {
-    const currentTime = usePlaybackTimestamp();
+    const { mediaRef, enabled = true } = props;
+    const subscribe = useCallback((notify: () => void) => {
+        const node = mediaRef.current;
+        if (!node || !enabled) return () => {};
+        const events = ["loadeddata", "playing", "timeupdate", "seeking", "seeked", "emptied"];
+        events.forEach(event => node.addEventListener(event, notify));
+        return () => events.forEach(event => node.removeEventListener(event, notify));
+    }, [mediaRef, enabled]);
+    const snapshot = useCallback(() => {
+        const node = mediaRef.current;
+        // The shared clock resets between streams. Only the current decoder
+        // can tell us whether its initial position is inside a skip segment.
+        if (!enabled || !node || node.readyState < 2 || node.seeking) return null;
+        const time = node.currentTime;
+        return Number.isFinite(time) && time >= 0 ? time : null;
+    }, [mediaRef, enabled]);
+    const currentTime = useSyncExternalStore(subscribe, snapshot, emptySnapshot);
     return <PlayerSkipSegments {...props} currentTime={currentTime} />;
 }
 

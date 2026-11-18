@@ -49,6 +49,7 @@ pub enum Command {
         session: String,
         rate: f64,
     },
+    SubtitleDelay { session: String, seconds: f64 },
     Track {
         session: String,
         kind: TrackKind,
@@ -168,6 +169,9 @@ pub fn parse(text: &str) -> Result<Command, String> {
         Command::Rate { rate, .. } if !rate.is_finite() || !(0.25..=4.0).contains(rate) => {
             return Err("Playback speed must be between 0.25 and 4".into());
         }
+        Command::SubtitleDelay { session, seconds } if session.is_empty() || session.len() > 128 || !seconds.is_finite() || !(-30.0..=30.0).contains(seconds) => {
+            return Err("Invalid subtitle delay".into());
+        }
         Command::Track { id, .. } if id != "no" && id.parse::<u32>().is_err() => {
             return Err("Invalid track id".into());
         }
@@ -201,6 +205,12 @@ mod tests {
     use super::*;
     #[test]
     fn playback_boundary() {
+        for seconds in ["-30", "0", "0.1", "30"] {
+            assert!(parse(&format!(r#"{{"type":"subtitle-delay","session":"test","seconds":{seconds}}}"#)).is_ok());
+        }
+        for invalid in [r#"{"type":"subtitle-delay","session":"","seconds":0}"#, r#"{"type":"subtitle-delay","session":"test","seconds":31}"#, r#"{"type":"subtitle-delay","session":"test","seconds":-31}"#] {
+            assert!(parse(invalid).is_err());
+        }
         assert!(parse(r#"{"type":"update-check"}"#).is_ok());
         assert!(parse(r#"{"type":"update-status"}"#).is_ok());
         assert!(parse(r#"{"type":"update-automatic","enabled":false}"#).is_ok());

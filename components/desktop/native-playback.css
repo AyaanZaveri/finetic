@@ -6,6 +6,19 @@ html[data-desktop="mpv"] body {
   color-scheme: normal !important;
 }
 html[data-desktop="mpv"] body { isolation: isolate; }
+
+/* Desktop gestures should not select the page. Keep editing and copyable text
+   available in inputs, editable regions, and explicitly selectable content. */
+html:is([data-native-platform="macos"], [data-native-platform="windows"], [data-native-platform="linux"]) body {
+  -webkit-user-select: none;
+  user-select: none;
+}
+html:is([data-native-platform="macos"], [data-native-platform="windows"], [data-native-platform="linux"])
+  :is(input, textarea, [contenteditable]:not([contenteditable="false"]), [data-selectable-text]) {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 html[data-desktop="mpv"] body::before {
   content: "";
   position: fixed;
@@ -43,5 +56,5 @@ html:is([data-native-platform="windows"], [data-native-platform="macos"])[data-n
 html:is([data-native-platform="windows"], [data-native-platform="macos"])[data-native-playing] [data-player-shell] [data-slot="media-player"]:not([data-controls-visible]) * {
   cursor: none;
 }
-html:is([data-native-platform="windows"], [data-native-platform="macos"])[data-native-playing] [data-player-shell] [data-slot="media-player"]:not([data-controls-visible]) :is([role="dialog"], [data-radix-popper-content-wrapper], [data-slot*="menu"], [data-slot*="popover"], [data-slot*="dialog"], [data-ask-navigator]),
-html:is([data-native-platform="windows"], [data-native-platform="macos"])[data-native-playing] [data-player-shell] [data-slot="media-player"]:not([data-controls-visible]) :is([role="dialog"], [data-radix-popper-content-wrapper], [data-slot*="menu"], [data-slot*="popover"], [data-slot*="dialog"], [data-ask-navigator]) * { cursor: auto; }
+html:is([data-native-platform="windows"], [data-native-platform="macos"])[data-native-playing] [data-player-shell] [data-slot="media-player"]:not([data-controls-visible]) :is([role="dialog"], [data-radix-popper-content-wrapper], [data-slot*="menu"], [data-slot*="popover"], [data-slot*="dialog"], [data-ask-navigator], [data-player-up-next]),
+html:is([data-native-platform="windows"], [data-native-platform="macos"])[data-native-playing] [data-player-shell] [data-slot="media-player"]:not([data-controls-visible]) :is([role="dialog"], [data-radix-popper-content-wrapper], [data-slot*="menu"], [data-slot*="popover"], [data-slot*="dialog"], [data-ask-navigator], [data-player-up-next]) * { cursor: auto; }

@@ -15,6 +15,8 @@ use std::{
 const CAPACITY: usize = 64 << 20;
 const CHUNK: usize = 64 << 10;
 const MAX_PIECES: usize = 4096;
+// Thumbnail workers and the relay share the same concurrency budget.
+pub(crate) const PREVIEW_READ_SLOTS: usize = 3;
 const PREVIEW_WAIT: Duration = Duration::from_millis(150);
 
 type Headers = BTreeMap<String, String>;
@@ -685,7 +687,7 @@ fn serve(
     let _preview_slot = if preview {
         let prior = source.preview_connections.fetch_add(1, Ordering::Relaxed);
         let slot = Slot(&source.preview_connections);
-        if prior >= 2 {
+        if prior >= PREVIEW_READ_SLOTS {
             return reject(&mut socket, 503);
         }
         Some(slot)

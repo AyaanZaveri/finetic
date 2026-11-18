@@ -16,7 +16,11 @@ export function attachWindowsPlayerGlass(bridge: DesktopBridge, session: string)
         if (canvas.width !== blurred.width) canvas.width = blurred.width;
         if (canvas.height !== blurred.height) canvas.height = blurred.height;
         context.drawImage(blurred, 0, 0);
-        node.setAttribute('data-browser-glass', '');
+        if (!node.hasAttribute('data-browser-glass')) {
+            // The marker positions the canvas outside the control's layout.
+            node.setAttribute('data-browser-glass', '');
+            node.appendChild(canvas);
+        }
     };
     const remove = ({ node, canvas }: Surface) => {
         resized?.unobserve(node); canvas.remove(); node.removeAttribute('data-browser-glass');
@@ -37,7 +41,7 @@ export function attachWindowsPlayerGlass(bridge: DesktopBridge, session: string)
                 canvas.setAttribute('data-browser-glass-frame', ''); canvas.setAttribute('aria-hidden', 'true');
                 node.style.setProperty('--browser-glass-color', style.backgroundColor);
                 node.style.setProperty('--browser-glass-sheen', style.backgroundImage);
-                node.appendChild(canvas); surface = { node, canvas, context }; surfaces.set(node, surface); resized?.observe(node);
+                surface = { node, canvas, context }; surfaces.set(node, surface); resized?.observe(node);
             }
             if (node.getAttribute('data-slot') !== 'media-player-seek-tooltip') {
                 const rect = node.getBoundingClientRect();

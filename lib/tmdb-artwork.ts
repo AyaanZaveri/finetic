@@ -49,12 +49,18 @@ export async function getTMDBArtwork(
   id: string, type: "movie" | "series", kind: ArtworkKind,
   season?: number, episode?: number,
 ): Promise<string | undefined> {
+  return getTMDBArtworkWithToken(await getTMDBToken(), id, type, kind, season, episode);
+}
+
+export async function getTMDBArtworkWithToken(
+  token: string | undefined, id: string, type: "movie" | "series", kind: ArtworkKind,
+  season?: number, episode?: number,
+): Promise<string | undefined> {
+  if (!token) return undefined;
   try { id = decodeURIComponent(id); } catch { return undefined; }
   const canonical = /^(tt\d+)(?::|$)/.exec(id)?.[1] ?? /^(tmdb:\d+)(?::\d+:\d+)?$/.exec(id)?.[1];
   if (!canonical) return undefined;
   id = canonical;
-  const token = await getTMDBToken();
-  if (!token) return undefined;
   const key = JSON.stringify([token, id, type, kind, season, episode]);
   const cached = resolvedArtwork.get(key);
   if (cached && cached.expires > Date.now()) {

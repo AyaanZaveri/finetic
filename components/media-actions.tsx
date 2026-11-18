@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/empty";
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Download, Loader2, SearchX } from "lucide-react";
+import { Loader2, SearchX } from "lucide-react";
 import { usePlaybackActions } from "@/contexts/MediaPlayerContext";
 import { fetchPlaybackProgress } from "@/app/actions";
 import { SearchField } from "@/components/arc/search-field/search-field";
@@ -21,9 +21,11 @@ import { StreamSummary } from "@/components/stream-summary";
 import { createPlaybackStreamRequest, type StreamWithAddon } from "@/lib/media/fetch-playback-streams";
 import { useStreamQueries } from "@/components/stream-query-provider";
 import { projectPlaybackDetails } from "@/lib/media/playback-details";
+import { safeResumePosition } from "@/lib/media/resume-playback";
 import { useAccountAccess } from "@/contexts/account-context";
 import { Button } from "@/components/ui/button";
 import { desktopBridge } from "@/lib/desktop/bridge";
+import { StreamActionsMenu } from "@/components/stream-actions-menu";
 import { SignInForStreams } from "@/components/sign-in-for-streams";
 
 interface MediaActionsProps {
@@ -33,20 +35,6 @@ interface MediaActionsProps {
 
 
 const RESOLUTION_FILTERS = ["2160p", "1080p", "720p"] as const;
-
-function downloadStreamLink(url: string) {
-  const objectUrl = URL.createObjectURL(new Blob([url, "\n"], { type: "text/plain;charset=utf-8" }));
-  const link = document.createElement("a");
-  link.href = objectUrl;
-  link.download = "stream-link.txt";
-  document.body.appendChild(link);
-  try {
-    link.click();
-  } finally {
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-  }
-}
 
 export function MediaActions({ media, movie }: MediaActionsProps) {
   const { authenticated } = useAccountAccess();
@@ -64,46 +52,30 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
   const [totalAddons, setTotalAddons] = useState(0);
   const [streamSearchQuery, setStreamSearchQuery] = useState("");
   const [selectedResolutions, setSelectedResolutions] = useState<string[]>([]);
-  const [resumePositionTicks, setResumePositionTicks] = useState<
-    number | undefined
-  >(activeMedia?.resumePositionTicks);
+  const libraryItemId = activeMedia?.seriesId || activeId;
+  const targetVideoId = activeMedia?.episodeId || activeMedia?.mediaSourceId || activeId;
+  const progressKey = `${libraryItemId}:${targetVideoId}`;
+  const [savedProgress, setSavedProgress] = useState<{ key: string; position?: number } | null>(null);
+  const resumePositionTicks = savedProgress?.key === progressKey ? savedProgress.position : activeMedia?.resumePositionTicks;
 
   useEffect(() => {
-    setResumePositionTicks(activeMedia?.resumePositionTicks);
-  }, [activeMedia?.resumePositionTicks]);
-
-  useEffect(() => {
-    if (!authenticated || !activeMedia) return;
+    if (!authenticated || !libraryItemId) return;
     let cancelled = false;
-
-    const libraryItemId = activeMedia.seriesId || activeMedia.id;
-    const targetVideoId =
-      activeMedia.episodeId || activeMedia.mediaSourceId || activeMedia.id;
 
     void (async () => {
       const progress = await fetchPlaybackProgress(
         libraryItemId,
         targetVideoId,
       );
-      if (cancelled) return;
-      if (
-        typeof progress?.resumePositionTicks === "number" &&
-        progress.resumePositionTicks > 0
-      ) {
-        setResumePositionTicks(progress.resumePositionTicks);
-      }
+      if (!cancelled) setSavedProgress({ key: progressKey, position: activeType === "series"
+        ? safeResumePosition(progress?.resumePositionTicks, progress?.totalDuration, true)
+        : progress?.resumePositionTicks });
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [
-    activeMedia?.episodeId,
-    activeMedia?.id,
-    activeMedia?.mediaSourceId,
-    activeMedia?.seriesId,
-    authenticated,
-  ]);
+  }, [libraryItemId, targetVideoId, progressKey, activeType, authenticated]);
 
   useEffect(() => {
     if (!authenticated || !activeId || !activeType) return;
@@ -288,9 +260,12 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
           <div className={styles.streamList}>
             {filteredStreams.map((stream, index) => {
               const streamUrl = stream.url || stream.externalUrl;
-              const canDownload = !!streamUrl && !desktopBridge() && /^https?:\/\//i.test(streamUrl);
+              const filePath = stream.url?.split(/[?#]/, 1)[0];
+              const downloadUrl = filePath && /^https?:\/\//i.test(filePath)
+                && !/\.(m3u8|mpd)$/i.test(filePath) && !desktopBridge() ? stream.url : undefined;
               return (
-                <div key={index} className={styles.streamEntry} data-download={canDownload || undefined}>
+                <div key={index} className={styles.streamEntry}>
+                  <StreamActionsMenu label={getSourceLabel(stream)} url={streamUrl} downloadUrl={downloadUrl} filename={stream.behaviorHints?.filename}>
                   <button
                     type="button"
                     className={styles.streamRow}
@@ -314,14 +289,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
                       </span>
                     )}
                   </button>
-                  {canDownload && (
-                    <Button type="button" variant="ghost" size="icon" className={styles.streamDownload}
-                      draggable={false} title="Download stream link"
-                      aria-label={`Download stream link for ${getSourceLabel(stream)}${stream.title ? `: ${stream.title}` : ""}`}
-                      onClick={() => downloadStreamLink(streamUrl)}>
-                      <Download aria-hidden="true" />
-                    </Button>
-                  )}
+                  </StreamActionsMenu>
                 </div>
               );
             })}

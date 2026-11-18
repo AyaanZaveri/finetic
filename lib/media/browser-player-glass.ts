@@ -2,7 +2,7 @@ import type { WebGpuVideo } from "./webgpu-video";
 
 const selector = '[data-player-glass], [data-player-hdr-glass]';
 const properties = ['x', 'y', 'width', 'height', 'color', 'sheen'];
-const videoEvents = ['loadeddata', 'seeked', 'playing', 'pause'];
+const videoEvents = ['loadeddata', 'seeked', 'playing'];
 type Surface = { node: HTMLElement; canvas: HTMLCanvasElement; context: CanvasRenderingContext2D };
 
 /** Draw the playing frame into small live sRGB canvases. No JPEG encode/decode
@@ -31,11 +31,18 @@ export function attachBrowserPlayerGlass(video: HTMLVideoElement) {
         if (surface.canvas.width !== canvas.width) surface.canvas.width = canvas.width;
         if (surface.canvas.height !== canvas.height) surface.canvas.height = canvas.height;
         surface.context.drawImage(canvas, 0, 0);
-        if (!surface.node.hasAttribute('data-browser-glass')) surface.node.setAttribute('data-browser-glass', '');
+        if (!surface.node.hasAttribute('data-browser-glass')) {
+            // The marker positions the canvas outside the control's layout.
+            surface.node.setAttribute('data-browser-glass', '');
+            surface.node.appendChild(surface.canvas);
+        }
     };
     const sample = () => {
         if (blocked || !context || !geometry || video.readyState < 2) return;
         try {
+            const gpu = (video as WebGpuVideo).webgpu;
+            const picture = gpu ? gpu.picture() : video;
+            if (!picture) return;
             const { scale, left, top, width, height, x, y, drawnWidth, drawnHeight } = geometry;
             context.filter = 'none';
             context.fillStyle = '#000';
@@ -46,8 +53,6 @@ export function attachBrowserPlayerGlass(video: HTMLVideoElement) {
             context.clip();
             // Blur once at thumbnail resolution, before copying to the controls.
             context.filter = `blur(${12 * scale}px)`;
-            const picture = (video as WebGpuVideo).webgpu?.picture() ?? video;
-            if ((video as WebGpuVideo).webgpu && picture === video) return;
             // The GPU canvas already includes the selected fit and letterbox bars.
             if (picture === video) context.drawImage(picture, x * scale, y * scale, drawnWidth * scale, drawnHeight * scale);
             else context.drawImage(picture, left * scale, top * scale, width * scale, height * scale);
@@ -62,7 +67,7 @@ export function attachBrowserPlayerGlass(video: HTMLVideoElement) {
     };
     const tick = () => {
         callback = undefined;
-        if (closed || blocked || document.hidden || !visible.length) return;
+        if (closed || blocked || document.hidden || !visible.length || video.paused) return;
         sample();
         if (!blocked) callback = video.requestVideoFrameCallback(tick);
     };
@@ -99,7 +104,6 @@ export function attachBrowserPlayerGlass(video: HTMLVideoElement) {
                     layer.setAttribute('aria-hidden', 'true');
                     node.style.setProperty('--browser-glass-color', style.backgroundColor);
                     node.style.setProperty('--browser-glass-sheen', style.backgroundImage);
-                    node.appendChild(layer);
                     surface = { node, canvas: layer, context: output };
                     surfaces.set(node, surface);
                     resized?.observe(node);
@@ -115,10 +119,14 @@ export function attachBrowserPlayerGlass(video: HTMLVideoElement) {
                 visible.push(surface);
             }
         }
-        if (!visible.length) { stop(); hasFrame = false; return; }
+        if (!visible.length) {
+            stop();
+            if (!video.paused) hasFrame = false;
+            return;
+        }
         if (!hasFrame) sample();
         else for (const surface of visible) paint(surface);
-        if (!blocked && callback === undefined && typeof video.requestVideoFrameCallback === 'function') {
+        if (!video.paused && !blocked && callback === undefined && typeof video.requestVideoFrameCallback === 'function') {
             callback = video.requestVideoFrameCallback(tick);
         }
     };
@@ -131,13 +139,18 @@ export function attachBrowserPlayerGlass(video: HTMLVideoElement) {
     observer.observe(document.body, { subtree: true, childList: true, attributes: true,
         attributeFilter: ['data-controls-visible', 'aria-hidden', 'data-player-hdr-glass', 'data-player-video-fit'] });
     const repaint = () => { stop(); hasFrame = false; refresh(); };
+    // Pause may arrive after the decoder stops supplying frames. Keep the
+    // last sample for visible and newly opened controls until a seek or resume.
+    const pause = () => { stop(); refresh(); };
     for (const event of videoEvents) video.addEventListener(event, repaint);
+    video.addEventListener('pause', pause);
     document.addEventListener('visibilitychange', refresh);
     window.addEventListener('resize', repaint);
     refresh();
     return () => {
         closed = true; stop(); observer.disconnect(); resized?.disconnect();
         for (const event of videoEvents) video.removeEventListener(event, repaint);
+        video.removeEventListener('pause', pause);
         document.removeEventListener('visibilitychange', refresh);
         window.removeEventListener('resize', repaint);
         clear();

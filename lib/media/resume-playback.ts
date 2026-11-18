@@ -16,6 +16,15 @@ export interface ResumeEpisode {
     released?: string;
 }
 
+export function safeResumePosition(position?: number, duration?: number, episode = false): number | undefined {
+    if (typeof position !== "number" || !Number.isFinite(position) || position <= 0) return;
+    if (typeof duration === "number" && Number.isFinite(duration) && duration > 0) {
+        const endBuffer = episode ? Math.min(5, duration * 0.05) : 0;
+        if (position >= duration - endBuffer) return;
+    }
+    return position;
+}
+
 export function formatResumePosition(seconds: number): string {
     const time = Math.max(0, Math.floor(seconds));
     const hours = Math.floor(time / 3600);
@@ -32,9 +41,8 @@ export function resumePlaybackTarget(
     episodes: ResumeEpisode[] = [],
 ): MediaToPlay {
     const fromStart = { ...media, resumePositionTicks: undefined };
-    const position = progress?.resumePositionTicks;
-    if (typeof position !== "number" || !Number.isFinite(position) || position <= 0
-        || (progress?.totalDuration && position >= progress.totalDuration)) return fromStart;
+    const position = safeResumePosition(progress?.resumePositionTicks, progress?.totalDuration, media.type === "series");
+    if (position === undefined) return fromStart;
     if (media.type !== "series") return { ...media, resumePositionTicks: position };
     if (media.mediaSourceId) return progress?.videoId === media.mediaSourceId
         ? { ...media, resumePositionTicks: position } : fromStart;

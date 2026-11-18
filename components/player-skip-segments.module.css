@@ -11,7 +11,6 @@
   gap: 0.625rem;
   min-height: 3rem;
   padding: 0.75rem 1.25rem;
-  border: 0;
   border-radius: var(--radius, 0.625rem);
   background: var(--player-glass-interaction-color, var(--player-glass-color));
   color: white;
@@ -35,6 +34,10 @@
     transform 200ms ease-in-out,
     background-color 150ms var(--ease-out),
     visibility 0s 150ms;
+}
+
+.button[data-player-skip] {
+  border: 0;
 }
 
 .button[data-visible] {

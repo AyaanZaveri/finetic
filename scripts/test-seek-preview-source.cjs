@@ -34,5 +34,30 @@ const player = fs.readFileSync('components/global-media-player.tsx', 'utf8');
 context.VideoDecoder = class {};
 const sparse = context.exports.SeekPreview({ media, source: 'https://stream.test/large-hdr.mkv', time: 20, duration: 120, active: true });
 assert.equal(sparse.type(sparse.props).props.children[0], false, 'WebCodecs previews do not mount a second full-size HTML video decoder');
+context.window = { navigatorDesktop: { platform: 'windows', capabilities: { nativePreviews: true } } };
+const nativeMedia = { controller: { previewSession: 'native', cachedPreview() {} } };
+const manifest = context.exports.SeekPreview({ media: nativeMedia, source: 'https://stream.test/movie.m3u8', time: 20, duration: 120, active: true });
+assert.equal(manifest.type(manifest.props).props.children[0].type, 'MuxVideo', 'Native keyframe previews must retain the browser decoder for HLS manifests');
 assert.match(player, /<MediaPlayerSeek\b[^>]*previewSource=\{streamUrl\s*\?\?\s*undefined\}/, 'The production caller passes the resolved URL to the timeline');
 console.log('PASS: original HLS source survives MSE blob replacement; progressive formats keep their native decoder');
+
+const timeline = ts.createSourceFile('media-player.tsx', fs.readFileSync('components/ui/media-player.tsx', 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+let enter;
+function findEnter(node) {
+  if (ts.isVariableDeclaration(node) && node.name.getText(timeline) === 'onPointerEnter'
+      && ts.isCallExpression(node.initializer) && node.initializer.expression.getText(timeline) === 'React.useCallback') enter = node.initializer.arguments[0];
+  ts.forEachChild(node, findEnter);
+}
+findEnter(timeline);
+assert.ok(enter);
+const hoverEvents = [];
+const rect = { left: 100, width: 200 };
+const hover = {
+  seekRef: { current: { getBoundingClientRect: () => rect } }, seekRectRef: { current: null },
+  collisionDataRef: {}, lastPointerXRef: {}, hoverTimeRef: {}, seekableStart: 0, seekableEnd: 120, tooltipDisabled: false,
+  onPreviewUpdate: time => hoverEvents.push(['preview', time]),
+  onTooltipPositionUpdate: x => hoverEvents.push(['position', x]),
+  setSeekState: update => hoverEvents.push(['visible', update({ isHovering: false }).isHovering]),
+};
+vm.runInNewContext(ts.transpileModule(`(${enter.getText(timeline)})({ pointerType: "mouse", clientX: 150 })`, {}).outputText, hover);
+assert.deepEqual(hoverEvents, [['preview', 30], ['position', 150], ['visible', true]], 'First hover activates the preview without a timer or another pointer move');

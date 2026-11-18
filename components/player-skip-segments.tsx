@@ -8,12 +8,13 @@ import styles from "./player-skip-segments.module.css";
 
 const labels = { intro: "Skip Intro", recap: "Skip Recap", credits: "Skip Credits" };
 
-export function PlayerSkipSegments({ lookup, currentTime, mediaRef, onSeek, onSegmentsChange, enabled = true }: {
+export function PlayerSkipSegments({ lookup, currentTime, mediaRef, onSeek, onSkipCredits, onSegmentsChange, enabled = true }: {
     enabled?: boolean;
     onSegmentsChange?: (_segments: SkipSegment[]) => void;
     lookup: SkipLookup;
-    currentTime: number;
+    currentTime: number | null;
     mediaRef: RefObject<HTMLVideoElement | null>;
+    onSkipCredits?: () => void;
     onSeek: (_time: number) => void;
 }) {
     const [segments, setSegments] = useState<SkipSegment[]>([]);
@@ -61,10 +62,10 @@ export function PlayerSkipSegments({ lookup, currentTime, mediaRef, onSeek, onSe
         };
     }, [mediaRef]);
 
-    const segment = activeSkipSegment(segments, currentTime, skipped, 2);
+    const segment = currentTime === null ? undefined : activeSkipSegment(segments, currentTime, skipped, 2);
     useEffect(() => {
         console.log("[Navigator skips] Button state", {
-            id, season, episode, time: formatSkipTime(currentTime), duration: formatSkipTime(duration),
+            id, season, episode, time: currentTime === null ? null : formatSkipTime(currentTime), duration: formatSkipTime(duration),
             enabled, visible: enabled && !!segment,
             active: segment ? { kind: segment.kind, provider: segment.provider,
                 start: formatSkipTime(segment.start), end: formatSkipTime(segment.end) } : null,
@@ -89,6 +90,10 @@ export function PlayerSkipSegments({ lookup, currentTime, mediaRef, onSeek, onSe
                     onClick={event => {
                         event.stopPropagation();
                         if (!segment || !mediaRef.current) return;
+                        if (segment.kind === "credits" && onSkipCredits) {
+                            onSkipCredits();
+                            return;
+                        }
                         pendingSkip.current = true;
                         // Dismiss before seeking: native time updates can arrive
                         // later, or land a few frames before the requested end.
