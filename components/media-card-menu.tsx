@@ -1,9 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState, type ReactElement } from "react";
-import { motion, useReducedMotion } from "motion/react";
-import { motionTokens } from "@/components/arc/lib/motion-tokens";
-import userMenuStyles from "@/components/arc/user-menu/user-menu.module.css";
+import { useActionMenuHighlight } from "@/components/use-action-menu-highlight";
 import { ContextMenu, ContextMenuContent, ContextMenuGroup, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
@@ -35,9 +33,7 @@ export function MediaCardMenu({ item, continueWatching, detailsHref, onPlay, onR
     const { authenticated, requestSignIn } = useAccountAccess();
     const [menuOpen, setMenuOpen] = useState(false);
     const [drawerOpen, setDrawerOpen] = useState(false);
-    const reducedMotion = useReducedMotion();
-    const pointerHighlight = useRef(false);
-    const [highlight, setHighlight] = useState<{ top: number; height: number; glide: boolean } | null>(null);
+    const { groupProps, highlightElement, resetHighlight } = useActionMenuHighlight();
     const [progress, setProgress] = useState<PlaybackProgressState | null>(null);
     const [resolvedId, setResolvedId] = useState<string | null>(null);
     const [reading, setReading] = useState(false);
@@ -72,15 +68,7 @@ export function MediaCardMenu({ item, continueWatching, detailsHref, onPlay, onR
         return () => { cancelled = true; controller.abort(); };
     }, [opened, authenticated, continueWatching, originalTitleId, explicitVideoId, item.type, onResolvedId]);
 
-    const updateHighlight = (target: EventTarget | null, glide: boolean) => {
-        const row = target instanceof Element ? target.closest<HTMLElement>("[data-card-menu-item]") : null;
-        if (!row || row.hasAttribute("data-disabled")) { setHighlight(null); return; }
-        setHighlight(current => {
-            const next = { top: row.offsetTop, height: row.offsetHeight, glide: glide && current !== null };
-            return current?.top === next.top && current.height === next.height && current.glide === next.glide ? current : next;
-        });
-    };
-    const close = () => { setMenuOpen(false); setDrawerOpen(false); setReading(false); setHighlight(null); };
+    const close = () => { setMenuOpen(false); setDrawerOpen(false); setReading(false); resetHighlight(); };
     const act = async (action: () => void | Promise<void>) => {
         if (busy) return;
         close(); setBusy(true);
@@ -119,7 +107,7 @@ export function MediaCardMenu({ item, continueWatching, detailsHref, onPlay, onR
 
     return <>
         <ContextMenu open={menuOpen} onOpenChange={open => {
-            setHighlight(null); pointerHighlight.current = false;
+            resetHighlight();
             if (open) {
                 setReading(authenticated && !continueWatching && (item.type === "movie" || item.type === "series"));
                 if (touchInvocation.current || window.matchMedia("(max-width: 639px)").matches) {
@@ -154,26 +142,8 @@ export function MediaCardMenu({ item, continueWatching, detailsHref, onPlay, onR
                     if (!returnFocus.current?.isConnected) return;
                     event.preventDefault(); returnFocus.current.focus({ preventScroll: true });
                 }}>
-                <ContextMenuGroup className="relative"
-                    onPointerMoveCapture={event => {
-                        if (event.pointerType !== "mouse" || !window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
-                        pointerHighlight.current = true; updateHighlight(event.target, true);
-                    }}
-                    onPointerLeave={() => { pointerHighlight.current = false; setHighlight(null); }}
-                    onKeyDownCapture={() => { pointerHighlight.current = false; }}
-                    onFocusCapture={event => { if (!pointerHighlight.current) updateHighlight(event.target, false); }}
-                    onBlurCapture={event => {
-                        // Radix focuses the popup between hovered rows. Retain
-                        // the previous position so the next row can glide from it.
-                        if (!pointerHighlight.current && (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget))) setHighlight(null);
-                    }}>
-                    <motion.span aria-hidden="true" className={userMenuStyles.highlight} initial={false}
-                        style={{ height: highlight?.height ?? 0 }}
-                        animate={highlight ? { transform: `translateY(${highlight.top}px)`, opacity: 1 } : { opacity: 0 }}
-                        transition={{
-                            default: highlight?.glide && !reducedMotion ? motionTokens.spring.snappy : { duration: 0 },
-                            opacity: { duration: reducedMotion ? 0 : motionTokens.duration.instant },
-                        }} />
+                <ContextMenuGroup {...groupProps}>
+                    {highlightElement}
                     <ContextMenuLabel className="truncate">{item.showName || item.name}{episodeLabel ? ` · ${episodeLabel}` : ""}</ContextMenuLabel>
                     {actions.map(({ id, label, icon: Icon, disabled, run }) => <Fragment key={id}>
                         {id === "remove" && <ContextMenuSeparator />}

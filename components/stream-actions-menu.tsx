@@ -4,8 +4,9 @@ import { useRef, useState, type ReactElement } from "react";
 import { Copy, Download } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
+import { ContextMenu, ContextMenuContent, ContextMenuGroup, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/account-ui/drawer";
+import { useActionMenuHighlight } from "@/components/use-action-menu-highlight";
 import accountSurface from "@/components/account-ui/surface.module.css";
 import glass from "@/components/arc/floating-surface.module.css";
 
@@ -14,6 +15,7 @@ export function StreamActionsMenu({ label, url, downloadUrl, filename, children 
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const { groupProps, highlightElement, resetHighlight } = useActionMenuHighlight();
   const returnFocus = useRef<HTMLElement | null>(null);
   const touchInvocation = useRef(false);
   const suppressClick = useRef(false);
@@ -45,6 +47,7 @@ export function StreamActionsMenu({ label, url, downloadUrl, filename, children 
 
   return <>
     <ContextMenu open={menuOpen} onOpenChange={open => {
+      resetHighlight();
       if (open && (touchInvocation.current || window.matchMedia("(max-width: 639px)").matches)) {
         suppressClick.current = true;
         setDrawerOpen(true);
@@ -75,8 +78,17 @@ export function StreamActionsMenu({ label, url, downloadUrl, filename, children 
           if (!returnFocus.current?.isConnected) return;
           event.preventDefault(); returnFocus.current.focus({ preventScroll: true });
         }}>
-        {downloadUrl && <ContextMenuItem onSelect={download}><Download aria-hidden="true" />Download</ContextMenuItem>}
-        <ContextMenuItem onSelect={() => void copy()}><Copy aria-hidden="true" />Copy stream</ContextMenuItem>
+        <ContextMenuGroup {...groupProps}>
+          {highlightElement}
+          {downloadUrl && (
+            <ContextMenuItem data-card-menu-item="" className="focus:bg-transparent" onSelect={download} textValue="Download">
+              <Download aria-hidden="true" />Download
+            </ContextMenuItem>
+          )}
+          <ContextMenuItem data-card-menu-item="" className="focus:bg-transparent" onSelect={() => void copy()} textValue="Copy stream">
+            <Copy aria-hidden="true" />Copy stream
+          </ContextMenuItem>
+        </ContextMenuGroup>
       </ContextMenuContent>
     </ContextMenu>
     <Drawer open={drawerOpen} onOpenChange={setDrawerOpen} showSwipeHandle>
