@@ -1,9 +1,16 @@
-use crate::{App, platform, protocol, receive};
+use crate::{App, platform, protocol, receive, server::Server, startup_log::record};
 use serde_json::{Value, json};
+use std::path::PathBuf;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+    mpsc,
+};
+use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 use tao::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use tao::event::{Event, WindowEvent};
-use tao::event_loop::{ControlFlow, EventLoopBuilder};
+use tao::event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy};
 use tao::window::{Fullscreen, WindowBuilder};
 #[cfg(target_os = "macos")]
 use tao::{dpi::LogicalPosition, platform::macos::WindowBuilderExtMacOS};
@@ -18,6 +25,58 @@ enum UserEvent {
     DragWindow,
     Close,
     SyncFullscreen,
+    BackendReady,
+    InterfaceLoaded,
+}
+
+const STARTUP_PAGE: &str = r#"<!doctype html><meta charset="utf-8"><title>Navigator</title>
+<style>:root{color-scheme:light dark}body{margin:0;min-height:100vh;display:grid;place-items:center;font:15px system-ui;background:Canvas;color:CanvasText}</style>
+<main>Starting Navigator…</main>"#;
+const STARTUP_ERROR_PAGE: &str = r#"<!doctype html><meta charset="utf-8"><title>Navigator</title>
+<style>:root{color-scheme:light dark}body{margin:0;min-height:100vh;display:grid;place-items:center;font:15px system-ui;background:Canvas;color:CanvasText}main{padding:2rem}</style>
+<main>Navigator couldn’t start. Quit the app and try again.</main>"#;
+
+struct PendingBackend {
+    cancelled: Arc<AtomicBool>,
+    worker: Option<JoinHandle<()>>,
+    result: mpsc::Receiver<Result<Server, String>>,
+}
+
+impl PendingBackend {
+    fn start(
+        resources: PathBuf,
+        port: u16,
+        proxy: EventLoopProxy<UserEvent>,
+        log: PathBuf,
+        started: Instant,
+    ) -> Result<Self, String> {
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let cancel = Arc::clone(&cancelled);
+        let (sender, result) = mpsc::channel();
+        let worker = thread::Builder::new()
+            .name("navigator-startup".into())
+            .spawn(move || {
+                record(&log, started, "backend-starting");
+                let server = Server::start_cancellable(&resources, port, &cancel);
+                let stage = if server.is_ok() { "backend-ready" } else { "backend-error" };
+                record(&log, started, stage);
+                if sender.send(server).is_ok() {
+                    let _ = proxy.send_event(UserEvent::BackendReady);
+                }
+            })
+            .map_err(|error| format!("Could not start the backend worker: {error}"))?;
+        Ok(Self { cancelled, worker: Some(worker), result })
+    }
+}
+
+impl Drop for PendingBackend {
+    fn drop(&mut self) {
+        self.cancelled.store(true, Ordering::Relaxed);
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.join();
+        }
+        // Any ready server left in the channel is dropped with the receiver.
+    }
 }
 
 fn bounds(size: PhysicalSize<u32>) -> Rect {
@@ -30,6 +89,11 @@ fn bounds(size: PhysicalSize<u32>) -> Rect {
 pub fn run(mut app: App) -> Result<(), String> {
     let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
     let proxy = event_loop.create_proxy();
+    let started = app.started;
+    let startup_log = app.data.join("startup.jsonl");
+    if std::fs::metadata(&startup_log).is_ok_and(|metadata| metadata.len() > 1024 * 1024) {
+        let _ = std::fs::rename(&startup_log, app.data.join("startup.previous.jsonl"));
+    }
     #[cfg(target_os = "macos")]
     let menu = platform::install_menu({
         let proxy = proxy.clone();
@@ -51,6 +115,11 @@ pub fn run(mut app: App) -> Result<(), String> {
         // Eight points higher, matching the player Back button's center.
         .with_traffic_light_inset(LogicalPosition::new(16.0, 30.0));
     let window = builder.build(&event_loop).map_err(|e| e.to_string())?;
+    record(&startup_log, started, "window-created");
+    let mut backend = app.backend.take()
+        .map(|(resources, port)| PendingBackend::start(resources, port, proxy.clone(), startup_log.clone(), started))
+        .transpose()?;
+    let packaged = backend.is_some();
     let surface = platform::VideoSurface::new(&window)?;
     let mut player = app.start_player(&surface, {
         let proxy = proxy.clone();
@@ -118,7 +187,7 @@ pub fn run(mut app: App) -> Result<(), String> {
         .with_navigation_handler({
             let origin = app.origin.clone();
             move |url| {
-                let allowed = (smoke && url == "about:blank")
+                let allowed = ((smoke || packaged) && url == "about:blank")
                     || protocol::origin(&url).as_deref() == Some(&origin);
                 if !allowed && protocol::media_url(&url).is_ok() {
                     let _ = open::that_detached(url);
@@ -134,9 +203,13 @@ pub fn run(mut app: App) -> Result<(), String> {
         })
         .with_on_page_load_handler({
             let proxy = proxy.clone();
-            move |event, _| {
+            let origin = app.origin.clone();
+            move |event, url| {
                 if let wry::PageLoadEvent::Finished = event {
                     let _ = proxy.send_event(UserEvent::SyncFullscreen);
+                    if protocol::origin(&url).as_deref() == Some(origin.as_str()) {
+                        let _ = proxy.send_event(UserEvent::InterfaceLoaded);
+                    }
                     if let Some(path) = &load_path {
                         let _ = smoke_requests.send(protocol::Command::Load {
                             session: "native-smoke".into(),
@@ -150,18 +223,21 @@ pub fn run(mut app: App) -> Result<(), String> {
         });
     let builder = if smoke {
         builder.with_html(include_str!("smoke.html"))
+    } else if packaged {
+        builder.with_html(STARTUP_PAGE)
     } else {
         builder.with_url(&app.url)
     };
     let webview = builder.build_as_child(&window).map_err(|e| e.to_string())?;
     surface.resize(window.inner_size().width, window.inner_size().height);
+    record(&startup_log, started, "webview-created");
     let update_settings = app.data.join("update-checks.json");
     let mut automatic_updates = std::fs::read(&update_settings)
         .ok()
         .and_then(|bytes| serde_json::from_slice::<bool>(&bytes).ok())
         .unwrap_or(true);
     let update_proxy = proxy.clone();
-    let updater_result = if !app.smoke && app._server.is_some() {
+    let updater_result = if !app.smoke && packaged {
         Some(crate::macos_updater::Updater::start(
             move |event| {
                 let _ = update_proxy.send_event(UserEvent::Update(event));
@@ -185,11 +261,13 @@ pub fn run(mut app: App) -> Result<(), String> {
     let mut fullscreen = false;
     let mut window_controls_visible = true;
     let mut next_update_probe = Instant::now();
+    let mut interface_loaded = false;
     event_loop.run(move |event, _, flow| {
         // AppKit/Dock quit can destroy the loop without a CloseRequested event.
         // Stop the owned backend here rather than relying on process-exit drops.
         if matches!(&event, Event::LoopDestroyed) {
             if !installing { if let Some(updater) = &updater { updater.cancel_pending_install(); } }
+            drop(backend.take());
             drop(app._server.take());
             return;
         }
@@ -214,13 +292,13 @@ pub fn run(mut app: App) -> Result<(), String> {
         let _instance = &app._instance;
         #[cfg(target_os = "macos")]
         let _menu = &menu;
-        if !closing && automatic_updates && updater.is_some() && Instant::now() >= next_update_probe {
+        if !closing && interface_loaded && automatic_updates && updater.is_some() && Instant::now() >= next_update_probe {
             let started = update_state != "checking" && updater.as_ref().unwrap().probe();
             next_update_probe = Instant::now() + crate::update_feed::next_probe_delay(started);
         }
         *flow = if closing && !installing {
             ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(16))
-        } else if automatic_updates && updater.is_some() {
+        } else if interface_loaded && automatic_updates && updater.is_some() {
             ControlFlow::WaitUntil(next_update_probe)
         } else {
             ControlFlow::Wait
@@ -228,6 +306,7 @@ pub fn run(mut app: App) -> Result<(), String> {
         if closing && !installing && player.finished() && updater.as_ref().is_none_or(|updater| updater.can_close()) {
             surface.shutdown();
             player.join();
+            drop(backend.take());
             drop(app._server.take());
             if let Some(path) = &smoke_path {
                 let _ = std::fs::remove_file(path);
@@ -241,6 +320,30 @@ pub fn run(mut app: App) -> Result<(), String> {
             return;
         }
         match event {
+            Event::UserEvent(UserEvent::BackendReady) if !closing => {
+                if let Some(pending) = backend.take() {
+                    let result = pending.result.try_recv()
+                        .map_err(|error| error.to_string())
+                        .and_then(|result| result);
+                    match result {
+                        Ok(server) => {
+                            app._server = Some(server);
+                            if let Err(error) = webview.load_url(&app.url) {
+                                log::error!("Could not load Navigator: {error}");
+                                let _ = webview.load_html(STARTUP_ERROR_PAGE);
+                            }
+                        }
+                        Err(error) => {
+                            log::error!("Could not start Navigator: {error}");
+                            let _ = webview.load_html(STARTUP_ERROR_PAGE);
+                        }
+                    }
+                }
+            }
+            Event::UserEvent(UserEvent::InterfaceLoaded) if !interface_loaded => {
+                interface_loaded = true;
+                record(&startup_log, started, "interface-loaded");
+            }
             Event::UserEvent(UserEvent::Update(event)) => {
                 use crate::macos_updater::Event as UpdateEvent;
                 match event {

@@ -14,7 +14,7 @@ mod player;
 mod protocol;
 mod render;
 mod server;
-#[cfg(any(windows, test))]
+#[cfg(any(windows, target_os = "macos", test))]
 mod startup_log;
 #[cfg(target_os = "macos")]
 mod tao_shell;
@@ -55,15 +55,15 @@ struct App {
     _server: Option<server::Server>,
     _instance: std::fs::File,
     smoke: bool,
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     backend: Option<(PathBuf, u16)>,
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     started: std::time::Instant,
 }
 
 impl App {
     fn load() -> Result<Self, String> {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         let started = std::time::Instant::now();
         let mut args = std::env::args().skip(1);
         let mut url = None;
@@ -139,7 +139,7 @@ impl App {
                 exe.parent().unwrap().join("resources")
             }
         });
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         let mut backend = None;
         let (url, server) = if smoke {
             ("about:blank".into(), None)
@@ -148,21 +148,14 @@ impl App {
                 Some(url) => (url, None),
                 None if cfg!(debug_assertions) => ("http://localhost:3000".into(), None),
                 None => {
-                    #[cfg(not(windows))]
-                    let server = server::Server::start(&resources, port)?;
-                    #[cfg(windows)]
+                    #[cfg(target_os = "linux")]
+                    let server = Some(server::Server::start(&resources, port)?);
+                    #[cfg(any(windows, target_os = "macos"))]
                     let server = {
                         backend = Some((resources.clone(), port));
                         None
                     };
-                    #[cfg(not(windows))]
-                    {
-                        (format!("http://127.0.0.1:{port}"), Some(server))
-                    }
-                    #[cfg(windows)]
-                    {
-                        (format!("http://127.0.0.1:{port}"), server)
-                    }
+                    (format!("http://127.0.0.1:{port}"), server)
                 }
             }
         };
@@ -221,9 +214,9 @@ impl App {
             _server: server,
             _instance: instance,
             smoke,
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             backend,
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             started,
         })
     }

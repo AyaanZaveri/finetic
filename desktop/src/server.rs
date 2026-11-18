@@ -13,7 +13,7 @@ pub struct Server {
     child: crate::windows_process::Process,
 }
 impl Server {
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
     pub fn start(resources: &Path, port: u16) -> Result<Self, String> {
         Self::start_cancellable(resources, port, &AtomicBool::new(false))
     }
