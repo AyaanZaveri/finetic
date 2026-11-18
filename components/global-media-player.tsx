@@ -1057,8 +1057,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           </div>
         )}
 
-        {episodeContinuation.upNext && (
-          <PlayerUpNext next={episodeContinuation.upNext.next} seconds={episodeContinuation.upNext.seconds}
+        {episodeContinuation.upNext && streamUrl && !loading && !playbackError && (
+          <PlayerUpNext next={episodeContinuation.upNext.next} thumbnail={episodeContinuation.upNext.thumbnail}
+            seconds={episodeContinuation.upNext.seconds}
             onPlay={episodeContinuation.playUpNext} onCancel={episodeContinuation.cancelUpNext} />
         )}
 
