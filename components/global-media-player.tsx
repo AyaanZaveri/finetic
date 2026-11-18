@@ -47,6 +47,7 @@ import {
   MediaPlayerTooltip,
 } from "@/components/ui/media-player";
 import { WebPlaybackVideo } from "@/components/web-playback-video";
+import { PlayerPlaybackStats } from "@/components/player-playback-stats";
 import { toast } from "sonner";
 import { getPlaybackTitles, isMeaningfulEpisodeTitle } from "@/lib/media/playback-titles";
 import { probeStreamMetadata } from "@/lib/media/stream-metadata";
@@ -121,6 +122,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   const subtitleTiming = useSubtitleTiming(currentMedia);
   const [timingOpenKey, setTimingOpenKey] = useState<string | null>(null);
+  const [showPlaybackStats, setShowPlaybackStats] = useState(false);
   useEffect(() => { setTimingOpenKey(null); }, [subtitleTiming.key, isPlayerVisible]);
   const [playbackPhase, setPlaybackPhase] = useState<PlaybackPhase>("fetching-streams");
 
@@ -444,6 +446,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     toast.dismiss(WEB_RECOVERY_TOAST_ID);
     setIsPlayerVisible(false);
     setTimingOpenKey(null);
+    setShowPlaybackStats(false);
     setStreamUrl(null);
     setMediaDetails(null);
     subtitleSelectionRequest.current++;
@@ -917,6 +920,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         <NativePlayerGlass mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} ready={videoReady && !loading && !playbackError} />
         <PlaybackWakeLock mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} enabled={!nativePlayback && !!streamUrl && !playbackError} />
         {!nativePlayback && <BrowserPlayerGlass mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} ready={videoReady && !loading && !playbackError} />}
+        {showPlaybackStats && !nativePlayback && streamUrl && <PlayerPlaybackStats key={`${streamUrl}:${playerAttempt}`} videoRef={videoRef} />}
         {/* Video element */}
         {streamUrl && activePlaybackRequestRef.current === playbackRequest && (
           <MediaPlayerVideo asChild>
@@ -1174,7 +1178,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                 timing={{ seconds: subtitleTiming.seconds, open: Boolean(subtitleTiming.key && timingOpenKey === subtitleTiming.key),
                   onOpen: () => setTimingOpenKey(subtitleTiming.key), onClose: () => setTimingOpenKey(null) }} />
               <PlayerVideoFit key={`${streamUrl}:${playerAttempt}`} mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} />
-              <MediaPlayerSettings />
+              <MediaPlayerSettings stats={nativePlayback ? undefined : { open: showPlaybackStats, onToggle: () => setShowPlaybackStats(open => !open) }} />
               {!nativePlayback && <MediaPlayerPiP />}
               <MediaPlayerFullscreen />
             </div>

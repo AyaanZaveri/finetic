@@ -4,6 +4,34 @@ const path = require('node:path');
 const { load, hooks } = require('./test-support/react-hooks.cjs');
 const tick = async () => { for (let i = 0; i < 40; i++) await Promise.resolve(); };
 
+const { readWebPlaybackStats, playbackFrameRate } = load('lib/media/playback-stats.ts', {
+  './native-webgpu-renderer': { nativeWebGpuDrawCount: video => video.draws },
+});
+const statsVideo = {
+  videoWidth: 3840, videoHeight: 2160, paused: false, ended: false, seeking: false,
+  dataset: { webgpuFallback: 'playback-stalled' },
+  getVideoPlaybackQuality: () => ({ totalVideoFrames: 25, droppedVideoFrames: 4 }),
+};
+const nativeStats = readWebPlaybackStats(statsVideo);
+assert.equal(nativeStats.presented, 21, 'Browser frame totals include dropped frames');
+assert.equal(nativeStats.fallback, 'playback-stalled');
+assert.equal(nativeStats.hdr, 'Browser-managed');
+assert.equal(playbackFrameRate(nativeStats, { ...nativeStats, presented: 45 }, 1000), 24);
+assert.equal(playbackFrameRate(nativeStats, { ...nativeStats, presented: 1 }, 1000), undefined, 'Counter resets cannot produce negative FPS');
+assert.equal(playbackFrameRate(nativeStats, { ...nativeStats, playing: false }, 1000), undefined);
+const hybridStats = readWebPlaybackStats({ ...statsVideo, draws: 18 });
+assert.equal(hybridStats.path, 'Browser decoder + WebGPU');
+assert.equal(hybridStats.draws, 18, 'Draw submissions remain distinct from presented frames');
+assert.equal(playbackFrameRate(nativeStats, hybridStats, 1000), undefined, 'Do not compare counters across playback paths');
+const customStats = readWebPlaybackStats({ ...statsVideo, webgpu: { stats: () => ({
+  hdrOutput: true, framesPresented: 6, framesDropped: 7, framesLate: 4, videoAheadMs: 1500,
+}) } });
+assert.equal(customStats.hdr, 'HDR');
+assert.equal(customStats.presented, 6);
+assert.equal(customStats.dropped, 7);
+assert.equal(customStats.late, 4);
+assert.equal(customStats.videoAheadMs, 1500);
+
 class Video extends EventTarget {
   constructor() {
     super(); Object.assign(this, { volume: .7, muted: false, playbackRate: 1, currentTime: 0,

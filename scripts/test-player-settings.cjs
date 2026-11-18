@@ -32,7 +32,7 @@ assert.equal(labels.describeTrack({ language: 'eng', filename: 'C:\\Subs\\Actual
 
 const source = fs.readFileSync('components/ui/media-player.tsx', 'utf8');
 const parsed = ts.createSourceFile('player.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-function component(name, context, state, sent) {
+function component(name, context, state, sent, props = {}) {
   const node = parsed.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === name);
   const globals = {
     exports: {}, require,
@@ -49,12 +49,13 @@ function component(name, context, state, sent) {
     PlayerSettingsMenu: 'PlayerSettingsMenu', DropdownMenu: 'DropdownMenu',
     DropdownMenuContent: 'DropdownMenuContent', DropdownMenuTrigger: 'DropdownMenuTrigger',
     DropdownMenuOptions: 'DropdownMenuOptions', DropdownMenuGroup: 'Group', DropdownMenuLabel: 'Label',
+    DropdownMenuItem: 'DropdownMenuItem',
     MediaPlayerTooltip: 'Tooltip', SettingsIcon: 'svg', CaptionsOffIcon: 'CaptionsOff', Button: 'Button',
   };
   vm.runInNewContext(ts.transpileModule(`export ${node.getText(parsed)}`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   }).outputText, globals);
-  return globals.exports[name]({});
+  return globals.exports[name](props);
 }
 function find(node, type) {
   if (Array.isArray(node)) return node.flatMap(child => find(child, type));
@@ -77,6 +78,17 @@ assert.equal(sent[0][1], true);
 const content = find(tree, 'DropdownMenuContent')[0];
 assert.equal(content.props.container, root, 'Settings inherit player theme and remain visible in fullscreen');
 assert.equal(content.props.className, 'settingsMenu');
+assert.equal(find(tree, 'DropdownMenuItem').length, 0, 'Only the web player supplies the stats action');
+let statsToggles = 0;
+for (const open of [false, true]) {
+  const statsMenu = component('MediaPlayerSettings', context, state, [], {
+    stats: { open, onToggle: () => statsToggles++ },
+  });
+  const statsAction = find(statsMenu, 'DropdownMenuItem')[0];
+  assert.equal(statsAction.props.children, open ? 'Hide stats for nerds' : 'Stats for nerds');
+  statsAction.props.onSelect();
+}
+assert.equal(statsToggles, 2);
 let timingClosed = 0;
 const timingTree = component('MediaPlayerSettings', { ...context, subtitleTiming: { open: true, seconds: 0, onOpen() {}, onClose() { timingClosed++; } } }, state, []);
 const timingContent = find(timingTree, 'DropdownMenuContent')[0];

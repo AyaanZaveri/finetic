@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuTrigger,
-  DropdownMenuGroup, DropdownMenuLabel, DropdownMenuOptions,
+  DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuOptions,
 } from "@/components/arc/dropdown-menu/dropdown-menu";
 import { PlayerSettingsMenu } from "@/components/player-settings-menu";
 import playerSettingsStyles from "@/components/player-settings-menu.module.css";
@@ -3134,7 +3134,9 @@ function MediaPlayerDownload(props: MediaPlayerDownloadProps) {
   );
 }
 
-interface MediaPlayerSettingsProps extends MediaPlayerPlaybackSpeedProps {}
+interface MediaPlayerSettingsProps extends MediaPlayerPlaybackSpeedProps {
+  stats?: { open: boolean; onToggle(): void };
+}
 
 function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
   const {
@@ -3147,6 +3149,7 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
     modal = false,
     className,
     disabled,
+    stats,
     ...settingsProps
   } = props;
 
@@ -3231,6 +3234,9 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
                   ? `${rendition.height}p` : rendition.width ? `${rendition.width}p` : rendition.id }] : [])],
             } : undefined}
           />
+          {stats && <DropdownMenuItem onSelect={stats.onToggle} disabled={isDisabled}>
+            {stats.open ? "Hide stats for nerds" : "Stats for nerds"}
+          </DropdownMenuItem>}
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>

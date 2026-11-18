@@ -20,6 +20,13 @@ struct Vertex {
 }
 `;
 
+const renderers = new WeakMap<HTMLVideoElement, { canvas: HTMLCanvasElement; draws: number }>();
+
+export function nativeWebGpuDrawCount(video: HTMLVideoElement): number | undefined {
+    const renderer = renderers.get(video);
+    return renderer?.canvas.parentElement && !renderer.canvas.hidden ? renderer.draws : undefined;
+}
+
 /** Present the browser-decoded frame. The media element stays in charge of playback. */
 export function renderNativeVideoWithWebGpu(video: HTMLVideoElement): () => void {
     const gpu = navigator.gpu;
@@ -32,6 +39,8 @@ export function renderNativeVideoWithWebGpu(video: HTMLVideoElement): () => void
     canvas.style.cssText = "position:absolute;inset:0;width:100%;height:100%;pointer-events:none";
     const context = canvas.getContext("webgpu");
     if (!context) return () => {};
+    const renderer = { canvas, draws: 0 };
+    renderers.set(video, renderer);
 
     let device: GPUDevice | undefined;
     let callback: number | undefined;
@@ -55,6 +64,7 @@ export function renderNativeVideoWithWebGpu(video: HTMLVideoElement): () => void
         sizing.disconnect();
         styles.disconnect();
         canvas.remove();
+        renderers.delete(video);
         context.unconfigure();
         device?.destroy();
     };
@@ -107,6 +117,7 @@ export function renderNativeVideoWithWebGpu(video: HTMLVideoElement): () => void
                     pass.draw(3);
                     pass.end();
                     owned.queue.submit([encoder.finish()]);
+                    renderer.draws++;
                     if (!canvas.parentElement) host.append(canvas);
                 }
                 callback = video.requestVideoFrameCallback(draw);
