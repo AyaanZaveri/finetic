@@ -92,6 +92,8 @@ export function attachBrowserPlayerGlass(video: HTMLVideoElement) {
             geometry = { scale, left: rect.left, top: rect.top, width: rect.width, height: rect.height,
                 x: rect.left + (rect.width - drawnWidth) / 2, y: rect.top + (rect.height - drawnHeight) / 2, drawnWidth, drawnHeight };
             for (const node of document.querySelectorAll<HTMLElement>(selector)) {
+                // Skip uses the live CSS backdrop so it never swaps in an opaque frame.
+                if (node.hasAttribute('data-player-skip')) continue;
                 if (node.getAttribute('aria-hidden') === 'true' || !node.getClientRects().length) continue;
                 const style = getComputedStyle(node);
                 if (style.visibility === 'hidden') continue;

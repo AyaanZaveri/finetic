@@ -25,7 +25,16 @@ function makeCanvas() {
     getContext: (_, options) => { assert.equal(options.colorSpace, 'srgb'); return context; },
     toDataURL() { throw Error('Live glass must never JPEG-encode or read back video pixels'); } };
 }
-const doc = { hidden: false, body: {}, querySelectorAll: () => [surface], createElement: makeCanvas,
+let skipFrames = 0;
+const skip = {
+  ...surface,
+  setAttribute() {},
+  removeAttribute() {},
+  hasAttribute: key => key === 'data-player-skip',
+  getAttribute: key => key === 'data-player-skip' ? '' : null,
+  appendChild() { skipFrames++; },
+};
+const doc = { hidden: false, body: {}, querySelectorAll: () => [surface, skip], createElement: makeCanvas,
   addEventListener: (k,v) => events.set(k,v), removeEventListener: k => events.delete(k) };
 class Video extends EventTarget {
   readyState = 2; videoWidth = 3840; videoHeight = 2160; paused = false;
@@ -35,7 +44,7 @@ class Video extends EventTarget {
 }
 const context = { exports: {}, document: doc,
   window: { innerWidth: 1000, innerHeight: 500, addEventListener: (k,v) => events.set(k,v), removeEventListener: k => events.delete(k) },
-  getComputedStyle: node => node === surface ? { visibility: attrs.has('hidden') ? 'hidden' : 'visible', backgroundColor: 'rgba(0,0,0,.64)', backgroundImage: 'none' } : { objectFit: 'contain' },
+  getComputedStyle: node => (node === surface || node === skip) ? { visibility: attrs.has('hidden') ? 'hidden' : 'visible', backgroundColor: 'rgba(0,0,0,.64)', backgroundImage: 'none' } : { objectFit: 'contain' },
   MutationObserver: class { constructor(fn) { mutation = fn; } observe() {} disconnect() {} },
 };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/media/browser-player-glass.ts', 'utf8'), {
@@ -77,6 +86,7 @@ assert.equal(callbacks.size, 0, 'A paused seek does not restart frame requests')
 video.paused = false;
 video.dispatchEvent(new Event('playing'));
 assert.equal(callbacks.size, 1, 'Playing resumes frame requests');
+assert.equal(skipFrames, 0, 'The web Skip background stays free of sampled video during play, pause and resume');
 attrs.set('hidden', ''); mutation([]); assert.equal(callbacks.size, 0);
 attrs.delete('hidden'); mutation([]); assert.equal(callbacks.size, 1);
 doc.hidden = true; events.get('visibilitychange')(); assert.equal(callbacks.size, 0);
@@ -89,6 +99,11 @@ assert.equal(callbacks.size, 0); cleanup(); assert.equal(props.size, 0); assert.
 console.log('PASS: SDR/HDR live canvas glass, presentation-rate updates without JPEG/readback/layout, demand cancellation and cleanup');
 const postcss = require('postcss');
 const css = postcss.parse(fs.readFileSync('components/player-mobile.css', 'utf8'));
+let skipBackground;
+css.walkRules('[data-player-shell]:not([data-native-player-shell]) [data-player-skip]', rule => {
+  rule.walkDecls('background', declaration => { skipBackground = declaration.value; });
+});
+assert.equal(skipBackground, 'transparent', 'Web Skip uses a transparent background instead of a variable hover fill');
 const glassTint = css.nodes.find(rule => rule.selector === '[data-browser-glass]::after');
 assert.equal(glassTint.nodes.find(node => node.prop === 'background-color').value,
   'var(--player-glass-interaction-color, var(--player-glass-color, var(--browser-glass-color)))',
