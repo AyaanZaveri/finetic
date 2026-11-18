@@ -123,6 +123,7 @@ const episode = (season, number = 1) => ({ id: `tmdb:20:${season}:${number}`, ti
     react: { ...require('react'), ...h.react }, 'react/jsx-runtime': h.jsx,
     '@/contexts/account-context': { useAccountAccess: () => ({ authenticated: true }) },
     '@/lib/artwork': { episodeThumbnailUrl: url => url },
+    '@/lib/media/resume-playback': load('lib/media/resume-playback.ts'),
     '@/lib/media/series-season': { acquireSeriesSeason: (id, season) => {
       const record = { id, season, released: false };
       uiRequests.push(record);

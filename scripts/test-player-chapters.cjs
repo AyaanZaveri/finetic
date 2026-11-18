@@ -47,8 +47,10 @@ assert.equal(boundSkipChapterLabels(normal, [{ kind: 'intro', start: 0, end: 90 
 const explicit = el(0x1043a770, el(0x45b9, el(0xb6, bytes(uint(0x91, 0), uint(0x92, 90e9), el(0x80, el(0x85, Buffer.from('Intro')))))));
 assert.equal(chapterCues(parseMatroskaChapters(explicit), 1500)[0].endTime, 90, 'Retain authored MKV end times');
 const mask = chapterTrackMask(bounded, 0, 1500);
-assert.match(mask, /transparent calc\(6% - 1px\)/, 'Intro end becomes a real transparent gap');
-assert.match(mask, /transparent calc\(80% - 1px\)/);
+assert.match(mask, /transparent calc\(clamp\(min\(5px, 50%\), 6%, max\(50%, 100% - 5px\)\) - 1px\)/, 'The intro gap must preserve the track caps');
+assert.match(mask, /80%/);
+const edgeMask = chapterTrackMask([{ startTime: 0.1, endTime: 999.9, text: 'Story' }], 0, 1000);
+assert.equal(edgeMask.match(/clamp\(min\(5px, 50%\),/g).length, 8, 'Both sides of each near-edge gap are bounded');
 assert.equal(chapterTrackMask([], 0, 100), undefined);
 assert.equal(chapterTrackMask(bounded, 0, 0), undefined);
 

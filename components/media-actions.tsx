@@ -21,6 +21,7 @@ import { StreamSummary } from "@/components/stream-summary";
 import { createPlaybackStreamRequest, type StreamWithAddon } from "@/lib/media/fetch-playback-streams";
 import { useStreamQueries } from "@/components/stream-query-provider";
 import { projectPlaybackDetails } from "@/lib/media/playback-details";
+import { safeResumePosition } from "@/lib/media/resume-playback";
 import { useAccountAccess } from "@/contexts/account-context";
 import { Button } from "@/components/ui/button";
 import { desktopBridge } from "@/lib/desktop/bridge";
@@ -50,46 +51,30 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
   const [totalAddons, setTotalAddons] = useState(0);
   const [streamSearchQuery, setStreamSearchQuery] = useState("");
   const [selectedResolutions, setSelectedResolutions] = useState<string[]>([]);
-  const [resumePositionTicks, setResumePositionTicks] = useState<
-    number | undefined
-  >(activeMedia?.resumePositionTicks);
+  const libraryItemId = activeMedia?.seriesId || activeId;
+  const targetVideoId = activeMedia?.episodeId || activeMedia?.mediaSourceId || activeId;
+  const progressKey = `${libraryItemId}:${targetVideoId}`;
+  const [savedProgress, setSavedProgress] = useState<{ key: string; position?: number } | null>(null);
+  const resumePositionTicks = savedProgress?.key === progressKey ? savedProgress.position : activeMedia?.resumePositionTicks;
 
   useEffect(() => {
-    setResumePositionTicks(activeMedia?.resumePositionTicks);
-  }, [activeMedia?.resumePositionTicks]);
-
-  useEffect(() => {
-    if (!authenticated || !activeMedia) return;
+    if (!authenticated || !libraryItemId) return;
     let cancelled = false;
-
-    const libraryItemId = activeMedia.seriesId || activeMedia.id;
-    const targetVideoId =
-      activeMedia.episodeId || activeMedia.mediaSourceId || activeMedia.id;
 
     void (async () => {
       const progress = await fetchPlaybackProgress(
         libraryItemId,
         targetVideoId,
       );
-      if (cancelled) return;
-      if (
-        typeof progress?.resumePositionTicks === "number" &&
-        progress.resumePositionTicks > 0
-      ) {
-        setResumePositionTicks(progress.resumePositionTicks);
-      }
+      if (!cancelled) setSavedProgress({ key: progressKey, position: activeType === "series"
+        ? safeResumePosition(progress?.resumePositionTicks, progress?.totalDuration, true)
+        : progress?.resumePositionTicks });
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [
-    activeMedia?.episodeId,
-    activeMedia?.id,
-    activeMedia?.mediaSourceId,
-    activeMedia?.seriesId,
-    authenticated,
-  ]);
+  }, [libraryItemId, targetVideoId, progressKey, activeType, authenticated]);
 
   useEffect(() => {
     if (!authenticated || !activeId || !activeType) return;

@@ -16,6 +16,7 @@ import { parseSubtitleTextContent } from "@/lib/media/subtitle-content";
 import { subtitleMediaKey } from "@/lib/media/subtitle-snapshot";
 import { createSubtitleCueIndex } from "@/lib/media/subtitle-cue-index";
 import { useEpisodeContinuation } from "@/lib/media/use-episode-continuation";
+import { safeResumePosition } from "@/lib/media/resume-playback";
 import { PlayerNextEpisode } from "@/components/player-next-episode";
 import { formatRuntime } from "@/lib/format-runtime";
 
@@ -403,6 +404,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       let effectiveStartTime = mediaElement.currentTime || 0;
 
       const requestedResume = currentMedia?.resumePositionTicks;
+      const episodeResume = currentMedia?.type === "series";
       if (
         typeof requestedResume === "number" &&
         Number.isFinite(requestedResume) &&
@@ -412,12 +414,11 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           Number.isFinite(mediaDuration) && mediaDuration > 1
             ? mediaDuration - 1
             : requestedResume;
-        const resumeTime = Math.max(0, Math.min(requestedResume, maxSeekTime));
-        // New desktop engines seek as part of loadfile, before the first frame.
-        // FILE_LOADED can precede that seek's time-pos observation; seeking here
-        // again would discard/rebuffer the initial decode. Keep the fallback for
-        // older engines and correct saved positions beyond the file's duration.
-        if ((!desktopBridge()?.capabilities?.initialSeek || resumeTime !== requestedResume)
+        const resumeTime = episodeResume ? safeResumePosition(requestedResume, mediaDuration, true) ?? 0
+          : Math.max(0, Math.min(requestedResume, maxSeekTime));
+        // Wait for the selected file's duration before seeking an episode.
+        // Movies can still use the native load-time seek.
+        if ((episodeResume || !desktopBridge()?.capabilities?.initialSeek || resumeTime !== requestedResume)
           && Math.abs(mediaElement.currentTime - resumeTime) > 0.1) mediaElement.currentTime = resumeTime;
         currentTimeRef.current = resumeTime;
         setCurrentTimestamp(resumeTime);
@@ -430,7 +431,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       });
       mediaElement.play().catch(() => {});
     }
-  }, [currentMedia?.resumePositionTicks, sendPlaybackUpdate, setCurrentTimestamp]);
+  }, [currentMedia?.type, currentMedia?.resumePositionTicks, sendPlaybackUpdate, setCurrentTimestamp]);
 
   const handleClose = useCallback((options?: { ended?: boolean }) => {
     reportNavigatorPlayback("closed");
@@ -469,11 +470,12 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     return () => document.removeEventListener("navigatorcloseplayer", close);
   }, [isPlayerVisible, handleClose]);
 
-  const handleVideoEnded = useCallback((event?: React.SyntheticEvent<HTMLVideoElement>) => {
-    if (event && event.currentTarget !== videoRef.current) return;
+  const handleVideoEnded = useCallback((event: React.SyntheticEvent<HTMLVideoElement>, generation: number) => {
+    if (event.currentTarget !== videoRef.current || generation !== loadGenerationRef.current
+      || activePlaybackRequestRef.current !== playbackRequest) return;
     if (episodeContinuationRef.current) episodeContinuationRef.current.onEnded();
     else handleClose({ ended: true });
-  }, [handleClose]);
+  }, [handleClose, playbackRequest]);
 
   // Process subtitle text for HTML rendering
   const processSubtitleText = useCallback((text: string) => {
@@ -862,7 +864,6 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       <MediaPlayer
         autoFocus
         autoHide
-        onEnded={handleVideoEnded}
         className="w-screen"
         customSubtitleTracks={subtitleTracks}
         customSubtitlesEnabled={subtitleTracks.length > 0}
@@ -879,14 +880,15 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         <PlaybackWakeLock mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} enabled={!nativePlayback && !!streamUrl && !playbackError} />
         {!nativePlayback && <BrowserPlayerGlass mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} ready={videoReady && !loading && !playbackError} />}
         {/* Video element */}
-        {streamUrl && (
+        {streamUrl && activePlaybackRequestRef.current === playbackRequest && (
           <MediaPlayerVideo asChild>
             <Video
               key={`${streamUrl}:${playerAttempt}`}
               // @ts-ignore
               ref={videoRef}
               src={streamUrl}
-              {...(nativePlayback ? { requestHeaders, startPosition: currentMedia?.resumePositionTicks ?? 0, onPreloadFallback: () => setVideoReady(false) } : {})}
+              {...(nativePlayback ? { requestHeaders, startPosition: currentMedia.type === "series" ? 0 : currentMedia.resumePositionTicks ?? 0,
+                onPreloadFallback: () => setVideoReady(false) } : {})}
               {...(nativePlayback && !playerAttempt && currentMedia?.nativePreload?.source === streamUrl
                 ? { preloadSrc: currentMedia.nativePreload.url, preloadExpires: currentMedia.nativePreload.expires } : {})}
               crossOrigin=""
@@ -896,7 +898,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
               className="h-screen bg-black w-screen"
               onPause={handleVideoPause}
               onPlaying={handleVideoPlaying}
-              onEnded={handleVideoEnded}
+              onEnded={(event) => handleVideoEnded(event, videoGeneration)}
               onLoadedMetadata={handleVideoLoadedMetadata}
               onTimeUpdate={handleTimeUpdate}
               onDurationChange={handleDurationChange}

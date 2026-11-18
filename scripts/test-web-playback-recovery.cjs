@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
 function languageRequire(name) {
-    if (!['@/lib/media/audio-language', '@/lib/media/stream-release-info', '@/lib/media/stream-codecs', '@/lib/media/playback-limits'].includes(name)) return require(name);
+    if (!['@/lib/media/audio-language', '@/lib/media/stream-release-info', '@/lib/media/stream-codecs', '@/lib/media/playback-limits', '@/lib/series-route'].includes(name)) return require(name);
     const context = { exports: {}, require: languageRequire };
     vm.runInNewContext(ts.transpileModule(fs.readFileSync(name.replace('@/', '') + '.ts', 'utf8'), {
         compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
@@ -38,9 +38,10 @@ class Media extends EventTarget {
     duration = 600;
     play() { return Promise.resolve(); }
 }
-function harness({ native = false, automatic = false, autoSelectWebStream = true, streams: customStreams } = {}) {
+function harness({ native = false, automatic = false, autoSelectWebStream = true, streams: customStreams, episodePosition } = {}) {
     const source = 'https://stream.example/Buddy.2160p.mkv';
     let request = { id: 'buddy', type: 'movie', name: 'Buddy', detailsPath: '/movie/buddy', navigatorActionId: 'test-playback-ack', resumePositionTicks: 42, ...(automatic ? {} : { streamUrl: source }) };
+    if (episodePosition !== undefined) request = { ...request, type: 'series', mediaSourceId: 'buddy:1:2', resumePositionTicks: episodePosition };
     let visible = true, dirty = true, index = 0, tree, renderedVideo, media, timerId = 0, streamFetches = 0, wallTime = 0;
     const slots = [], effects = [], timers = new Map(), events = [], toasts = [], published = [], routes = [];
     const streams = customStreams || [{ url: source, title: '2160p HEVC DTS REMUX' },
@@ -106,12 +107,15 @@ function harness({ native = false, automatic = false, autoSelectWebStream = true
             if (name === '@/lib/media/resolve-playback') return utility('lib/media/resolve-playback.ts');
             if (name === '@/lib/media/playback-details') return require('./test-support/playback-context.cjs').details;
             if (name === '@/lib/media/playback-titles') return utility('lib/media/playback-titles.ts');
+            if (name === '@/lib/media/resume-playback') return utility('lib/media/resume-playback.ts');
+            if (name === '@/lib/media/use-episode-continuation') return { useEpisodeContinuation: () => ({}) };
             if (name === '@/lib/media/stream-playability') return { probeStreamPlayability: async () => 'supported' };
             if (name === '@/lib/media/fetch-playback-streams') return {
                 async fetchPlaybackStreams() { streamFetches++; return streams; },
                 createPlaybackStreamRequest(id, type) { streamFetches++; return { id, type, canonicalId: Promise.resolve(id), snapshot: { streams, pending: 0, total: streams.length, complete: true }, promise: Promise.resolve(streams), subscribe(listener) { listener(this.snapshot); return () => {}; } }; },
             };
             if (name === '@/lib/media/fetch-playback-details') return { fetchPlaybackDetails: async () => null };
+            if (name === '@/lib/media/fetch-playback-episode') return { fetchPlaybackEpisode: async () => null };
             if (name === '@/app/actions') return { fetchMediaDetails: async () => null, reportPlaybackStart: noOp, reportPlaybackProgress: noOp, reportPlaybackStopped: noOp };
             if (name === '@/lib/media/playback-subtitles') return { PlaybackSubtitles: class { discover() { return Promise.resolve([]); } preload() {} } };
             if (name.startsWith('@/') || name === '@mux/mux-video-react') return new Proxy({}, { get: () => noOp });
@@ -158,6 +162,15 @@ function harness({ native = false, automatic = false, autoSelectWebStream = true
 }
 
 async function run() {
+    for (const native of [false, true]) {
+        for (const [saved, expected] of [[650, 0], [599, 0], [42, 42]]) {
+            const episode = harness({ native, episodePosition: saved, autoSelectWebStream: false });
+            await episode.settle();
+            if (native) assert.equal(episode.video.props.startPosition, 0, 'Load the episode before applying its resume position');
+            episode.video.props.onLoadedMetadata();
+            assert.equal(episode.media.currentTime, expected, 'Validate the episode offset against the selected file');
+        }
+    }
     for (const automatic of [false, true]) {
         const direct = harness({ automatic, autoSelectWebStream: false });
         await direct.settle();

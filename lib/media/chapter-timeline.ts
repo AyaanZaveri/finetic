@@ -28,7 +28,12 @@ export function chapterTrackMask(chapters: readonly Chapter[], start: number, en
         .filter(time => Number.isFinite(time) && time > start && time < end).sort((a, b) => a - b)
         .map(time => (time - start) / (end - start) * 100);
     if (!positions.length) return;
-    return `linear-gradient(to right, #000 0%, ${positions.map(position =>
-        `#000 calc(${position}% - 1px), transparent calc(${position}% - 1px), transparent calc(${position}% + 1px), #000 calc(${position}% + 1px)`
-    ).join(', ')}, #000 100%)`;
+    const gaps = positions.map(position => {
+        // Keep the divider out of the rounded track caps on both edges.
+        const center = `clamp(min(5px, 50%), ${position}%, max(50%, 100% - 5px))`;
+        const left = `calc(${center} - 1px)`;
+        const right = `calc(${center} + 1px)`;
+        return `#000 ${left}, transparent ${left}, transparent ${right}, #000 ${right}`;
+    });
+    return `linear-gradient(to right, #000 0%, ${gaps.join(', ')}, #000 100%)`;
 }

@@ -171,11 +171,19 @@ function controller(overrides={}) {
   const ast=ts.createSourceFile('player.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
   let endedCallback;
   function visit(node){if(ts.isVariableDeclaration(node)&&node.name.getText(ast)==='handleVideoEnded') endedCallback=node.initializer.arguments[0].getText(ast);ts.forEachChild(node,visit);}visit(ast);
-  h=hookHarness();h.render();await tick();value=h.render();const video={};
+  h=hookHarness();h.render();await tick();value=h.render();const video={}, playbackRequest={};
+  const activePlaybackRequestRef={current:playbackRequest};
   const onEnded=vm.runInNewContext(ts.transpileModule(`(${endedCallback})`,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,
-    {videoRef:{current:video},episodeContinuationRef:{current:value},handleClose(){throw Error('Shared episode continuation should handle ended');}});
-  onEnded({currentTarget:{}});assert.equal(h.played.length,0,'Detached old video events are ignored');
-  onEnded({currentTarget:video});onEnded({currentTarget:video});await tick();assert.equal(h.played.length,1);h.host.unmount();
+    {videoRef:{current:video},loadGenerationRef:{current:2},activePlaybackRequestRef,playbackRequest,
+      episodeContinuationRef:{current:value},handleClose(){throw Error('Shared episode continuation should handle ended');}});
+  onEnded({currentTarget:{}},2);
+  onEnded({currentTarget:video},1);
+  activePlaybackRequestRef.current={};
+  onEnded({currentTarget:video},2);
+  await tick();
+  assert.equal(h.played.length,0,'Detached or superseded video events are ignored');
+  activePlaybackRequestRef.current=playbackRequest;
+  onEnded({currentTarget:video},2);onEnded({currentTarget:video},2);await tick();assert.equal(h.played.length,1);h.host.unmount();
 
   const {GET}=load('app/api/playback/next-episode/route.ts',{'@/app/actions/auth':{getAuthData:async()=>({})}, "@/lib/server/auth": { getAuthData:async()=>({}) },'@/app/actions/tv-shows':{getFollowingEpisodeForSeries:async()=>next}},globals);
   assert.equal((await GET(new Request('http://test/api/playback/next-episode?id=tt1442437&season=6&episode=6'))).status,200);

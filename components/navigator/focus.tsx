@@ -184,6 +184,7 @@ const NavigatorMessageRow = memo(function NavigatorMessageRow({ row, duration, i
           return (
             <div
               className={`w-full px-2 ${spacing}`}
+              data-selectable-text=""
               key={segment.key}
             >
               <Streamdown

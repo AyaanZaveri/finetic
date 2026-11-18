@@ -33,14 +33,23 @@ function visit(node) {
  ts.forEachChild(node, visit);
 }
 visit(source); assert.ok(handler);
-for (const [initialSeek, requested, expected] of [[true, 123.4, []], [false, 123.4, [123.4]], [true, 500, [299]]]) {
- const seeks = [], reports = []; let position = 0;
+const { safeResumePosition } = load('lib/media/resume-playback.ts');
+for (const [initialSeek, type, requested, initial, expected, reported] of [
+ [true, 'movie', 123.4, 0, [], 123.4],
+ [false, 'movie', 123.4, 0, [123.4], 123.4],
+ [true, 'movie', 500, 0, [299], 299],
+ [true, 'series', 123.4, 0, [123.4], 123.4],
+ [true, 'series', 299, 0, [], 0],
+ [false, 'series', 500, 0, [], 0],
+ [true, 'series', 300, 300, [0], 0],
+]) {
+ const seeks = [], reports = []; let position = initial;
  const media = { duration: 300, get currentTime() { return position; }, set currentTime(value) { position = value; seeks.push(value); }, play: () => Promise.resolve() };
- const context = { exports: {}, videoRef: { current: media }, currentMedia: { resumePositionTicks: requested },
+ const context = { exports: {}, videoRef: { current: media }, currentMedia: { type, resumePositionTicks: requested }, safeResumePosition,
   desktopBridge: () => ({ capabilities: { initialSeek } }), setDuration() {}, currentTimeRef: { current: 0 }, setCurrentTime() {}, setCurrentTimestamp() {}, sendPlaybackUpdate: (...args) => reports.push(args) };
  vm.runInNewContext(ts.transpileModule(`exports.metadata = ${handler}`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText, context);
  context.exports.metadata();
- assert.deepEqual(seeks, expected, 'Native initial seek is one operation; legacy resume and duration clamping still seek');
- assert.equal(reports[0][1].currentTimeSeconds, Math.min(requested, 299));
+ assert.deepEqual(seeks, expected, `${type}: resume must respect the selected file duration`);
+ assert.equal(reports[0][1].currentTimeSeconds, reported);
 }
-console.log('PASS: no duplicate metadata seek; older runtime fallback and out-of-range resume correction retained');
+console.log('PASS: movie initial seek, legacy resume, and episode restart at zero for end-of-file offsets');

@@ -12,6 +12,7 @@ import React, {
   useMemo,
 } from "react";
 import { acquireSeriesSeason } from "@/lib/media/series-season";
+import { safeResumePosition } from "@/lib/media/resume-playback";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CarouselAction } from "@/components/carousel-action";
@@ -332,7 +333,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
       const next = {
         videoId: progress?.videoId,
         progressPercent: progress?.progressPercent,
-        resumePositionTicks: progress?.resumePositionTicks,
+        resumePositionTicks: safeResumePosition(progress?.resumePositionTicks, progress?.totalDuration, true),
       };
       playbackProgressCache.set(showId, next);
 
@@ -536,7 +537,8 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
                     episode.progressPercent,
                   resumePositionTicks:
                     playbackProgressByEpisodeId[episode.id]
-                      ?.resumePositionTicks ?? episode.resumePositionTicks,
+                      ? playbackProgressByEpisodeId[episode.id].resumePositionTicks
+                      : episode.resumePositionTicks,
                 }}
                 showId={showId}
                 isActive={

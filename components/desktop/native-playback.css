@@ -6,6 +6,19 @@ html[data-desktop="mpv"] body {
   color-scheme: normal !important;
 }
 html[data-desktop="mpv"] body { isolation: isolate; }
+
+/* Desktop gestures should not select the page. Keep editing and copyable text
+   available in inputs, editable regions, and explicitly selectable content. */
+html:is([data-native-platform="macos"], [data-native-platform="windows"], [data-native-platform="linux"]) body {
+  -webkit-user-select: none;
+  user-select: none;
+}
+html:is([data-native-platform="macos"], [data-native-platform="windows"], [data-native-platform="linux"])
+  :is(input, textarea, [contenteditable]:not([contenteditable="false"]), [data-selectable-text]) {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 html[data-desktop="mpv"] body::before {
   content: "";
   position: fixed;

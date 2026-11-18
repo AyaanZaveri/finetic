@@ -228,7 +228,7 @@ export function LogViewerDialog({
                 <span className="ml-2">Loading log content...</span>
               </div>
             ) : (
-              <pre className="text-xs font-mono whitespace-pre-wrap break-words">
+              <pre data-selectable-text="" className="text-xs font-mono whitespace-pre-wrap break-words">
                 {searchTerm ? (
                   <span
                     dangerouslySetInnerHTML={{
