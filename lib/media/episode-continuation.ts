@@ -1,6 +1,7 @@
 import type { Episode } from "@/app/actions/tv-shows";
 import type { MediaToPlay } from "@/lib/atoms";
 
+export const UP_NEXT_SECONDS = 5;
 export const NEXT_EPISODE_PREFETCH_WINDOW = 5 * 60;
 export const NEXT_EPISODE_PREFETCH_TTL = 6 * 60_000;
 export interface EpisodePreload { claim(): void; dispose(): void }

@@ -869,6 +869,12 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         customSubtitlesEnabled={subtitleTracks.length > 0}
         subtitleTiming={subtitleTimingActions}
         chapters={chapters}
+        onKeyDown={event => {
+          if (event.defaultPrevented || event.key !== "Escape" || !episodeContinuation.upNext) return;
+          event.preventDefault();
+          event.stopPropagation();
+          episodeContinuation.cancelUpNext();
+        }}
         onCustomSubtitleChange={handleCustomSubtitleChange}
       >
         <SubtitleTimingPopover open={Boolean(subtitleTiming.key && timingOpenKey === subtitleTiming.key)}

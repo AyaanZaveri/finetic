@@ -139,6 +139,16 @@ html[data-native-engine="exoplayer"] [data-native-player-shell] [data-slot="medi
   from { opacity: 0; }
   to { opacity: 1; }
 }
+/* Each timer tick drains one arc. Reduced motion keeps the discrete tick. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-player-up-next-ring="running"] {
+    animation: player-up-next-drain 1s linear both;
+  }
+}
+@keyframes player-up-next-drain {
+  from { stroke-dashoffset: var(--ring-offset); }
+  to { stroke-dashoffset: var(--ring-next-offset); }
+}
 /* Keep the glass at its measured position while the content rises into place. */
 @media (prefers-reduced-motion: no-preference) {
   [data-player-up-next-content] {

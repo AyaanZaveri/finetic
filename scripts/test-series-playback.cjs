@@ -59,6 +59,7 @@ async function run() {
     let advanced = false;
     const { PlayerNextEpisode, PlayerUpNext } = load('components/player-next-episode.tsx', name => {
         if (name === 'react') return { useEffect() {}, useId: () => 'up-next-title', useRef: () => ({ current: null }) };
+        if (name === '@/lib/media/episode-continuation') return { UP_NEXT_SECONDS: 5 };
         if (name === 'react/jsx-runtime') return { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) };
         return new Proxy({}, { get: (_, key) => key });
     });
@@ -78,19 +79,22 @@ async function run() {
     let cancelled = 0, played = 0;
     const thumbnail = 'https://image.tmdb.org/t/p/w300/next.jpg';
     const prompt = PlayerUpNext({ next, thumbnail, seconds: 5, onPlay: () => played++, onCancel: () => cancelled++ });
-    const [heading, title, artworkFrame, actions] = prompt.props.children.props.children;
+    const [artworkFrame, details] = prompt.props.children.props.children;
     const image = artworkFrame.props.children;
-    const timer = heading.props.children[1];
+    const [heading, actions] = details.props.children;
+    const [titleBlock, countdown] = heading.props.children;
+    const timer = countdown.type(countdown.props);
     assert.equal(prompt.props['data-player-native-glass'], '');
     assert.equal(prompt.props['data-player-hdr-glass'], '');
     assert.equal(prompt.props.children.props['data-player-up-next-content'], '');
     assert.equal(image.props.src, thumbnail);
-    assert.match(image.props.className, /\bw-full\b/);
-    assert.equal(timer.props['aria-label'], '5 seconds remaining');
-    assert.equal(timer.props.children[0].props.children.props.digit, 5);
-    assert.equal(title.props.children, next.title);
+    assert.match(image.props.className, /\bsize-full\b/);
+    assert.equal(timer.props['aria-label'], 'Plays in 5 seconds');
+    assert.equal(timer.props.children[0].props.children[1].props['data-player-up-next-ring'], 'running');
+    assert.equal(timer.props.children[1].props.children.props.digit, 5);
+    assert.equal(titleBlock.props.children[1].props.children, next.title);
     const preview = PlayerUpNext({ next, thumbnail, seconds: null, onPlay() {}, onCancel() {} });
-    assert.equal(preview.props.children.props.children[0].props.children[1], false);
+    assert.equal(preview.props.children.props.children[1].props.children[0].props.children[1], false);
     actions.props.children[0].props.onClick();
     actions.props.children[1].props.onClick();
     prompt.props.onKeyDown({ key: 'Escape', preventDefault() {}, stopPropagation() {} });

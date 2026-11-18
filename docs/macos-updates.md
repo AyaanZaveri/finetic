@@ -1,18 +1,21 @@
 # macOS app updates
 
-Navigator uses Sparkle 2.10.1 for macOS updates. Sparkle checks a fixed HTTPS feed,
-shows its native update window, verifies the archive, replaces Navigator and
-relaunches it. The app does not accept update URLs or file paths from JavaScript.
+Navigator uses Sparkle 2.10.1 for macOS updates. Sparkle verifies archives,
+extracts full or delta packages, replaces Navigator, and relaunches it. The app's
+user driver reports progress and waits for an explicit restart choice. The app
+does not accept update URLs or file paths from JavaScript.
 
 ## User controls
 
-Settings → About has a manual check button and a background-check switch.
-When automatic checks are enabled, the native shell probes on launch and every
-hour with Sparkle's information-only API. The check shows no update window and
-downloads no archive. The header shows an “Update available” button immediately
-left of the avatar only after Sparkle finds an eligible update. Clicking it
-opens Sparkle directly, without visiting Settings. The user confirms the download
-and chooses when to install and restart.
+Settings → About has a manual check button and an automatic-download switch.
+When enabled, the native shell checks on launch and hourly. It downloads and
+prepares eligible updates in the background. The header and Settings show
+“Restart to update” when preparation is complete. A manual check also prepares
+an update; a second action installs it and restarts the app.
+
+Normal quit cancels a pending installation. If extraction has already started,
+the event loop waits for the ready callback so it can cancel safely. It does
+not install a prepared update just because the user closes the app.
 
 Web shows the app version and GitHub release button. It shows no desktop
 update message or native update controls.
@@ -57,10 +60,10 @@ the first signed macOS release is published.
 
 1. Update package, Cargo and bundle versions together. Use the same release
    version and tag on both platforms.
-2. On macOS, run `NAVIGATOR_RELEASE_TAG=release-vX.Y.Z npm run desktop:package`.
-   Packaging produces `Navigator-X.Y.Z-macos-arm64.zip` and a signed appcast.
-   It uses the Keychain key. A normal local package without this variable does
-   not sign an update feed or publish anything.
+2. Build through the manual `desktop-build.yml` GitHub Actions workflow on
+   standard GitHub-hosted runners. Download the verified ZIP and any `.delta`
+   artifacts. Keep the signing key out of CI and artifacts. Sign the immutable
+   ZIP and deltas on the approved Mac using the command below.
 3. Verify the package version, framework signatures, archive integrity and
    update signature. Run the basic update checks below.
 4. Upload the immutable ZIP and signed appcast to that GitHub release. A DMG
@@ -74,8 +77,12 @@ To sign an existing release ZIP:
 ```sh
 node scripts/macos-update-feed.mjs \
   dist/Navigator-X.Y.Z-macos-arm64.zip X.Y.Z release-vX.Y.Z \
-  dist/Navigator-X.Y.Z-macos-arm64-appcast.xml
+  dist/Navigator-X.Y.Z-macos-arm64-appcast.xml \
+  dist/Navigator-X.Y.Z-macos-arm64-from-A.B.C.delta
 ```
+
+Omit the last argument when no delta was generated. Keep the full ZIP in the feed
+for automatic fallback.
 
 The tool checks the archive's bundle version, app identifier and public key.
 It verifies the resulting signature against the public key before writing the
