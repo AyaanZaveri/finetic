@@ -130,7 +130,9 @@ assert.equal(declarations.transform, 'none');
 css.walkDecls('translate', () => assert.fail('Skip Intro must stay stationary while fading in or out'));
 assert.equal(declarations['transform-origin'], 'center');
 assert.equal(declarations['min-height'], '3rem');
-assert.equal(declarations.border, '0');
+const borderOverride = css.nodes.find(rule => rule.selector === '.button[data-player-skip]');
+assert.ok(borderOverride?.nodes.some(node => node.prop === 'border' && node.value === '0'),
+  'The skip button must override the shared glass border regardless of stylesheet order');
 const glassCss = postcss.parse(fs.readFileSync('components/player-mobile.css', 'utf8'));
 const hover = glassCss.nodes.find(rule => rule.params === '(hover: hover) and (pointer: fine)').nodes[0];
 assert.ok(hover.selector.includes('[data-player-skip][data-visible]:enabled:hover'));

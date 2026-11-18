@@ -24,7 +24,7 @@ function makeCanvas() {
 const doc = { hidden: false, body: {}, querySelectorAll: () => [surface], createElement: makeCanvas,
   addEventListener: (k,v) => events.set(k,v), removeEventListener: k => events.delete(k) };
 class Video extends EventTarget {
-  readyState = 2; videoWidth = 3840; videoHeight = 2160;
+  readyState = 2; videoWidth = 3840; videoHeight = 2160; paused = false;
   getBoundingClientRect() { reads++; return { left: 0, top: 0, width: 1000, height: 500 }; }
   requestVideoFrameCallback(fn) { callbacks.set(++id, fn); return id; }
   cancelVideoFrameCallback(key) { callbacks.delete(key); }
@@ -55,6 +55,19 @@ assert.equal(reads, beforeReads, 'Frame updates must not measure layout');
 const beforeMutation = samples;
 mutation([]); mutation([]);
 assert.equal(samples, beforeMutation, 'DOM changes reuse the latest pixels');
+video.paused = true;
+video.dispatchEvent(new Event('pause'));
+assert.equal(callbacks.size, 0, 'Pause stops requesting video frames');
+assert.ok(attrs.has('data-browser-glass'), 'Pause keeps the visible glass');
+attrs.set('hidden', ''); mutation([]);
+attrs.delete('hidden'); mutation([]);
+assert.equal(samples, beforeMutation, 'A control that reappears while paused reuses the displayed frame');
+video.dispatchEvent(new Event('seeked'));
+assert.equal(samples, beforeMutation + 1, 'A paused seek refreshes the glass once');
+assert.equal(callbacks.size, 0, 'A paused seek does not restart frame requests');
+video.paused = false;
+video.dispatchEvent(new Event('playing'));
+assert.equal(callbacks.size, 1, 'Playing resumes frame requests');
 attrs.set('hidden', ''); mutation([]); assert.equal(callbacks.size, 0);
 attrs.delete('hidden'); mutation([]); assert.equal(callbacks.size, 1);
 doc.hidden = true; events.get('visibilitychange')(); assert.equal(callbacks.size, 0);
