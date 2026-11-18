@@ -5,15 +5,26 @@ const ts = require('typescript');
 const compile = path => ts.transpileModule(fs.readFileSync(path, 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
 const frames = { exports: {} }; vm.runInNewContext(compile('lib/media/preview-frames.ts'), frames);
 let sourceOptions, sourceUrl, disposed = 0, decodable = true, fallback = 0;
-const requests = [], answers = [], revoked = []; let blobId = 0;
+const requests = [], answers = [], revoked = [], keyLookups = [];
+const timers = new Map();
+let blobId = 0, timerId = 0;
 const bundle = {
   MP4: {}, MATROSKA: {}, WEBM: {}, QTFF: {},
   UrlSource: class { constructor(url, options) { sourceUrl = url; sourceOptions = options; } },
   Input: class { async getPrimaryVideoTrack() { return { canDecode: async () => decodable, getDisplayWidth: async () => 3840, getDisplayHeight: async () => 2160 }; } dispose() { disposed++; } },
+  EncodedPacketSink: class {
+    async getKeyPacket(time, options) {
+      assert.equal(options.metadataOnly, true);
+      keyLookups.push(time);
+      return { timestamp: Math.floor(time / 10) * 10 };
+    }
+  },
   CanvasSink: class { constructor(track, options) { assert.ok(options.width <= 448 && options.height <= 252); assert.equal(options.poolSize, 1); } getCanvas(time) { return new Promise(resolve => requests.push({ time, resolve })); } },
 };
 let response;
-const context = { exports: {}, setTimeout, clearTimeout, Headers, AbortController, AbortSignal,
+const context = { exports: {},
+  setTimeout(callback, delay) { timers.set(++timerId, { callback, delay }); return timerId; },
+  clearTimeout(id) { timers.delete(id); }, Headers, AbortController, AbortSignal,
   URL: { createObjectURL: () => `blob:preview-${++blobId}`, revokeObjectURL: src => revoked.push(src) }, fetch: async () => response,
   document: { createElement: () => ({ getContext: () => ({ drawImage() {} }), toDataURL: () => 'data:image/jpeg;base64,thumbnail' }) },
   require: name => name === 'mediabunny' ? bundle : name === './webgpu-source' ? { resolveWebGpuSource: async () => 'https://fixture.test/resolved.mkv' } : frames.exports,
@@ -26,14 +37,31 @@ const finish = index => requests[index].resolve({ canvas: { width: 448, height: 
   try {
     await preview.prepare(); assert.equal(requests.length, 0, 'Warm only the index, without decoding background frames');
     assert.equal(sourceUrl, 'https://fixture.test/resolved.mkv', 'Previews share the playback redirect resolver');
-    preview.want(20); await settle(); assert.equal(requests[0].time, 20);
+    preview.want(24); await settle(); assert.equal(requests[0].time, 20, 'Decode the keyframe first');
     assert.equal(sourceOptions.parallelism, 2); assert.ok(sourceOptions.maxCacheSize <= 16 * 1024 * 1024);
-    finish(0); await settle(); assert.equal(answers.at(-1)[0], 20);
-    preview.want(40); await settle(); preview.want(60); finish(1); await settle();
-    assert.equal(requests[2].time, 60); assert.equal(answers.at(-1)[0], 40, 'Continuous motion gets the decoded prior frame with its actual timestamp');
-    finish(2); await settle(); assert.equal(answers.at(-1)[0], 60);
-    preview.want(20); assert.equal(answers.at(-1)[0], 20); assert.equal(requests.length, 3);
-    preview.want(80); await settle(); preview.cancel(); finish(3); await settle(); assert.equal(answers.at(-1)[0], 20);
+    finish(0); await settle(); assert.equal(answers.at(-1)[0], 24);
+    const first = answers.at(-1)[1];
+    preview.want(22); await settle();
+    assert.deepEqual(answers.at(-1), [22, first], 'Reuse the same image within a known keyframe interval');
+    assert.deepEqual(keyLookups, [24]);
+    assert.equal(requests.length, 1);
+    preview.want(26); await settle();
+    assert.deepEqual(answers.at(-1), [26, first], 'New positions in the same keyframe reuse its JPEG');
+    assert.equal(requests.length, 1, 'Moving within a keyframe never repeats decoding');
+    assert.equal(timers.size, 0, 'A cached keyframe leaves no delayed refinement scheduled');
+    preview.want(44); await settle();
+    assert.equal(requests[1].time, 40);
+    preview.want(63); finish(1); await settle();
+    assert.equal(requests[2].time, 60);
+    assert.equal(answers.at(-1)[0], 44, 'Keep showing completed keyframes while the pointer moves');
+    finish(2); await settle(); assert.equal(answers.at(-1)[0], 63);
+    assert.equal(timers.size, 0, 'After the pointer stops, no exact frame is scheduled');
+    preview.want(26); await settle();
+    assert.deepEqual(answers.at(-1), [26, first]);
+    assert.equal(requests.length, 3, 'Returning to a cached interval avoids decoding');
+    preview.want(80); await settle(); preview.cancel(); finish(3); await settle();
+    assert.equal(answers.at(-1)[0], 26, 'Hover exit suppresses publication');
+    assert.equal(requests.length, 4);
     let cancelled = false;
     response = { ok: true, status: 200, body: { cancel: async () => { cancelled = true; } } };
     await assert.rejects(sourceOptions.fetchFn('https://fixture.test/no-range', { headers: { Range: 'bytes=0-65535' } }));

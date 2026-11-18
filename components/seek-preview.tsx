@@ -52,10 +52,10 @@ export function SeekPreview({ media, source: originalSource, time, duration, act
     }, [target, inWindow, active, deferWhileMoving]);
     const requestActive = active && (nativePreviews || !deferWhileMoving || (inWindow && (settled === target || refined === target)));
     const previewTime = !nativePreviews && deferWhileMoving && inWindow ? target.time : time;
-    return <PreviewSource key={key} media={media} source={source} time={previewTime} displayTime={time} duration={duration} active={requestActive} />;
+    return <PreviewSource key={key} media={media} source={source} time={previewTime} displayTime={time} duration={duration} active={requestActive} rangeActive={active} />;
 }
 
-function PreviewSource({ media, source, time, displayTime, duration, active }: Props & { source: string; displayTime: number }) {
+function PreviewSource({ media, source, time, displayTime, duration, active: fallbackActive, rangeActive }: Props & { source: string; displayTime: number; rangeActive: boolean }) {
     const native = (media as unknown as MpvElementHandle | null)?.controller;
     const [fallback, setFallback] = useState(false);
     const [rangeUnavailable, setRangeUnavailable] = useState(false);
@@ -69,13 +69,16 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
     const scheduler = useRef(new PreviewScheduler());
     const ticket = useRef(0);
     const invalidate = useCallback(() => { ticket.current++; }, []);
-    const bucket = previewBucket(time, duration);
     const nativeFrames = !!native && typeof window !== "undefined" && (window.navigatorDesktop?.capabilities?.nativePreviews || window.navigatorDesktop?.platform === "android");
     const muxPreview = /\.m3u8(?:[?#]|$)/i.test(source)
         || /^https:\/\/stream\.mux\.com\/[^/.?#]+(?:[?#]|$)/i.test(source);
     // Native keyframe extraction handles indexed files, not streaming manifests.
     const browserMode = !native || fallback || muxPreview || /\.mpd(?:[?#]|$)/i.test(source);
     const rangeMode = browserMode && !muxPreview && !rangeUnavailable && typeof VideoDecoder !== "undefined";
+    // Sparse reads coalesce during movement. Only the video-element fallback
+    // needs the settling window that protects its separate playback pipeline.
+    const active = rangeMode ? rangeActive : fallbackActive;
+    const bucket = previewBucket(rangeMode ? displayTime : time, duration);
     const wanted = useRef<number | null>(null);
     useLayoutEffect(() => { wanted.current = active ? bucket : null; }, [active, bucket]);
 
@@ -104,7 +107,8 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
     useLayoutEffect(() => {
         if (!rangeMode || !source) return;
         const provider = new RangePreviewFrames(source, (at, src) => {
-            if (wanted.current !== null) setFrame({ time: at, src, video: false, unavailable: false });
+            if (wanted.current !== null) setFrame(previous => previous.time === at && previous.src === src
+                ? previous : { time: at, src, video: false, unavailable: false });
         }, () => setRangeUnavailable(true));
         range.current = provider;
         // Let playback settle before reading a second index. Hover can still
@@ -180,7 +184,7 @@ function PreviewSource({ media, source, time, displayTime, duration, active }: P
     // A decoded cache hit is available in this render, even while the surface
     // gesture's settle timer is pending. Never debounce an existing thumbnail.
     const displaySrc = displayBucket === null ? undefined
-        : native?.cachedPreview(displayBucket) || cache.current.get(displayBucket) || range.current?.cache.get(displayBucket) || browser.current?.cache.get(displayBucket);
+        : native?.cachedPreview(displayBucket) || cache.current.get(displayBucket) || range.current?.cached(displayBucket) || browser.current?.cache.get(displayBucket);
     const image = displaySrc || ((active || frame.time === displayBucket) ? frame.src : null);
     const ready = !!displaySrc || (frame.time === displayBucket && !!(frame.src || frame.video));
     const unavailable = frame.time === displayBucket && frame.unavailable;

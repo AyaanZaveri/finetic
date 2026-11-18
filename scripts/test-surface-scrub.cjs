@@ -54,7 +54,9 @@ function advance(ms) {
   for (const [key, task] of [...timers]) if (task.at <= now) { timers.delete(key); task.fn(); }
 }
 const anchor = time;
-assert.equal(render().active, false, 'Initial extraction briefly waits for a stable neighborhood');
+const initial = render();
+assert.equal(initial.active, false, 'The video-element fallback briefly waits for a stable neighborhood');
+assert.equal(initial.rangeActive, true, 'Sparse extraction can begin immediately during the same gesture');
 for (let step = 0; step < 6; step++) {
   time += .05; advance(16);
   assert.equal(render().active, false);
@@ -77,7 +79,9 @@ assert.equal(render().time, time, 'A stationary finger refines the tolerance anc
 advance(100); render();
 for (let step = 0; step < 16; step++) {
   time += 4;
-  assert.equal(render().active, false, 'Fast travel must not flood the decoder');
+  const preview = render();
+  assert.equal(preview.active, false, 'Fast travel must not flood the video-element decoder');
+  assert.equal(preview.rangeActive, true, 'Fast travel still feeds the coalescing sparse decoder');
   advance(16);
 }
 advance(83);
