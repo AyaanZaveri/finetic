@@ -31,7 +31,11 @@ export function attachBrowserPlayerGlass(video: HTMLVideoElement) {
         if (surface.canvas.width !== canvas.width) surface.canvas.width = canvas.width;
         if (surface.canvas.height !== canvas.height) surface.canvas.height = canvas.height;
         surface.context.drawImage(canvas, 0, 0);
-        if (!surface.node.hasAttribute('data-browser-glass')) surface.node.setAttribute('data-browser-glass', '');
+        if (!surface.node.hasAttribute('data-browser-glass')) {
+            // The marker positions the canvas outside the control's layout.
+            surface.node.setAttribute('data-browser-glass', '');
+            surface.node.appendChild(surface.canvas);
+        }
     };
     const sample = () => {
         if (blocked || !context || !geometry || video.readyState < 2) return;
@@ -100,7 +104,6 @@ export function attachBrowserPlayerGlass(video: HTMLVideoElement) {
                     layer.setAttribute('aria-hidden', 'true');
                     node.style.setProperty('--browser-glass-color', style.backgroundColor);
                     node.style.setProperty('--browser-glass-sheen', style.backgroundImage);
-                    node.appendChild(layer);
                     surface = { node, canvas: layer, context: output };
                     surfaces.set(node, surface);
                     resized?.observe(node);

@@ -11,10 +11,14 @@ const surface = {
   hasAttribute: k => attrs.has(k), getAttribute: k => attrs.get(k),
   setAttribute: (k,v) => attrs.set(k,v), removeAttribute: k => attrs.delete(k),
   getClientRects: () => [1], getBoundingClientRect: () => { reads++; return { left: 10, top: 20 }; },
-  appendChild: canvas => children.push(canvas),
+  appendChild(canvas) {
+    assert.ok(attrs.has('data-browser-glass'), 'Glass positioning must be active before inserting the canvas');
+    assert.ok(canvas.getContext('2d', { colorSpace: 'srgb' }).lastDraw, 'The inserted canvas already has pixels');
+    children.push(canvas);
+  },
 };
 function makeCanvas() {
-  const context = { filter: 'none', lastDraw: null, fillRect() {}, save() {}, restore() {}, beginPath() {}, rect() {}, clip() {},
+  const context = { filter: 'none', lastDraw: null, fillRect() {}, putImageData() {}, save() {}, restore() {}, beginPath() {}, rect() {}, clip() {},
     drawImage(...args) { this.lastDraw = args; draws++; if (args[0] instanceof Video) samples++; if (blocked) throw Error('SecurityError'); } };
   contexts.push(context);
   return { width: 0, height: 0, style: {}, setAttribute() {}, remove() { const at = children.indexOf(this); if (at >= 0) children.splice(at, 1); },
@@ -39,7 +43,12 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/media/browser-player-
 }).outputText, context);
 const tick = time => { const queued = [...callbacks.values()]; callbacks.clear(); for (const fn of queued) fn(time, {}); };
 const video = new Video();
+video.readyState = 1;
 let cleanup = context.exports.attachBrowserPlayerGlass(video);
+assert.equal(children.length, 0, 'An empty canvas must not enter the button’s flex layout before the first video frame');
+assert.equal(attrs.has('data-browser-glass'), false, 'Use the fallback material while the first frame is unavailable');
+video.readyState = 2;
+video.dispatchEvent(new Event('loadeddata'));
 assert.ok(attrs.has('data-browser-glass'), 'Both SDR and HDR have glass, without depending on HDR metadata support');
 assert.equal(children.length, 1, 'The surface displays a live canvas rather than a repeatedly encoded background image');
 assert.equal(props.get('--browser-glass-x'), '-10px');
@@ -111,3 +120,22 @@ gpuVideo.dispatchEvent(new Event('loadeddata'));
 assert.equal(callbacks.size, 1, 'Same-file fallback starts a new frame subscription');
 cleanup();
 console.log('PASS: GPU canvas glass, preserved framing, and native frame subscription after fallback');
+
+const windows = { ...context, exports: {} };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/desktop/windows-player-glass.ts', 'utf8'), {
+  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+}).outputText, windows);
+let receive;
+cleanup = windows.exports.attachWindowsPlayerGlass({
+  send() {},
+  subscribe(callback) { receive = callback; return () => {}; },
+}, 'episode');
+assert.equal(children.length, 0, 'The desktop button also waits for a painted canvas');
+assert.equal(attrs.has('data-browser-glass'), false);
+receive({ type: 'glass-pixels', session: 'episode', frame: { width: 2, height: 2 } });
+assert.equal(children.length, 1);
+assert.ok(attrs.has('data-browser-glass'));
+cleanup();
+assert.equal(children.length, 0);
+assert.equal(attrs.has('data-browser-glass'), false);
+console.log('PASS: browser and Windows glass render their first sampled canvas without adding an unpainted layout child');
