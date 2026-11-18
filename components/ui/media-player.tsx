@@ -773,9 +773,9 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
       if (volumeIndicatorTimeoutRef.current) {
         clearTimeout(volumeIndicatorTimeoutRef.current);
       }
-      if (hideControlsTimeoutRef.current) {
-        clearTimeout(hideControlsTimeoutRef.current);
-      }
+      // if (hideControlsTimeoutRef.current) {
+      //   clearTimeout(hideControlsTimeoutRef.current);
+      // } // Fix for hiding controls after 3secs of mouse inactivity inside the browser tab.
     };
   }, [
     onPlay,
