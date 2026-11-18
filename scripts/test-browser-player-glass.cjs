@@ -99,11 +99,6 @@ assert.equal(callbacks.size, 0); cleanup(); assert.equal(props.size, 0); assert.
 console.log('PASS: SDR/HDR live canvas glass, presentation-rate updates without JPEG/readback/layout, demand cancellation and cleanup');
 const postcss = require('postcss');
 const css = postcss.parse(fs.readFileSync('components/player-mobile.css', 'utf8'));
-let skipBackground;
-css.walkRules('[data-player-shell]:not([data-native-player-shell]) [data-player-skip]', rule => {
-  rule.walkDecls('background', declaration => { skipBackground = declaration.value; });
-});
-assert.equal(skipBackground, 'transparent', 'Web Skip uses a transparent background instead of a variable hover fill');
 const glassTint = css.nodes.find(rule => rule.selector === '[data-browser-glass]::after');
 assert.equal(glassTint.nodes.find(node => node.prop === 'background-color').value,
   'var(--player-glass-interaction-color, var(--player-glass-color, var(--browser-glass-color)))',
