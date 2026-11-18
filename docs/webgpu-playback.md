@@ -83,6 +83,14 @@ If that path fails too, Navigator's existing stream recovery applies.
 Source changes and close cancel adapter callbacks and release the presenter.
 The engine owns the teardown of its workers and audio resources.
 
+During a seek the engine reads byte ranges near the new timestamp. Navigator
+keeps the player in the seeking state until it presents a fresh frame. If the
+seek fails or produces no frame within 12 seconds in the foreground, Navigator
+reopens the resolved file once at the latest target with the active audio
+track and HDR preference. An HDR presentation error can still retry in SDR.
+If the seek recovery fails, Navigator reports the seek failure and hands off
+to browser playback at that target.
+
 Stream selection uses the same playback session. Checks wait for presented
 frames and an active audio path, rather than accepting metadata alone. Only
 one GPU probe runs at a time. Its deadline includes queue time. Probes are

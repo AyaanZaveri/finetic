@@ -71,6 +71,11 @@ export function WebPlaybackVideo(props: Props) {
             };
             owned.video.addEventListener("webgpu-hdr-unavailable", reportHdr);
             removers.push(() => owned.video.removeEventListener("webgpu-hdr-unavailable", reportHdr));
+            const reportSeekFallback = () => {
+                if (!cancelled) toast("WebGPU playback could not resume after seeking. Trying the browser player.");
+            };
+            owned.video.addEventListener("webgpu-seek-fallback", reportSeekFallback);
+            removers.push(() => owned.video.removeEventListener("webgpu-seek-fallback", reportSeekFallback));
             // A standby element may already have emitted these before adoption.
             queueMicrotask(() => {
                 if (cancelled || !adopted) return;

@@ -8,6 +8,8 @@ export type WebGpuVideo = HTMLVideoElement & { webgpu?: {
     readonly silent: boolean; stats(): WebGpuStats | null; picture(): HTMLCanvasElement | null; subtitle(_time: number): string | null;
 } };
 
+const SEEK_TIMEOUT_MS = 12_000;
+
 /** Keep one real video element registered with the controls. Its media API drives
  * the embedded engine until a same-file fallback restores the browser API. */
 export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_source: string) => void, startPosition = 0): () => void {
@@ -15,7 +17,7 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
     let lastStats: WebGpuStats | null = null;
     let nextStatsSample = 0;
     let closed = false, opened = false, metadataSent = false, silent = false;
-    let generation = 0, initialMetadata = false;
+    let generation = 0, initialMetadata = false, initialData = false;
     let hdrAttempt = false, hdrRejected = false;
     const preferences = readPlaybackPreferences();
     const hdrFallback = (reason: "display-unavailable" | "output-failed" | "browser-fallback") => {
@@ -29,8 +31,10 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
     let duration = NaN, width = 0, height = 0, ready = 0;
     let paused = true, ended = false, seeking = false;
     let volume = video.volume, muted = video.muted, rate = video.playbackRate;
-    let pendingSeek: number | undefined;
-    let seekTarget: number | undefined;
+    let seekQueued = false;
+    let seekRetried = false;
+    let seekFrame: number | undefined;
+    let seekTimeout: ReturnType<typeof setTimeout> | undefined;
     let tracks: readonly WebGpuAudioTrack[] = [], selected: number | null = null;
     let switching = false;
     let fallbackMetadata: (() => void) | undefined;
@@ -54,10 +58,15 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
         descriptors.set(name, Object.getOwnPropertyDescriptor(video, name));
         Object.defineProperty(video, name, { configurable: true, ...descriptor });
     };
+    const clearSeekWatch = () => {
+        if (seekFrame !== undefined) cancelAnimationFrame(seekFrame);
+        clearTimeout(seekTimeout);
+        seekFrame = seekTimeout = undefined;
+    };
     const cleanup = () => {
         if (closed) return;
         closed = true;
-        clearTimeout(startup); sourceAbort.abort(); subtitles.dispose();
+        clearTimeout(startup); clearSeekWatch(); sourceAbort.abort(); subtitles.dispose();
         for (const frame of frames.values()) cancelAnimationFrame(frame);
         frames.clear(); sleepingFrames.clear();
         player?.destroy();
@@ -82,7 +91,10 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
             audioAheadMs: stats?.audioAheadMs, videoAheadMs: stats?.videoAheadMs,
             audioUnderflows: stats?.audioUnderflows, clockMs: stats?.clockMs,
         });
-        hdrFallback("browser-fallback");
+        if (seeking && initialMetadata) {
+            if (preferences.hdrOutput) video.dataset.webgpuHdr = "browser-fallback";
+            emit("webgpu-seek-fallback");
+        } else hdrFallback("browser-fallback");
         cleanup();
         // Preserve a useful, URL-free cause when the browser reports a generic format error.
         video.dataset.webgpuFallback = reasonLabel;
@@ -95,6 +107,51 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
         };
         video.addEventListener("loadedmetadata", fallbackMetadata, { once: true });
         fallback(playbackUrl);
+    };
+    const watchSeek = (owned: WebGpuPlayer, seekInPlace: boolean) => {
+        clearSeekWatch();
+        // The decoder signals the new clock position before any frame arrives.
+        // Count a fresh presentation even when it has the same timestamp.
+        const baseline = seekInPlace ? owned.presentedMs() : null;
+        const frameCount = seekInPlace ? owned.stats()?.framesPresented ?? 0 : 0;
+        const check = () => {
+            const picture = owned.presentedMs();
+            if (picture === null || (picture === baseline && (owned.stats()?.framesPresented ?? 0) <= frameCount)) {
+                seekFrame = requestAnimationFrame(check);
+                return;
+            }
+            clearSeekWatch();
+            seeking = false;
+            ready = paused ? 2 : 4;
+            emit("seeked");
+            emit("timeupdate");
+            emit("progress");
+            reportReady();
+            if (!paused) reportPlaying();
+        };
+        const expire = () => {
+            // The presenter can suspend frame delivery in a background tab.
+            if (document.hidden) {
+                seekTimeout = setTimeout(expire, SEEK_TIMEOUT_MS);
+                return;
+            }
+            recover("seek-timeout");
+        };
+        seekFrame = requestAnimationFrame(check);
+        seekTimeout = setTimeout(expire, SEEK_TIMEOUT_MS);
+        if (seekInPlace) {
+            try { owned.seek(time * 1000); }
+            catch { recover("seek-failed"); }
+        }
+    };
+    const reportReady = () => {
+        if (!initialData) { initialData = true; emit("loadeddata"); }
+        emit("canplay");
+    };
+    const reportPlaying = () => {
+        if (hdrAttempt) video.dataset.webgpuHdr = player?.stats()?.hdrOutput ? "hdr" : "sdr";
+        emit("playing");
+        if (silent) emit("webgpu-audio-unavailable");
     };
     let startup: ReturnType<typeof setTimeout>;
     define("webgpu", { value: { get silent() { return silent; }, subtitle: subtitles.text, stats: () => player?.stats() ?? null,
@@ -109,9 +166,12 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
     define("currentTime", { get: () => time, set: (value: number) => {
         if (!Number.isFinite(value)) return;
         time = Math.max(0, Number.isFinite(duration) ? Math.min(duration, value) : value);
-        ended = false; seeking = true; pendingSeek = time; seekTarget = time;
+        ended = false; seeking = true; seekRetried = false;
+        if (metadataSent) ready = 1;
         emit("seeking");
-        if (opened) { player?.seek(time * 1000); pendingSeek = undefined; }
+        if (!closed && metadataSent) emit("waiting");
+        seekQueued = !metadataSent;
+        if (metadataSent && player) watchSeek(player, true);
     } });
     define("volume", { get: () => volume, set: (value: number) => {
         if (!Number.isFinite(value) || value < 0 || value > 1) return;
@@ -151,7 +211,7 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
         const previous = deliveredMs;
         const tick = (now: number) => {
             if (closed) return;
-            const presented = player?.presentedMs() ?? null;
+            const presented = seeking ? null : player?.presentedMs() ?? null;
             if (presented !== null && presented !== previous) {
                 deliveredMs = presented;
                 frames.delete(id);
@@ -190,20 +250,30 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
             selected = ordinal;
             audioTracks.dispatchEvent(new Event("change"));
             emit("trackschange");
-        } catch { recover("audio-track-switch-failed"); } finally { switching = false; }
+        } catch {
+            if (current === generation) recover("audio-track-switch-failed");
+        } finally { switching = false; }
     };
     const recover = (reason: string, atMs = time * 1000) => {
         if (closed) return;
         const resumeMs = !metadataSent || seeking ? time * 1000 : atMs;
         video.dataset.webgpuReason = reasonCode(reason);
-        const retrySdr = hdrAttempt && !hdrRejected;
-        if (retrySdr || (!silent && player && /audio|decode-failed|start-fallback|startup-timeout|route-start-failed/i.test(reason))) {
+        const outputError = /^(?:canvas-|color-pipeline-|decoded-frame-color-|dolby-vision-|frame-(?:import|presentation|render)-|pipeline-creation-|hdr-)/i.test(reason);
+        const retrySdr = hdrAttempt && !hdrRejected && (!initialMetadata || outputError);
+        const retrySeek = seeking && initialMetadata && !seekRetried && !retrySdr;
+        const retrySilent = (!seeking || !initialMetadata) && !silent && player
+            && /audio|decode-failed|start-fallback|startup-timeout|route-start-failed/i.test(reason);
+        if (retrySeek || retrySdr || retrySilent) {
             if (retrySdr) { hdrRejected = true; hdrAttempt = false; hdrFallback("output-failed"); }
+            else if (retrySeek) seekRetried = true;
             else silent = true;
-            opened = false; metadataSent = false; ready = 0;
+            clearSeekWatch();
+            opened = false; metadataSent = false; ready = initialMetadata ? 1 : 0;
             time = Math.max(0, resumeMs / 1000);
             generation++; // Invalidate the failed route before synchronous teardown callbacks.
-            player?.destroy();
+            const failed = player;
+            player = undefined;
+            failed?.destroy();
             emit("waiting");
             void start().catch(() => recover("engine-initialization-failed"));
         } else fail(resumeMs, reason);
@@ -226,10 +296,9 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
         subtitles.start(playbackUrl);
         const owned = engineModule.createEmbeddedPlayer({ video, container: container as HTMLDivElement }, {
             onState(state) {
-                if (closed || current !== generation || !metadataSent) return;
+                if (closed || current !== generation || !metadataSent || seeking) return;
                 if (state === "playing") {
-                    if (hdrAttempt) video.dataset.webgpuHdr = player?.stats()?.hdrOutput ? "hdr" : "sdr";
-                    paused = false; ready = 4; emit("playing"); if (silent) emit("webgpu-audio-unavailable");
+                    paused = false; ready = 4; reportPlaying();
                 }
                 else if (state === "paused") { paused = true; emit("pause"); }
                 else if (state === "ended") { paused = true; ended = true; emit("ended"); }
@@ -242,9 +311,8 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
                     nextStatsSample = now + 1000;
                     lastStats = player?.stats() ?? lastStats;
                 }
-                if (!metadataSent || (seeking && seekTarget !== undefined && Math.abs(ms / 1000 - seekTarget) > .5)) return;
+                if (!metadataSent || seeking) return;
                 time = ms / 1000;
-                if (seeking) { seeking = false; seekTarget = undefined; emit("seeked"); }
                 emit("timeupdate"); emit("progress");
             },
             onDuration(ms) { if (!closed && current === generation && ms !== null) { duration = ms / 1000; if (metadataSent) emit("durationchange"); } },
@@ -263,25 +331,33 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
             if (closed || current !== generation) { owned.destroy(); return; }
         } else if (!hdrRejected && preferences.hdrOutput) hdrFallback("display-unavailable");
         // A seek received before open is already covered by the opening position.
-        pendingSeek = undefined;
-        const result = await owned.open({ url: playbackUrl, startMs: time * 1000, paused: true, audioOrdinal: silent ? -1 : null, volume, muted, rate });
+        seekQueued = false;
+        const audioOrdinal = silent ? -1 : selected;
+        const result = await owned.open({ url: playbackUrl, startMs: time * 1000, paused: true, audioOrdinal, volume, muted, rate });
         // An open can complete after destroy while its initial file read settles.
         if (closed || current !== generation) { owned.destroy(); return; }
         if (!result.eligible) { recover(result.reason); return; }
         opened = true;
         tracks = silent ? [] : result.audio; selected = tracks.find(track => track.isDefault)?.ordinal ?? tracks[0]?.ordinal ?? null;
+        if (tracks.some(track => track.ordinal === audioOrdinal)) selected = audioOrdinal;
         width = result.width ?? 0; height = result.height ?? 0;
         duration = result.durationMs === null ? duration : result.durationMs / 1000;
         const preferred = preferredAudioTrack(tracks.map(track => ({ ...track, language: track.language || undefined, title: track.title || undefined })), readPlaybackPreferences().audioLanguage);
-        if (preferred && preferred.ordinal !== selected) await selectAudio(preferred.ordinal);
+        if (audioOrdinal === null && preferred && preferred.ordinal !== selected) await selectAudio(preferred.ordinal);
         if (closed || current !== generation) return;
         clearTimeout(startup);
-        ready = 2; metadataSent = true;
+        ready = seeking ? 1 : 2; metadataSent = true;
         video.dataset.webgpuAudio = silent ? "unavailable" : "available";
         listTracks(); emit("durationchange");
         if (!initialMetadata) { initialMetadata = true; emit("loadedmetadata"); }
-        emit("loadeddata"); emit("canplay");
-        if (pendingSeek !== undefined) { player.seek(pendingSeek * 1000); pendingSeek = undefined; }
+        if (closed || current !== generation) return;
+        if (!seeking) reportReady();
+        else if (seekFrame === undefined) {
+            const seekInPlace = seekQueued;
+            seekQueued = false;
+            watchSeek(owned, seekInPlace);
+        }
+        if (closed || current !== generation) return;
         player.setVolume(volume); player.setMuted(muted); player.setRate(rate);
         if (!paused) player.play();
     };

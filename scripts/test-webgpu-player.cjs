@@ -64,12 +64,12 @@ function fixture({ result, resolvedSource, audioFailure = false, deferred = fals
     './webgpu-module': { loadWebGpuModule: () => moduleDeferred ? new Promise(resolve => { resolveModule = resolve; }) : Promise.resolve(module) },
     './webgpu-source': { resolveWebGpuSource: async url => resolvedSource || url },
     './playback-preferences': { readPlaybackPreferences: () => ({ audioLanguage: 'en', hdrOutput, hdrPeakNits }) },
-  }, { window: { matchMedia: () => ({ matches: hdrDisplay }) }, Event, EventTarget, DOMException, navigator: { userActivation: { hasBeenActive: true } }, performance,
+  }, { window: { matchMedia: () => ({ matches: hdrDisplay }) }, document: { hidden: false }, Event, EventTarget, DOMException, navigator: { userActivation: { hasBeenActive: true } }, performance,
     console: { warn: (...args) => warnings.push(args) },
     setTimeout(fn) { const id = ++frameId; timers.set(id, fn); return id; }, clearTimeout(id) { timers.delete(id); },
     requestAnimationFrame(fn) { const id = ++frameId; raf.set(id, fn); return id; }, cancelAnimationFrame(id) { raf.delete(id); } });
   const video = new Video(), notifications = [];
-  for (const name of ['loadedmetadata', 'loadeddata', 'canplay', 'playing', 'timeupdate', 'seeking', 'seeked', 'ended', 'trackschange', 'webgpu-hdr-unavailable']) {
+  for (const name of ['loadedmetadata', 'loadeddata', 'canplay', 'playing', 'waiting', 'timeupdate', 'seeking', 'seeked', 'ended', 'trackschange', 'webgpu-hdr-unavailable', 'webgpu-seek-fallback']) {
     video.addEventListener(name, () => notifications.push(name));
   }
   const detach = api.attachWebGpuVideo(video, 'https://example.test/film.mkv', source => { fallbackSource = source; fallbacks++; }, startPosition);
@@ -77,7 +77,8 @@ function fixture({ result, resolvedSource, audioFailure = false, deferred = fals
     stopRoute: () => { routeStopped = true; },
     get destroys() { return destroys; }, get fallbacks() { return fallbacks; }, get fallbackSource() { return fallbackSource; },
     resolveOpen: () => resolveOpen(opened), resolveModule: () => resolveModule(module),
-    frame(ms) { presented = ms; const list = [...raf.values()]; raf.clear(); list.forEach(fn => fn(ms)); } };
+    frame(ms) { if (ms !== undefined) { presented = ms; stats.framesPresented++; }
+      const list = [...raf.values()]; raf.clear(); list.forEach(fn => fn(ms)); } };
 }
 (async () => {
   const hdr = fixture({ hdrOutput: true, hdrDisplay: true }); await tick();
@@ -136,7 +137,14 @@ function fixture({ result, resolvedSource, audioFailure = false, deferred = fals
   assert.ok(f.notifications.includes('loadedmetadata')); assert.equal(f.timers.size, 0);
   f.video.currentTime = 42; assert.ok(f.calls.some(([name, value]) => name === 'seek' && value === 42000));
   f.events.onTime(1000); assert.equal(f.video.currentTime, 42, "Stale clock ticks cannot undo a pending seek");
-  f.events.onTime(42000); assert.equal(f.video.currentTime, 42); assert.equal(f.video.seeking, false);
+  f.events.onTime(42000);
+  assert.equal(f.video.seeking, true, 'The clock resets before a frame is decoded, so a target timestamp alone cannot finish a seek');
+  assert.equal(f.video.readyState, 1, 'Keep the media element buffering with metadata available');
+  f.frame();
+  assert.equal(f.video.seeking, true, 'The picture retained from before the seek does not count');
+  f.frame(42000);
+  assert.equal(f.video.currentTime, 42); assert.equal(f.video.seeking, false);
+  assert.equal(f.timers.size, 0, 'The first fresh frame cancels the seek timeout');
   assert.ok(f.notifications.includes('seeked'));
   f.video.volume = .2; f.video.muted = true; f.video.playbackRate = 1.5;
   assert.ok(f.calls.some(([name, value]) => name === 'rate' && value === 1.5));
@@ -153,6 +161,56 @@ function fixture({ result, resolvedSource, audioFailure = false, deferred = fals
   f.detach(); f.detach(); assert.equal(f.destroys, 1); assert.equal(f.raf.size, 0);
   assert.equal(f.video.webgpu, undefined); assert.equal(f.video.dataset.webgpu, undefined);
   assert.equal(Object.hasOwn(f.video, 'requestVideoFrameCallback'), false);
+
+  const skip = fixture({ hdrOutput: true, hdrDisplay: true }); await tick(); await skip.video.play();
+  skip.events.onState('playing');
+  skip.video.currentTime = 37;
+  skip.events.onTime(37000);
+  skip.video.currentTime = 67;
+  skip.events.onTime(67000);
+  const inPlace = skip.events;
+  inPlace.onFallback('startup-timeout', 37000);
+  await tick();
+  const retry = skip.calls.filter(([name]) => name === 'open').at(-1)[1];
+  assert.equal(retry.startMs, 67000, 'Retry from the latest seek position even if the failing route reports an older clock');
+  assert.equal(retry.audioOrdinal, 1, 'Reopen with the active audio track');
+  assert.equal(skip.calls.filter(([name, enabled]) => name === 'hdr' && enabled).length, 2, 'Retry with HDR enabled');
+  assert.equal(skip.video.webgpu.silent, false);
+  assert.ok(!skip.notifications.includes('webgpu-hdr-unavailable'), 'A decode timeout is not an HDR capability change');
+  inPlace.onFallback('audio-output-failed', 37000);
+  assert.equal(skip.fallbacks, 0, 'Callbacks from the failed engine cannot fail its replacement');
+  skip.frame(67000);
+  assert.equal(skip.video.seeking, false);
+  assert.equal(skip.notifications.filter(name => name === 'loadedmetadata').length, 1);
+  skip.detach();
+
+  const stalledSeek = fixture({ hdrOutput: true, hdrDisplay: true }); await tick();
+  stalledSeek.video.currentTime = 80;
+  const [deadline] = stalledSeek.timers.values();
+  deadline();
+  await tick();
+  assert.equal(stalledSeek.calls.filter(([name]) => name === 'open').length, 2, 'A silent seek stall also reopens once');
+  stalledSeek.events.onFallback('network-failed', 0);
+  assert.equal(stalledSeek.fallbacks, 1, 'A second decode failure hands off without another restart');
+  assert.equal(stalledSeek.notifications.filter(name => name === 'webgpu-seek-fallback').length, 1);
+  assert.ok(!stalledSeek.notifications.includes('webgpu-hdr-unavailable'));
+  stalledSeek.video.dispatchEvent(new Event('loadedmetadata')); await tick();
+  assert.equal(stalledSeek.video.currentTime, 80, 'Browser playback inherits the seek target');
+  assert.equal(stalledSeek.video.paused, true, 'A paused seek stays paused through handoff');
+  assert.equal(stalledSeek.timers.size, 0); assert.equal(stalledSeek.raf.size, 0);
+  stalledSeek.detach();
+
+  const pausedSeek = fixture(); await tick();
+  pausedSeek.frame(25000);
+  pausedSeek.video.currentTime = 25.01;
+  pausedSeek.events.onState('paused');
+  pausedSeek.frame(25000);
+  assert.equal(pausedSeek.video.seeking, false, 'A fresh frame at the same timestamp completes a short seek');
+  assert.equal(pausedSeek.video.paused, true);
+  assert.ok(!pausedSeek.notifications.includes('playing'), 'A paused seek does not emit playing');
+  pausedSeek.video.currentTime = 41;
+  pausedSeek.detach();
+  assert.equal(pausedSeek.timers.size, 0); assert.equal(pausedSeek.raf.size, 0);
 
   const fallback = fixture(); await tick(); await fallback.video.play();
   fallback.video.volume = .3; fallback.video.muted = true; fallback.video.playbackRate = 1.25;
