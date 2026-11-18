@@ -13,6 +13,8 @@ import { DEFAULT_PLAYBACK_PREFERENCES } from "./playback-preferences";
 import type { MediaToPlay } from "@/lib/atoms";
 import type { Episode } from "@/app/actions/tv-shows";
 
+type PendingAutoplay = { owner: EpisodeContinuation };
+
 export function useEpisodeContinuation(options: {
   media: MediaToPlay | null; visible: boolean; native: boolean; time?: number; duration: number; creditsStart?: number;
   session?: MediaToPlay | null;
@@ -34,8 +36,8 @@ export function useEpisodeContinuation(options: {
     const season = titles?.season, episode = titles?.episodeNumber;
     const key = options.visible && titles?.isEpisode && id && season !== undefined && episode !== undefined ? `${id}:${season}:${episode}` : "";
     const [snapshot, setSnapshot] = useState<{ owner: string; next: Episode | null; busy: boolean }>({ owner: "", next: null, busy: false });
-    const [countdown, setCountdown] = useState<{ owner: EpisodeContinuation; next: Episode; seconds: number } | null>(null);
-    const pending = useRef<EpisodeContinuation | null>(null);
+    const [countdown, setCountdown] = useState<{ request: PendingAutoplay; next: Episode; seconds: number } | null>(null);
+    const pending = useRef<PendingAutoplay | null>(null);
     const ended = useRef<string | null>(null);
     const owner = useRef<{ key: string; session: typeof session; continuation: EpisodeContinuation } | null>(null);
     useEffect(() => {
@@ -93,13 +95,27 @@ export function useEpisodeContinuation(options: {
             if (playbackPreferences.episodePrefetch && shouldPrefetchEpisode(position, options.duration, options.creditsStart)
         && (!checksVideo || canLoad) && owner.current?.key === key) void owner.current.continuation.prefetch(canLoad);
         };
+        const dismissOnSeek = () => {
+            const request = pending.current;
+            if (!node || !request || owner.current?.key !== key || owner.current.session !== session
+                || owner.current.continuation !== request.owner) return;
+            const end = Number.isFinite(node.duration) ? node.duration : options.duration;
+            if (end <= 0 || node.currentTime >= end - 0.1) return;
+            pending.current = null;
+            ended.current = null;
+            setCountdown(null);
+        };
         update();
+        node?.addEventListener("seeking", dismissOnSeek);
+        node?.addEventListener("seeked", dismissOnSeek);
         node?.addEventListener("timeupdate", update);
         node?.addEventListener("progress", update);
         node?.addEventListener("pause", update); node?.addEventListener("waiting", update); node?.addEventListener("seeking", update);
         node?.addEventListener("seeked", update);
         document.addEventListener("visibilitychange", update);
         return () => {
+            node?.removeEventListener("seeking", dismissOnSeek);
+            node?.removeEventListener("seeked", dismissOnSeek);
             for (const event of ["timeupdate", "progress", "pause", "waiting", "seeking", "seeked"]) node?.removeEventListener(event, update);
             document.removeEventListener("visibilitychange", update);
         };
@@ -120,7 +136,7 @@ export function useEpisodeContinuation(options: {
         });
     }, [advance]);
     const resolveCountdown = useCallback((play: boolean) => {
-        const continuation = pending.current;
+        const continuation = pending.current?.owner;
         if (!continuation?.active || owner.current?.key !== key || owner.current.session !== session
             || owner.current.continuation !== continuation) return;
         pending.current = null;
@@ -129,10 +145,10 @@ export function useEpisodeContinuation(options: {
         else latest.current.finish();
     }, [advanceAfterEnd, key, session]);
     useEffect(() => {
-        if (!countdown || countdown.owner !== pending.current || !countdown.owner.active) return;
+        if (!countdown || countdown.request !== pending.current || !countdown.request.owner.active) return;
         if (!playbackPreferences.episodeAutoplay) { resolveCountdown(false); return; }
         const timer = setTimeout(() => {
-            if (countdown.owner !== pending.current || !countdown.owner.active) return;
+            if (countdown.request !== pending.current || !countdown.request.owner.active) return;
             if (countdown.seconds === 1) resolveCountdown(autoplay.current);
             else setCountdown({ ...countdown, seconds: countdown.seconds - 1 });
         }, 1000);
@@ -144,19 +160,20 @@ export function useEpisodeContinuation(options: {
         if (!continuation?.active || continuation.advanced || ended.current === key) return;
         ended.current = key;
         if (!autoplay.current) { latest.current.finish(); return; }
-        pending.current = continuation;
+        const request = { owner: continuation };
+        pending.current = request;
         if (next) {
-            setCountdown({ owner: continuation, next, seconds: UP_NEXT_SECONDS });
+            setCountdown({ request, next, seconds: UP_NEXT_SECONDS });
             return;
         }
         void continuation.next().then(next => {
-            if (pending.current !== continuation || !continuation.active || continuation.advanced) return;
+            if (pending.current !== request || !continuation.active || continuation.advanced) return;
             if (!next || !autoplay.current) { resolveCountdown(false); return; }
-            setCountdown({ owner: continuation, next, seconds: UP_NEXT_SECONDS });
+            setCountdown({ request, next, seconds: UP_NEXT_SECONDS });
         });
     };
-    const counting = countdown && countdown.owner === owner.current?.continuation && owner.current.session === session
-        && countdown.owner.active ? countdown : null;
+    const counting = countdown && countdown.request === pending.current && countdown.request.owner === owner.current?.continuation && owner.current.session === session
+        && countdown.request.owner.active ? countdown : null;
     return {
         next,
         busy: snapshot.owner === key && snapshot.busy,
@@ -166,10 +183,10 @@ export function useEpisodeContinuation(options: {
             else void advance();
         },
         playUpNext: () => {
-            if (counting?.owner === pending.current) resolveCountdown(true);
+            if (counting?.request === pending.current) resolveCountdown(true);
         },
         cancelUpNext: () => {
-            if (counting?.owner === pending.current) resolveCountdown(false);
+            if (counting?.request === pending.current) resolveCountdown(false);
         },
         onEnded,
     };

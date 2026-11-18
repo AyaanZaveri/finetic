@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, type CSSProperties } from "react";
+import { useId, type CSSProperties } from "react";
 import { SkipForward } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MediaPlayerTooltip } from "@/components/ui/media-player";
@@ -50,11 +50,7 @@ function UpNextCountdown({ seconds, running }: { seconds: number; running: boole
 export function PlayerUpNext({ next, thumbnail, seconds, timerRunning = true, onPlay, onCancel }: {
     next: Episode; thumbnail?: string; seconds: number; timerRunning?: boolean; onPlay(): void; onCancel(): void;
 }) {
-    const cancelRef = useRef<HTMLButtonElement>(null);
     const titleId = useId();
-    useEffect(() => {
-        cancelRef.current?.focus({ preventScroll: true });
-    }, []);
     return (
         <section data-player-up-next="" data-player-native-glass="" data-player-hdr-glass="" aria-label="Up Next"
             className={`${floatingSurface.surface} absolute end-4 z-[60] w-[min(27.5rem,calc(100%_-_2rem))] rounded-xl border border-border p-3.5 text-popover-foreground shadow-lg`}
@@ -78,7 +74,7 @@ export function PlayerUpNext({ next, thumbnail, seconds, timerRunning = true, on
                     </div>
                     <div className="mt-3 flex flex-wrap gap-x-2 gap-y-1">
                         <Button type="button" size="xs" onClick={onPlay}>Play now</Button>
-                        <Button ref={cancelRef} type="button" variant="ghost" size="xs" aria-label="Cancel autoplay"
+                        <Button type="button" variant="ghost" size="xs" aria-label="Cancel autoplay"
                             aria-describedby={titleId} onClick={onCancel}>Cancel</Button>
                     </div>
                 </div>
