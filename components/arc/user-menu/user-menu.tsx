@@ -135,7 +135,15 @@ function Rise({ text, reduced }: { text: string; reduced: boolean }) {
 }
 
 function Keys({ keys }: { keys: string[] }) {
-  return <KbdGroup className={styles.keys} aria-hidden="true">{keys.map((key, index) => <Kbd key={`${key}-${index}`}>{key}</Kbd>)}</KbdGroup>;
+  return (
+    <KbdGroup className={styles.keys} aria-hidden="true">
+      {keys.map((key, index) => (
+        <Kbd key={`${key}-${index}`}>
+          {key === "," ? <span className={styles.commaGlyph}>{key}</span> : key}
+        </Kbd>
+      ))}
+    </KbdGroup>
+  );
 }
 
 /** A compact inline switch. It is one stop in the menu: up and down pass over it, left and right choose within it. */
