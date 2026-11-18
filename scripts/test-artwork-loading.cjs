@@ -15,7 +15,7 @@ const dependencies = {
   '@/components/home-palette-provider': { useHomePaletteScene: () => null },
   '@/lib/media/playback-details': require('./test-support/playback-context.cjs').details,
   '@/lib/artwork': { mediaArtwork: () => ({ poster: '/poster.jpg', background: '/still.jpg' }), backdropVariantUrl: url => url },
-  '@/lib/series-route': { buildEpisodePath: () => '/series/test/1/1' },
+  '@/lib/series-route': load('lib/series-route.ts'),
   '@/contexts/MediaPlayerContext': { usePlaybackActions: () => ({}) },
   '@/components/media-card-menu': { MediaCardMenu: ({ children }) => children },
   '@/components/watched-indicator': { WatchedIndicator: () => null },

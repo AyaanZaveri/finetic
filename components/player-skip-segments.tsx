@@ -8,8 +8,9 @@ import styles from "./player-skip-segments.module.css";
 
 const labels = { intro: "Skip Intro", recap: "Skip Recap", credits: "Skip Credits" };
 
-export function PlayerSkipSegments({ lookup, currentTime, mediaRef, onSeek, onSkipCredits, onSegmentsChange, enabled = true }: {
+export function PlayerSkipSegments({ lookup, currentTime, mediaRef, onSeek, onSkipCredits, onSegmentsChange, enabled = true, hideCredits = false }: {
     enabled?: boolean;
+    hideCredits?: boolean;
     onSegmentsChange?: (_segments: SkipSegment[]) => void;
     lookup: SkipLookup;
     currentTime: number | null;
@@ -63,20 +64,22 @@ export function PlayerSkipSegments({ lookup, currentTime, mediaRef, onSeek, onSk
     }, [mediaRef]);
 
     const segment = currentTime === null ? undefined : activeSkipSegment(segments, currentTime, skipped, 2);
+    const visibleSegment = hideCredits && segment?.kind === "credits" ? undefined : segment;
     useEffect(() => {
         console.log("[Navigator skips] Button state", {
             id, season, episode, time: currentTime === null ? null : formatSkipTime(currentTime), duration: formatSkipTime(duration),
-            enabled, visible: enabled && !!segment,
+            enabled, visible: enabled && !!visibleSegment,
             active: segment ? { kind: segment.kind, provider: segment.provider,
                 start: formatSkipTime(segment.start), end: formatSkipTime(segment.end) } : null,
         });
         // Log visibility boundaries and fetched results, rather than every video frame.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [id, season, episode, duration, enabled, segment, segments]);
+    }, [id, season, episode, duration, enabled, segment, segments, visibleSegment]);
     return (
         <>
             {(Object.keys(labels) as Array<SkipSegment["kind"]>).map(kind => {
-                const visible = enabled && segment?.kind === kind;
+                if (hideCredits && kind === "credits") return null;
+                const visible = enabled && visibleSegment?.kind === kind;
                 return <button
                     key={kind}
                     type="button"

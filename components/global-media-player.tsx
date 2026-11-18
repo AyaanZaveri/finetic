@@ -6,6 +6,7 @@ import { installAudioLanguagePreference } from "@/lib/media/audio-language";
 
 import "@/components/player-mobile.css";
 import "@/components/player-entrance.css";
+import { ArtworkImage } from "@/components/artwork-image";
 import { BrowserPlayerGlass } from "@/components/browser-player-glass";
 import { PlayerLoadingStatus } from "@/components/player-loading-status";
 import { PlayerLoadingWordmark } from "@/components/player-loading-wordmark";
@@ -524,6 +525,8 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     setStreamUrl(null);
     const initialDetails = initialPlaybackDetails(request);
     mediaDetailsOwner.current = activePlaybackRequestRef.current || request;
+    const initialBackdrop = playbackBackdrop(request);
+    if (initialBackdrop) preload(initialBackdrop, { as: "image", fetchPriority: "high" });
     if (initialDetails.logo) preload(initialDetails.logo, { as: "image", fetchPriority: "high" });
     setMediaDetails(initialDetails);
     setSubtitleTracks([]);
@@ -875,12 +878,14 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   if (!isPlayerVisible || !currentMedia) return null;
 
   const { isEpisode: isEpisodePlayback, showTitle, primaryTitle, season, episodeNumber } = getPlaybackTitles(currentMedia, mediaDetails);
-  const fallbackBackdrop = playbackBackdrop(currentMedia, mediaDetails);
+  // Keep the artwork available at launch through metadata enrichment.
+  const fallbackBackdrop = playbackBackdrop(currentMedia) || playbackBackdrop(currentMedia, mediaDetails);
   const titleRating = mediaDetails?.imdbRating ? `IMDb ${mediaDetails.imdbRating}`
     : mediaDetails?.ratingSource === "TMDB" && typeof mediaDetails.communityRating === "number" && mediaDetails.communityRating > 0
       ? `TMDB ${mediaDetails.communityRating.toFixed(1)}` : undefined;
   const loadingLogo = mediaDetails?.logo || initialPlaybackDetails(currentMedia).logo;
   const videoGeneration = loadGenerationRef.current;
+  const upNext = streamUrl && !loading && !playbackError ? episodeContinuation.upNext : null;
 
   const Video = nativePlayback
     ? MpvVideo
@@ -947,22 +952,18 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           <div className="fixed inset-0 bg-black z-40">
 
 
-            {fallbackBackdrop ? (
-              <div className="relative w-full h-full">
-                <img
-                  draggable={false}
+            <div className="absolute inset-0" aria-hidden="true">
+              {fallbackBackdrop && (
+                <ArtworkImage
                   src={fallbackBackdrop}
-                  alt={currentMedia?.name}
-                  className="w-full h-full object-cover brightness-75"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = "none";
-                  }}
+                  draggable={false}
+                  fetchPriority="high"
+                  fallbackText=""
+                  className="size-full object-cover brightness-75 data-[artwork-state=error]:hidden"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-              </div>
-            ) : (
-              <div className="w-full h-full bg-black" />
-            )}
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+            </div>
 
             <Button
               data-player-close=""
@@ -1090,9 +1091,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           </div>
         )}
 
-        {episodeContinuation.upNext && streamUrl && !loading && !playbackError && (
-          <PlayerUpNext next={episodeContinuation.upNext.next} thumbnail={episodeContinuation.upNext.thumbnail}
-            seconds={episodeContinuation.upNext.seconds}
+        {upNext && (
+          <PlayerUpNext next={upNext.next} thumbnail={upNext.thumbnail}
+            seconds={upNext.seconds}
             onPlay={episodeContinuation.playUpNext} onCancel={episodeContinuation.cancelUpNext} />
         )}
 
@@ -1101,6 +1102,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           <ClockedSkipSegments
             onSegmentsChange={handleSkipSegments}
             onSkipCredits={episodeContinuation.skipCredits}
+            hideCredits={Boolean(upNext)}
             enabled={videoReady && !loading}
             key={`${streamUrl}:${playerAttempt}:${currentMedia.seriesId || currentMedia.id}:${season}:${episodeNumber}`}
             lookup={{ id: currentMedia.seriesId || currentMedia.id, type: currentMedia.type,

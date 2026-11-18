@@ -27,6 +27,9 @@ export function useActionMenuHighlight() {
         onPointerMoveCapture: event => {
             if (event.pointerType !== "mouse" || !window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
             pointerHighlight.current = true;
+            // Keep the previous row as the spring's starting point across the divider and its margins.
+            if (event.target === event.currentTarget ||
+                (event.target instanceof Element && event.target.closest('[data-slot="context-menu-separator"]'))) return;
             updateHighlight(event.target, true);
         },
         onPointerLeave: resetHighlight,

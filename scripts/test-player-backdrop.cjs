@@ -13,5 +13,7 @@ assert.equal(details.playbackBackdrop(request, enriched), background, 'Fetched m
 assert.equal(details.playbackBackdrop({ ...request, backdropUrl: background }, request.details), background, 'Continue Watching can use its supplied backdrop immediately');
 assert.equal(details.playbackBackdrop({ ...request, type: 'series', backdropUrl: '/episode-still.jpg' }, request.details), '/episode-still.jpg', 'Episode stills remain valid');
 const player = require('node:fs').readFileSync('components/global-media-player.tsx', 'utf8');
-assert.match(player, /fallbackBackdrop\s*=\s*playbackBackdrop\(currentMedia, mediaDetails\)/, 'The actual player uses the same artwork selection');
+assert.match(player, /fallbackBackdrop\s*=\s*playbackBackdrop\(currentMedia\)\s*\|\|\s*playbackBackdrop\(currentMedia, mediaDetails\)/, 'Keep launch artwork when background metadata arrives');
+assert.match(player, /<ArtworkImage\s+src=\{fallbackBackdrop\}/, 'The player backdrop uses the shared image reveal');
+assert.match(player, /preload\(initialBackdrop, \{ as: "image", fetchPriority: "high" \}\)/, 'Start known artwork downloads before stream resolution');
 console.log('PASS: catalog poster rejection, metadata enrichment, Continue Watching and episode still backdrops');

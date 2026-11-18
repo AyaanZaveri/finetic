@@ -139,6 +139,12 @@ async function run() {
         assert.equal(element.currentTime, destination, 'Seek the actual media element (web or native adapter)');
         assert.equal(updated, destination, 'Update the displayed playback timestamp');
     }
+    for (const [time, expectedLabel] of [[1, 'Skip Intro'], [110, 'Skip Recap'], [3250, undefined]]) {
+        stateIndex = 0;
+        const tree = PlayerSkipSegments({ lookup, currentTime: time, mediaRef: { current: null }, onSeek() {}, hideCredits: true });
+        const visible = tree.props.children.filter(child => child && !child.props.disabled);
+        assert.equal(visible[0]?.props.children[1], expectedLabel, 'Up Next only suppresses Skip Credits');
+    }
     stateIndex = 0;
     const scene = PlayerSkipSegments({ lookup, currentTime: 3400, mediaRef: { current: null }, onSeek() {} });
     assert.ok(scene.props.children.every(child => child.props.disabled && child.props['aria-hidden'] && child.props.tabIndex === -1),

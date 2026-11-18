@@ -2,6 +2,7 @@ import { episodeHeroStillUrl } from "@/lib/artwork";
 import type { MediaToPlay } from "@/lib/atoms";
 import type { MetadataQueries } from "./metadata-queries";
 import { metadataTarget } from "./metadata";
+import { playbackBackdrop } from "./playback-details";
 
 /** Image bytes belong to the browser cache, never to the query cache. */
 export function createMetadataImageQueue() {
@@ -44,7 +45,7 @@ export function createMetadataWarmup(queries: MetadataQueries) {
         const logo = cached.title?.data.artwork.logo;
         images.add(logo);
         images.add(episodeHeroStillUrl(cached.episode?.data.still));
-        if (intent) images.add(cached.title?.data.artwork.backdrop);
+        if (intent && !playbackBackdrop(media)) images.add(cached.title?.data.artwork.backdrop);
     };
     const pump = () => {
         while (allowed && active.size < 2 && queue.length) {
@@ -68,6 +69,7 @@ export function createMetadataWarmup(queries: MetadataQueries) {
         setAllowed(value: boolean) { allowed = value; if (!value) clear(); else pump(); },
         enqueue(media: MediaToPlay, intent = false) {
             if (!allowed || media.type !== "series" && media.type !== "movie") return;
+            if (intent) images.add(playbackBackdrop(media));
             const target = metadataTarget(media), key = `${target.type}:${target.id}:${target.season ?? ""}:${target.episode ?? ""}`;
             const running = active.get(key);
             if (running) { running.intent ||= intent; return; }
