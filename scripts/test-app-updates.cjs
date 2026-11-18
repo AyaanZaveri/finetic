@@ -83,7 +83,9 @@ assert.doesNotMatch(button.slice(button.indexOf('useEffect'), button.indexOf('if
 for (const file of ['desktop/src/windows_shell.rs', 'desktop/src/tao_shell.rs']) {
     const shell = fs.readFileSync(file, 'utf8');
     assert.match(shell, /let mut next_update_probe = Instant::now\(\)/, 'First check is due at launch, not after an interval');
-    assert.match(shell, /!closing && automatic_updates && updater\.is_some\(\) && Instant::now\(\) >= next_update_probe/);
+    const readiness = file.endsWith('tao_shell.rs') ? 'interface_loaded && ' : '';
+    assert.ok(shell.includes(`!closing && ${readiness}automatic_updates && updater.is_some() && Instant::now() >= next_update_probe`),
+        'Automatic checks must wait for macOS startup and honor the saved preference');
     assert.match(shell, /updater\.as_ref\(\)\.unwrap\(\)\.probe\(\)/);
     assert.match(shell, /ControlFlow::WaitUntil\(next_update_probe\)/, 'Periodic checks must wake an idle app');
 }
