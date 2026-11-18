@@ -150,7 +150,8 @@ const episode = (season, number = 1) => ({ id: `tmdb:20:${season}:${number}`, ti
     '@/lib/media/series-season': { acquireSeriesSeason: (id, season) => {
       const record = { id, season, released: false };
       uiRequests.push(record);
-      return { promise: season === failedSeason ? Promise.reject(Error('offline')) : Promise.resolve([episode(season)]), release: () => { record.released = true; } };
+      const episodes = season === 20 ? [episode(season), episode(season, 2), episode(season, 3)] : [episode(season)];
+      return { promise: season === failedSeason ? Promise.reject(Error('offline')) : Promise.resolve(episodes), release: () => { record.released = true; } };
     } },
     '@/app/actions': { fetchPlaybackProgress: async () => null },
     '@/app/actions/tv-shows': { fetchSeasons: () => { throw Error('Known seasons cannot be fetched again'); }, fetchEpisodes: () => { throw Error('TMDB reads must avoid the client action queue'); } },
@@ -159,8 +160,9 @@ const episode = (season, number = 1) => ({ id: `tmdb:20:${season}:${number}`, ti
   const embeddedVideos = [episode(20)];
   const find = (node, predicate) => !node || typeof node !== 'object' ? [] : [...(predicate(node) ? [node] : []), ...[].concat(node.props?.children ?? []).flatMap(child => find(child, predicate))];
   let trackRef;
+  let currentEpisodeNumber = 1;
   const render = () => {
-    const tree = h.render(SeasonEpisodes.type, { showId: 'tmdb:20', initialSeasons: seasonList, currentSeasonNumber: 20, currentEpisodeNumber: 1, prefetchedVideos: embeddedVideos });
+    const tree = h.render(SeasonEpisodes.type, { showId: 'tmdb:20', initialSeasons: seasonList, currentSeasonNumber: 20, currentEpisodeNumber, prefetchedVideos: embeddedVideos });
     if (trackRef) trackRef.current = null;
     trackRef = find(tree, node => node.type === 'div' && node.props?.ref && node.props.className?.includes('w-max'))[0]?.props.ref;
     if (trackRef) trackRef.current = track;
@@ -170,6 +172,25 @@ const episode = (season, number = 1) => ({ id: `tmdb:20:${season}:${number}`, ti
   render(); await tick(); let tree = render();
   assert.deepEqual(uiRequests.map(row => row.season), [20]);
   assert.equal(scrolls[0].behavior, 'instant', 'The selected episode is positioned before paint');
+  const selectEpisode = (number, event) => {
+    const card = find(tree, node => node.props?.episode?.episode === number)[0];
+    card.props.onSelect({ button: 0, ...event }, `20:${number}`);
+    const previousScrollCount = scrolls.length;
+    currentEpisodeNumber = number;
+    tree = render();
+    assert.equal(scrolls.length, previousScrollCount + 1, 'Center the selection exactly once');
+    return scrolls.at(-1).behavior;
+  };
+  assert.equal(selectEpisode(2, { detail: 1 }), 'smooth', 'Center the clicked episode with a slide');
+  assert.equal(selectEpisode(3, { detail: 0 }), 'instant', 'Keyboard selection centers immediately');
+  reducedMotion = true;
+  assert.equal(selectEpisode(1, { detail: 1 }), 'instant', 'Reduced motion skips the selection slide');
+  reducedMotion = false;
+  const secondCard = find(tree, node => node.props?.episode?.episode === 2)[0];
+  secondCard.props.onSelect({ button: 0, detail: 1, metaKey: true }, '20:2');
+  currentEpisodeNumber = 2;
+  tree = render();
+  assert.equal(scrolls.at(-1).behavior, 'instant', 'Opening a card in another tab does not arm a slide');
   const getArrow = (tree, direction) => find(tree, node => node.props?.['aria-label'] === `Scroll ${direction}`)[0];
   viewport.scrollLeft = 0; onScroll.forEach(callback => callback());
   tree = render();

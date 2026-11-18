@@ -87,6 +87,7 @@ const { EpisodeDetailsBoundary } = load('components/media-page/episode-details-b
   assert.match(html, /aria-hidden="true"/);
   assert.match(html, /inert=""/);
   assert.match(html, /skullet-block=""/, 'Reserve the fixed-ratio thumbnail as one block');
+  assert.match(html, /min-h-\[calc\(3lh\+2\.75rem\)\]/, 'The sample reserves the collapsed description slot');
   assert.match(html, /<script/, 'Skullet sends its pre-paint measurement bootstrap');
   assert.doesNotMatch(html, /<img|<a\b|id="episode-title"/, 'Sample has no artwork requests, prefetch links, or duplicate heading IDs');
   ready = true;
@@ -97,5 +98,6 @@ const { EpisodeDetailsBoundary } = load('components/media-page/episode-details-b
   assert.match(html, /id="episode-title"/);
   assert.match(html, /\/series\/tt1442437/);
   assert.match(html, /Resume/);
+  assert.equal(html.match(/min-h-\[calc\(3lh\+2\.75rem\)\]/g)?.length, 2, 'Loaded details reserve the same slot even without a description');
   console.log('PASS: episode fallback streams before details, with inert samples, no sample media/prefetch, pre-paint measurement, and real content.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

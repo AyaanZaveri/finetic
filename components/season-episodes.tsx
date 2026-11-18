@@ -186,6 +186,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
     useState<Record<string, { progressPercent?: number; resumePositionTicks?: number }>>({});
   const episodesBottomSpacingClass = currentEpisodeNumber ? "mb-4" : "mb-8";
   const lastScrolledEpisodeRef = useRef<string | null>(null);
+  const pointerSelectionRef = useRef<string | null>(null);
   const scrollContentRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const [carouselPosition, setCarouselPosition] = useState({ overflow: false, start: true, end: true });
@@ -398,14 +399,27 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
     const element = scrollContentRef.current?.querySelector<HTMLElement>(`[data-episode-key="${key}"]`);
     const viewport = viewportRef.current;
     if (!element || !viewport) return;
+    const animateSelection = pointerSelectionRef.current === identity;
+    pointerSelectionRef.current = null;
     const offset = element.getBoundingClientRect().left - viewport.getBoundingClientRect().left;
-    viewport.scrollBy({ left: offset - (viewport.clientWidth - element.clientWidth) / 2, behavior: "instant" });
+    viewport.scrollBy({
+      left: offset - (viewport.clientWidth - element.clientWidth) / 2,
+      behavior: episodeScrollBehavior(animateSelection),
+    });
     lastScrolledEpisodeRef.current = identity;
   }, [episodes, episodesLoading, showId, currentSeasonNumber, currentEpisodeNumber, selectedSeason]);
 
+  const handleEpisodeSelection = useCallback((event: React.MouseEvent<HTMLAnchorElement>, key: string) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
+    const identity = `${showId}:${key}`;
+    pointerSelectionRef.current = event.detail > 0 && identity !== lastScrolledEpisodeRef.current
+      ? identity : null;
+  }, [showId]);
+
   const scrollEpisodes = (direction: -1 | 1, keyboard: boolean) => {
-    const behavior = keyboard || window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth";
-    viewportRef.current?.scrollBy({ left: direction * 300, behavior });
+    viewportRef.current?.scrollBy({ left: direction * 300, behavior: episodeScrollBehavior(!keyboard) });
   };
 
   if (loading) {
@@ -533,6 +547,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
                       : episode.resumePositionTicks,
                 }}
                 showId={showId}
+                onSelect={handleEpisodeSelection}
                 isActive={
                   selectedSeason === currentSeasonNumber &&
                   episode.episode === currentEpisodeNumber
@@ -547,13 +562,19 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
   );
 });
 
+function episodeScrollBehavior(animate: boolean): ScrollBehavior {
+  return animate && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "smooth" : "instant";
+}
+
 const EpisodeCard = React.memo(function EpisodeCard({
   episode,
   showId,
+  onSelect,
   isActive = false,
 }: {
   episode: Episode;
   showId: string;
+  onSelect: (event: React.MouseEvent<HTMLAnchorElement>, key: string) => void;
   isActive?: boolean;
 }) {
   const { playMedia } = usePlaybackActions();
@@ -597,18 +618,20 @@ const EpisodeCard = React.memo(function EpisodeCard({
   const isUpcoming = hasValidReleaseDate && releaseTimestamp > Date.now();
   const hasUsableThumbnail = Boolean(thumbnail) && failedAttempts < 2;
   const formattedReleaseDate = formatDate(episode.released);
+  const episodeKey = `${episode.season}:${episode.episode}`;
 
   return (
     <div
       className={cardStyles.card + " relative shrink-0 w-72 group"}
       data-episode-id={episode.id}
-      data-episode-key={`${episode.season}:${episode.episode}`}
+      data-episode-key={episodeKey}
     >
       <IntentLink
         href={buildEpisodePath(showId, episode.season, episode.episode)}
         className="block"
         draggable={false}
         scroll={false}
+        onClick={event => onSelect(event, episodeKey)}
       >
         <div className="space-y-3 py-2">
           {/* Episode Thumbnail */}

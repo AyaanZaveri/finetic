@@ -78,7 +78,10 @@ export function EpisodeDetailsView({
             {actions}
           </div>
 
-          {description}
+          {/* Keep room for three lines and the disclosure row in both the sample and loaded details. */}
+          <div className="min-h-[calc(3lh+2.75rem)] text-base leading-relaxed">
+            {description}
+          </div>
         </div>
       </div>
     </section>
