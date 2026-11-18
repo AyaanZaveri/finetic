@@ -51,10 +51,10 @@ export function PlayerPlaybackStats({ videoRef }: { videoRef: RefObject<HTMLVide
         ["Fallback reason", stats?.fallback],
     ] as const;
     return <section aria-label="Stats for nerds"
-        className="absolute end-3 top-3 z-30 max-h-[55%] w-80 max-w-[calc(100%-1.5rem)] overflow-auto rounded-lg border border-white/20 bg-black/60 p-3 text-xs text-white">
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        className="absolute end-3 top-3 z-30 max-h-[55%] w-80 max-w-[calc(100%-1.5rem)] overflow-auto rounded-lg border border-white/20 bg-black/85 px-3 pb-3 pt-1.5 text-xs text-white">
+        <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1">
             <h2 className="font-semibold">Stats for nerds</h2>
-            <Button type="button" variant="ghost" size="sm" className="min-h-8 text-xs" onClick={() => setFrozen(value => !value)}>
+            <Button type="button" variant="ghost" size="xs" className="-me-2 ms-auto text-white hover:bg-white/15" onClick={() => setFrozen(value => !value)}>
                 {frozen ? "Resume updates" : "Freeze stats"}
             </Button>
         </div>
