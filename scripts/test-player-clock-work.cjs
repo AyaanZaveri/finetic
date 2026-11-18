@@ -38,7 +38,7 @@ assert.equal(overlap(3).text, 'Latest'); assert.equal(overlap(4), null, 'Preserv
 const host = hooks(), listeners = new Map();
 let store;
 const node = { currentTime: 10, controller: { subtitleText: 'Embedded' }, addEventListener: (event, fn) => listeners.set(event, fn), removeEventListener: event => listeners.delete(event) };
-const { PlayerSubtitleLayer } = load('components/player-clock-islands.tsx', {
+const { ClockedSkipSegments, PlayerSubtitleLayer } = load('components/player-clock-islands.tsx', {
     react: { ...host.react, useSyncExternalStore(subscribe, snapshot) { store = { subscribe, snapshot }; return snapshot(); } },
     'react/jsx-runtime': host.jsx, '@/contexts/MediaPlayerContext': { usePlaybackTimestamp: () => 0 },
     '@/components/subtitle-text': { SubtitleText: 'subtitle' }, '@/components/player-skip-segments': { PlayerSkipSegments: 'skip' },
@@ -60,4 +60,21 @@ props.delay = 2; assert.equal(render(), null, 'GPU caption timing changes recomp
 props.enabled = false; assert.equal(render(), null);
 unsubscribe(); assert.equal(listeners.size, 0);
 
+// At startup the shared clock may still be zero while the current stream is
+// already positioned past its intro. Skip must read the actual decoder.
+const { activeSkipSegment } = load('lib/media/skip-segments.ts');
+const intro = [{ kind: 'intro', start: 0, end: 30 }];
+const skipProps = { mediaRef: { current: node }, enabled: true };
+const readSkipTime = () => host.render(ClockedSkipSegments, skipProps).props.currentTime;
+node.readyState = 2; node.seeking = false; node.currentTime = 90;
+assert.equal(activeSkipSegment(intro, readSkipTime()), undefined, 'A reset startup clock cannot show a false intro');
+node.currentTime = 0; node.seeking = true;
+assert.equal(readSkipTime(), null, 'A seek in flight does not show a skip action');
+node.currentTime = 15; node.seeking = false;
+assert.equal(activeSkipSegment(intro, readSkipTime())?.kind, 'intro', 'Rewinding into a real intro still offers Skip');
+const disconnectSkip = store.subscribe(() => {});
+assert.ok(listeners.has('seeking') && listeners.has('seeked') && listeners.has('timeupdate'));
+disconnectSkip();assert.equal(listeners.size, 0);
+node.readyState = 1; node.currentTime = 0;
+assert.equal(readSkipTime(), null, 'Metadata alone does not activate Skip');
 console.log('PASS: 500 clock events without root updates, stable caption subscriptions, preprocessed long files, timing, gaps, backward seeks and overlap semantics');
