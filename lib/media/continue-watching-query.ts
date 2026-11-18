@@ -22,8 +22,9 @@ export function removeContinueWatchingCard(
         onSuccess: async (_, cardKey) => {
             // Drop a read started before the write, then commit the removal
             // before the pending mutation stops hiding the card.
+            const visible = client.getQueryData<MediaItem[]>(queryKey);
             await client.cancelQueries({ queryKey, exact: true });
-            client.setQueryData<MediaItem[]>(queryKey, items => items?.filter(item => continueWatchingCardKey(item) !== cardKey));
+            client.setQueryData<MediaItem[]>(queryKey, items => (items ?? visible)?.filter(item => continueWatchingCardKey(item) !== cardKey));
         },
     }).execute(continueWatchingCardKey(item));
 }

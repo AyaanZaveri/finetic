@@ -171,7 +171,7 @@ export async function isAuthenticated(): Promise<boolean> {
 
 // ─── Addon Collection ────────────────────────────────────────────
 
-export async function getInstalledAddons(): Promise<StremioAddon[]> {
+export async function getInstalledAddons(throwOnError = false): Promise<StremioAddon[]> {
   try {
     const { authKey } = await getAuthData();
     const now = Date.now();
@@ -193,15 +193,16 @@ export async function getInstalledAddons(): Promise<StremioAddon[]> {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "AddonCollectionGet", authKey, update: true }),
+        signal: AbortSignal.timeout(8000),
       });
 
       if (!response.ok) {
-        console.error("Failed to fetch addons:", response.status);
-        return [];
+        throw new Error(`Add-on collection unavailable (${response.status})`);
       }
 
       const data = await response.json();
-      const addons = data.result?.addons || [];
+      const addons = data.result?.addons;
+      if (!Array.isArray(addons)) throw new Error("Invalid add-on collection response");
       if (generation === addonCollectionGeneration) addonCollectionCache = {
         authKey,
         expiresAt: Date.now() + ADDON_COLLECTION_CACHE_TTL_MS,
@@ -221,6 +222,7 @@ export async function getInstalledAddons(): Promise<StremioAddon[]> {
       }
     }
   } catch (error) {
+    if (throwOnError) throw error;
     // Public title recommendations can ask for catalogs before sign-in.
     // No installed add-ons is the expected guest result, not a server error.
     if (error instanceof Error && error.message === "Not authenticated") return [];

@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const React = require('react');
 const { PassThrough } = require('node:stream');
 const { once } = require('node:events');
-const { renderToPipeableStream } = require('react-dom/server');
+const { renderToPipeableStream, renderToStaticMarkup } = require('react-dom/server');
 const { load } = require('./test-support/react-hooks.cjs');
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
@@ -17,13 +17,16 @@ const section = key => ({ key, sectionName: `Catalog ${key}`, mediaItems: [{ id:
     const { INITIAL_CATALOG_COUNT } = load('lib/home-catalogs.ts');
     const loadingClass = 'fixture-delayed-placeholder';
     const delayedPlaceholder = ({ children }) => React.createElement('div', { className: loadingClass }, children);
-    const { HomeCatalogSectionsLazy } = load('components/home-catalog-sections-lazy.tsx', {
+    const viewDependencies = {
         '@/components/home-palette-provider': { HomeInitialPalette: () => null },
         '@/components/media-section': { MediaSection: ({ sectionName }) => React.createElement('section', null, sectionName) },
         '@/components/ui/button': { Button: 'button' },
         '@/components/ui/loading-placeholder': { LoadingPlaceholder: delayedPlaceholder },
-    });
+        './media-section.module.css': { track: 'track' },
+    };
+    const { HomeCatalogSectionsLazy } = load('components/home-catalog-sections-lazy.tsx', viewDependencies);
     const { default: Home } = load('app/(main)/page.tsx', {
+        ...viewDependencies,
         '@/app/actions/auth': { getUser: async () => ({ _id: 'fixture' }), getInstalledAddons: () => addons.promise },
         '@/app/actions/media': { fetchCatalogItems: (_type, id) => catalogWork.get(id) },
         '@/lib/tmdb-discovery': { getTMDBHomeRows: () => { throw new Error('Expected installed add-on catalogs'); } },
@@ -68,6 +71,14 @@ const section = key => ({ key, sectionName: `Catalog ${key}`, mediaItems: [{ id:
     assert.ok(html.includes('Could not load this catalog.'), 'A failed feed stays local to its own row');
     slow.resolve(section('slow').mediaItems); await completed;
     assert.ok(html.includes('Catalog Slow'));
+    const saved = section('tmdb-saved');
+    const { HomeCatalogsPending } = load('components/home-catalog-placeholder.tsx', {
+        ...viewDependencies,
+        '@/components/home-snapshot-provider': { useHomeSnapshot: () => ({ catalogs: [{ data: saved }] }) },
+    });
+    const cached = renderToStaticMarkup(React.createElement(HomeCatalogsPending));
+    assert.match(cached, /Catalog tmdb-saved/, 'The live manifest fallback displays the saved Home rows');
+    assert.equal(placeholderSlots(cached), 0, 'Cached rows replace the bootstrap skeletons');
 
     const pending = new Map(), signals = [];
     const { POST } = load('app/api/home/catalogs/route.ts', {

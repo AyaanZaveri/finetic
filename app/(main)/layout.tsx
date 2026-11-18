@@ -10,6 +10,7 @@ import { AccountProvider } from "@/components/account-provider";
 
 import { getAuthData } from "@/lib/server/auth";
 import { StreamQueryProvider } from "@/components/stream-query-provider";
+import { HomeSnapshotProvider } from "@/components/home-snapshot-provider";
 
 export default async function MainLayout({
     children,
@@ -29,7 +30,9 @@ export default async function MainLayout({
                     <KeyboardShortcuts />
                     <SettingsShortcut />
                     <WatchHistoryProvider key={user?._id ?? "anonymous"} enabled={Boolean(user)}>
-                        <LayoutContent email={user?.email ?? ""} userId={user?._id ?? ""}>{children}</LayoutContent>
+                        <HomeSnapshotProvider scope={scope}>
+                            <LayoutContent email={user?.email ?? ""} userId={user?._id ?? ""}>{children}</LayoutContent>
+                        </HomeSnapshotProvider>
                     </WatchHistoryProvider>
                 </AccountProvider>
             </StreamQueryProvider>

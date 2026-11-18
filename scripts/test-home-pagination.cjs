@@ -22,6 +22,7 @@ function harness(count = 100) {
       return core;
     } },
     '@/components/media-section': { MediaSection: 'MediaSection' },
+    './media-section.module.css': { track: 'track' },
     '@/components/ui/loading-placeholder': { LoadingPlaceholder: 'LoadingPlaceholder' },
     '@/components/ui/skeleton': { Skeleton: 'Skeleton' }, '@/components/ui/button': { Button: 'button' },
   }, {
@@ -165,6 +166,7 @@ function harness(count = 100) {
   const { renderToStaticMarkup } = require('react-dom/server');
   const { HomeCatalogSectionsLazy } = load('components/home-catalog-sections-lazy.tsx', {
     '@/components/media-section': { MediaSection: ({ sectionName }) => React.createElement('section', null, sectionName) },
+    './media-section.module.css': { track: 'track' },
     '@/components/ui/loading-placeholder': { LoadingPlaceholder: ({ children }) => React.createElement('div', null, children) },
     '@/components/ui/skeleton': { Skeleton: () => React.createElement('span', null) },
     '@/components/ui/button': { Button: 'button' },

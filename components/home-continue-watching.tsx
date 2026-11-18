@@ -12,6 +12,7 @@ import { MediaSection } from "@/components/media-section";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { mediaArtwork } from "@/lib/artwork";
+import rowStyles from "./media-section.module.css";
 
 function ResumeMovieYear({ id, scope }: { id: string; scope: string }) {
     const { data } = useQuery({ queryKey: ["resume-movie-year", scope, id], queryFn: () => fetchResumeMovieYear(id),
@@ -23,7 +24,8 @@ export function ContinueWatchingSection() {
     const queries = useStreamQueries();
     const scope = queries?.scope ?? "anonymous";
     const [revealArtwork] = useState(() => !queries?.client.getQueryData(continueWatchingKey(scope)));
-    const { data, isPending, refetch } = useQuery(continueWatchingOptions(scope, fetchResumeItems));
+    const [mountedAt] = useState(Date.now);
+    const { data, dataUpdatedAt, isPending, refetch } = useQuery(continueWatchingOptions(scope, fetchResumeItems));
     const pendingRemovals = useMutationState({
         filters: { mutationKey: continueWatchingRemovalKey(scope), exact: true, status: "pending" },
         select: mutation => mutation.state.variables,
@@ -40,9 +42,18 @@ export function ContinueWatchingSection() {
         return () => window.removeEventListener(WATCH_HISTORY_CHANGED, refresh);
     }, [refetch]);
     if (isPending) return <section aria-label="Continue Watching" aria-busy="true" className="relative z-10 mb-8">
-        <h2 className="mb-4 text-xl sm:text-2xl font-semibold">Continue Watching</h2>
-        <div className="flex gap-4 overflow-hidden">{Array.from({ length: 8 }, (_, index) =>
-            <div key={index} className="w-80 shrink-0"><Skeleton className="aspect-video w-full rounded-md" /><Skeleton className="mt-2.5 h-4 w-3/4 rounded" /></div>)}</div>
+        <h2 className="mb-4 text-xl sm:text-2xl font-semibold font-poppins">Continue Watching</h2>
+        <div className="overflow-hidden" aria-hidden="true">
+            <ul className={rowStyles.track}>
+                {Array.from({ length: 8 }, (_, index) => <li key={index} className="w-80 shrink-0">
+                    <Skeleton className="aspect-video w-full rounded-md" />
+                    <div className="px-1">
+                        <Skeleton className="mt-2.5 h-5 w-3/4" />
+                        <Skeleton className="mt-0.5 h-4 w-2/5" />
+                    </div>
+                </li>)}
+            </ul>
+        </div>
     </section>;
     if (!data) return <section className="relative z-10 mb-8"><h2 className="mb-4 text-xl sm:text-2xl font-semibold">Continue Watching</h2>
         <p role="alert" className="text-sm text-muted-foreground">Could not load Continue Watching.</p>
@@ -53,7 +64,7 @@ export function ContinueWatchingSection() {
     const artwork = items[0] ? mediaArtwork(items[0]) : null;
     return <>
         {artwork && <HomeInitialPalette primary={artwork.background} fallback={artwork.poster} />}
-        <ContinueWatchingWarmup items={items}><MediaSection sectionName="Continue Watching" mediaItems={items} continueWatching revealArtwork={revealArtwork}
+        <ContinueWatchingWarmup items={items}><MediaSection sectionName="Continue Watching" mediaItems={items} continueWatching revealArtwork={revealArtwork && dataUpdatedAt >= mountedAt}
             cardSubtitles={items.map(item => item.type === "movie" && !item.year && !item.releaseInfo
                 ? <ResumeMovieYear key={item.id} id={item.id} scope={scope} /> : undefined)} />
         </ContinueWatchingWarmup>

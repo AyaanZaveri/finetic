@@ -28,6 +28,7 @@ async function loadCatalogSection(
     entry.addonTransportUrl,
     signal,
     MAX_ITEMS_PER_SECTION,
+    true,
   );
 
   const mediaItems = items.slice(0, MAX_ITEMS_PER_SECTION);

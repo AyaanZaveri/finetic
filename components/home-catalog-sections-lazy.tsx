@@ -4,8 +4,10 @@ import { Suspense, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import { MediaSection } from "@/components/media-section";
 import { CATALOG_ROW_HEIGHT, HomeCatalogSkeleton } from "@/components/home-catalog-skeleton";
+import { CachedCatalogRow } from "@/components/home-catalog-placeholder";
+import { useHomeSnapshot } from "@/components/home-snapshot-provider";
 import { Button } from "@/components/ui/button";
-import type { HomeCatalogEntry, HomeCatalogSection, InitialHomeCatalog } from "@/lib/home-catalogs";
+import { INITIAL_CATALOG_COUNT, type HomeCatalogEntry, type HomeCatalogSection, type InitialHomeCatalog } from "@/lib/home-catalogs";
 import { HomeInitialPalette } from "@/components/home-palette-provider";
 import { mediaArtwork } from "@/lib/artwork";
 import { readHomeCatalogRows, retryInitialHomeCatalog } from "@/lib/home-catalog-stream";
@@ -17,20 +19,23 @@ interface HomeCatalogSectionsLazyProps {
   batchSize: number;
 }
 
-function InitialCatalogRow({ row }: { row: InitialHomeCatalog }) {
+function InitialCatalogRow({ row, saved }: { row: InitialHomeCatalog; saved?: HomeCatalogSection }) {
   const [retry, setRetry] = useState<{ owner: InitialHomeCatalog["result"]; result: InitialHomeCatalog["result"] } | null>(null);
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => controller.current?.abort(), [row.result]);
   const result = use(retry?.owner === row.result ? retry.result : row.result);
-  if (result.status === "error") return <section className="relative z-10 mb-8">
-    <h2 className="mb-4 text-xl sm:text-2xl font-semibold">{row.sectionName}</h2>
-    <p role="alert" className="mb-3 text-sm text-muted-foreground">Could not load this catalog.</p>
-    <Button variant="outline" disabled={!row.retry} onClick={() => {
-      controller.current?.abort();
-      controller.current = new AbortController();
-      setRetry({ owner: row.result, result: retryInitialHomeCatalog(row, controller.current.signal) });
-    }}>Retry</Button>
-  </section>;
+  if (result.status === "error") return <>
+    {saved && <CachedCatalogRow section={saved} />}
+    <section className="relative z-10 mb-8">
+      {!saved && <h2 className="mb-4 text-xl sm:text-2xl font-semibold">{row.sectionName}</h2>}
+      <p role="alert" className="mb-3 text-sm text-muted-foreground">Could not load this catalog.</p>
+      <Button variant="outline" disabled={!row.retry} onClick={() => {
+        controller.current?.abort();
+        controller.current = new AbortController();
+        setRetry({ owner: row.result, result: retryInitialHomeCatalog(row, controller.current.signal) });
+      }}>Retry</Button>
+    </section>
+  </>;
   const section = result.section;
   const first = section?.mediaItems[0];
   const artwork = first ? mediaArtwork(first) : null;
@@ -49,6 +54,18 @@ type CatalogState =
   | { status: "ready"; section: HomeCatalogSection | null };
 
 export function HomeCatalogSectionsLazy({ initialSections, initialRows, remainingEntries, batchSize }: HomeCatalogSectionsLazyProps) {
+  const homeCache = useHomeSnapshot();
+  const saveCatalogs = homeCache?.saveCatalogs;
+  useEffect(() => {
+    if (!initialRows?.length || !saveCatalogs) return;
+    const revision = Date.now();
+    let active = true;
+    void Promise.all(initialRows.slice(0, INITIAL_CATALOG_COUNT).map(row =>
+      row.result.then(result => ({ key: row.key, result }), () => ({ key: row.key, result: { status: "error" as const } })),
+    )).then(rows => { if (active) saveCatalogs(rows, revision); });
+    return () => { active = false; };
+  }, [initialRows, saveCatalogs]);
+
   const listRef = useRef<HTMLDivElement | null>(null);
   const [scrollMargin, setScrollMargin] = useState<number | null>(null);
   const [catalogs, setCatalogs] = useState<Map<string, CatalogState>>(() => new Map());
@@ -181,6 +198,7 @@ export function HomeCatalogSectionsLazy({ initialSections, initialRows, remainin
         const entry = remainingEntries[row.index - initialCount];
         const state = entry ? catalogs.get(entry.key) : undefined;
         const section = row.index < initialCount ? initialSections[row.index] : state?.status === "ready" ? state.section : undefined;
+        const saved = homeCache?.catalogs.find(entry => entry.data.key === row.key)?.data;
         return (
           <div key={row.key} data-index={row.index} ref={virtualizer.measureElement}
             onFocusCapture={() => setFocusedRow(row.index)}
@@ -190,8 +208,10 @@ export function HomeCatalogSectionsLazy({ initialSections, initialRows, remainin
             className="absolute left-0 top-0 w-full flow-root"
             aria-busy={entry && (!state || state.status === "loading") ? true : undefined}
             style={{ minHeight: CATALOG_ROW_HEIGHT, transform: `translateY(${row.start - (scrollMargin ?? 0)}px)` }}>
-            {initialRows?.[row.index] ? <Suspense fallback={<div data-home-initial-pending><HomeCatalogSkeleton /></div>}>
-              <InitialCatalogRow row={initialRows[row.index]} />
+            {initialRows?.[row.index] ? <Suspense fallback={<div data-home-initial-pending>
+              {saved ? <CachedCatalogRow section={saved} /> : <HomeCatalogSkeleton />}
+            </div>}>
+              <InitialCatalogRow row={initialRows[row.index]} saved={saved} />
             </Suspense> : section ? <MediaSection sectionName={section.sectionName} mediaItems={section.mediaItems} />
               : state?.status === "error" ? <section className="relative z-10 mb-8">
                 <h2 className="mb-4 text-xl sm:text-2xl font-semibold">{entry.sectionName}</h2>

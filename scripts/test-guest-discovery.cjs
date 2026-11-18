@@ -78,6 +78,7 @@ async function main() {
     ].map(([path, name]) => [path, { [name]: name }]));
     const { default: Home } = load('app/(main)/page.tsx', {
         ...components, react: React, 'react/jsx-runtime': require('react/jsx-runtime'),
+        './media-section.module.css': { track: 'track' },
         '@/components/ui/empty': Object.fromEntries(['Empty', 'EmptyHeader', 'EmptyDescription', 'EmptyTitle'].map(name => [name, name])),
         '@/components/home-palette-provider': { HomeInitialPalette: 'palette', HomePaletteProvider: 'palette-provider' },
         '@/app/actions/auth': {

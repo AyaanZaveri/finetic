@@ -178,6 +178,7 @@ export async function fetchCatalogItems(
   addonTransportUrl?: string,
   signal?: AbortSignal,
   maxItems = 20,
+  throwOnError = false,
 ): Promise<MediaItem[]> {
   try {
     signal?.throwIfAborted();
@@ -212,6 +213,7 @@ export async function fetchCatalogItems(
     return results;
   } catch (error) {
     signal?.throwIfAborted();
+    if (throwOnError) throw error;
     console.error("Failed to fetch catalog items:", error);
     return [];
   }

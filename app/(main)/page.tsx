@@ -4,7 +4,8 @@ import { getTMDBHomeRows } from "@/lib/tmdb-discovery";
 import { AuthErrorHandler } from "@/app/components/auth-error-handler";
 import { HomeCatalogSectionsLazy } from "@/components/home-catalog-sections-lazy";
 import { ContinueWatchingSection } from "@/components/home-continue-watching";
-import { HomeCatalogSkeleton } from "@/components/home-catalog-skeleton";
+import { HomeCatalogsPending, HomeCatalogsUnavailable } from "@/components/home-catalog-placeholder";
+import { createHash } from "node:crypto";
 import type { HomeCatalogEntry, HomeCatalogSection, InitialHomeCatalog } from "@/lib/home-catalogs";
 import { CATALOG_BATCH_SIZE, INITIAL_CATALOG_COUNT } from "@/lib/home-catalogs";
 import type { StremioAddonCatalog } from "@/types/stremio";
@@ -27,18 +28,8 @@ function formatCatalogLabel(catalogName: string | null, catalogId: string): stri
     .join(" ");
 }
 
-function HomeCatalogsFallback() {
-  return (
-    <>
-      {Array.from({ length: INITIAL_CATALOG_COUNT }, (_, index) => (
-        <HomeCatalogSkeleton key={index} />
-      ))}
-    </>
-  );
-}
-
 async function buildCatalogEntries(): Promise<HomeCatalogEntry[]> {
-  const addons = await getInstalledAddons();
+  const addons = await getInstalledAddons(true);
 
   const catalogEntries = addons.flatMap((addon) =>
     (addon.manifest.catalogs || []).map((catalog: StremioAddonCatalog) => ({
@@ -49,7 +40,8 @@ async function buildCatalogEntries(): Promise<HomeCatalogEntry[]> {
     }))
   );
 
-  return catalogEntries.map((entry, index) => {
+  const seen = new Set<string>();
+  return catalogEntries.flatMap(entry => {
     const typeLabel = formatTypeLabel(entry.catalogType);
     const catalogLabel = formatCatalogLabel(entry.catalogName, entry.catalogId);
     const sectionName =
@@ -57,13 +49,18 @@ async function buildCatalogEntries(): Promise<HomeCatalogEntry[]> {
         ? typeLabel
         : `${catalogLabel} • ${typeLabel}`;
 
-    return {
-      key: `${entry.addonTransportUrl}-${entry.catalogType}-${entry.catalogId}-${index}`,
+    const key = "addon-" + createHash("sha256").update(JSON.stringify([
+      entry.addonTransportUrl, entry.catalogType, entry.catalogId,
+    ])).digest("hex");
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [{
+      key,
       sectionName,
       catalogType: entry.catalogType,
       catalogId: entry.catalogId,
       addonTransportUrl: entry.addonTransportUrl,
-    };
+    }];
   });
 }
 
@@ -71,7 +68,7 @@ async function loadCatalogSections(entries: HomeCatalogEntry[]): Promise<HomeCat
   const loadedSections = await Promise.all(
     entries.map(async (entry) => {
       const mediaItems = (
-        await fetchCatalogItems(entry.catalogType, entry.catalogId, entry.addonTransportUrl, undefined, 12)
+        await fetchCatalogItems(entry.catalogType, entry.catalogId, entry.addonTransportUrl, undefined, 12, true)
       ).slice(0, 12);
 
       if (mediaItems.length === 0) return null;
@@ -92,9 +89,10 @@ async function loadCatalogSections(entries: HomeCatalogEntry[]): Promise<HomeCat
 async function CatalogSectionsBootstrap({
   catalogEntriesPromise,
 }: {
-  catalogEntriesPromise: Promise<HomeCatalogEntry[]>;
+  catalogEntriesPromise: Promise<HomeCatalogEntry[] | null>;
 }) {
   const catalogEntries = await catalogEntriesPromise;
+  if (!catalogEntries) return <HomeCatalogsUnavailable />;
   if (catalogEntries.length === 0) return <DiscoverySections />;
 
   const initialEntries = catalogEntries.slice(0, INITIAL_CATALOG_COUNT);
@@ -129,7 +127,7 @@ function DiscoverySections() {
 
 export default async function Home() {
   const user = await getUser();
-  const catalogEntriesPromise = user ? buildCatalogEntries() : null;
+  const catalogEntriesPromise = user ? buildCatalogEntries().catch(() => null) : null;
 
   return (
     <AuthErrorHandler>
@@ -138,7 +136,7 @@ export default async function Home() {
         {user && <ContinueWatchingSection />}
 
         {catalogEntriesPromise ? (
-          <Suspense fallback={<div data-home-initial-pending><HomeCatalogsFallback /></div>}>
+          <Suspense fallback={<HomeCatalogsPending />}>
             <CatalogSectionsBootstrap catalogEntriesPromise={catalogEntriesPromise} />
           </Suspense>
         ) : <DiscoverySections />}

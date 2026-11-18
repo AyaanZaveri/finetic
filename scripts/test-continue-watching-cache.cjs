@@ -36,6 +36,7 @@ const h = hooks();
 const cachedItems = [{id:'tt1',type:'movie',name:'Known',year:2014},{id:'tt2',type:'movie',name:'Missing'}];
 let refreshed=0, listener, pendingRemovals=[];
 const { ContinueWatchingSection } = load('components/home-continue-watching.tsx', {
+    './media-section.module.css': { track: 'track' },
  react:h.react,'react/jsx-runtime':h.jsx,
  '@tanstack/react-query':{...require('@tanstack/react-query'),useMutationState:()=>pendingRemovals,useQuery:options=>options.queryKey[0]==='resume-movie-year'?{data:2014}:{data:cachedItems,isPending:false,refetch:()=>{refreshed++;}}},
  '@/components/stream-query-provider':{useStreamQueries:()=>({scope:'user:session',client:{getQueryData:()=>cachedItems}})},
