@@ -3,6 +3,7 @@
 import { useEffect, useState, type RefObject } from "react";
 import { Crop, RectangleHorizontal, Scan } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { MediaPlayerTooltip } from "@/components/ui/media-player";
 import { desktopBridge } from "@/lib/desktop/bridge";
 import type { MpvElementHandle } from "@/lib/desktop/mpv-element";
 
@@ -32,10 +33,12 @@ export function PlayerVideoFit({ mediaRef, sourceKey }: { mediaRef: RefObject<HT
     if (!supported) return null;
     const { Icon, label } = modes[index];
     const next = modes[(index + 1) % modes.length];
-    return <Button type="button" variant="ghost" size="icon" data-player-video-fit={modes[index].id}
-        className="text-white hover:text-white hover:bg-white/20" title={`Video framing: ${label}`}
-        aria-label={`Video framing: ${label}. Switch to ${next.label}`} onClick={() => setIndex((index + 1) % modes.length)}>
-        <Icon aria-hidden="true" />
-        <span className="sr-only" aria-live="polite">{label}</span>
-    </Button>;
+    return <MediaPlayerTooltip tooltip={`Video framing: ${label}`} shortcut="A">
+        <Button type="button" variant="ghost" size="icon" data-player-video-fit={modes[index].id}
+            className="text-white hover:text-white hover:bg-white/20" aria-keyshortcuts="A"
+            aria-label={`Video framing: ${label}. Switch to ${next.label}`} onClick={() => setIndex((index + 1) % modes.length)}>
+            <Icon aria-hidden="true" />
+            <span className="sr-only" aria-live="polite">{label}</span>
+        </Button>
+    </MediaPlayerTooltip>;
 }

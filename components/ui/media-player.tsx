@@ -244,6 +244,7 @@ interface MediaPlayerRootProps
   customSubtitleTracks?: CustomSubtitleTrack[];
   customSubtitlesEnabled?: boolean;
   onCustomSubtitleChange?: (track: CustomSubtitleTrack | null) => void;
+  onToggleCaptions?: () => void;
   chapters?: ChapterCue[];
 }
 
@@ -297,6 +298,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     customSubtitlesEnabled = false,
     subtitleTiming,
     onCustomSubtitleChange,
+    onToggleCaptions,
     chapters,
     children,
     className,
@@ -611,7 +613,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
 
       const key = event.key.toLowerCase();
       const volumeKey = ["arrowup", "arrowdown", "m", "audiovolumeup", "audiovolumedown", "audiovolumemute"].includes(key);
-      const playbackKey = [" ", "k", "f", "arrowright", "arrowleft", "<", ">", "c", "d", "p", "r", "j", "l", "home", "end"].includes(key) || /^[0-9]$/.test(key);
+      const playbackKey = [" ", "k", "f", "arrowright", "arrowleft", "<", ">", "a", "c", "d", "p", "r", "j", "l", "home", "end"].includes(key) || /^[0-9]$/.test(key);
       if (autoHide && playbackKey && !volumeKey) onControlsShow();
 
       switch (event.key.toLowerCase()) {
@@ -715,12 +717,22 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
 
         case "c":
           event.preventDefault();
-          if (isVideo && mediaElement.textTracks.length > 0) {
+          if (event.repeat) break;
+          if (onToggleCaptions) onToggleCaptions();
+          else if (isVideo && mediaElement.textTracks.length > 0) {
             dispatch({
               type: MediaActionTypes.MEDIA_TOGGLE_SUBTITLES_REQUEST,
             });
           }
           break;
+
+        case "a": {
+          const framing = rootRef.current?.querySelector<HTMLButtonElement>("button[data-player-video-fit]");
+          if (!framing || framing.disabled) break;
+          event.preventDefault();
+          if (!event.repeat) framing.click();
+          break;
+        }
 
         case "d": {
           const hasDownload = mediaElement.querySelector(
@@ -835,6 +847,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
       dispatch,
       keyboardScrubber,
       rootImplProps.onKeyDown,
+      onToggleCaptions,
       onVolumeIndicatorTrigger,
       onPipError,
       disabled,

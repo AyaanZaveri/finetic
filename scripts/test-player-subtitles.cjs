@@ -20,6 +20,7 @@ function mount(native) {
  const {PlayerSubtitles}=load('components/player-subtitles.tsx',{
   react:host.react,'react/jsx-runtime':host.jsx,'@/components/ui/button':{Button:'Button'},
   '@/components/ui/scroll-area':{ScrollArea:'ScrollArea'},
+  '@/components/ui/media-player':{MediaPlayerTooltip:'MediaPlayerTooltip'},
   '@/components/arc/dropdown-menu/dropdown-menu':Object.fromEntries(names.map(n=>[n,n])),
   '@/lib/media/track-label':labels,'./player-subtitles.module.css':{},
  });
@@ -32,6 +33,8 @@ function mount(native) {
 }
 const native=mount(true);
 assert.equal(native.tree.props.modal,false);
+assert.equal(find(native.tree,'MediaPlayerTooltip')[0].props.shortcut,'C');
+assert.equal(find(native.tree,'Button')[0].props['aria-keyshortcuts'],'C');
 const content=find(native.tree,'DropdownMenuContent')[0];
 assert.equal(content.props.container,native.container);
 assert.ok(Object.hasOwn(content.props,'data-player-native-glass'));

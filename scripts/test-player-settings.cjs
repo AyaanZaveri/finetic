@@ -219,6 +219,7 @@ nativeHooks.unmount(); assert.equal(events.size, 0);
   let nextTracks, fetched;
   const env = { exports: {}, subtitleTracks: tracks, nativePlayback: false, videoRef: { current: null },
     subtitleManualOverride: { current: false }, subtitleDefaultApplied: { current: false },
+    subtitleShortcutEnabled: { current: null }, subtitleDefaultSource: { current: null },
     subtitleSelectionRequest: { current: 0 }, loadGenerationRef: { current: 1 },
     setFetchingSubtitles() {}, setRequestedSubtitleSrc() {}, setSubtitleData() {}, setCurrentSubtitle() {}, toast: { error() {} },
     subtitleLoaderRef: { current: { file: async src => { fetched = src; return { success: true, content: 'subtitle' }; } } },

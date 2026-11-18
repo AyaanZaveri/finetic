@@ -18,14 +18,17 @@ const context = { exports: {}, require(name) {
 } };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('components/player-video-fit.tsx', 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText, context);
 function render() { let view; do { dirty = false; cursor = 0; view = context.exports.PlayerVideoFit({ mediaRef: ref, sourceKey: 'one' }); while (effects.length) effects.shift()(); } while (dirty); return view; }
+const button = view => view.props.children;
 let view = render();
+assert.equal(view.props.shortcut, 'A');
+assert.equal(button(view).props['aria-keyshortcuts'], 'A');
 for (const [id, fit] of [['fit', 'contain'], ['crop', 'cover'], ['stretch', 'fill'], ['fit', 'contain']]) {
-  assert.equal(view.props['data-player-video-fit'], id); assert.equal(media.style.objectFit, fit); assert.equal(properties.get('--media-object-fit'), fit);
-  view.props.onClick(); view = render();
+  assert.equal(button(view).props['data-player-video-fit'], id); assert.equal(media.style.objectFit, fit); assert.equal(properties.get('--media-object-fit'), fit);
+  button(view).props.onClick(); view = render();
 }
 bridge = { platform: 'android', capabilities: { videoFit: true }, send: message => sent.push(message) };
 view = render();
-for (let i = 0; i < 3; i++) { view.props.onClick(); view = render(); }
+for (let i = 0; i < 3; i++) { button(view).props.onClick(); view = render(); }
 assert.deepEqual(sent.slice(-3).map(message => message.mode), ['stretch', 'fit', 'crop']);
 assert.ok(sent.every(message => message.type === 'video-fit' && message.session === 'one'));
 bridge = { platform: 'android', send: () => { throw new Error('Old APK cannot handle video-fit'); } };

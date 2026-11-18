@@ -10,7 +10,7 @@ const source = process.argv.includes('--baseline')
 const parsed = ts.createSourceFile('player.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const implementation = parsed.statements.find(n => ts.isFunctionDeclaration(n) && n.name?.text === 'MediaPlayerRootImpl');
 
-function mount({ native = true, autoFocus = true, platform = 'windows', scrubClock } = {}) {
+function mount({ native = true, autoFocus = true, platform = 'windows', scrubClock, onToggleCaptions } = {}) {
   const host = hooks(), listeners = new Map(), sent = [], timers = new Map();
   let timerId = 0;
   class Element {
@@ -28,6 +28,7 @@ function mount({ native = true, autoFocus = true, platform = 'windows', scrubClo
   const root = new Element('[data-slot="media-player"]');
   root.focus = () => { document.activeElement = root; };
   root.contains = target => target === root;
+  root.querySelector = () => root.framing ?? null;
   class Video {
     constructor() { Object.assign(this, { currentTime: 30, duration: 100, volume: .5, paused: false, muted: false }); }
     addEventListener() {}
@@ -56,7 +57,8 @@ function mount({ native = true, autoFocus = true, platform = 'windows', scrubClo
   vm.runInNewContext(ts.transpileModule(`${implementation.getText(parsed)}\nexports.Root = MediaPlayerRootImpl;`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, jsxImportSource: 'test' },
   }).outputText.replace(/require\("test\/jsx-runtime"\)/g, '({ jsx, jsxs })'), context);
-  let tree = host.render(context.exports.Root, { autoFocus, autoHide: true });
+  const props = { autoFocus, autoHide: true, onToggleCaptions };
+  let tree = host.render(context.exports.Root, props);
   tree.props.children.props.ref(root);
   tree.props.value.mediaRef.current = media;
   host.flush();
@@ -79,8 +81,27 @@ function mount({ native = true, autoFocus = true, platform = 'windows', scrubClo
       if (!event.defaultPrevented) document.activeElement = target;
       return event;
     },
-    rerender() { tree = host.render(context.exports.Root, { autoFocus, autoHide: true }); host.flush(); return tree.props.value.keyboardScrubber; },
+    rerender() { tree = host.render(context.exports.Root, props); host.flush(); return tree.props.value.keyboardScrubber; },
     get scrubber() { return tree.props.value.keyboardScrubber; } };
+}
+for (const native of [true, false]) {
+  let toggles = 0, framing = 0;
+  const player = mount({ native, onToggleCaptions: () => { toggles++; } });
+  player.rerender();
+  player.root.focus();
+  player.root.framing = { click: () => { framing++; } };
+  assert.equal(player.key('c', player.root).defaultPrevented, true);
+  assert.equal(player.key('A', player.root).defaultPrevented, true);
+  for (const key of ['c', 'a']) {
+    player.key(key, player.root, { repeat: true });
+    player.key(key, player.root, { metaKey: true });
+    player.key(key, new player.Element('input'));
+  }
+  assert.equal(toggles, 1, 'C uses the player caption action even without browser text tracks');
+  assert.equal(framing, 1, 'A uses the same action as the framing button');
+  player.root.framing = null;
+  assert.equal(player.key('a', player.root).defaultPrevented, false, 'Unsupported framing leaves A available');
+  player.unmount();
 }
 // Reproduce mouse fullscreen click -> Space using the real root handlers.
 // The same React controls are used by Windows, macOS and the web player.

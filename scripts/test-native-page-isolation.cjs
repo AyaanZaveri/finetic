@@ -18,6 +18,11 @@ function rules(file) {
   return result;
 }
 const nativeRules = rules('app/globals.css');
+const macPlayerViewport = nativeRules.find(rule => rule.selector === 'html[data-native-platform="macos"]:has([data-player-shell])');
+assert.equal(macPlayerViewport?.nodes.find(node => node.prop === 'overscroll-behavior-x')?.value, 'none',
+  'Suppress horizontal rubber-banding at the macOS viewport only while the player shell is mounted');
+assert.equal(macPlayerViewport?.nodes.find(node => node.prop === 'overflow-x')?.value, 'clip',
+  'Player contents cannot widen the macOS viewport into a horizontal scroll range');
 function pagePolicy(attributes) {
   const policy = {};
   for (const rule of nativeRules) {
@@ -101,6 +106,7 @@ for (const pathname of ['/', '/movie/tt0816692', '/series/tt1442437/6/4']) {
     'next/navigation': { usePathname: () => pathname },
     '@/lib/atoms': { isPlayerVisibleAtom: 'player-visible' },
     '@/components/app-header': { AppHeader: 'header' },
+    '@/components/desktop-tmdb-setup-prompt': { DesktopTmdbSetupPrompt: 'setup-prompt' },
     '@/components/deferred-tools': { DeferredTools: 'player-overlays' },
     '@/contexts/settings-context': { useSettings: () => ({ navigatorEnabled: false }) },
     '@/contexts/account-context': { useAccountAccess: () => ({ authenticated: true }) },

@@ -4,6 +4,7 @@ import { useEffect, useState, type RefObject } from "react";
 import { CaptionsOff, Subtitles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { MediaPlayerTooltip } from "@/components/ui/media-player";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuGroup,
   DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuItem,
@@ -81,8 +82,10 @@ export function PlayerSubtitles({ mediaRef, sourceKey, native, tracks, requested
   };
 
   return <DropdownMenu modal={false} onOpenChange={open => { if (!open) timing.onClose(); }}>
-    <DropdownMenuTrigger asChild><Button type="button" variant="ghost" size="icon" aria-label="Subtitles" title="Subtitles"
-      data-slot="media-player-subtitles" className="size-8 aria-[expanded=true]:bg-accent/50"><Subtitles aria-hidden="true" /></Button></DropdownMenuTrigger>
+    <MediaPlayerTooltip tooltip="Subtitles" shortcut="C">
+      <DropdownMenuTrigger asChild><Button type="button" variant="ghost" size="icon" aria-label="Subtitles" aria-keyshortcuts="C"
+        data-slot="media-player-subtitles" className="size-8 aria-[expanded=true]:bg-accent/50"><Subtitles aria-hidden="true" /></Button></DropdownMenuTrigger>
+    </MediaPlayerTooltip>
     <DropdownMenuContent container={snapshot.container} side="top" sideOffset={10} align="end" aria-label="Subtitles"
       data-player-native-glass="" className={styles.menu}
       onInteractOutside={event => { if ((event.target as Element).closest?.('[data-subtitle-timing]')) event.preventDefault(); }}>

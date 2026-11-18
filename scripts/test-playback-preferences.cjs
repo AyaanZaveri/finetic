@@ -64,14 +64,15 @@ assert.equal(audio.streamLanguagePreference({ title: 'English audio, French subt
 // resolution order and Off while a previous subtitle request is still pending.
 const source = fs.readFileSync('components/global-media-player.tsx', 'utf8');
 const ast = ts.createSourceFile('player.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-let selection, defaultsEffect;
+let selection, defaultsEffect, toggle;
 function visit(node) {
   if (ts.isVariableDeclaration(node) && node.name.getText(ast) === 'selectSubtitle') selection = node.initializer.arguments[0].getText(ast);
-  if (ts.isCallExpression(node) && node.expression.getText(ast) === 'useEffect' && node.arguments[0]?.getText(ast).includes('const preferences = playbackPreferencesRef.current')) defaultsEffect = node.arguments[0].getText(ast);
+  if (ts.isVariableDeclaration(node) && node.name.getText(ast) === 'toggleCaptions') toggle = node.initializer.arguments[0].getText(ast);
+  if (ts.isCallExpression(node) && node.expression.getText(ast) === 'useEffect' && node.arguments[0]?.getText(ast).includes('choosePreferredSubtitle.current = choose')) defaultsEffect = node.arguments[0].getText(ast);
   ts.forEachChild(node, visit);
 }
 visit(ast);
-assert.ok(selection && defaultsEffect);
+assert.ok(selection && defaultsEffect && toggle);
 const compile = (text, globals) => vm.runInNewContext(ts.transpileModule(`(${text})`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, globals);
 const browserCaption = { kind: "subtitles", mode: "showing" };
 let activeTracks = tracks.map(track => ({ ...track, active: false })), data = [], fetching = false;
@@ -112,19 +113,21 @@ const selectSubtitle = compile(selection, {
   const failure = selectSubtitle(tracks[2]); pending[5].reject(Error('offline')); await failure;
   assert.equal(fetching, false, 'Network failures release the subtitle loader');
 
-  function automatic({ enabled = true, mode = 'normal', manual = false, downloaded = tracks, native = [], browser, ready = 2 } = {}) {
+  function automatic({ enabled = true, mode = 'normal', manual = false, downloaded = tracks, native = [], browser, ready = 2, language = 'en' } = {}) {
     const manualOverride = { current: manual };
     const applied = { current: manual }, chosen = [], listeners = new Map();
     const element = { readyState: ready, controller: { tracks: native, selectTrack: (...args) => chosen.push(args) },
       addEventListener: (name, callback) => listeners.set(name, callback), removeEventListener: name => listeners.delete(name) };
     if (browser) element.textTracks = Object.assign(new EventTarget(), { ...browser, length: browser.length });
-    const effect = compile(defaultsEffect, {
-      playbackPreferencesRef: { current: { ...defaults, subtitlesEnabledByDefault: enabled, subtitleMode: mode } },
+    const bindings = {
+      playbackPreferencesRef: { current: { ...defaults, subtitlesEnabledByDefault: enabled, subtitleMode: mode, subtitleLanguage: language } },
       isPlayerVisible: true, streamUrl: 'movie', subtitleOptionsReady: true, videoRef: { current: element },
       subtitleDefaultApplied: applied, subtitleManualOverride: manualOverride, subtitleDefaultSource: { current: null }, subtitleTracks: downloaded, preferredSubtitleTrack: subtitles.preferredSubtitleTrack,
+      subtitleShortcutEnabled: { current: null }, choosePreferredSubtitle: { current: null }, requestedSubtitleSrc: null,
       selectSubtitle: track => { chosen.push(track?.src ?? null); },
-    });
-    return { cleanup: effect(), chosen, listeners, element, applied, manualOverride };
+    };
+    const cleanup = compile(defaultsEffect, bindings)();
+    return { cleanup, toggle: compile(toggle, bindings), chosen, listeners, element, applied, manualOverride };
   }
   assert.deepEqual(automatic().chosen, ['en-normal']);
   assert.deepEqual(automatic({ native: [{ id: 7, type: 'sub', lang: 'eng' }] }).chosen, [['subtitle', '7']], 'Matching embedded captions take priority over external downloads');
@@ -155,6 +158,21 @@ const selectSubtitle = compile(selection, {
 
   assert.deepEqual(automatic({ mode: 'forced' }).chosen, ['en-forced']);
   assert.deepEqual(automatic({ enabled: false }).chosen, []);
+  const shortcut = automatic({ enabled: false, language: 'fr', ready: 0 });
+  shortcut.toggle();
+  assert.deepEqual(shortcut.chosen, [], 'C waits for caption metadata even when startup captions are disabled');
+  shortcut.element.readyState = 2;
+  shortcut.listeners.get('loadedmetadata')();
+  assert.deepEqual(shortcut.chosen, ['fr-normal'], 'C uses the saved subtitle language for the external fallback');
+  shortcut.element.controller.tracks = [{ id: 5, type: 'sub', lang: 'eng' }, { id: 6, type: 'sub', lang: 'fra' }];
+  shortcut.listeners.get('trackschange')();
+  assert.deepEqual(shortcut.chosen, ['fr-normal', null, ['subtitle', '6']], 'Late preferred embedded tracks supersede the external request');
+  shortcut.toggle();
+  shortcut.listeners.get('trackschange')();
+  assert.equal(shortcut.chosen.at(-1), null, 'C turns captions off and prevents future track updates from re-enabling them');
+  shortcut.toggle();
+  assert.deepEqual(shortcut.chosen.at(-1), ['subtitle', '6'], 'C can re-enable the preferred embedded track');
+  shortcut.cleanup();
   assert.deepEqual(automatic({ manual: true }).chosen, [], 'Automatic defaults must not override a manual selection');
   const native = automatic({ downloaded: [], native: [{ id: 4, type: 'sub', lang: 'eng' }, { id: 5, type: 'sub', lang: 'eng', title: 'Forced' }] });
   assert.deepEqual(native.chosen, [['subtitle', '4']]);

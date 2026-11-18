@@ -187,6 +187,8 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const subtitleDefaultApplied = useRef(false);
   const subtitleDefaultSource = useRef<"embedded" | "external" | null>(null);
   const subtitleManualOverride = useRef(false);
+  const subtitleShortcutEnabled = useRef<boolean | null>(null);
+  const choosePreferredSubtitle = useRef<(() => void) | null>(null);
   const [initialPlaybackPreferences] = useState(readPlaybackPreferences);
   const playbackPreferencesRef = useRef(initialPlaybackPreferences);
   const metadataAbortRef = useRef<AbortController | null>(null);
@@ -491,7 +493,10 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     recordDesktopStage("stream-resolving");
     const generation = ++loadGenerationRef.current;
     subtitleSelectionRequest.current++;
-    if (!fallback) subtitleManualOverride.current = false;
+    if (!fallback) {
+      subtitleManualOverride.current = false;
+      subtitleShortcutEnabled.current = null;
+    }
     subtitleDefaultApplied.current = subtitleManualOverride.current;
     subtitleDefaultSource.current = null;
     playbackPreferencesRef.current = readPlaybackPreferences();
@@ -777,10 +782,11 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   }, [nativePlayback, parseSubtitleTextContent]);
 
   useEffect(() => {
-    const preferences = playbackPreferencesRef.current;
-    if (!isPlayerVisible || !streamUrl || !preferences.subtitlesEnabledByDefault) return;
+    if (!isPlayerVisible || !streamUrl) return;
     const element = videoRef.current as unknown as MpvElementHandle | null;
     const choose = () => {
+      const preferences = playbackPreferencesRef.current;
+      if (!(subtitleShortcutEnabled.current ?? preferences.subtitlesEnabledByDefault)) return;
       if (subtitleManualOverride.current || (subtitleDefaultApplied.current && subtitleDefaultSource.current !== "external")) return;
       const embedded = preferredSubtitleTrack(element?.controller?.tracks.filter(track => track.type === "sub") || [], preferences.subtitleLanguage, preferences.subtitleMode);
       if (embedded && element?.controller) {
@@ -811,12 +817,14 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         void selectSubtitle(downloaded);
       }
     };
+    choosePreferredSubtitle.current = choose;
     choose();
     element?.addEventListener("loadedmetadata", choose);
     element?.addEventListener("trackschange", choose);
     const textTracks = videoRef.current?.textTracks;
     textTracks?.addEventListener("addtrack", choose);
     return () => {
+      choosePreferredSubtitle.current = null;
       element?.removeEventListener("loadedmetadata", choose);
       element?.removeEventListener("trackschange", choose);
       textTracks?.removeEventListener("addtrack", choose);
@@ -841,10 +849,28 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     onOpen: () => setTimingOpenKey(subtitleTiming.key), onClose: () => setTimingOpenKey(null),
   }), [subtitleTiming.seconds, subtitleTiming.key, timingOpenKey]);
   const handleCustomSubtitleChange = useCallback((track: { src: string } | null) => {
+    subtitleShortcutEnabled.current = null;
     subtitleManualOverride.current = true;
     subtitleDefaultApplied.current = true;
+    subtitleDefaultSource.current = null;
     void selectSubtitle(track);
   }, [selectSubtitle]);
+  const toggleCaptions = useCallback(() => {
+    const media = videoRef.current;
+    const controller = (media as unknown as MpvElementHandle | null)?.controller;
+    const active = subtitleShortcutEnabled.current ?? (
+      subtitleDefaultSource.current === "embedded" || Boolean(requestedSubtitleSrc) || subtitleTracks.some(track => track.active)
+      || Boolean(controller?.tracks.some(track => track.type === "sub" && track.selected))
+      || Array.from(media?.textTracks ?? []).some(track =>
+        (track.kind === "subtitles" || track.kind === "captions") && track.mode === "showing")
+    );
+    subtitleShortcutEnabled.current = !active;
+    subtitleManualOverride.current = active;
+    subtitleDefaultApplied.current = false;
+    subtitleDefaultSource.current = null;
+    if (active) void selectSubtitle(null);
+    else choosePreferredSubtitle.current?.();
+  }, [requestedSubtitleSrc, selectSubtitle, subtitleTracks]);
 
   if (!isPlayerVisible || !currentMedia) return null;
 
@@ -869,6 +895,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         customSubtitlesEnabled={subtitleTracks.length > 0}
         subtitleTiming={subtitleTimingActions}
         chapters={chapters}
+        onToggleCaptions={toggleCaptions}
         onKeyDown={event => {
           if (event.defaultPrevented || event.key !== "Escape" || !episodeContinuation.upNext) return;
           event.preventDefault();
@@ -1141,11 +1168,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
               <DesktopTracks mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} />
               <PlayerSubtitles mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} native={nativePlayback}
-                tracks={subtitleTracks} requestedSrc={requestedSubtitleSrc} onTrackChange={track => {
-                  subtitleManualOverride.current = true;
-                  subtitleDefaultApplied.current = true;
-                  void selectSubtitle(track);
-                }}
+                tracks={subtitleTracks} requestedSrc={requestedSubtitleSrc} onTrackChange={handleCustomSubtitleChange}
                 timing={{ seconds: subtitleTiming.seconds, open: Boolean(subtitleTiming.key && timingOpenKey === subtitleTiming.key),
                   onOpen: () => setTimingOpenKey(subtitleTiming.key), onClose: () => setTimingOpenKey(null) }} />
               <PlayerVideoFit key={`${streamUrl}:${playerAttempt}`} mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} />
