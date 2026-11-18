@@ -8,6 +8,35 @@ const ts = require('typescript');
   const patched = patchWebGpuRuntime(original, '0.5.0');
   assert.throws(() => patchWebGpuRuntime(original + ' ', '0.5.0'), /Review/);
   assert.throws(() => patchWebGpuRuntime(original, '0.6.0'), /Review/);
+  const inspectDuration = (source, format, headerDuration) => {
+    const start = source.indexOf('async function NV(r)');
+    const end = source.indexOf('var Uoe=', start);
+    const context = vm.createContext({
+      PC: [], gl: class {}, moe: { Matroska: 'mkv', WebM: 'webm', MP4: 'mp4' }, poe: 10_000_000,
+      ra: class {
+        async getFormat() { return { name: format }; }
+        async getTracks() { return []; }
+        async getDurationFromMetadata() { return headerDuration; }
+        async computeDuration() { return format === 'MP4' ? 60 : new Promise(() => {}); }
+        dispose() {}
+      },
+    });
+    return vm.runInContext(source.slice(start, end) + '\nNV("https://example.test/video")', context);
+  };
+  const pendingScan = Symbol('pending scan');
+  const inspectWithoutWaiting = (...args) => Promise.race([
+    inspectDuration(...args),
+    new Promise(resolve => setImmediate(resolve, pendingScan)),
+  ]);
+  assert.equal(await inspectWithoutWaiting(original, 'Matroska', 42), pendingScan);
+  for (const format of ['Matroska', 'WebM']) {
+    const result = await inspectWithoutWaiting(patched, format, 42);
+    assert.notEqual(result, pendingScan, `${format} startup must skip the packet scan`);
+    assert.equal(result.RunTimeTicks, 420_000_000);
+  }
+  assert.equal((await inspectWithoutWaiting(patched, 'Matroska', null)).RunTimeTicks, null);
+  assert.equal((await inspectWithoutWaiting(patched, 'MP4', 42)).RunTimeTicks, 600_000_000);
+  console.log('PASS: Matroska and WebM startup uses header duration without waiting for the last packet');
   // Exercise the shipped embedding function. Stub GPU/device internals at its
   // negotiation boundary, where an unsupported audio codec rejects this file.
   const make = (source, includeAudio = true) => {

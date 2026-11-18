@@ -15,6 +15,11 @@ export function patchWebGpuRuntime(source, version) {
     const anchor = 'let q=zV(V),W=R.audioOrdinal??';
     if (source.split(anchor).length !== 2) throw new Error('WebGPU audio selection anchor changed.');
     let patched = source.replace(anchor, 'R.audioOrdinal===-1&&(V={...V,MediaStreams:V.MediaStreams.filter(ee=>ee.Type!=="Audio")});' + anchor);
+    // Finding the last packet can scan the whole Matroska/WebM file when it
+    // lacks a usable index. Open with the header duration or an unknown duration.
+    const duration = 'let o=await e.computeDuration().catch(()=>null)';
+    if (patched.split(duration).length !== 2) throw new Error('WebGPU duration probe anchor changed.');
+    patched = patched.replace(duration, 'let o=await (n==="mkv"||n==="webm"?e.getDurationFromMetadata():e.computeDuration()).catch(()=>null)');
     const factory = 'function Gwe(r,e){';
     const configuration = 'createHDRRenderConfiguration:GV';
     const setter = 'setHDROutput:R=>E.setHDROutputEnabled(R)';
