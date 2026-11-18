@@ -2,7 +2,7 @@
 
 import { AnimatePresence, animate, motion, useMotionValue, useReducedMotion, useTransform, type MotionValue, type Variants } from "motion/react";
 import { Minus, Plus } from "lucide-react";
-import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type Ref } from "react";
+import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode, type Ref } from "react";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./number-field.module.css";
 
@@ -19,6 +19,7 @@ export interface NumberFieldProps {
   step?: number;
   /** Increment used by the plus and minus buttons. */
   buttonStep?: number;
+  trailingAction?: ReactNode;
   /** PageUp, PageDown, and Shift with an arrow move this far. Defaults to ten steps. */
   largeStep?: number;
   description?: string;
@@ -233,7 +234,7 @@ function StepButton({ toward, label, disabled, controls, limit, pressed, iconRef
  * large steps, Home and End jump to the limits, and `scrub` lets the label be dragged. Typing edits a plain draft that
  * applies live while valid; the rolling digits return once it commits on Enter, blur, or the next step.
  */
-export function NumberField({ label, value, defaultValue = 0, onValueChange, min = 0, max = Number.MAX_SAFE_INTEGER, step: stepProp = 1, buttonStep, largeStep, description, disabled, id, prefix, suffix, scrub = false, locale = "en-US", formatOptions, size = "md", limitHint = true }: NumberFieldProps) {
+export function NumberField({ label, value, defaultValue = 0, onValueChange, min = 0, max = Number.MAX_SAFE_INTEGER, step: stepProp = 1, buttonStep, trailingAction, largeStep, description, disabled, id, prefix, suffix, scrub = false, locale = "en-US", formatOptions, size = "md", limitHint = true }: NumberFieldProps) {
   const reduced = useReducedMotion();
   const generatedId = useId();
   const inputId = id ?? generatedId;
@@ -456,23 +457,26 @@ export function NumberField({ label, value, defaultValue = 0, onValueChange, min
       <label htmlFor={inputId} className={styles.label} data-scrub={(scrub && !disabled) || undefined} onPointerDown={onScrubStart} onPointerMove={onScrubMove} onPointerUp={onScrubEnd} onPointerCancel={onScrubEnd} onClick={event => { if (suppressClick.current) { event.preventDefault(); suppressClick.current = false; } }}>{label}</label>
       <LimitNote id={limitId} edge={noteEdge} text={noteText} />
     </div>
-    <div ref={controlRef} className={styles.control} data-scrubbing={scrubbing || undefined} data-disabled={disabled || undefined} data-warn={outside ? (outside > 0 ? "max" : "min") : undefined}>
-      <StepButton {...stepper(-1)} iconRef={minusIcon} onPress={() => startHold(-1, buttonSteps * step, "button")} onRelease={stopHold} onActivate={() => { commitDraft(); nudge(-1, buttonSteps, "button"); }} />
-      <div className={styles.valueWrap} onMouseDown={event => { if (event.target !== inputRef.current) event.preventDefault(); }} onClick={event => { if (!disabled && event.target !== inputRef.current) { inputRef.current?.focus(); inputRef.current?.select(); } }}>
-        <motion.span ref={groupRef} className={styles.value} style={{ x, y: bumpY }}>
-          <AffixText text={affixText(prefix, shown)} direction={direction} className={styles.affix} />
-          <span className={styles.number}>
-            <span className={styles.display} data-hidden={editing || undefined} aria-hidden="true"><Digits value={shown} format={format} direction={direction} instant={editing} /></span>
-            {editing && <span className={styles.mirror} aria-hidden="true">{draft}</span>}
-            <input ref={inputRef} id={inputId} className={styles.input} type="text" role="spinbutton" inputMode={min < 0 ? "text" : decimals || maxFraction ? "decimal" : "numeric"} autoComplete="off" spellCheck={false}
-              value={editing ? draft : format.format(current)} disabled={disabled} aria-describedby={describedBy} aria-invalid={outside ? true : undefined} aria-valuenow={current} aria-valuetext={spoken(current)}
-              aria-valuemin={Number.isFinite(min) ? min : undefined} aria-valuemax={max < Number.MAX_SAFE_INTEGER ? max : undefined}
-              onChange={event => onChange(event.currentTarget.value)} onKeyDown={onKeyDown} onKeyUp={event => { if (/^(Arrow(Up|Down)|Page(Up|Down))$/.test(event.key)) stopHold(); }} onBlur={() => { stopHold(); commitDraft(); }} />
-          </span>
-          <AffixText text={affixText(suffix, shown)} direction={direction} className={styles.affix} />
-        </motion.span>
+    <div className={styles.controlRow}>
+      <div ref={controlRef} className={styles.control} data-scrubbing={scrubbing || undefined} data-disabled={disabled || undefined} data-warn={outside ? (outside > 0 ? "max" : "min") : undefined}>
+        <StepButton {...stepper(-1)} iconRef={minusIcon} onPress={() => startHold(-1, buttonSteps * step, "button")} onRelease={stopHold} onActivate={() => { commitDraft(); nudge(-1, buttonSteps, "button"); }} />
+        <div className={styles.valueWrap} onMouseDown={event => { if (event.target !== inputRef.current) event.preventDefault(); }} onClick={event => { if (!disabled && event.target !== inputRef.current) { inputRef.current?.focus(); inputRef.current?.select(); } }}>
+          <motion.span ref={groupRef} className={styles.value} style={{ x, y: bumpY }}>
+            <AffixText text={affixText(prefix, shown)} direction={direction} className={styles.affix} />
+            <span className={styles.number}>
+              <span className={styles.display} data-hidden={editing || undefined} aria-hidden="true"><Digits value={shown} format={format} direction={direction} instant={editing} /></span>
+              {editing && <span className={styles.mirror} aria-hidden="true">{draft}</span>}
+              <input ref={inputRef} id={inputId} className={styles.input} type="text" role="spinbutton" inputMode={min < 0 ? "text" : decimals || maxFraction ? "decimal" : "numeric"} autoComplete="off" spellCheck={false}
+                value={editing ? draft : format.format(current)} disabled={disabled} aria-describedby={describedBy} aria-invalid={outside ? true : undefined} aria-valuenow={current} aria-valuetext={spoken(current)}
+                aria-valuemin={Number.isFinite(min) ? min : undefined} aria-valuemax={max < Number.MAX_SAFE_INTEGER ? max : undefined}
+                onChange={event => onChange(event.currentTarget.value)} onKeyDown={onKeyDown} onKeyUp={event => { if (/^(Arrow(Up|Down)|Page(Up|Down))$/.test(event.key)) stopHold(); }} onBlur={() => { stopHold(); commitDraft(); }} />
+            </span>
+            <AffixText text={affixText(suffix, shown)} direction={direction} className={styles.affix} />
+          </motion.span>
+        </div>
+        <StepButton {...stepper(1)} iconRef={plusIcon} onPress={() => startHold(1, buttonSteps * step, "button")} onRelease={stopHold} onActivate={() => { commitDraft(); nudge(1, buttonSteps, "button"); }} />
       </div>
-      <StepButton {...stepper(1)} iconRef={plusIcon} onPress={() => startHold(1, buttonSteps * step, "button")} onRelease={stopHold} onActivate={() => { commitDraft(); nudge(1, buttonSteps, "button"); }} />
+      {trailingAction}
     </div>
     <FieldMessage id={hintId} text={description} className={styles.hint} />
     <span className={styles.srOnly} aria-live="polite" aria-atomic="true">{announcement}</span>
