@@ -225,7 +225,7 @@ function find(node, predicate) {
   if (!node || typeof node !== 'object') return [];
   return [...(predicate(node) ? [node] : []), ...find(node.props?.children, predicate)];
 }
-const languageField = find(PlaybackLanguageSettings(), node => node.props?.id === 'preferred-subtitle-language')[0];
+const languageField = find(PlaybackLanguageSettings({ kind: "subtitles" }), node => node.props?.id === 'preferred-subtitle-language')[0];
 const rows = find(languageField.type(languageField.props), node => node.type === 'Select')[0].props.options;
 assert.equal(rows[0].label, 'English');
 assert.equal(rows.length, preferences.PLAYBACK_LANGUAGES.length);
@@ -250,6 +250,7 @@ const { PlaybackSettings } = load('components/playback-settings.tsx', {
   '@/components/ui/field': { Field: 'Field', FieldGroup: 'FieldGroup', FieldLabel: 'FieldLabel', FieldDescription: 'FieldDescription', FieldContent: 'FieldContent' },
   '@/app/(main)/settings/settings.module.css': {},
   '@/components/arc/number-field/number-field': { NumberField: 'NumberField' },
+  './playback-language-settings': { PlaybackLanguageSettings: 'PlaybackLanguageSettings' },
 });
 const switches = () => find(PlaybackSettings(), node => node.type === 'Switch');
 switches().find(node => node.props.id === 'hdr-output').props.onCheckedChange(true);
