@@ -1,5 +1,8 @@
 "use client";
 
+import { RotateCcw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSettings } from "@/contexts/settings-context";
 import { PlaybackLanguageSettings } from "./playback-language-settings";
 import { NumberField } from "@/components/arc/number-field/number-field";
@@ -9,6 +12,7 @@ import styles from "@/app/(main)/settings/settings.module.css";
 
 export function PlaybackSettings() {
   const { playbackPreferences, updatePlaybackPreferences } = useSettings();
+  const hdrBrightnessDisabled = !playbackPreferences.webGpuPlayback || !playbackPreferences.hdrOutput;
   return <>
     <section aria-labelledby="playback-episodes" className={styles.section}>
       <h2 id="playback-episodes" className="text-lg font-medium">Episodes</h2>
@@ -80,14 +84,27 @@ export function PlaybackSettings() {
             disabled={!playbackPreferences.webGpuPlayback}
             onCheckedChange={hdrOutput => updatePlaybackPreferences({ hdrOutput })} />
         </Field>
-        <div className="flex flex-col gap-2 border-l pl-4">
+        <div className="flex flex-col gap-2 border-l-2 pl-4">
           <NumberField id="hdr-peak-nits" label="HDR peak brightness" suffix=" nits"
             description="Set this to your display's peak HDR brightness. Default: 1,000 nits."
             min={203} max={10000} step={1} buttonStep={50} largeStep={100} size="sm"
-            disabled={!playbackPreferences.webGpuPlayback || !playbackPreferences.hdrOutput}
+            disabled={hdrBrightnessDisabled}
             value={playbackPreferences.hdrPeakNits}
-            onValueChange={hdrPeakNits => updatePlaybackPreferences({ hdrPeakNits })} />
-          <button type="button" className="self-start text-sm underline" disabled={!playbackPreferences.webGpuPlayback || !playbackPreferences.hdrOutput || playbackPreferences.hdrPeakNits === 1000} onClick={() => updatePlaybackPreferences({ hdrPeakNits: 1000 })}>Reset to 1,000 nits</button>
+            onValueChange={hdrPeakNits => updatePlaybackPreferences({ hdrPeakNits })}
+            trailingAction={
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button type="button" variant="outline" size="icon"
+                    className="size-(--control-height-sm) rounded-(--radius-control) aria-disabled:opacity-50"
+                    aria-label="Reset peak brightness to 1,000 nits"
+                    aria-disabled={hdrBrightnessDisabled || playbackPreferences.hdrPeakNits === 1000}
+                    onClick={() => updatePlaybackPreferences({ hdrPeakNits: 1000 })}>
+                    <RotateCcw aria-hidden="true" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent sideOffset={6}>Reset to 1,000 nits</TooltipContent>
+              </Tooltip>
+            } />
         </div>
       </FieldGroup>
     </section>

@@ -12,6 +12,8 @@
 .label[data-scrub] { cursor: ew-resize; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
 /* A hairline shell. Focus darkens the border only (the library draws no rings); a typed value past a limit tints it with the warning
    role instead, calm rather than alarming. Set --number-field-width to resize the shell. */
+.controlRow { display: flex; align-items: stretch; gap: var(--space-2); min-width: 0; }
+.controlRow > .control { min-width: 0; }
 .control { display: flex; align-items: center; width: min(100%, var(--nf-width)); min-height: var(--nf-height); gap: 2px; border: 1px solid var(--border); border-radius: var(--radius-control); padding: var(--nf-inset); background: var(--surface); transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-standard) var(--ease-standard), opacity var(--duration-fast) var(--ease-standard); }
 @media (hover: hover) and (pointer: fine) { .control:hover, .field:has(.label[data-scrub]:hover) .control { border-color: var(--border-strong); } }
 .control[data-scrubbing] { border-color: var(--foreground); }
@@ -42,8 +44,9 @@
    (the digits, or the draft mirror while typing), so the value keeps one weight and position whether it is rolling or being edited. */
 .number { position: relative; display: inline-grid; align-items: center; }
 .display { display: inline-flex; grid-area: 1 / 1; }
-.display[data-hidden] { position: absolute; top: 0; left: 0; visibility: hidden; }
-.mirror { grid-area: 1 / 1; white-space: pre; }
+/* Rolling glyphs set their own visibility, so hide the entire layer while editing. */
+.display[data-hidden] { display: none; }
+.mirror { grid-area: 1 / 1; min-inline-size: 1ch; min-block-size: 1lh; white-space: pre; }
 .input { position: absolute; z-index: 1; top: 0; left: 0; width: calc(100% + 1em); height: 100%; margin: 0; border: 0; padding: 0; background: transparent; color: transparent; caret-color: var(--foreground); font: inherit; font-variant-numeric: inherit; letter-spacing: inherit; line-height: inherit; text-align: left; outline: none; }
 .control .input:focus-visible { outline: none; box-shadow: none; }
 .input::selection { background: color-mix(in oklab, var(--foreground) 16%, transparent); color: transparent; }

@@ -250,6 +250,8 @@ const { PlaybackSettings } = load('components/playback-settings.tsx', {
   '@/components/ui/field': { Field: 'Field', FieldGroup: 'FieldGroup', FieldLabel: 'FieldLabel', FieldDescription: 'FieldDescription', FieldContent: 'FieldContent' },
   '@/app/(main)/settings/settings.module.css': {},
   '@/components/arc/number-field/number-field': { NumberField: 'NumberField' },
+  '@/components/ui/button': { Button: 'Button' },
+  '@/components/ui/tooltip': { Tooltip: 'Tooltip', TooltipTrigger: 'TooltipTrigger', TooltipContent: 'TooltipContent' },
   './playback-language-settings': { PlaybackLanguageSettings: 'PlaybackLanguageSettings' },
 });
 const switches = () => find(PlaybackSettings(), node => node.type === 'Switch');
