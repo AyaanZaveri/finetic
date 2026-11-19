@@ -18,6 +18,8 @@ export function scrubSpeed(startY: number, y: number) {
     return distance >= 140 ? 0.1 : distance >= 70 ? 0.25 : distance >= 35 ? 0.5 : 1;
 }
 
+const surfaceControls = '[data-player-stats], button, a, input, select, textarea, [role="button"], [role="slider"], [role="menu"], [role="dialog"], [role="combobox"], [role="listbox"], [role="option"]';
+
 export function attachTouchScrubbing(root: HTMLElement, options: TouchScrubbingOptions) {
     let gesture: { id: number; x: number; y: number; lastX: number; time: number; active: boolean; onBar: boolean } | null = null;
     let suppressClick = false;
@@ -37,7 +39,7 @@ export function attachTouchScrubbing(root: HTMLElement, options: TouchScrubbingO
         const target = event.target as Element;
         const onBar = options.timeline.contains(target);
         if (!onBar && options.surfaceEnabled?.() === false) return;
-        if (!onBar && target.closest('[data-player-stats], button, a, input, select, textarea, [role="button"], [role="slider"], [role="menu"], [role="dialog"], [role="combobox"], [role="listbox"], [role="option"]')) return;
+        if (!onBar && target.closest(surfaceControls)) return;
         const rect = options.timeline.getBoundingClientRect();
         if (rect.width <= 0 || !Number.isFinite(options.end) || options.end <= options.start) return;
         gesture = {
@@ -90,6 +92,10 @@ export function attachTouchScrubbing(root: HTMLElement, options: TouchScrubbingO
     const click = (event: MouseEvent) => {
         if (!suppressClick) return;
         suppressClick = false;
+        const target = event.target as Element | null;
+        // Only suppress the seek's pointer click. Controls and synthesized
+        // keyboard clicks can arrive after a capture is cancelled.
+        if (event.detail === 0 || (target?.closest?.(surfaceControls) && !options.timeline.contains(target))) return;
         event.preventDefault();
         event.stopPropagation();
     };

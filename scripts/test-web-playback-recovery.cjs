@@ -140,6 +140,8 @@ function harness({ native = false, automatic = false, autoSelectWebStream = true
         get media() { return media; },
         get streamFetches() { return streamFetches; },
         get errorVisible() { return find(tree, node => node.props?.role === 'alert').length > 0; },
+        get statsMenu() { return find(tree, node => node.props?.stats !== undefined)[0]?.props.stats; },
+        get statsPanel() { return find(tree, node => node.props?.videoRef && node.props?.onClose)[0]?.props; },
         async settle() { for (let i = 0; i < 20; i++) { if (dirty) render(); await Promise.resolve(); } },
         fail(code = 4) {
             media.error = { code, message: 'MEDIA_ELEMENT_ERROR: Format error' };
@@ -162,6 +164,23 @@ function harness({ native = false, automatic = false, autoSelectWebStream = true
 }
 
 async function run() {
+    const stats = harness();
+    await stats.settle();
+    assert.equal(stats.statsMenu.open, false);
+    stats.statsMenu.onOpenChange(true);
+    await stats.settle();
+    assert.ok(stats.statsPanel, 'Showing stats from Settings mounts the panel');
+    stats.statsPanel.onClose();
+    await stats.settle();
+    assert.equal(stats.statsPanel, undefined, 'Closing the panel unmounts it');
+    assert.equal(stats.statsMenu.open, false, 'Closing the panel also resets the Settings action');
+    stats.statsMenu.onOpenChange(true);
+    await stats.settle();
+    assert.ok(stats.statsPanel, 'The panel can reopen after dismissal');
+    stats.statsMenu.onOpenChange(false);
+    await stats.settle();
+    assert.equal(stats.statsPanel, undefined, 'Hiding stats from Settings unmounts the same panel');
+
     for (const native of [false, true]) {
         for (const [saved, expected] of [[650, 0], [599, 0], [42, 42]]) {
             const episode = harness({ native, episodePosition: saved, autoSelectWebStream: false });

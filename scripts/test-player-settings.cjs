@@ -91,17 +91,23 @@ for (const open of [false, true]) {
 assert.deepEqual(statsVisibility, [true, false], 'The menu requests explicit show and hide states');
 {
   const host = hooks();
-  let resize, closed = 0, focused = false;
+  let resize, closed = 0, focused = false, sampling = false;
+  const captures = new Set();
+  const handle = {
+    setPointerCapture: id => captures.add(id),
+    hasPointerCapture: id => captures.has(id),
+    releasePointerCapture: id => captures.delete(id),
+  };
   const player = { clientWidth: 800, clientHeight: 600, focus() { focused = true; } };
   const panel = { offsetLeft: 436, offsetTop: 12, offsetWidth: 352, offsetHeight: 200, offsetParent: player, parentElement: player };
   const { PlayerPlaybackStats } = load('components/player-playback-stats.tsx', {
-    react: host.react, 'react/jsx-runtime': host.jsx,
-    'lucide-react': { GripHorizontal: 'grip', X: 'close-icon' },
+    react: { ...host.react, useId: () => 'stats-drag-instructions' }, 'react/jsx-runtime': host.jsx,
+    'lucide-react': { GripHorizontal: 'grip', Pause: 'pause-icon', Play: 'play-icon', X: 'close-icon' },
     '@/components/ui/button': { Button: 'Button' },
     '@/lib/media/playback-stats': {},
   }, {
     ResizeObserver: class { constructor(callback) { resize = callback; } observe() {} disconnect() { resize = undefined; } },
-    window: { setInterval: () => 1, clearInterval() {} },
+    window: { setInterval() { sampling = true; return 1; }, clearInterval() { sampling = false; } },
     document: { addEventListener() {}, removeEventListener() {} },
   });
   const props = { videoRef: { current: null }, onClose: () => closed++ };
@@ -111,14 +117,14 @@ assert.deepEqual(statsVisibility, [true, false], 'The menu requests explicit sho
   host.flush();
   assert.equal(initial.props.style, undefined, 'A new panel starts at its logical top corner');
   const header = find(initial, 'h2')[0];
-  let captured;
   header.props.onPointerDown({ isPrimary: true, button: 0, pointerId: 8, clientX: 450, clientY: 20,
-    currentTarget: { setPointerCapture(id) { captured = id; } }, preventDefault() {} });
-  assert.equal(captured, 8);
+    currentTarget: handle, preventDefault() {} });
+  assert.ok(captures.has(8));
   header.props.onPointerMove({ pointerId: 8, clientX: 300, clientY: 250 });
   let { left, top } = render().props.style;
   assert.deepEqual([left, top], [286, 242], 'Drag follows the header grab point');
   header.props.onPointerUp({ pointerId: 8 });
+  assert.equal(captures.size, 0, 'Ending the drag releases its pointer');
   header.props.onPointerMove({ pointerId: 8, clientX: 0, clientY: 0 });
   player.clientWidth = 400;
   player.clientHeight = 300;
@@ -131,10 +137,27 @@ assert.deepEqual(statsVisibility, [true, false], 'The menu requests explicit sho
   header.props.onKeyDown({ key: 'ArrowLeft', preventDefault() { consumed = true; }, stopPropagation() {} });
   assert.equal(render().props.style.left, 20);
   assert.ok(consumed, 'Focused drag handle owns the arrow key instead of seeking');
-  find(render(), 'Button').find(node => node.props['aria-label'] === 'Hide stats for nerds').props.onClick();
+  const action = label => find(render(), 'Button').find(node => node.props['aria-label'] === label);
+  assert.equal(action('Freeze stats').props.children.type, 'pause-icon');
+  action('Freeze stats').props.onClick();
+  assert.equal(action('Resume stats updates').props.children.type, 'play-icon');
+  host.flush();
+  assert.equal(sampling, false, 'Freezing stops the sampling timer');
+  action('Resume stats updates').props.onClick();
+  assert.ok(action('Freeze stats'));
+  host.flush();
+  assert.equal(sampling, true, 'Resuming restarts the sampling timer');
+  header.props.onPointerDown({ isPrimary: true, button: 0, pointerId: 9, clientX: 40, clientY: 100,
+    currentTarget: handle, preventDefault() {} });
+  assert.ok(captures.has(9));
+  action('Hide stats for nerds').props.onClick();
   assert.equal(closed, 1);
   assert.ok(focused, 'Closing stats restores player focus');
+  assert.equal(captures.size, 0, 'Closing from the panel releases an active drag');
+  header.props.onPointerDown({ isPrimary: true, button: 0, pointerId: 10, clientX: 40, clientY: 100,
+    currentTarget: handle, preventDefault() {} });
   host.unmount();
+  assert.equal(captures.size, 0, 'Hiding from Settings also releases an active drag on unmount');
   assert.equal(resize, undefined);
 }
 let timingClosed = 0;

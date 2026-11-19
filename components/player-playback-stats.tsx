@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent, type RefObject } from "react";
-import { GripHorizontal, X } from "lucide-react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type PointerEvent, type RefObject } from "react";
+import { GripHorizontal, Pause, Play, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { playbackFrameRate, readWebPlaybackStats } from "@/lib/media/playback-stats";
 
@@ -16,11 +16,20 @@ function fitPosition(panel: HTMLElement, bounds: Element, position: Position): P
 }
 
 export function PlayerPlaybackStats({ videoRef, onClose }: { videoRef: RefObject<HTMLVideoElement | null>; onClose: () => void }) {
+    const moveInstructionsId = useId();
     const panelRef = useRef<HTMLElement>(null);
-    const drag = useRef<{ id: number; start: Position; origin: Position } | null>(null);
+    const drag = useRef<{ id: number; handle: HTMLElement; start: Position; origin: Position } | null>(null);
     const [position, setPosition] = useState<Position | null>(null);
     const [frozen, setFrozen] = useState(false);
     const [reading, setReading] = useState<{ stats: ReturnType<typeof readWebPlaybackStats>; fps?: number }>();
+
+    const releaseDrag = useCallback(() => {
+        const active = drag.current;
+        drag.current = null;
+        if (active?.handle.hasPointerCapture(active.id)) active.handle.releasePointerCapture(active.id);
+    }, []);
+
+    useLayoutEffect(() => releaseDrag, [releaseDrag]);
 
     useLayoutEffect(() => {
         const panel = panelRef.current;
@@ -44,7 +53,7 @@ export function PlayerPlaybackStats({ videoRef, onClose }: { videoRef: RefObject
         moveTo({ x: active.origin.x + event.clientX - active.start.x, y: active.origin.y + event.clientY - active.start.y });
     };
     const endDrag = (event: PointerEvent<HTMLElement>) => {
-        if (drag.current?.id === event.pointerId) drag.current = null;
+        if (drag.current?.id === event.pointerId) releaseDrag();
     };
 
     useEffect(() => {
@@ -72,6 +81,7 @@ export function PlayerPlaybackStats({ videoRef, onClose }: { videoRef: RefObject
     }, [frozen, videoRef]);
 
     const stats = reading?.stats;
+    const freezeLabel = frozen ? "Resume stats updates" : "Freeze stats";
     const rows = [
         ["Playback", stats?.path],
         ["Decoder route", stats?.route],
@@ -91,13 +101,16 @@ export function PlayerPlaybackStats({ videoRef, onClose }: { videoRef: RefObject
         style={position ? { left: position.x, top: position.y } : undefined}
         className={`absolute top-3 z-30 flex max-h-[55%] w-[22rem] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-xl border border-white/8 bg-black/85 text-[0.8125rem] leading-normal text-white shadow-lg shadow-black/35 ${position ? "" : "end-3"}`}>
         <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-0.5 px-3 pb-1 pt-1.5">
-            <h2 tabIndex={0} aria-description="Use arrow keys to move the stats panel."
+            <span id={moveInstructionsId} className="sr-only">Use arrow keys to move the stats panel.</span>
+            <h2 tabIndex={0} aria-describedby={moveInstructionsId}
                 className="flex min-h-7 flex-1 cursor-grab touch-none select-none items-center gap-1.5 rounded-sm text-sm font-semibold leading-tight active:cursor-grabbing focus-visible:outline-2 focus-visible:outline-ring"
                 onPointerDown={event => {
                     const panel = panelRef.current;
                     if (!panel || !event.isPrimary || event.button !== 0) return;
-                    drag.current = { id: event.pointerId, start: { x: event.clientX, y: event.clientY }, origin: { x: panel.offsetLeft, y: panel.offsetTop } };
-                    event.currentTarget.setPointerCapture(event.pointerId);
+                    releaseDrag();
+                    const handle = event.currentTarget;
+                    handle.setPointerCapture(event.pointerId);
+                    drag.current = { id: event.pointerId, handle, start: { x: event.clientX, y: event.clientY }, origin: { x: panel.offsetLeft, y: panel.offsetTop } };
                     event.preventDefault();
                 }}
                 onPointerMove={movePointer}
@@ -118,13 +131,16 @@ export function PlayerPlaybackStats({ videoRef, onClose }: { videoRef: RefObject
                 Stats for nerds
             </h2>
             <div className="-me-1 ms-auto flex items-center gap-1">
-                <Button type="button" variant="ghost" size="xs" className="text-white/85 hover:bg-white/15" onClick={() => setFrozen(value => !value)}>
-                    {frozen ? "Resume updates" : "Freeze stats"}
+                <Button type="button" variant="ghost" size="icon-xs" aria-label={freezeLabel} title={freezeLabel}
+                    className="size-7 text-white/75 hover:bg-white/15 hover:text-white" onClick={() => setFrozen(value => !value)}>
+                    {frozen ? <Play aria-hidden="true" className="size-4" /> : <Pause aria-hidden="true" className="size-4" />}
                 </Button>
                 <Button type="button" variant="ghost" size="icon-xs" aria-label="Hide stats for nerds"
                     className="size-7 text-white/75 hover:bg-white/15 hover:text-white" onClick={() => {
-                        panelRef.current?.parentElement?.focus({ preventScroll: true });
+                        const player = panelRef.current?.parentElement;
+                        releaseDrag();
                         onClose();
+                        player?.focus({ preventScroll: true });
                     }}>
                     <X aria-hidden="true" className="size-4" />
                 </Button>
