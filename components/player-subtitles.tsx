@@ -31,7 +31,7 @@ export function PlayerSubtitles({ mediaRef, sourceKey, native, tracks, requested
   native: boolean;
   tracks: ExternalSubtitleTrack[];
   requestedSrc?: string | null;
-  onTrackChange(track: ExternalSubtitleTrack | null): void;
+  onTrackChange(track: ExternalSubtitleTrack | null, _keepEmbedded?: boolean): void;
   timing: SubtitleTimingAction;
 }) {
   const [snapshot, setSnapshot] = useState<{ tracks: EmbeddedSubtitle[]; container: HTMLElement | null }>({ tracks: [], container: null });
@@ -72,8 +72,8 @@ export function PlayerSubtitles({ mediaRef, sourceKey, native, tracks, requested
       if (!track) return;
       onTrackChange(track);
     } else {
-      // Also cancels an external subtitle download that is still in flight.
-      onTrackChange(null);
+      // Cancel an in-flight download while leaving this menu in charge of the embedded track.
+      onTrackChange(null, true);
       if (native) (mediaRef.current as unknown as MpvElementHandle | null)?.controller?.selectTrack("subtitle", kind === "embedded" ? id : "no");
       else Array.from(mediaRef.current?.textTracks ?? []).forEach((track, index) => {
         if (track.kind === "subtitles" || track.kind === "captions") track.mode = kind === "embedded" && String(index) === id ? "showing" : "disabled";

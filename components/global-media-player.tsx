@@ -748,7 +748,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     };
   }, []);
 
-  const selectSubtitle = useCallback(async (track: { src: string } | null) => {
+  const selectSubtitle = useCallback(async (track: { src: string } | null, keepEmbedded = false) => {
     const request = ++subtitleSelectionRequest.current;
     const generation = loadGenerationRef.current;
     const isCurrent = () => request === subtitleSelectionRequest.current && generation === loadGenerationRef.current;
@@ -761,7 +761,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     setRequestedSubtitleSrc(track?.src ?? null);
     setFetchingSubtitles(Boolean(track));
     if (!track) {
-      disableEmbedded();
+      if (!keepEmbedded) disableEmbedded();
       setSubtitleData([]);
 
       setSubtitleTracks(previous => previous.map(value => ({ ...value, active: false })));
@@ -796,7 +796,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       if (subtitleManualOverride.current || (subtitleDefaultApplied.current && subtitleDefaultSource.current !== "external")) return;
       const embedded = preferredSubtitleTrack(element?.controller?.tracks.filter(track => track.type === "sub") || [], preferences.subtitleLanguage, preferences.subtitleMode);
       if (embedded && element?.controller) {
-        if (subtitleDefaultSource.current === "external") void selectSubtitle(null);
+        if (subtitleDefaultSource.current === "external") void selectSubtitle(null, true);
         subtitleDefaultApplied.current = true;
         subtitleDefaultSource.current = "embedded";
         element.controller.selectTrack("subtitle", String(embedded.id));
@@ -807,7 +807,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       const browserTracks = textTracks ? Array.from(textTracks).filter(track => ["subtitles", "captions"].includes(track.kind)) : [];
       const browserTrack = preferredSubtitleTrack(browserTracks, preferences.subtitleLanguage, preferences.subtitleMode);
       if (browserTrack) {
-        if (subtitleDefaultSource.current === "external") void selectSubtitle(null);
+        if (subtitleDefaultSource.current === "external") void selectSubtitle(null, true);
         subtitleDefaultApplied.current = true;
         subtitleDefaultSource.current = "embedded";
         for (const track of browserTracks) track.mode = track === browserTrack ? "showing" : "disabled";
@@ -854,12 +854,12 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     seconds: subtitleTiming.seconds, open: Boolean(subtitleTiming.key && timingOpenKey === subtitleTiming.key),
     onOpen: () => setTimingOpenKey(subtitleTiming.key), onClose: () => setTimingOpenKey(null),
   }), [subtitleTiming.seconds, subtitleTiming.key, timingOpenKey]);
-  const handleCustomSubtitleChange = useCallback((track: { src: string } | null) => {
+  const handleCustomSubtitleChange = useCallback((track: { src: string } | null, keepEmbedded = false) => {
     subtitleShortcutEnabled.current = null;
     subtitleManualOverride.current = true;
     subtitleDefaultApplied.current = true;
     subtitleDefaultSource.current = null;
-    void selectSubtitle(track);
+    void selectSubtitle(track, keepEmbedded);
   }, [selectSubtitle]);
   const toggleCaptions = useCallback(() => {
     const media = videoRef.current;

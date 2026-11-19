@@ -26,7 +26,10 @@ function mount(native) {
  });
  let closed=0,opened=0;
  const tracks=[{src:'https://files.test/first',language:'eng',label:'English first',active:false}, {src:'https://files.test/second?token=private',language:'eng',label:'English second',active:false}];
- const props={mediaRef,sourceKey:'one',native,tracks,onTrackChange:track=>external.push(track),timing:{seconds:.3,open:false,onOpen(){opened++},onClose(){closed++}}};
+ const props={mediaRef,sourceKey:'one',native,tracks,onTrackChange:(track, keepEmbedded)=>{
+  external.push(track);
+  if (native && !track && !keepEmbedded) controller.selectTrack('subtitle', 'no');
+ },timing:{seconds:.3,open:false,onOpen(){opened++},onClose(){closed++}}};
  const render=()=>host.render(PlayerSubtitles,props);
  render();host.flush();const tree=render();
  return {tree,host,events,calls,external,textTracks,controller,props,render,container,get opened(){return opened},get closed(){return closed}};
@@ -48,6 +51,7 @@ const select=find(native.tree,'DropdownMenuRadioGroup')[0].props.onValueChange;
 select('external:1');assert.equal(native.external.at(-1),native.props.tracks[1]);
 select('embedded:91');assert.equal(native.external.at(-1),null);assert.deepEqual(native.calls.at(-1),['subtitle','91']);
 select('off');assert.deepEqual(native.calls.at(-1),['subtitle','no']);
+assert.deepEqual(native.calls, [['subtitle','91'], ['subtitle','no']], 'Each native selection sends exactly one track command');
 const count=native.calls.length;select('embedded:999');select('external:999');assert.equal(native.calls.length,count);
 let prevented=false;
 find(native.tree,'DropdownMenuItem')[0].props.onSelect({preventDefault(){prevented=true}});assert.ok(prevented);assert.equal(native.opened,1);

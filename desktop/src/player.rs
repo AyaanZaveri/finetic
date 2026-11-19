@@ -221,10 +221,9 @@ impl Player {
                             glass_control.invalidate();
                             result
                         }
-                        Command::Track { kind, id, .. } => {
-                            client.set_property(match kind { TrackKind::Audio => "aid", TrackKind::Subtitle => "sid" }, &id)
-                                .and_then(|_| sync_subtitle_visibility(&client, subtitle_delay).map(|_| ()))
-                        },
+                        Command::Track { kind: TrackKind::Audio, id, .. } => client.set_property("aid", &id),
+                        Command::Track { kind: TrackKind::Subtitle, id, .. } => client.set_property("sid", &id)
+                            .and_then(|_| sync_subtitle_visibility(&client, subtitle_delay).map(|_| ())),
                         Command::Stop { .. } => {
                             wake_file_open = false;
                             #[cfg(windows)]
