@@ -27,7 +27,7 @@ import {
   type Season,
   type Episode,
 } from "@/app/actions/tv-shows";
-import { fetchPlaybackProgress } from "@/app/actions";
+import type { PlaybackProgressState } from "@/app/actions/media";
 import { IntentLink } from "@/components/intent-link";
 import { ChevronLeft, ChevronRight, Play } from "lucide-react";
 import { ScrollArea, ScrollBar } from "./ui/scroll-area";
@@ -38,7 +38,6 @@ import { usePlaybackActions } from "@/contexts/MediaPlayerContext";
 import cardStyles from "./media-card.module.css";
 import styles from "./season-episodes.module.css";
 import { WatchedIndicator } from "@/components/watched-indicator";
-import { useAccountAccess } from "@/contexts/account-context";
 
 interface SeasonEpisodesProps {
   showId: string;
@@ -46,15 +45,14 @@ interface SeasonEpisodesProps {
   initialSeasons?: Season[];
   currentSeasonNumber?: number;
   currentEpisodeNumber?: number;
+  hasEpisodeRoute?: boolean;
+  progress?: PlaybackProgressState | null;
+  progressEpisode?: { season: number; episode: number };
 }
 
 // Cache episodes per series+season key
 const episodesCache = new Map<string, Episode[]>();
 const seasonsCache = new Map<string, Season[]>();
-const playbackProgressCache = new Map<
-  string,
-  { videoId?: string; progressPercent?: number; resumePositionTicks?: number }
->();
 
 function getInitialSeasonState(showId: string, currentSeasonNumber?: number) {
   const cachedSeasons = seasonsCache.get(showId);
@@ -140,8 +138,10 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
   initialSeasons,
   currentSeasonNumber,
   currentEpisodeNumber,
+  hasEpisodeRoute = !!currentEpisodeNumber,
+  progress,
+  progressEpisode,
 }: SeasonEpisodesProps) {
-  const { authenticated } = useAccountAccess();
   const prefetchedEpisodes = useMemo(
     () => normalizeVideosToEpisodes(showId, prefetchedVideos),
     [showId, prefetchedVideos]
@@ -182,9 +182,8 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
   const [episodesLoading, setEpisodesLoading] = useState(!hasPrefetchedEpisodes && initialSeasonState.selectedSeason !== null && initialEpisodes.length === 0);
   const [episodeError, setEpisodeError] = useState<string | null>(null);
   const [episodeRetry, setEpisodeRetry] = useState(0);
-  const [playbackProgressByEpisodeId, setPlaybackProgressByEpisodeId] =
-    useState<Record<string, { progressPercent?: number; resumePositionTicks?: number }>>({});
-  const episodesBottomSpacingClass = currentEpisodeNumber ? "mb-4" : "mb-8";
+  const resumePosition = safeResumePosition(progress?.resumePositionTicks, progress?.totalDuration, true);
+  const episodesBottomSpacingClass = hasEpisodeRoute ? "mb-4" : "mb-8";
   const lastScrolledEpisodeRef = useRef<string | null>(null);
   const pointerSelectionRef = useRef<string | null>(null);
   const scrollContentRef = useRef<HTMLDivElement>(null);
@@ -328,54 +327,6 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
       request?.release();
     };
   }, [showId, selectedSeason, hasPrefetchedEpisodes, prefetchedEpisodes, episodeRetry]);
-
-  useEffect(() => {
-    if (!authenticated) return;
-    let cancelled = false;
-
-    const cached = playbackProgressCache.get(showId);
-    if (cached?.videoId) {
-      setPlaybackProgressByEpisodeId({
-        [cached.videoId]: {
-          progressPercent: cached.progressPercent,
-          resumePositionTicks: cached.resumePositionTicks,
-        },
-      });
-    }
-
-    const loadPlaybackProgress = async () => {
-      const progress = await fetchPlaybackProgress(showId);
-      if (cancelled) return;
-
-      const next = {
-        videoId: progress?.videoId,
-        progressPercent: progress?.progressPercent,
-        resumePositionTicks: safeResumePosition(progress?.resumePositionTicks, progress?.totalDuration, true),
-      };
-      playbackProgressCache.set(showId, next);
-
-      if (
-        next.videoId &&
-        (typeof next.progressPercent === "number" ||
-          typeof next.resumePositionTicks === "number")
-      ) {
-        setPlaybackProgressByEpisodeId({
-          [next.videoId]: {
-            progressPercent: next.progressPercent,
-            resumePositionTicks: next.resumePositionTicks,
-          },
-        });
-      } else {
-        setPlaybackProgressByEpisodeId({});
-      }
-    };
-
-    loadPlaybackProgress();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [showId, authenticated]);
 
   useLayoutEffect(() => {
     if (selectedSeason !== currentSeasonNumber) {
@@ -533,27 +484,27 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
             ref={scrollContentRef}
             className={`flex w-max space-x-4 ${episodesBottomSpacingClass} px-4`}
           >
-            {episodes.map((episode) => (
-              <EpisodeCard
-                key={episode.id}
-                episode={{
-                  ...episode,
-                  progressPercent:
-                    playbackProgressByEpisodeId[episode.id]?.progressPercent ??
-                    episode.progressPercent,
-                  resumePositionTicks:
-                    playbackProgressByEpisodeId[episode.id]
-                      ? playbackProgressByEpisodeId[episode.id].resumePositionTicks
-                      : episode.resumePositionTicks,
-                }}
-                showId={showId}
-                onSelect={handleEpisodeSelection}
-                isActive={
-                  selectedSeason === currentSeasonNumber &&
-                  episode.episode === currentEpisodeNumber
-                }
-              />
-            ))}
+            {episodes.map((episode) => {
+              const saved = progress && (episode.id === progress.videoId ||
+                (episode.season === progressEpisode?.season && episode.episode === progressEpisode.episode));
+              return (
+                <EpisodeCard
+                  key={episode.id}
+                  episode={saved ? {
+                    ...episode,
+                    progressPercent: progress.progressPercent ?? episode.progressPercent,
+                    resumePositionTicks: resumePosition,
+                  } : episode}
+                  showId={showId}
+                  onSelect={handleEpisodeSelection}
+                  isActive={
+                    selectedSeason === currentSeasonNumber &&
+                    episode.season === currentSeasonNumber &&
+                    episode.episode === currentEpisodeNumber
+                  }
+                />
+              );
+            })}
           </div>
           <ScrollBar orientation="horizontal" className="opacity-0" />
         </ScrollArea>
@@ -632,6 +583,7 @@ const EpisodeCard = React.memo(function EpisodeCard({
         draggable={false}
         scroll={false}
         onClick={event => onSelect(event, episodeKey)}
+        aria-current={isActive || undefined}
       >
         <div className="space-y-3 py-2">
           {/* Episode Thumbnail */}

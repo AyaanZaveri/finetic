@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
 import { useParams } from "next/navigation";
+import { useSeriesOverviewPlayback } from "@/components/series-overview-playback";
 import { SeasonEpisodes } from "@/components/season-episodes";
 import type { StremioVideo, MediaItem } from "@/types/stremio";
 
@@ -24,23 +24,20 @@ export function SeriesEpisodesRouteAware({
   prefetchedSeasons,
 }: SeriesEpisodesRouteAwareProps) {
   const params = useParams<{ season?: string; episode?: string }>();
-
-  const currentSeasonNumber = useMemo(
-    () => toPositiveInt(params?.season, 0),
-    [params?.season]
-  );
-  const currentEpisodeNumber = useMemo(
-    () => toPositiveInt(params?.episode),
-    [params?.episode]
-  );
+  const playback = useSeriesOverviewPlayback();
+  const hasEpisodeRoute = params?.episode !== undefined;
+  const overviewTarget = hasEpisodeRoute ? undefined : playback?.target;
 
   return (
     <SeasonEpisodes
       showId={showId}
       prefetchedVideos={prefetchedVideos}
       initialSeasons={prefetchedSeasons}
-      currentSeasonNumber={currentSeasonNumber}
-      currentEpisodeNumber={currentEpisodeNumber}
+      currentSeasonNumber={toPositiveInt(params?.season, 0) ?? overviewTarget?.seasonNumber}
+      currentEpisodeNumber={toPositiveInt(params?.episode) ?? overviewTarget?.episodeNumber}
+      hasEpisodeRoute={hasEpisodeRoute}
+      progress={playback?.progress}
+      progressEpisode={playback?.progressEpisode}
     />
   );
 }

@@ -92,6 +92,7 @@ async function run() {
     await actions.reportPlaybackStopped({ ...input, videoId: 'show:1:2', durationSeconds: 500, currentTimeSeconds: 500, ended: true });
     const final = writes.at(-1).state;
     assert.equal(final.timeOffset, 0);
+    assert.equal((await actions.fetchPlaybackProgress('show')).completed, true, 'Overview can identify a completed episode after its position resets');
     assert.equal(final.timesWatched, 2, 'Each episode counted once');
     assert.deepEqual([...bits.watchedVideoIds(final.watched, bits.orderedEpisodeIds(episodes))], ['show:1:1', 'show:1:2']);
 

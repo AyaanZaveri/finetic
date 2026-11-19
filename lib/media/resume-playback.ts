@@ -47,19 +47,31 @@ export function resumePlaybackTarget(
     if (media.mediaSourceId) return progress?.videoId === media.mediaSourceId
         ? { ...media, resumePositionTicks: position } : fromStart;
     if (!progress?.videoId) return fromStart;
-    const selected = episodes.find(episode => episode.id === progress.videoId);
-    const parsed = parseSeriesRouteId(progress.videoId);
-    const seriesId = media.seriesId || media.id;
+    const selected = savedRegularEpisode(media.seriesId || media.id, progress.videoId, episodes);
+    return selected ? { ...episodePlaybackTarget(media, selected), resumePositionTicks: position } : fromStart;
+}
+
+export function savedRegularEpisode(
+    seriesId: string,
+    videoId: string,
+    episodes: ResumeEpisode[],
+) {
+    const selected = episodes.find(episode => episode.id === videoId);
+    const parsed = parseSeriesRouteId(videoId);
     const season = selected?.season ?? parsed.season;
     const episode = selected?.episode ?? parsed.episode;
     if ((!selected && parsed.seriesId !== parseSeriesRouteId(seriesId).seriesId)
-        || season === undefined || season < 1 || episode === undefined || episode < 1) return fromStart;
-    const title = selected?.title || selected?.name;
+        || season === undefined || season < 1 || episode === undefined || episode < 1) return;
+    return { ...selected, id: videoId, season, episode };
+}
+
+export function episodePlaybackTarget(media: MediaToPlay, episode: ResumeEpisode): MediaToPlay {
+    const title = episode.title || episode.name;
     return {
-        ...media, seriesId, showName: media.showName || media.name,
+        ...media, seriesId: media.seriesId || media.id, showName: media.showName || media.name,
         name: title || media.name, episodeTitle: title,
-        mediaSourceId: progress.videoId, seasonNumber: season, episodeNumber: episode,
-        resumePositionTicks: position,
+        mediaSourceId: episode.id, seasonNumber: episode.season, episodeNumber: episode.episode,
+        resumePositionTicks: undefined,
         streamUrl: undefined, requestHeaders: undefined, subtitleFilename: undefined, subtitleVideoSize: undefined,
     };
 }

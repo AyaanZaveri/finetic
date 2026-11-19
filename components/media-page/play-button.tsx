@@ -14,16 +14,21 @@ import { WATCH_HISTORY_CHANGED } from "@/lib/watch-history";
 import { WatchToggleButton } from "@/components/media-page/watch-toggle-button";
 import { ShuffleEpisodeButton } from "@/components/media-page/shuffle-episode-button";
 import { useAccountAccess } from "@/contexts/account-context";
+import { useSeriesOverviewPlayback } from "@/components/series-overview-playback";
 
 export function MediaPlayButton({ media, episodes }: { media: MediaToPlay; episodes?: ResumeEpisode[] }) {
     const { authenticated, requestSignIn } = useAccountAccess();
     const { playMedia } = usePlaybackActions();
     const id = media.seriesId || media.id;
     const sourceId = media.mediaSourceId;
+    const overview = media.type === "series" && !sourceId;
+    const seriesPlayback = useSeriesOverviewPlayback();
+    const overviewPlayback = overview ? seriesPlayback : null;
+    const sharedProgress = !!overviewPlayback;
     const key = `${media.type}:${id}:${sourceId || "overview"}`;
     const [saved, setSaved] = useState<{ key: string; progress: ResumeProgress | null } | null>(null);
     useEffect(() => {
-        if (!authenticated) return;
+        if (!authenticated || sharedProgress) return;
         let cancelled = false;
         let generation = 0;
         const load = () => {
@@ -47,19 +52,18 @@ export function MediaPlayButton({ media, episodes }: { media: MediaToPlay; episo
             window.removeEventListener(WATCH_HISTORY_CHANGED, refresh);
             window.removeEventListener("focus", refresh);
         };
-    }, [id, sourceId, key, media.type, authenticated]);
+    }, [id, sourceId, key, media.type, authenticated, sharedProgress]);
 
-    const checkingProgress = saved?.key !== key;
-    const target = resumePlaybackTarget(media, checkingProgress ? {
+    const checkingProgress = overviewPlayback?.pending ?? saved?.key !== key;
+    const target = overviewPlayback?.target ?? resumePlaybackTarget(media, checkingProgress ? {
         resumePositionTicks: media.resumePositionTicks, videoId: sourceId,
-    } : saved.progress, episodes);
+    } : saved?.progress ?? null, episodes);
     const metadataIntent = useMetadataIntent(target);
     const warm = () => { if (authenticated) { preloadPlayer(); metadataIntent.start(); } };
     const resume = typeof target.resumePositionTicks === "number" && target.resumePositionTicks > 0;
-    const overview = media.type === "series" && !sourceId;
-    const context = resume ? overview
+    const context = overview && target.mediaSourceId
         ? `S${String(target.seasonNumber).padStart(2, "0")}E${String(target.episodeNumber).padStart(2, "0")}`
-        : `from ${formatResumePosition(target.resumePositionTicks!)}` : "";
+        : resume ? `from ${formatResumePosition(target.resumePositionTicks!)}` : "";
 
     return (
         <div className="mt-3 flex max-w-full flex-wrap items-center gap-2">
@@ -70,13 +74,13 @@ export function MediaPlayButton({ media, episodes }: { media: MediaToPlay; episo
                 className="h-10 min-w-0 gap-2 rounded-full bg-foreground px-5 text-[15px] font-semibold text-background has-[>svg]:px-5 hover:bg-foreground/90 hover:ring-2 hover:ring-offset-2 hover:ring-primary hover:ring-offset-accent hover:shadow-xl hover:shadow-primary/30"
                 disabled={authenticated && checkingProgress}
                 aria-busy={(authenticated && checkingProgress) || undefined}
-                aria-label={!authenticated ? `Sign in to play ${media.name}` : resume ? `Resume ${media.name} ${context}` : `Play ${media.name}`}
+                aria-label={!authenticated ? `Sign in to play ${media.name}` : `${resume ? "Resume" : "Play"} ${media.name}${context ? ` ${context}` : ""}`}
                 onClick={() => authenticated ? playMedia(target) : requestSignIn()}
             >
                 <Play aria-hidden="true" data-icon="inline-start" className="size-4 fill-current" />
                 <span>
                     {!authenticated ? "Sign in to play" : resume ? "Resume" : "Play"}
-                    {authenticated && resume && <> <span className="font-medium tabular-nums text-background/60">{context}</span></>}
+                    {authenticated && context && <> <span className="font-medium tabular-nums text-background/60">{context}</span></>}
                 </span>
             </Button>
             {authenticated && resume && (

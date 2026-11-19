@@ -41,6 +41,7 @@ assert.equal(opaque.episodeTitle, 'Known episode');
 assert.equal(opaque.episodeNumber, 12);
 
 let saved;
+let sharedPlayback;
 const played = [];
 const { MediaPlayButton } = load('components/media-page/play-button.tsx', {
     require: name => {
@@ -49,6 +50,7 @@ const { MediaPlayButton } = load('components/media-page/play-button.tsx', {
         if (name === '@/lib/media/resume-playback') return helpers;
         if (name === '@/contexts/MediaPlayerContext') return { usePlaybackActions: () => ({ playMedia: target => played.push(target) }) };
         if (name === '@/contexts/account-context') return { useAccountAccess: () => ({ authenticated: true }) };
+        if (name === '@/components/series-overview-playback') return { useSeriesOverviewPlayback: () => sharedPlayback };
         if (name === '@/components/metadata-preload') return { useMetadataIntent: () => ({}) };
         if (name === '@/components/ui/button') return { Button: 'button' };
         return new Proxy({}, { get: (_, key) => key });
@@ -92,4 +94,78 @@ assert.equal(unwatched.props.children[0].props.children[1].props.children[0], 'P
 assert.equal(unwatched.props.children[1], false, 'No redundant restart button without progress');
 saved = null;
 assert.equal(MediaPlayButton({ media }).props.children[0].props.disabled, true, 'Wait for current episode progress before playing');
-console.log('PASS: selected-episode resume, show episode labels, muted detail, delayed restart tooltip, fresh playback targets, and progress isolation.');
+
+async function testSeriesOverview() {
+    const { load, hooks } = require('./test-support/react-hooks.cjs');
+    const h = hooks();
+    const show = { id: 'tmdb:42', imdbId: 'tt42', type: 'series', name: 'Show' };
+    const reads = [], lookups = [];
+    const listeners = new Map();
+    const following = { id: 'tmdb:42:6:10', season: 6, episode: 10, title: 'Next' };
+    let params = { id: show.id };
+    let latest = { ...progress, videoId: 'tt42:6:9' };
+    const deps = {
+        'next/navigation': { useParams: () => params },
+        '@/lib/media/resume-playback': helpers,
+        '@/lib/watch-history': { WATCH_HISTORY_CHANGED: 'watch-history-changed' },
+        '@/contexts/account-context': { useAccountAccess: () => ({ authenticated: true }) },
+        '@/app/actions/media': { fetchPlaybackProgress: async id => { reads.push(id); return latest; } },
+        '@/app/actions/tv-shows': {
+            getFollowingEpisodeForSeries: async (...args) => { lookups.push(args); return following; },
+        },
+    };
+    const { SeriesOverviewPlaybackProvider } = load('components/series-overview-playback.tsx', {
+        ...deps, react: h.react, 'react/jsx-runtime': h.jsx,
+    }, { window: {
+        addEventListener: (name, callback) => listeners.set(name, callback),
+        removeEventListener: name => listeners.delete(name),
+    } });
+    const { SeriesEpisodesRouteAware } = load('components/series-episodes-route-aware.tsx', {
+        ...deps, 'react/jsx-runtime': h.jsx,
+        '@/components/series-overview-playback': { useSeriesOverviewPlayback: () => sharedPlayback },
+        '@/components/season-episodes': { SeasonEpisodes: 'season-episodes' },
+    });
+    const renderProvider = () => {
+        sharedPlayback = h.render(SeriesOverviewPlaybackProvider, { show }).props.value;
+        h.flush();
+    };
+    const tick = () => new Promise(resolve => setImmediate(resolve));
+    const selection = () => {
+        const { currentSeasonNumber, currentEpisodeNumber } = SeriesEpisodesRouteAware({ showId: show.id }).props;
+        return [currentSeasonNumber, currentEpisodeNumber];
+    };
+    const play = () => MediaPlayButton({ media: show }).props.children[0].props.onClick();
+    renderProvider();
+    assert.equal(MediaPlayButton({ media: show }).props.children[0].props.disabled, true);
+    await tick(); renderProvider();
+    assert.deepEqual(reads, ['tt42'], 'TMDB cards use playback history from the canonical show');
+    assert.deepEqual(selection(), [6, 9]);
+    play();
+    assert.equal(played.at(-1).mediaSourceId, 'tt42:6:9');
+    assert.equal(played.at(-1).resumePositionTicks, 754);
+
+    latest = { videoId: 'tt42:6:9', completed: true, resumePositionTicks: 1700, totalDuration: 1800 };
+    listeners.get('watch-history-changed')({ detail: { id: 'tt42' } });
+    await tick(); renderProvider();
+    assert.deepEqual(lookups, [[show.id, 6, 9]]);
+    assert.deepEqual(selection(), [6, 10]);
+    play();
+    assert.equal(played.at(-1).mediaSourceId, following.id);
+    assert.equal(played.at(-1).resumePositionTicks, undefined);
+
+    params = { id: show.id, season: '0', episode: '2' };
+    renderProvider();
+    await tick(); renderProvider();
+    assert.deepEqual(selection(), [0, 2], 'Explicit episode links take precedence over show progress');
+    assert.equal(lookups.length, 1, 'Episode pages skip next-episode selection');
+
+    latest = null;
+    params = { id: show.id };
+    renderProvider();
+    await tick(); renderProvider();
+    assert.deepEqual(selection(), [1, 1], 'New viewers see the pilot');
+    h.unmount();
+    console.log('PASS: series overview and playback share the saved, next, or first episode; direct episode links keep their selection.');
+}
+
+testSeriesOverview().catch(error => { console.error(error); process.exitCode = 1; });

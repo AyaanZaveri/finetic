@@ -9,6 +9,7 @@ import { IntentLink } from "@/components/intent-link";
 import { redirect } from "next/navigation";
 import { BackdropImage } from "@/components/media-page/backdrop-image";
 import { SeriesEpisodesRouteAware } from "@/components/series-episodes-route-aware";
+import { SeriesOverviewPlaybackProvider } from "@/components/series-overview-playback";
 import { EpisodeStreamsRouteAware } from "@/components/episode-streams-route-aware";
 import {
   buildEpisodePath,
@@ -97,15 +98,17 @@ export default async function SeriesLayout({
             id="stream-loading-pill-anchor"
             className="absolute top-4 right-4 z-30 pointer-events-none"
           />
-          {children}
+          <SeriesOverviewPlaybackProvider show={show}>
+            {children}
 
-          <div className="mt-10 md:mt-8">
-            <SeriesEpisodesRouteAware
-              showId={show.id}
-              prefetchedVideos={show.videos}
-              prefetchedSeasons={show.seasons}
-            />
-          </div>
+            <div className="mt-10 md:mt-8">
+              <SeriesEpisodesRouteAware
+                showId={show.id}
+                prefetchedVideos={show.videos}
+                prefetchedSeasons={show.seasons}
+              />
+            </div>
+          </SeriesOverviewPlaybackProvider>
 
           <EpisodeStreamsRouteAware
             show={show}

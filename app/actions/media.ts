@@ -815,6 +815,7 @@ export interface PlaybackProgressState {
   progressPercent?: number;
   totalDuration?: number;
   videoId?: string;
+  completed?: boolean;
 }
 
 export async function fetchPlaybackProgress(
@@ -862,6 +863,8 @@ export async function fetchPlaybackProgress(
 
     return {
       videoId: stateVideoId,
+      completed: (Number(item.state.flaggedWatched) > 0 &&
+        (offset === 0 || (duration > 0 && offset >= duration * CREDITS_THRESHOLD_COEF))) || undefined,
       resumePositionTicks: offsetInSeconds > 0 ? offsetInSeconds : undefined,
       totalDuration: durationInSeconds > 0 ? durationInSeconds : undefined,
       progressPercent:

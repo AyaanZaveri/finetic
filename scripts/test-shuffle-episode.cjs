@@ -105,6 +105,7 @@ async function run() {
             if (name === 'react/jsx-runtime') return { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) };
             if (name === 'react') return { useState: () => [null, () => {}], useEffect() {} };
             if (name === '@/lib/media/resume-playback') return resume;
+            if (name === '@/components/series-overview-playback') return { useSeriesOverviewPlayback: () => null };
             if (name === '@/contexts/MediaPlayerContext') return { usePlaybackActions: () => ({ playMedia() {} }) };
             return new Proxy({}, { get: (_, key) => key });
         },
