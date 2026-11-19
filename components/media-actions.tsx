@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { MediaInfoDialog } from "@/components/media-info-dialog";
 import { ImageEditorDialog } from "@/components/image-editor-dialog";
-import { Info, Download, Play, ArrowLeft } from "lucide-react";
+import { Info, Download, Play, Check } from "lucide-react";
 import {
   getDownloadUrl,
   getStreamUrl,
@@ -36,6 +36,8 @@ import {
 } from "@/lib/utils";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import { DolbyDigital, DolbyTrueHd, DolbyVision, DtsHd } from "./icons/codecs";
+import { UserItemDataDto } from "@jellyfin/sdk/lib/generated-client";
+import { updatePlayedStatus } from "@/app/actions/media";
 
 interface MediaActionsProps {
   movie?: JellyfinItem;
@@ -49,6 +51,9 @@ export function MediaActions({ movie, show, episode }: MediaActionsProps) {
   const [selectedVersion, setSelectedVersion] =
     useState<MediaSourceInfo | null>(null);
   const [userPolicy, setUserPolicy] = useState<UserPolicy | null>(null);
+  const [userData, setUserData] = useState<UserItemDataDto | null>(
+    episode?.UserData || movie?.UserData || null,
+  );
 
   // Determine if this is a resume or new play
   const hasProgress =
@@ -125,6 +130,11 @@ export function MediaActions({ movie, show, episode }: MediaActionsProps) {
 
   const download = async () => {
     window.open(await getDownloadUrl(selectedVersion.Id!), "_blank");
+  };
+
+  const handlePlayedStatus = async () => {
+    if (userData && (episode || movie))
+      setUserData(await updatePlayedStatus((episode || movie)!, !userData.Played));
   };
 
   // Helper function to get display name for a media source
@@ -293,6 +303,14 @@ export function MediaActions({ movie, show, episode }: MediaActionsProps) {
         <Button variant="outline" size="icon" onClick={download}>
           <Download className="h-4 w-4" />
         </Button>
+
+        {userData && (
+          <Button variant="outline" size="icon" onClick={handlePlayedStatus}>
+            <Check
+              className={`h-4 w-4 ${userData.Played ? "text-green-500" : ""}`}
+            />
+          </Button>
+        )}
 
         <Dialog>
           <DialogTrigger asChild>

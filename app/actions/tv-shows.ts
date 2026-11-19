@@ -120,7 +120,9 @@ export async function fetchEpisodeDetails(episodeId: string): Promise<JellyfinIt
   }
 }
 
-export async function getNextEpisodeForSeries(seriesId: string): Promise<JellyfinItem | null> {
+export async function getNextEpisodeForSeries(
+  seriesId: string,
+): Promise<JellyfinItem | null> {
   const { serverUrl, user } = await getAuthData();
   const jellyfinInstance = createJellyfinInstance();
   const api = jellyfinInstance.createApi(serverUrl);
