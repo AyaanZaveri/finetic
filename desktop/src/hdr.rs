@@ -46,7 +46,7 @@ impl Video {
 
 /// Avoid shader recompilation for brightness fluctuations below 5%.
 /// Like AIOStreams, use potential headroom when current headroom reports 1.0.
-pub fn target_peak(
+fn target_peak(
     current: f64,
     potential: f64,
     float_surface: bool,
@@ -67,6 +67,22 @@ pub fn target_peak(
         Some(old) if u64::from(peak.abs_diff(old)) * 20 < u64::from(old) => old,
         _ => peak,
     })
+}
+
+pub fn output_peak(
+    current: f64,
+    potential: f64,
+    float_surface: bool,
+    previous: Option<u32>,
+    requested: Option<u32>,
+) -> Option<u32> {
+    match requested {
+        // The compositor still enforces current EDR headroom. Keep the
+        // manually configured tone-map target stable as headroom varies.
+        Some(nits) => target_peak(1.0, potential, float_surface, None)
+            .map(|display_peak| nits.clamp(REFERENCE_WHITE as u32, display_peak)),
+        None => target_peak(current, potential, float_surface, previous),
+    }
 }
 
 #[cfg(test)]
@@ -128,5 +144,15 @@ mod tests {
         assert_eq!(target_peak(4.0, f64::INFINITY, true, None), None);
         assert_eq!(target_peak(f64::NAN, 4.0, true, None), Some(812));
         assert_eq!(target_peak(1000.0, 1000.0, true, None), Some(10_000));
+    }
+
+    #[test]
+    fn manual_peak_is_stable_and_respects_display_capability() {
+        assert_eq!(output_peak(3.0, 8.0, true, None, None), Some(609));
+        assert_eq!(output_peak(3.0, 8.0, true, Some(609), Some(1600)), Some(1600));
+        assert_eq!(output_peak(1.1, 8.0, true, Some(1600), Some(1600)), Some(1600));
+        assert_eq!(output_peak(1.1, 4.0, true, None, Some(1600)), Some(812));
+        assert_eq!(output_peak(1.0, 1.0, true, None, Some(1600)), None);
+        assert_eq!(output_peak(1.1, 8.0, false, None, Some(1600)), None);
     }
 }

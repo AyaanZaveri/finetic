@@ -603,6 +603,11 @@ double conversion. This same SDR setup applies on startup, SDR displays,
 unsupported HDR metadata/colorspaces, and 8-bit surfaces; mpv tone-maps HDR to SDR
 when the display/surface cannot present HDR. The React controls stay in their existing WebView.
 
+Playback settings on supported Mac builds offer a manual HDR tone-mapping
+target for the next video. Automatic is the default. The manual target is
+limited by the display's reported potential headroom. macOS controls the
+display's actual output. Browser WebGPU preferences are separate.
+
 Native HDR tests use local, tagged `pq.mkv`, `hlg.mkv`, and `sdr.mkv` fixtures:
 
 ```sh

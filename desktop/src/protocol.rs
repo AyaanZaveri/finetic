@@ -50,6 +50,7 @@ pub enum Command {
         rate: f64,
     },
     SubtitleDelay { session: String, seconds: f64 },
+    MacHdrPeak { nits: Option<u32> },
     Track {
         session: String,
         kind: TrackKind,
@@ -172,6 +173,9 @@ pub fn parse(text: &str) -> Result<Command, String> {
         Command::SubtitleDelay { session, seconds } if session.is_empty() || session.len() > 128 || !seconds.is_finite() || !(-30.0..=30.0).contains(seconds) => {
             return Err("Invalid subtitle delay".into());
         }
+        Command::MacHdrPeak { nits: Some(nits) } if !(203..=10_000).contains(nits) => {
+            return Err("Invalid HDR peak brightness".into());
+        }
         Command::Track { id, .. } if id != "no" && id.parse::<u32>().is_err() => {
             return Err("Invalid track id".into());
         }
@@ -227,6 +231,11 @@ mod tests {
             parse(r#"{"type":"client-stage","stage":"play-requested","url":"secret"}"#).is_err()
         );
         assert!(parse(r#"{"type":"app-ready","dark":true}"#).is_ok());
+        assert!(matches!(parse(r#"{"type":"mac-hdr-peak","nits":1600}"#), Ok(Command::MacHdrPeak { nits: Some(1600) })));
+        assert!(matches!(parse(r#"{"type":"mac-hdr-peak","nits":null}"#), Ok(Command::MacHdrPeak { nits: None })));
+        for nits in ["202", "10001", "-1", "1600.5", "\"1600\""] {
+            assert!(parse(&format!(r#"{{"type":"mac-hdr-peak","nits":{nits}}}"#)).is_err());
+        }
         assert!(parse(r#"{"type":"app-ready","dark":true,"url":"file:///x"}"#).is_err());
         assert!(parse(r#"{"type":"app-ready","dark":"true"}"#).is_err());
         for mode in ["fit", "crop", "stretch"] {

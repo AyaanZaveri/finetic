@@ -1,6 +1,7 @@
 "use client";
 
 import { RotateCcw } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSettings } from "@/contexts/settings-context";
@@ -8,11 +9,15 @@ import { PlaybackLanguageSettings } from "./playback-language-settings";
 import { NumberField } from "@/components/arc/number-field/number-field";
 import { Switch } from "@/components/arc/switch/switch";
 import { Field, FieldGroup, FieldLabel, FieldContent, FieldDescription } from "@/components/ui/field";
+import { desktopBridge, type DesktopBridge } from "@/lib/desktop/bridge";
 import styles from "@/app/(main)/settings/settings.module.css";
 
 export function PlaybackSettings() {
   const { playbackPreferences, updatePlaybackPreferences } = useSettings();
+  const [desktop, setDesktop] = useState<DesktopBridge>();
+  useEffect(() => setDesktop(desktopBridge()), []);
   const hdrBrightnessDisabled = !playbackPreferences.webGpuPlayback || !playbackPreferences.hdrOutput;
+  const automaticMacPeak = playbackPreferences.macHdrPeakNits === null;
   return <>
     <section aria-labelledby="playback-episodes" className={styles.section}>
       <h2 id="playback-episodes" className="text-lg font-medium">Episodes</h2>
@@ -53,17 +58,35 @@ export function PlaybackSettings() {
           <Switch id="continue-watching-prefetch" aria-describedby="continue-watching-prefetch-description" checked={playbackPreferences.continueWatchingPrefetch}
             onCheckedChange={continueWatchingPrefetch => updatePlaybackPreferences({ continueWatchingPrefetch })} />
         </Field>
-        <Field orientation="horizontal">
+        {!desktop && <Field orientation="horizontal">
           <FieldContent>
             <FieldLabel htmlFor="automatic-web-stream">Automatically find a playable stream</FieldLabel>
             <FieldDescription id="automatic-web-stream-description">On web, try other streams if playback fails or audio is unsupported.</FieldDescription>
           </FieldContent>
           <Switch id="automatic-web-stream" aria-describedby="automatic-web-stream-description" checked={playbackPreferences.autoSelectWebStream}
             onCheckedChange={autoSelectWebStream => updatePlaybackPreferences({ autoSelectWebStream })} />
-        </Field>
+        </Field>}
       </FieldGroup>
     </section>
-    <section aria-labelledby="playback-video" className={styles.section}>
+    {desktop ? desktop.platform === "macos" && <section aria-labelledby="playback-video" className={styles.section}>
+      <h2 id="playback-video" className="text-lg font-medium">Native HDR</h2>
+      <p className={styles.credits}>Navigator uses macOS HDR for compatible videos and displays.</p>
+      {desktop.capabilities?.macHdrPeak && <FieldGroup className="min-w-0 gap-6">
+        <Field orientation="horizontal">
+          <FieldContent>
+            <FieldLabel htmlFor="mac-hdr-auto">Automatic HDR peak brightness</FieldLabel>
+            <FieldDescription id="mac-hdr-auto-description">Use the display’s current HDR headroom. Changes apply to the next video.</FieldDescription>
+          </FieldContent>
+          <Switch id="mac-hdr-auto" aria-describedby="mac-hdr-auto-description" checked={automaticMacPeak}
+            onCheckedChange={automatic => updatePlaybackPreferences({ macHdrPeakNits: automatic ? null : 1000 })} />
+        </Field>
+        {!automaticMacPeak && <NumberField id="mac-hdr-peak-nits" label="Native HDR peak brightness" suffix=" nits"
+          description="Set a tone-mapping target up to the display’s HDR capability. macOS controls the brightness the display can deliver."
+          min={203} max={10000} step={1} buttonStep={50} largeStep={100} size="sm"
+          value={playbackPreferences.macHdrPeakNits ?? 1000}
+          onValueChange={macHdrPeakNits => updatePlaybackPreferences({ macHdrPeakNits })} />}
+      </FieldGroup>}
+    </section> : <section aria-labelledby="playback-video" className={styles.section}>
       <h2 id="playback-video" className="text-lg font-medium">Video and HDR</h2>
       <p className={styles.credits}>Changes in this section apply to the next video.</p>
       <FieldGroup className="min-w-0 gap-6">
@@ -116,6 +139,6 @@ export function PlaybackSettings() {
             } />
         </div>
       </FieldGroup>
-    </section>
+    </section>}
   </>;
 }

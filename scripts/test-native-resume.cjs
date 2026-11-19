@@ -1,8 +1,9 @@
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const { load } = require('./test-support/react-hooks.cjs');
+let macHdrPeakNits = 1600;
 const { MpvController } = load('lib/desktop/mpv-controller.ts', {
- '@/lib/media/playback-preferences': { readPlaybackPreferences: () => ({ audioLanguage: 'en' }) },
+ '@/lib/media/playback-preferences': { readPlaybackPreferences: () => ({ audioLanguage: 'en', macHdrPeakNits }) },
 }, { Event, EventTarget, CustomEvent, DOMException, URL, crypto, setTimeout, clearTimeout });
 for (const platform of ['macos', 'windows', 'linux', 'android', 'ios']) {
  const sent = [];
@@ -23,6 +24,23 @@ for (const platform of ['macos', 'windows', 'linux']) {
  controller.dispose();
 }
 console.log('PASS: initial native resume, zero/reset, finite-value sanitization, and older-runtime compatibility');
+for (const [platform, supported] of [['macos', true], ['macos', false], ['windows', true]]) {
+ const sent = [];
+ const controller = new MpvController({ platform, capabilities: { macHdrPeak: supported }, send: m => sent.push(m), subscribe: () => () => {} });
+ for (const nits of [1600, null]) {
+  macHdrPeakNits = nits;
+  sent.length = 0;
+  controller.load('https://fixture.test/movie.mkv');
+  const loadIndex = sent.findIndex(message => message.type === 'load');
+  if (platform === 'macos' && supported) {
+   assert.equal(sent[loadIndex - 1].type, 'mac-hdr-peak');
+   assert.equal(sent[loadIndex - 1].nits, nits);
+  } else {
+   assert.ok(!sent.some(message => message.type === 'mac-hdr-peak'));
+  }
+ }
+ controller.dispose();
+}
 // Execute the real metadata handler: FILE_LOADED may arrive before time-pos
 // reflects mpv's initial seek, so it must not issue a second seek for that case.
 const fs = require('node:fs'), vm = require('node:vm'), ts = require('typescript');

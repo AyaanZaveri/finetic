@@ -4,7 +4,7 @@
 // See desktop/THIRD-PARTY.md for provenance and modifications.
 
 use crate::{
-    hdr::{SDR_OUTPUT_OPTIONS, Video, defer_sdr_reset, target_peak},
+    hdr::{SDR_OUTPUT_OPTIONS, Video, defer_sdr_reset, output_peak},
     mpv::Mpv,
 };
 use block2::RcBlock;
@@ -34,6 +34,7 @@ struct State {
     view: Option<Retained<NSView>>,
     float_surface: bool,
     video: Option<Video>,
+    peak_override: Option<u32>,
     applied: Option<Applied>,
     sdr_configured: bool,
     generation: u64,
@@ -107,6 +108,13 @@ pub fn refresh() {
     }
 }
 
+pub fn set_peak(nits: Option<u32>) {
+    let changed = STATE.with_borrow_mut(|s| std::mem::replace(&mut s.peak_override, nits) != nits);
+    if changed {
+        apply();
+    }
+}
+
 fn after(delay: Duration, work: impl FnOnce() + Send + 'static) {
     if let Ok(when) = DispatchTime::try_from(delay) {
         let _ = DispatchQueue::main().after(when, work);
@@ -132,11 +140,12 @@ fn apply() {
             s.float_surface,
             s.video
         );
-        let peak = target_peak(
+        let peak = output_peak(
             current,
             potential,
             s.float_surface,
             s.applied.map(|a| a.peak),
+            s.peak_override,
         );
         match s.video.zip(peak) {
             Some((video, peak)) => s.switch_on(Applied { video, peak }),

@@ -7,7 +7,7 @@ use crate::mpv::Mpv;
 use crate::frame_schedule::{Draw, FrameSchedule, UpdateGate};
 use crate::render::RenderContext;
 use dispatch2::{DispatchQueue, DispatchTime};
-pub use hdr::update as update_hdr;
+pub use hdr::{set_peak as set_hdr_peak, update as update_hdr};
 use objc2::rc::Retained;
 use objc2::{
     AllocAnyThread, DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send,

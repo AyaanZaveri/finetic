@@ -10,7 +10,7 @@ const audio = load('lib/media/audio-language.ts');
 const subtitles = load('lib/media/subtitle-preference.ts', { './audio-language': audio });
 const appearance = load('lib/subtitle-appearance.ts');
 const plain = value => JSON.parse(JSON.stringify(value));
-const defaults = { continueWatchingPrefetch: true, metadataPrefetch: true, episodeAutoplay: true, episodePrefetch: true, autoSelectWebStream: false, webGpuPlayback: true, nativeWebGpuDecoding: false, hdrOutput: false, hdrPeakNits: 1000, audioLanguage: 'en', subtitleLanguage: 'en', subtitleMode: 'normal', subtitlesEnabledByDefault: false };
+const defaults = { continueWatchingPrefetch: true, metadataPrefetch: true, episodeAutoplay: true, episodePrefetch: true, autoSelectWebStream: false, webGpuPlayback: true, nativeWebGpuDecoding: false, hdrOutput: false, hdrPeakNits: 1000, macHdrPeakNits: null, audioLanguage: 'en', subtitleLanguage: 'en', subtitleMode: 'normal', subtitlesEnabledByDefault: false };
 assert.deepEqual(plain(preferences.readPlaybackPreferences()), defaults);
 function mount() {
   const host = hooks();
@@ -32,6 +32,10 @@ assert.equal(settings.value.playbackPreferences.autoSelectWebStream, true, 'Auto
 settings.value.updatePlaybackPreferences({ webGpuPlayback: false, hdrOutput: true }); settings.render(); settings = mount();
 assert.equal(settings.value.playbackPreferences.webGpuPlayback, false);
 assert.equal(settings.value.playbackPreferences.hdrOutput, true, 'Keep the saved HDR choice while WebGPU is off');
+settings.value.updatePlaybackPreferences({ macHdrPeakNits: 1600 }); settings.render(); settings = mount();
+assert.equal(settings.value.playbackPreferences.macHdrPeakNits, 1600, 'The native target persists independently');
+assert.equal(settings.value.playbackPreferences.hdrPeakNits, 1000, 'Native brightness does not affect WebGPU');
+assert.equal(preferences.normalizePlaybackPreferences({ macHdrPeakNits: '1600' }).macHdrPeakNits, null);
 settings.value.updatePlaybackPreferences({ subtitleMode: 'normal' }); settings.render();
 assert.equal(settings.value.playbackPreferences.audioLanguage, 'fr', 'Updating one preference preserves the others');
 for (const corrupt of ['{broken', 'null', '5', '{"audioLanguage":"garbage","subtitleMode":"bad","subtitlesEnabledByDefault":"true"}']) {
@@ -260,19 +264,27 @@ assert.equal(preferences.normalizePlaybackPreferences({ hdrPeakNits: 600 }).hdrP
 assert.equal(preferences.normalizePlaybackPreferences({ hdrPeakNits: NaN }).hdrPeakNits, 1000);
 assert.equal(preferences.normalizePlaybackPreferences({ hdrPeakNits: 10 }).hdrPeakNits, 203);
 assert.equal(preferences.normalizePlaybackPreferences({ hdrPeakNits: 20000 }).hdrPeakNits, 10000);
-const { PlaybackSettings } = load('components/playback-settings.tsx', {
-  'react/jsx-runtime': ui.jsx,
-  '@/contexts/settings-context': { useSettings: () => ({ playbackPreferences: gpuSettings,
-    updatePlaybackPreferences(patch) { patches.push(patch); gpuSettings = { ...gpuSettings, ...patch }; } }) },
-  '@/components/arc/switch/switch': { Switch: 'Switch' },
-  '@/components/ui/field': { Field: 'Field', FieldGroup: 'FieldGroup', FieldLabel: 'FieldLabel', FieldDescription: 'FieldDescription', FieldContent: 'FieldContent' },
-  '@/app/(main)/settings/settings.module.css': {},
-  '@/components/arc/number-field/number-field': { NumberField: 'NumberField' },
-  '@/components/ui/button': { Button: 'Button' },
-  '@/components/ui/tooltip': { Tooltip: 'Tooltip', TooltipTrigger: 'TooltipTrigger', TooltipContent: 'TooltipContent' },
-  './playback-language-settings': { PlaybackLanguageSettings: 'PlaybackLanguageSettings' },
-});
-const switches = () => find(PlaybackSettings(), node => node.type === 'Switch');
+function mountPlaybackSettings(desktop) {
+  const host = hooks();
+  const { PlaybackSettings } = load('components/playback-settings.tsx', {
+    react: host.react, 'react/jsx-runtime': host.jsx,
+    '@/lib/desktop/bridge': { desktopBridge: () => desktop },
+    '@/contexts/settings-context': { useSettings: () => ({ playbackPreferences: gpuSettings,
+      updatePlaybackPreferences(patch) { patches.push(patch); gpuSettings = { ...gpuSettings, ...patch }; } }) },
+    '@/components/arc/switch/switch': { Switch: 'Switch' },
+    '@/components/ui/field': { Field: 'Field', FieldGroup: 'FieldGroup', FieldLabel: 'FieldLabel', FieldDescription: 'FieldDescription', FieldContent: 'FieldContent' },
+    '@/app/(main)/settings/settings.module.css': {},
+    '@/components/arc/number-field/number-field': { NumberField: 'NumberField' },
+    '@/components/ui/button': { Button: 'Button' },
+    '@/components/ui/tooltip': { Tooltip: 'Tooltip', TooltipTrigger: 'TooltipTrigger', TooltipContent: 'TooltipContent' },
+    './playback-language-settings': { PlaybackLanguageSettings: 'PlaybackLanguageSettings' },
+  });
+  const render = () => host.render(PlaybackSettings);
+  render(); host.flush();
+  return render;
+}
+const renderWebSettings = mountPlaybackSettings();
+const switches = () => find(renderWebSettings(), node => node.type === 'Switch');
 switches().find(node => node.props.id === 'hdr-output').props.onCheckedChange(true);
 switches().find(node => node.props.id === 'webgpu-playback').props.onCheckedChange(false);
 const hdrSwitch = switches().find(node => node.props.id === 'hdr-output');
@@ -280,7 +292,26 @@ assert.equal(hdrSwitch.props.disabled, true);
 assert.equal(hdrSwitch.props.checked, true, 'Disabling WebGPU keeps the saved HDR selection');
 assert.deepEqual(plain(patches), [{ hdrOutput: true }, { webGpuPlayback: false }]);
 
-const peakField = find(PlaybackSettings(), node => node.type === 'NumberField')[0];
+const peakField = find(renderWebSettings(), node => node.type === 'NumberField')[0];
 assert.equal(peakField.props.disabled, true);
 peakField.props.onValueChange(600);
 assert.equal(gpuSettings.hdrPeakNits, 600);
+
+
+for (const desktop of [{ platform: 'macos' }, { platform: 'windows' }, { platform: 'ios' }]) {
+  const render = mountPlaybackSettings(desktop);
+  assert.equal(find(render(), node => /webgpu|automatic-web-stream|hdr-peak-nits/.test(node.props?.id || '')).length, 0,
+    'Native players do not display browser-only controls or options unsupported by their runtime');
+}
+const renderMacSettings = mountPlaybackSettings({ platform: 'macos', capabilities: { macHdrPeak: true } });
+const macAuto = () => find(renderMacSettings(), node => node.props?.id === 'mac-hdr-auto' && node.type === 'Switch')[0];
+assert.equal(macAuto().props.checked, true);
+macAuto().props.onCheckedChange(false);
+const macPeak = find(renderMacSettings(), node => node.type === 'NumberField')[0];
+assert.equal(macPeak.props.id, 'mac-hdr-peak-nits');
+macPeak.props.onValueChange(1600);
+assert.equal(gpuSettings.macHdrPeakNits, 1600);
+assert.equal(gpuSettings.hdrPeakNits, 600);
+macAuto().props.onCheckedChange(true);
+assert.equal(gpuSettings.macHdrPeakNits, null);
+console.log('PASS: native HDR is automatic by default, with a separate peak target and capability-gated settings');
