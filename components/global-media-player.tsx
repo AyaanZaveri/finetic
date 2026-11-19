@@ -39,7 +39,7 @@ import {
   reportPlaybackProgress,
   reportPlaybackStopped,
 } from "@/app/actions";
-import { getSubtitleContent } from "@/app/actions/subtitles";
+import { getAuthData, getSubtitleContent } from "@/app/actions/subtitles";
 import HlsVideoElement from "hls-video-element/react";
 import { formatRuntime } from "@/lib/utils";
 import {
@@ -62,6 +62,13 @@ interface GlobalMediaPlayerProps {
   onToggleAIAsk?: () => void;
 }
 
+interface CustomSubtitleTrack {
+  label: string;
+  language: string;
+  kind: string;
+  active: boolean;
+}
+
 export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const {
     isPlayerVisible,
@@ -77,6 +84,8 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const [mediaDetails, setMediaDetails] = useState<JellyfinItem | null>(null);
   const [selectedVersion, setSelectedVersion] =
     useState<MediaSourceInfo | null>(null);
+  const [activeSubtitleTrack, setActiveSubtitleTrack] =
+    useState<CustomSubtitleTrack | null>(null);
   const [subtitleTracks, setSubtitleTracks] = useState<
     Array<{
       kind: string;
@@ -91,6 +100,45 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const [videoStarted, setVideoStarted] = useState(false);
   const [fetchingSubtitles, setFetchingSubtitles] = useState(false);
   
+  useEffect(() => {
+    if (!activeSubtitleTrack) {
+      // Turn off subtitles
+      setSubtitleData([]);
+      setCurrentSubtitle(null);
+      // Update all tracks to inactive
+      setSubtitleTracks((prev) =>
+        prev.map((track) => ({ ...track, active: false })),
+      );
+      return;
+    }
+
+    const trackIndex = subtitleTracks.findIndex(
+      (track) => track.label === activeSubtitleTrack.label,
+    );
+
+    if (currentMedia && trackIndex !== -1) {
+      setFetchingSubtitles(true);
+      getSubtitleContent(
+        currentMedia.id,
+        selectedVersion?.Id || currentMedia.id,
+        trackIndex,
+      ).then((result) => {
+        setFetchingSubtitles(false);
+        if (result.success) {
+          setSubtitleData(result.subtitles);
+          setCurrentSubtitle(null); // Reset current subtitle to show from data
+          // Update track states - mark selected as active, others as inactive
+          setSubtitleTracks((prev) =>
+            prev.map((track, idx) => ({
+              ...track,
+              active: idx === trackIndex,
+            })),
+          );
+        }
+      });
+    }
+  }, [activeSubtitleTrack, currentMedia]);
+
   // Backdrop image state
   const [backdropImageLoaded, setBackdropImageLoaded] = useState(false);
   const [blurDataUrl, setBlurDataUrl] = useState<string | null>(null);
@@ -479,9 +527,19 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         }));
         setSubtitleTracks(tracksWithActiveState);
 
-        // Don't load any subtitle by default - let user choose
-        setSubtitleData([]);
-        setCurrentSubtitle(null);
+        const { serverUrl: _, user } = await getAuthData();
+
+        const preferredSubtitleTrack = user?.Configuration
+          ?.SubtitleLanguagePreference
+          ? tracksWithActiveState.find(
+              (_track) =>
+                _track.language ===
+                user?.Configuration?.SubtitleLanguagePreference,
+            )
+          : null;
+        if (preferredSubtitleTrack)
+          setActiveSubtitleTrack(preferredSubtitleTrack);
+        else setActiveSubtitleTrack(null); // Don't load any subtitle by default - let user choose
 
         // Process chapters if available
         if (details.Chapters && details.Chapters.length > 0) {
@@ -590,43 +648,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         customSubtitleTracks={subtitleTracks}
         customSubtitlesEnabled={subtitleTracks.length > 0}
         chapters={chapters}
-        onCustomSubtitleChange={(subtitleTrack) => {
-          if (!subtitleTrack) {
-            // Turn off subtitles
-            setSubtitleData([]);
-            setCurrentSubtitle(null);
-            // Update all tracks to inactive
-            setSubtitleTracks((prev) =>
-              prev.map((track) => ({ ...track, active: false }))
-            );
-            return;
-          }
-
-          const trackIndex = subtitleTracks.findIndex(
-            (track) => track.label === subtitleTrack.label
-          );
-          if (trackIndex !== -1) {
-            setFetchingSubtitles(true);
-            getSubtitleContent(
-              currentMedia.id,
-              selectedVersion?.Id!,
-              trackIndex
-            ).then((result) => {
-              setFetchingSubtitles(false);
-              if (result.success) {
-                setSubtitleData(result.subtitles);
-                setCurrentSubtitle(null); // Reset current subtitle to show from data
-                // Update track states - mark selected as active, others as inactive
-                setSubtitleTracks((prev) =>
-                  prev.map((track, idx) => ({
-                    ...track,
-                    active: idx === trackIndex,
-                  }))
-                );
+        onCustomSubtitleChange={(subtitleTrack) =>
+          setActiveSubtitleTrack(subtitleTrack)
               }
-            });
-          }
-        }}
       >
         {/* Always render the video component so it can load in the background */}
         {streamUrl && mediaDetails && (
