@@ -123,6 +123,6 @@ function CastProfile({ member }: { member: CastMember }) {
     </>;
     // Add-on fallback names are not TMDB IDs and cannot open a person lookup.
     return /^[1-9]\d*$/.test(member.id)
-        ? <Link href={`/person/${member.id}`} prefetch={false} draggable={false} className="block rounded-lg outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/22">{content}</Link>
+        ? <Link href={`/person/${member.id}`} prefetch={false} draggable={false} className="block rounded-lg outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/22 motion-safe:transition-[scale] motion-safe:duration-150 motion-safe:ease-[var(--ease-out)] motion-safe:active:scale-[0.98]">{content}</Link>
         : <div>{content}</div>;
 }
