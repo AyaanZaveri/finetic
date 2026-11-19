@@ -6,7 +6,10 @@ const tick = () => new Promise(setImmediate);
 class Node {}
 class Element extends Node {
     constructor(values = {}) { super(); Object.assign(this, values); }
-    closest() { return this; }
+    closest(selector) {
+        if (selector === '[data-slot="context-menu-separator"]') return this.separator ? this : null;
+        return this;
+    }
     hasAttribute() { return false; }
 }
 class MouseEvent { constructor(type, init) { this.type = type; Object.assign(this, init); } }
@@ -140,6 +143,9 @@ function setup({ mobile = false, authenticated = true, continueWatching = true, 
     desktop.find('Group').props.onBlurCapture({ relatedTarget: new Element(), currentTarget: { contains: () => false } });
     desktop.refresh();
     assert.equal(desktop.find('highlight').props.animate.opacity, 1, 'A pointer-driven focus gap must retain the highlight for the next row glide');
+    desktop.find('Group').props.onPointerMoveCapture({ pointerType: 'mouse', target: new Element({ separator: true }) });
+    desktop.refresh();
+    assert.equal(desktop.find('highlight').props.animate.transform, 'translateY(30px)', 'Crossing a divider preserves the previous row as the glide origin');
     desktop.find('Group').props.onPointerMoveCapture({ pointerType: 'mouse', target: new Element({ offsetTop: 68, offsetHeight: 38 }) });
     desktop.refresh();
     assert.equal(desktop.find('highlight').props.transition.default.type, 'spring', 'Mouse navigation glides between rows');
