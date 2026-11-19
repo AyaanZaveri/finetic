@@ -7,7 +7,7 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/media/touch-scrubbing
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
 }).outputText, context);
 const { attachTouchScrubbing } = context.exports;
-function fixture({ nativeSurface = false } = {}) {
+function fixture({ nativeSurface = false, enabled = () => true } = {}) {
     const handlers = new Map();
     const captures = new Set();
     const root = {
@@ -24,7 +24,7 @@ function fixture({ nativeSurface = false } = {}) {
     let cancels = 0, grabs = 0;
     const dispose = attachTouchScrubbing(root, {
         timeline: { contains: target => target === bar, getBoundingClientRect: () => ({ left: 20, width: 400 }) },
-        start: 100, end: 1100, currentTime: () => 500, enabled: () => true, surfaceEnabled: () => !nativeSurface,
+        start: 100, end: 1100, currentTime: () => 500, enabled, surfaceEnabled: () => !nativeSurface,
         preview: (time, speed) => previews.push({ time, speed }), commit: time => commits.push(time), cancel: () => cancels++, grab: () => grabs++,
     });
     const send = (type, x, y, target = blank, extra = {}) => {
@@ -85,6 +85,19 @@ for (const role of ['combobox', 'listbox', 'option']) {
 const mouse = fixture();
 mouse.send('pointerdown', 200, 200, mouse.bar, { pointerType: 'mouse' });
 assert.equal(mouse.previews.length, 0, 'Mouse handling stays with the existing slider');
+let menuOpen = false;
+const menuAfterSeek = fixture({ enabled: () => !menuOpen });
+menuAfterSeek.send('pointerdown', 220, 600, menuAfterSeek.bar);
+menuAfterSeek.send('pointerup', 260, 600);
+menuOpen = true;
+menuAfterSeek.send('pointerdown', 100, 100, menuAfterSeek.button);
+assert.equal(menuAfterSeek.send('click', 100, 100, menuAfterSeek.button).prevented, false, 'A new menu press clears the previous scrub suppression');
+const panel = fixture();
+const statsTarget = { closest: selector => selector.includes('[data-player-stats]') ? {} : null };
+panel.send('pointerdown', 100, 100, statsTarget);
+panel.send('pointermove', 160, 100, statsTarget);
+panel.send('pointerup', 160, 100, statsTarget);
+assert.equal(panel.commits.length, 0, 'Dragging the stats panel must not seek the video');
 console.log('PASS: touch seeking anywhere, direct timeline seeking, fast/fine speed, clamping, cancellation, click suppression, and cleanup');
 const secondFinger = fixture();
 secondFinger.send('pointerdown', 220, 600, secondFinger.bar);

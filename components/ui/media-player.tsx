@@ -516,7 +516,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     // Keyboard/assistive activation and mouse clicks retain play/pause.
     if (event.detail === 0 || pointerTypeRef.current === "mouse") return;
     if ((event.target as Element).closest(
-      '[data-slot="media-player-controls"], button, a, input, select, textarea, [role="button"], [contenteditable="true"], [role="slider"], [role="menu"], [role="dialog"], [role="combobox"], [role="listbox"], [role="option"]'
+      '[data-slot="media-player-controls"], [data-player-stats], button, a, input, select, textarea, [role="button"], [contenteditable="true"], [role="slider"], [role="menu"], [role="dialog"], [role="combobox"], [role="listbox"], [role="option"]'
     )) return;
     event.preventDefault();
     event.stopPropagation();
@@ -3135,7 +3135,7 @@ function MediaPlayerDownload(props: MediaPlayerDownloadProps) {
 }
 
 interface MediaPlayerSettingsProps extends MediaPlayerPlaybackSpeedProps {
-  stats?: { open: boolean; onToggle(): void };
+  stats?: { open: boolean; onOpenChange(_open: boolean): void };
 }
 
 function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
@@ -3234,7 +3234,7 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
                   ? `${rendition.height}p` : rendition.width ? `${rendition.width}p` : rendition.id }] : [])],
             } : undefined}
           />
-          {stats && <DropdownMenuItem onSelect={stats.onToggle} disabled={isDisabled}>
+          {stats && <DropdownMenuItem onSelect={() => stats.onOpenChange(!stats.open)} disabled={isDisabled}>
             {stats.open ? "Hide stats for nerds" : "Stats for nerds"}
           </DropdownMenuItem>}
         </DropdownMenuGroup>

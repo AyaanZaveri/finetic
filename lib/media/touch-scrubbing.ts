@@ -23,6 +23,7 @@ export function attachTouchScrubbing(root: HTMLElement, options: TouchScrubbingO
     let suppressClick = false;
     const clamp = (time: number) => Math.max(options.start, Math.min(options.end, time));
     const down = (event: PointerEvent) => {
+        if (!gesture) suppressClick = false;
         if (event.pointerType !== 'touch' || !options.enabled()) return;
         if (gesture) {
             // A second finger cancels instead of committing an accidental seek.
@@ -33,11 +34,10 @@ export function attachTouchScrubbing(root: HTMLElement, options: TouchScrubbingO
             return;
         }
         if (!event.isPrimary) return;
-        suppressClick = false;
         const target = event.target as Element;
         const onBar = options.timeline.contains(target);
         if (!onBar && options.surfaceEnabled?.() === false) return;
-        if (!onBar && target.closest('button, a, input, select, textarea, [role="button"], [role="slider"], [role="menu"], [role="dialog"], [role="combobox"], [role="listbox"], [role="option"]')) return;
+        if (!onBar && target.closest('[data-player-stats], button, a, input, select, textarea, [role="button"], [role="slider"], [role="menu"], [role="dialog"], [role="combobox"], [role="listbox"], [role="option"]')) return;
         const rect = options.timeline.getBoundingClientRect();
         if (rect.width <= 0 || !Number.isFinite(options.end) || options.end <= options.start) return;
         gesture = {

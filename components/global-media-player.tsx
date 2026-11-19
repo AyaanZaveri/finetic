@@ -920,7 +920,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         <NativePlayerGlass mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} ready={videoReady && !loading && !playbackError} />
         <PlaybackWakeLock mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} enabled={!nativePlayback && !!streamUrl && !playbackError} />
         {!nativePlayback && <BrowserPlayerGlass mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} ready={videoReady && !loading && !playbackError} />}
-        {showPlaybackStats && !nativePlayback && streamUrl && <PlayerPlaybackStats key={`${streamUrl}:${playerAttempt}`} videoRef={videoRef} />}
+        {showPlaybackStats && !nativePlayback && streamUrl && <PlayerPlaybackStats key={`${streamUrl}:${playerAttempt}`} videoRef={videoRef} onClose={() => setShowPlaybackStats(false)} />}
         {/* Video element */}
         {streamUrl && activePlaybackRequestRef.current === playbackRequest && (
           <MediaPlayerVideo asChild>
@@ -1178,7 +1178,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                 timing={{ seconds: subtitleTiming.seconds, open: Boolean(subtitleTiming.key && timingOpenKey === subtitleTiming.key),
                   onOpen: () => setTimingOpenKey(subtitleTiming.key), onClose: () => setTimingOpenKey(null) }} />
               <PlayerVideoFit key={`${streamUrl}:${playerAttempt}`} mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} />
-              <MediaPlayerSettings stats={nativePlayback ? undefined : { open: showPlaybackStats, onToggle: () => setShowPlaybackStats(open => !open) }} />
+              <MediaPlayerSettings stats={nativePlayback ? undefined : { open: showPlaybackStats, onOpenChange: setShowPlaybackStats }} />
               {!nativePlayback && <MediaPlayerPiP />}
               <MediaPlayerFullscreen />
             </div>

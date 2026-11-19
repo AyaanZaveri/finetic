@@ -1,14 +1,51 @@
 "use client";
 
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent, type RefObject } from "react";
+import { GripHorizontal, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { playbackFrameRate, readWebPlaybackStats } from "@/lib/media/playback-stats";
 
 const seconds = (ms?: number | null) => ms == null ? undefined : `${(ms / 1000).toFixed(1)} s`;
+const gutter = 12;
+type Position = { x: number; y: number };
 
-export function PlayerPlaybackStats({ videoRef }: { videoRef: RefObject<HTMLVideoElement | null> }) {
+function fitPosition(panel: HTMLElement, bounds: Element, position: Position): Position {
+    const x = Math.max(gutter, Math.min(position.x, bounds.clientWidth - panel.offsetWidth - gutter));
+    const y = Math.max(gutter, Math.min(position.y, bounds.clientHeight - panel.offsetHeight - gutter));
+    return x === position.x && y === position.y ? position : { x, y };
+}
+
+export function PlayerPlaybackStats({ videoRef, onClose }: { videoRef: RefObject<HTMLVideoElement | null>; onClose: () => void }) {
+    const panelRef = useRef<HTMLElement>(null);
+    const drag = useRef<{ id: number; start: Position; origin: Position } | null>(null);
+    const [position, setPosition] = useState<Position | null>(null);
     const [frozen, setFrozen] = useState(false);
     const [reading, setReading] = useState<{ stats: ReturnType<typeof readWebPlaybackStats>; fps?: number }>();
+
+    useLayoutEffect(() => {
+        const panel = panelRef.current;
+        const bounds = panel?.offsetParent;
+        if (!panel || !bounds) return;
+        const resize = new ResizeObserver(() => {
+            setPosition(current => current && fitPosition(panel, bounds, current));
+        });
+        resize.observe(panel);
+        resize.observe(bounds);
+        return () => resize.disconnect();
+    }, []);
+
+    const moveTo = (target: Position) => {
+        const panel = panelRef.current;
+        if (panel?.offsetParent) setPosition(fitPosition(panel, panel.offsetParent, target));
+    };
+    const movePointer = (event: PointerEvent<HTMLElement>) => {
+        const active = drag.current;
+        if (active?.id !== event.pointerId) return;
+        moveTo({ x: active.origin.x + event.clientX - active.start.x, y: active.origin.y + event.clientY - active.start.y });
+    };
+    const endDrag = (event: PointerEvent<HTMLElement>) => {
+        if (drag.current?.id === event.pointerId) drag.current = null;
+    };
 
     useEffect(() => {
         if (frozen) return;
@@ -50,19 +87,56 @@ export function PlayerPlaybackStats({ videoRef }: { videoRef: RefObject<HTMLVide
         ["Audio underruns", stats?.audioUnderflows],
         ["Fallback reason", stats?.fallback],
     ] as const;
-    return <section aria-label="Stats for nerds"
-        className="absolute end-3 top-3 z-30 max-h-[55%] w-80 max-w-[calc(100%-1.5rem)] overflow-auto rounded-lg border border-white/20 bg-black/85 px-3 pb-3 pt-1.5 text-xs text-white">
-        <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-            <h2 className="font-semibold">Stats for nerds</h2>
-            <Button type="button" variant="ghost" size="xs" className="-me-2 ms-auto text-white hover:bg-white/15" onClick={() => setFrozen(value => !value)}>
-                {frozen ? "Resume updates" : "Freeze stats"}
-            </Button>
+    return <section ref={panelRef} aria-label="Stats for nerds" data-player-stats=""
+        style={position ? { left: position.x, top: position.y } : undefined}
+        className={`absolute top-3 z-30 flex max-h-[55%] w-[22rem] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-xl border border-white/8 bg-black/85 text-[0.8125rem] leading-normal text-white shadow-lg shadow-black/35 ${position ? "" : "end-3"}`}>
+        <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-0.5 px-3 pb-1 pt-1.5">
+            <h2 tabIndex={0} aria-description="Use arrow keys to move the stats panel."
+                className="flex min-h-7 flex-1 cursor-grab touch-none select-none items-center gap-1.5 rounded-sm text-sm font-semibold leading-tight active:cursor-grabbing focus-visible:outline-2 focus-visible:outline-ring"
+                onPointerDown={event => {
+                    const panel = panelRef.current;
+                    if (!panel || !event.isPrimary || event.button !== 0) return;
+                    drag.current = { id: event.pointerId, start: { x: event.clientX, y: event.clientY }, origin: { x: panel.offsetLeft, y: panel.offsetTop } };
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                    event.preventDefault();
+                }}
+                onPointerMove={movePointer}
+                onPointerUp={endDrag}
+                onPointerCancel={endDrag}
+                onLostPointerCapture={endDrag}
+                onKeyDown={event => {
+                    const panel = panelRef.current;
+                    if (!panel || event.altKey || event.metaKey || event.ctrlKey) return;
+                    const dx = event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0;
+                    const dy = event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : 0;
+                    if (!dx && !dy) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    moveTo({ x: panel.offsetLeft + dx * 16, y: panel.offsetTop + dy * 16 });
+                }}>
+                <GripHorizontal aria-hidden="true" className="size-4 shrink-0 text-white/55" />
+                Stats for nerds
+            </h2>
+            <div className="-me-1 ms-auto flex items-center gap-1">
+                <Button type="button" variant="ghost" size="xs" className="text-white/85 hover:bg-white/15" onClick={() => setFrozen(value => !value)}>
+                    {frozen ? "Resume updates" : "Freeze stats"}
+                </Button>
+                <Button type="button" variant="ghost" size="icon-xs" aria-label="Hide stats for nerds"
+                    className="size-7 text-white/75 hover:bg-white/15 hover:text-white" onClick={() => {
+                        panelRef.current?.parentElement?.focus({ preventScroll: true });
+                        onClose();
+                    }}>
+                    <X aria-hidden="true" className="size-4" />
+                </Button>
+            </div>
         </div>
-        {stats ? <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5">
-            {rows.map(([label, value]) => value === undefined ? null : <div key={label} className="col-span-2 grid grid-cols-subgrid">
-                <dt className="text-white/90">{label}</dt>
-                <dd className="min-w-0 break-words text-end tabular-nums">{value}</dd>
-            </div>)}
-        </dl> : <p>Waiting for playback data.</p>}
+        <div className="min-h-0 select-text overflow-y-auto overscroll-contain touch-pan-y px-3 pb-3">
+            {stats ? <dl className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-3 gap-y-1">
+                {rows.map(([label, value]) => value === undefined ? null : <div key={label} className="col-span-2 grid grid-cols-subgrid">
+                    <dt className="min-w-0 wrap-break-word text-white/75">{label}</dt>
+                    <dd className="min-w-0 wrap-break-word text-end font-medium tabular-nums"><bdi>{value}</bdi></dd>
+                </div>)}
+            </dl> : <p className="text-white/75">Waiting for playback data.</p>}
+        </div>
     </section>;
 }

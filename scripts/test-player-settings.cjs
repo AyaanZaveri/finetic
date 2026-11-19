@@ -79,16 +79,64 @@ const content = find(tree, 'DropdownMenuContent')[0];
 assert.equal(content.props.container, root, 'Settings inherit player theme and remain visible in fullscreen');
 assert.equal(content.props.className, 'settingsMenu');
 assert.equal(find(tree, 'DropdownMenuItem').length, 0, 'Only the web player supplies the stats action');
-let statsToggles = 0;
+const statsVisibility = [];
 for (const open of [false, true]) {
   const statsMenu = component('MediaPlayerSettings', context, state, [], {
-    stats: { open, onToggle: () => statsToggles++ },
+    stats: { open, onOpenChange: visible => statsVisibility.push(visible) },
   });
   const statsAction = find(statsMenu, 'DropdownMenuItem')[0];
   assert.equal(statsAction.props.children, open ? 'Hide stats for nerds' : 'Stats for nerds');
   statsAction.props.onSelect();
 }
-assert.equal(statsToggles, 2);
+assert.deepEqual(statsVisibility, [true, false], 'The menu requests explicit show and hide states');
+{
+  const host = hooks();
+  let resize, closed = 0, focused = false;
+  const player = { clientWidth: 800, clientHeight: 600, focus() { focused = true; } };
+  const panel = { offsetLeft: 436, offsetTop: 12, offsetWidth: 352, offsetHeight: 200, offsetParent: player, parentElement: player };
+  const { PlayerPlaybackStats } = load('components/player-playback-stats.tsx', {
+    react: host.react, 'react/jsx-runtime': host.jsx,
+    'lucide-react': { GripHorizontal: 'grip', X: 'close-icon' },
+    '@/components/ui/button': { Button: 'Button' },
+    '@/lib/media/playback-stats': {},
+  }, {
+    ResizeObserver: class { constructor(callback) { resize = callback; } observe() {} disconnect() { resize = undefined; } },
+    window: { setInterval: () => 1, clearInterval() {} },
+    document: { addEventListener() {}, removeEventListener() {} },
+  });
+  const props = { videoRef: { current: null }, onClose: () => closed++ };
+  const render = () => host.render(PlayerPlaybackStats, props);
+  const initial = render();
+  initial.props.ref.current = panel;
+  host.flush();
+  assert.equal(initial.props.style, undefined, 'A new panel starts at its logical top corner');
+  const header = find(initial, 'h2')[0];
+  let captured;
+  header.props.onPointerDown({ isPrimary: true, button: 0, pointerId: 8, clientX: 450, clientY: 20,
+    currentTarget: { setPointerCapture(id) { captured = id; } }, preventDefault() {} });
+  assert.equal(captured, 8);
+  header.props.onPointerMove({ pointerId: 8, clientX: 300, clientY: 250 });
+  let { left, top } = render().props.style;
+  assert.deepEqual([left, top], [286, 242], 'Drag follows the header grab point');
+  header.props.onPointerUp({ pointerId: 8 });
+  header.props.onPointerMove({ pointerId: 8, clientX: 0, clientY: 0 });
+  player.clientWidth = 400;
+  player.clientHeight = 300;
+  resize();
+  ({ left, top } = render().props.style);
+  assert.deepEqual([left, top], [36, 88], 'Resizing keeps the whole panel inside the player');
+  panel.offsetLeft = left;
+  panel.offsetTop = top;
+  let consumed = false;
+  header.props.onKeyDown({ key: 'ArrowLeft', preventDefault() { consumed = true; }, stopPropagation() {} });
+  assert.equal(render().props.style.left, 20);
+  assert.ok(consumed, 'Focused drag handle owns the arrow key instead of seeking');
+  find(render(), 'Button').find(node => node.props['aria-label'] === 'Hide stats for nerds').props.onClick();
+  assert.equal(closed, 1);
+  assert.ok(focused, 'Closing stats restores player focus');
+  host.unmount();
+  assert.equal(resize, undefined);
+}
 let timingClosed = 0;
 const timingTree = component('MediaPlayerSettings', { ...context, subtitleTiming: { open: true, seconds: 0, onOpen() {}, onClose() { timingClosed++; } } }, state, []);
 const timingContent = find(timingTree, 'DropdownMenuContent')[0];
