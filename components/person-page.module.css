@@ -30,7 +30,7 @@
 .disclosures p { margin-block: 0; }
 .grid[hidden], .grid > li[hidden] { display: none; }
 .loadStatus { display: flex; min-height: 3rem; justify-content: center; margin-block-start: var(--space-6); }
-@media (min-width: 40rem) { .profile { grid-template-columns: 12rem minmax(0, 1fr); gap: var(--space-8); align-items: center; } .portrait { width: 100%; } }
+@media (min-width: 40rem) { .profile { grid-template-columns: 12rem minmax(0, 1fr); gap: var(--space-8); } .portrait { width: 100%; } }
 @media (min-width: 64rem) { .profile { grid-template-columns: 15rem minmax(0, 1fr); } .grid { grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); } }
 
 .loadMore { color: var(--muted-foreground); }

@@ -132,6 +132,32 @@ function episodesToSeasons(episodes: Episode[]): Season[] {
     }));
 }
 
+export function SeasonEpisodesPlaceholder({ hasEpisodeRoute = false }: { hasEpisodeRoute?: boolean }) {
+  return (
+    <LoadingPlaceholder className="mt-3">
+      <div className="mb-6 flex items-center justify-between gap-4 px-1">
+        <Skeleton className="h-9 w-48 max-w-full" />
+        <div className="flex gap-2">
+          <Skeleton className="size-8 rounded-full" />
+          <Skeleton className="size-8 rounded-full" />
+        </div>
+      </div>
+      <div
+        className={`flex gap-4 overflow-hidden px-1 ${hasEpisodeRoute ? "mb-4" : "mb-8"}`}
+      >
+        {[1, 2, 3, 4, 5].map((item) => (
+          <div key={item} className="w-72 shrink-0 space-y-3 py-2">
+            <Skeleton className="aspect-video w-full rounded-lg" />
+            <Skeleton className="h-5 w-full" />
+            <Skeleton className="h-4 w-5/6" />
+            <Skeleton className="h-6 w-16" />
+          </div>
+        ))}
+      </div>
+    </LoadingPlaceholder>
+  );
+}
+
 export const SeasonEpisodes = React.memo(function SeasonEpisodes({
   showId,
   prefetchedVideos,
@@ -179,7 +205,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
   );
   const [loading, setLoading] = useState(initialSeasonState.loading);
   const [episodes, setEpisodes] = useState<Episode[]>(initialEpisodes);
-  const [episodesLoading, setEpisodesLoading] = useState(!hasPrefetchedEpisodes && initialSeasonState.selectedSeason !== null && initialEpisodes.length === 0);
+  const [episodesLoading, setEpisodesLoading] = useState(initialSeasonState.selectedSeason !== null && initialEpisodes.length === 0);
   const [episodeError, setEpisodeError] = useState<string | null>(null);
   const [episodeRetry, setEpisodeRetry] = useState(0);
   const resumePosition = safeResumePosition(progress?.resumePositionTicks, progress?.totalDuration, true);
@@ -374,29 +400,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
   };
 
   if (loading) {
-    return (
-      <LoadingPlaceholder className="mt-3">
-        <div className="mb-6 flex items-center justify-between gap-4 px-1">
-          <Skeleton className="h-9 w-48 max-w-full" />
-          <div className="flex gap-2">
-            <Skeleton className="size-8 rounded-full" />
-            <Skeleton className="size-8 rounded-full" />
-          </div>
-        </div>
-        <div
-          className={`flex gap-4 overflow-hidden px-1 ${episodesBottomSpacingClass}`}
-        >
-          {[1, 2, 3, 4, 5].map((item) => (
-            <div key={item} className="w-72 shrink-0 space-y-3 py-2">
-              <Skeleton className="aspect-video w-full rounded-lg" />
-              <Skeleton className="h-5 w-full" />
-              <Skeleton className="h-4 w-5/6" />
-              <Skeleton className="h-6 w-16" />
-            </div>
-          ))}
-        </div>
-      </LoadingPlaceholder>
-    );
+    return <SeasonEpisodesPlaceholder hasEpisodeRoute={hasEpisodeRoute} />;
   }
 
   if (seasons.length === 0) {

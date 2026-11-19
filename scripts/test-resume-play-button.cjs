@@ -123,7 +123,7 @@ async function testSeriesOverview() {
     const { SeriesEpisodesRouteAware } = load('components/series-episodes-route-aware.tsx', {
         ...deps, 'react/jsx-runtime': h.jsx,
         '@/components/series-overview-playback': { useSeriesOverviewPlayback: () => sharedPlayback },
-        '@/components/season-episodes': { SeasonEpisodes: 'season-episodes' },
+        '@/components/season-episodes': { SeasonEpisodes: 'season-episodes', SeasonEpisodesPlaceholder: 'season-placeholder' },
     });
     const renderProvider = () => {
         sharedPlayback = h.render(SeriesOverviewPlaybackProvider, { show }).props.value;
@@ -137,6 +137,8 @@ async function testSeriesOverview() {
     const play = () => MediaPlayButton({ media: show }).props.children[0].props.onClick();
     renderProvider();
     assert.equal(MediaPlayButton({ media: show }).props.children[0].props.disabled, true);
+    assert.equal(SeriesEpisodesRouteAware({ showId: show.id }).type, 'season-placeholder',
+        'The first render must reserve the episode rail without rendering or loading the pilot');
     await tick(); renderProvider();
     assert.deepEqual(reads, ['tt42'], 'TMDB cards use playback history from the canonical show');
     assert.deepEqual(selection(), [6, 9]);
@@ -155,6 +157,7 @@ async function testSeriesOverview() {
 
     params = { id: show.id, season: '0', episode: '2' };
     renderProvider();
+    assert.deepEqual(selection(), [0, 2], 'Explicit episode links render while progress is still pending');
     await tick(); renderProvider();
     assert.deepEqual(selection(), [0, 2], 'Explicit episode links take precedence over show progress');
     assert.equal(lookups.length, 1, 'Episode pages skip next-episode selection');

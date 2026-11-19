@@ -2,7 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { useSeriesOverviewPlayback } from "@/components/series-overview-playback";
-import { SeasonEpisodes } from "@/components/season-episodes";
+import { SeasonEpisodes, SeasonEpisodesPlaceholder } from "@/components/season-episodes";
 import type { StremioVideo, MediaItem } from "@/types/stremio";
 
 interface SeriesEpisodesRouteAwareProps {
@@ -26,6 +26,9 @@ export function SeriesEpisodesRouteAware({
   const params = useParams<{ season?: string; episode?: string }>();
   const playback = useSeriesOverviewPlayback();
   const hasEpisodeRoute = params?.episode !== undefined;
+  if (!hasEpisodeRoute && playback?.pending) {
+    return <SeasonEpisodesPlaceholder />;
+  }
   const overviewTarget = hasEpisodeRoute ? undefined : playback?.target;
 
   return (
