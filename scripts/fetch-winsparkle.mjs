@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
+import { windowsPowerShellEnvironment } from "./package-windows.mjs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 export const WINSPARKLE_VERSION = "0.9.4";
 export const WINSPARKLE_SHA256 = "6037df37fc263bd1650a1c4949681a9d40ffe991d01f35892a406cb5d103c976";
@@ -26,8 +27,9 @@ export async function fetchWinSparkle() {
     try {
         await writeFile(join(temp, "archive.zip"), bytes);
         await new Promise((resolve, reject) => {
-            const script = 'Expand-Archive -LiteralPath $env:NAV_ARCHIVE -DestinationPath $env:NAV_EXTRACT -Force';
-            const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { stdio: "inherit", env: { ...process.env, NAV_ARCHIVE: join(temp, "archive.zip"), NAV_EXTRACT: join(temp, "extracted") } });
+            const script = "$ErrorActionPreference = 'Stop'; Expand-Archive -LiteralPath $env:NAV_ARCHIVE -DestinationPath $env:NAV_EXTRACT -Force";
+            const env = windowsPowerShellEnvironment({ ...process.env, NAV_ARCHIVE: join(temp, "archive.zip"), NAV_EXTRACT: join(temp, "extracted") });
+            const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { stdio: "inherit", env });
             child.on("error", reject); child.on("exit", code => code === 0 ? resolve() : reject(new Error("WinSparkle extraction failed")));
         });
         const source = join(temp, "extracted", `WinSparkle-${WINSPARKLE_VERSION}`);
