@@ -528,6 +528,8 @@ pub fn run(app: App) -> Result<(), String> {
                         if let Some(view) = &view { let _ = view.evaluate_script(&receive(&json!({"type":"update-status", "version":env!("CARGO_PKG_VERSION"), "available":updater.is_some(), "automatic":automatic_updates, "state":update_state, "message":update_message}))); }
                     } else if let protocol::Command::WindowControlsVisible { visible } = &command {
                         platform::set_window_controls_visible(*visible);
+                    } else if let protocol::Command::NativeHdrPeak { nits } = &command {
+                        surface.renderer().set_hdr_peak(*nits);
                     } else {
                     if let protocol::Command::Load { session, .. } = &command {
                         playback_session = session.clone();

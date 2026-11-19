@@ -32,6 +32,7 @@ struct State {
     wake: bool,
     stop: bool,
     source_hdr: bool,
+    peak_override: Option<u32>,
     display_dirty: bool,
     output_reply: Option<(u64, Result<(), String>)>,
 }
@@ -77,6 +78,14 @@ impl Host {
         let mut state = self.state.0.lock().unwrap();
         if state.source_hdr != hdr {
             state.source_hdr = hdr;
+            state.wake = true;
+            self.state.1.notify_one();
+        }
+    }
+    pub fn set_hdr_peak(&self, nits: Option<u32>) {
+        let mut state = self.state.0.lock().unwrap();
+        if state.peak_override != nits {
+            state.peak_override = nits;
             state.wake = true;
             self.state.1.notify_one();
         }
@@ -662,11 +671,12 @@ unsafe fn run(
                     s.size,
                     s.visible,
                     s.source_hdr,
+                    s.peak_override,
                     std::mem::take(&mut s.display_dirty),
                     s.output_reply.take(),
                 )
             };
-            let (requested, visible, source_hdr, display_dirty, reply) = requested;
+            let (requested, visible, source_hdr, peak_override, display_dirty, reply) = requested;
             if display_dirty {
                 display = display_color(hwnd).unwrap_or_else(|error| {
                     log::warn!("HDR display query failed; using SDR: {error}");
@@ -702,7 +712,7 @@ unsafe fn run(
                 was_visible = false;
                 continue;
             }
-            let wanted = windows_hdr::choose(source_hdr, display.hdr && !hdr_failed, display.peak);
+            let wanted = windows_hdr::choose(source_hdr, display.hdr && !hdr_failed, display.peak, peak_override);
             if let Some(request) = transition.request(wanted) {
                 configuration.request(request)?;
             }

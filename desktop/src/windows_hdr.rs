@@ -35,11 +35,10 @@ pub fn hdr_source(gamma: Option<&str>, primaries: Option<&str>) -> bool {
     matches!(gamma, Some("pq" | "hlg")) && matches!(primaries, Some("bt.2020" | "display-p3"))
 }
 
-pub fn choose(source_hdr: bool, display_hdr: bool, peak: f32) -> Output {
+pub fn choose(source_hdr: bool, display_hdr: bool, peak: f32, requested: Option<u32>) -> Output {
     if source_hdr && display_hdr && peak.is_finite() && (80.0..=10_000.0).contains(&peak) {
-        Output::Hdr10 {
-            peak: peak.round().max(203.0) as u32,
-        }
+        let display_peak = peak.round().max(203.0) as u32;
+        Output::Hdr10 { peak: requested.unwrap_or(display_peak).clamp(203, display_peak) }
     } else {
         Output::Sdr
     }
@@ -101,11 +100,13 @@ mod tests {
         }
         assert!(!hdr_source(Some("pq"), None));
         for peak in [f32::NAN, f32::INFINITY, 0.0, -1.0, 10_001.0] {
-            assert_eq!(choose(true, true, peak), Output::Sdr);
+            assert_eq!(choose(true, true, peak, None), Output::Sdr);
         }
-        assert_eq!(choose(true, false, 600.0), Output::Sdr);
-        assert_eq!(choose(false, true, 600.0), Output::Sdr);
-        assert_eq!(choose(true, true, 600.4), Output::Hdr10 { peak: 600 });
+        assert_eq!(choose(true, false, 600.0, Some(500)), Output::Sdr);
+        assert_eq!(choose(false, true, 600.0, Some(500)), Output::Sdr);
+        assert_eq!(choose(true, true, 600.4, None), Output::Hdr10 { peak: 600 });
+        assert_eq!(choose(true, true, 1600.0, Some(1000)), Output::Hdr10 { peak: 1000 });
+        assert_eq!(choose(true, true, 600.0, Some(1600)), Output::Hdr10 { peak: 600 });
         let hdr = Output::Hdr10 { peak: 600 }.options();
         assert!(hdr.contains(&("target-prim", "bt.2020".into())));
         assert!(hdr.contains(&("target-trc", "pq".into())));

@@ -630,6 +630,13 @@ its OpenGL layer, so it configures that tag directly rather than using mpv's
 Cocoa window option. A related [upstream SDR gamma report](https://github.com/mpv-player/mpv/issues/14648)
 concerns Windows HDR mode; its configuration is not applied to our Windows backend.
 
+### HDR on Windows
+
+Playback settings on supported Windows builds offer the same manual target.
+Automatic uses the peak reported by DXGI for the active HDR display. A manual
+value is capped at that peak and takes effect on the next video. SDR video and
+SDR displays use the existing SDR output path.
+
 This version does not include AIOStreams' custom Metal/AVFoundation outputs or
 Dolby Vision output, native PiP, macOS automatic updates, or torrent resolution.
 It plays the HTTP(S) stream URLs Navigator already obtains from addons.

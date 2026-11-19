@@ -16,7 +16,7 @@ enum UserEvent {
     Fullscreen(bool),
     WindowControlsVisible(bool),
     #[cfg(target_os = "macos")]
-    MacHdrPeak(Option<u32>),
+    NativeHdrPeak(Option<u32>),
     DragWindow,
     Close,
     SyncFullscreen,
@@ -95,8 +95,8 @@ pub fn run(mut app: App) -> Result<(), String> {
                     let _ = ipc_proxy.send_event(UserEvent::WindowControlsVisible(visible));
                 }
                 #[cfg(target_os = "macos")]
-                Ok(protocol::Command::MacHdrPeak { nits }) => {
-                    let _ = ipc_proxy.send_event(UserEvent::MacHdrPeak(nits));
+                Ok(protocol::Command::NativeHdrPeak { nits }) => {
+                    let _ = ipc_proxy.send_event(UserEvent::NativeHdrPeak(nits));
                 }
                 Ok(protocol::Command::WindowDrag {}) => {
                     let _ = ipc_proxy.send_event(UserEvent::DragWindow);
@@ -294,7 +294,7 @@ pub fn run(mut app: App) -> Result<(), String> {
                 platform::set_window_controls_visible(&window, visible || window.fullscreen().is_some());
             }
             #[cfg(target_os = "macos")]
-            Event::UserEvent(UserEvent::MacHdrPeak(nits)) => platform::set_hdr_peak(nits),
+            Event::UserEvent(UserEvent::NativeHdrPeak(nits)) => platform::set_hdr_peak(nits),
             Event::UserEvent(UserEvent::DragWindow) => {
                 if window.fullscreen().is_none() {
                     let _ = window.drag_window();

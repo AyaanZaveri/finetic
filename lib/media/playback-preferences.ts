@@ -8,7 +8,7 @@ export interface PlaybackPreferences {
   nativeWebGpuDecoding: boolean;
   hdrOutput: boolean;
   hdrPeakNits: number;
-  macHdrPeakNits: number | null;
+  nativeHdrPeakNits: number | null;
   audioLanguage: string;
   subtitleLanguage: string;
   subtitleMode: "normal" | "forced";
@@ -17,7 +17,7 @@ export interface PlaybackPreferences {
 export const DEFAULT_PLAYBACK_PREFERENCES: PlaybackPreferences = {
   continueWatchingPrefetch: true, metadataPrefetch: true,
   episodeAutoplay: true, episodePrefetch: true,
-  autoSelectWebStream: false, webGpuPlayback: true, nativeWebGpuDecoding: false, hdrOutput: false, hdrPeakNits: 1000, macHdrPeakNits: null,
+  autoSelectWebStream: false, webGpuPlayback: true, nativeWebGpuDecoding: false, hdrOutput: false, hdrPeakNits: 1000, nativeHdrPeakNits: null,
   audioLanguage: "en", subtitleLanguage: "en", subtitleMode: "normal", subtitlesEnabledByDefault: false,
 };
 export const PLAYBACK_PREFERENCES_KEY = "navigator-playback-preferences";
@@ -46,7 +46,8 @@ function language(value: unknown): string {
   } catch { return "en"; }
 }
 export function normalizePlaybackPreferences(value: unknown): PlaybackPreferences {
-  const candidate = value && typeof value === "object" ? value as Partial<PlaybackPreferences> : {};
+  const candidate = value && typeof value === "object" ? value as Partial<PlaybackPreferences> & { macHdrPeakNits?: unknown } : {};
+  const nativePeak = candidate.nativeHdrPeakNits === undefined ? candidate.macHdrPeakNits : candidate.nativeHdrPeakNits;
   return {
     continueWatchingPrefetch: candidate.continueWatchingPrefetch !== false, metadataPrefetch: candidate.metadataPrefetch !== false,
     episodeAutoplay: candidate.episodeAutoplay !== false,
@@ -57,8 +58,8 @@ export function normalizePlaybackPreferences(value: unknown): PlaybackPreference
     hdrOutput: candidate.hdrOutput === true,
     hdrPeakNits: typeof candidate.hdrPeakNits === "number" && Number.isFinite(candidate.hdrPeakNits)
       ? Math.round(Math.max(203, Math.min(10000, candidate.hdrPeakNits))) : 1000,
-    macHdrPeakNits: typeof candidate.macHdrPeakNits === "number" && Number.isFinite(candidate.macHdrPeakNits)
-      ? Math.round(Math.max(203, Math.min(10000, candidate.macHdrPeakNits))) : null,
+    nativeHdrPeakNits: typeof nativePeak === "number" && Number.isFinite(nativePeak)
+      ? Math.round(Math.max(203, Math.min(10000, nativePeak))) : null,
     audioLanguage: language(candidate.audioLanguage), subtitleLanguage: language(candidate.subtitleLanguage),
     subtitleMode: candidate.subtitleMode === "forced" ? "forced" : "normal",
     subtitlesEnabledByDefault: candidate.subtitlesEnabledByDefault === true,

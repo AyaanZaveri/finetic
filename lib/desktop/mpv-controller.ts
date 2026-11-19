@@ -165,8 +165,10 @@ export class MpvController extends EventTarget {
     this.fire("emptied", "loadstart");
     try {
       if (!["http:", "https:"].includes(new URL(url).protocol)) throw new Error("Choose an HTTP or HTTPS stream for native playback.");
-      if (this.bridge.platform === "macos" && this.bridge.capabilities?.macHdrPeak) {
-        this.bridge.send({ type: "mac-hdr-peak", nits: readPlaybackPreferences().macHdrPeakNits });
+      if (this.bridge.capabilities?.nativeHdrPeak) {
+        this.bridge.send({ type: "native-hdr-peak", nits: readPlaybackPreferences().nativeHdrPeakNits });
+      } else if (this.bridge.platform === "macos" && this.bridge.capabilities?.macHdrPeak) {
+        this.bridge.send({ type: "mac-hdr-peak", nits: readPlaybackPreferences().nativeHdrPeakNits });
       }
       this.bridge.send({ type: "load", session: this.session, url, headers,
         ...(this.bridge.capabilities?.initialSeek || ["android", "ios"].includes(this.bridge.platform)

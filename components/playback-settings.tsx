@@ -17,7 +17,7 @@ export function PlaybackSettings() {
   const [desktop, setDesktop] = useState<DesktopBridge>();
   useEffect(() => setDesktop(desktopBridge()), []);
   const hdrBrightnessDisabled = !playbackPreferences.webGpuPlayback || !playbackPreferences.hdrOutput;
-  const automaticMacPeak = playbackPreferences.macHdrPeakNits === null;
+  const automaticNativePeak = playbackPreferences.nativeHdrPeakNits === null;
   return <>
     <section aria-labelledby="playback-episodes" className={styles.section}>
       <h2 id="playback-episodes" className="text-lg font-medium">Episodes</h2>
@@ -68,23 +68,23 @@ export function PlaybackSettings() {
         </Field>}
       </FieldGroup>
     </section>
-    {desktop ? desktop.platform === "macos" && <section aria-labelledby="playback-video" className={styles.section}>
+    {desktop ? (desktop.platform === "macos" || desktop.platform === "windows") && <section aria-labelledby="playback-video" className={styles.section}>
       <h2 id="playback-video" className="text-lg font-medium">Native HDR</h2>
-      <p className={styles.credits}>Navigator uses macOS HDR for compatible videos and displays.</p>
-      {desktop.capabilities?.macHdrPeak && <FieldGroup className="min-w-0 gap-6">
+      <p className={styles.credits}>HDR turns on automatically for compatible videos and displays.</p>
+      {(desktop.capabilities?.nativeHdrPeak || desktop.capabilities?.macHdrPeak) && <FieldGroup className="min-w-0 gap-6">
         <Field orientation="horizontal">
           <FieldContent>
-            <FieldLabel htmlFor="mac-hdr-auto">Automatic HDR peak brightness</FieldLabel>
-            <FieldDescription id="mac-hdr-auto-description">Use the display’s current HDR headroom. Changes apply to the next video.</FieldDescription>
+            <FieldLabel htmlFor="native-hdr-auto">Automatic HDR peak brightness</FieldLabel>
+            <FieldDescription id="native-hdr-auto-description">Use the HDR peak reported by the system. Changes apply to the next video.</FieldDescription>
           </FieldContent>
-          <Switch id="mac-hdr-auto" aria-describedby="mac-hdr-auto-description" checked={automaticMacPeak}
-            onCheckedChange={automatic => updatePlaybackPreferences({ macHdrPeakNits: automatic ? null : 1000 })} />
+          <Switch id="native-hdr-auto" aria-describedby="native-hdr-auto-description" checked={automaticNativePeak}
+            onCheckedChange={automatic => updatePlaybackPreferences({ nativeHdrPeakNits: automatic ? null : 1000 })} />
         </Field>
-        {!automaticMacPeak && <NumberField id="mac-hdr-peak-nits" label="Native HDR peak brightness" suffix=" nits"
-          description="Set a tone-mapping target up to the display’s HDR capability. macOS controls the brightness the display can deliver."
+        {!automaticNativePeak && <NumberField id="native-hdr-peak-nits" label="Native HDR peak brightness" suffix=" nits"
+          description="Set a tone-mapping target up to the display’s HDR capability. The display controls the brightness it can deliver."
           min={203} max={10000} step={1} buttonStep={50} largeStep={100} size="sm"
-          value={playbackPreferences.macHdrPeakNits ?? 1000}
-          onValueChange={macHdrPeakNits => updatePlaybackPreferences({ macHdrPeakNits })} />}
+          value={playbackPreferences.nativeHdrPeakNits ?? 1000}
+          onValueChange={nativeHdrPeakNits => updatePlaybackPreferences({ nativeHdrPeakNits })} />}
       </FieldGroup>}
     </section> : <section aria-labelledby="playback-video" className={styles.section}>
       <h2 id="playback-video" className="text-lg font-medium">Video and HDR</h2>
