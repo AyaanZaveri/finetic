@@ -1,7 +1,7 @@
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import { patchWebGpuRuntime } from './webgpu-runtime-patch.mjs';
+import { patchWebGpuDecodeWorker, patchWebGpuRuntime } from './webgpu-runtime-patch.mjs';
 
 const require = createRequire(import.meta.url);
 const manifest = require.resolve('@aiostreams/webgpu-player/package.json');
@@ -15,4 +15,6 @@ cpSync(join(dirname(manifest), 'libraries'), new URL('libraries/', destination),
 cpSync(join(dirname(manifest), 'LICENSE'), new URL('LICENSE', destination));
 const entry = new URL('libraries/webgpu-player/EmbeddedPlayer.js', destination);
 writeFileSync(entry, patchWebGpuRuntime(readFileSync(entry, 'utf8'), version));
+const worker = new URL('libraries/webgpu-player/CustomDecode.worker.js', destination);
+writeFileSync(worker, patchWebGpuDecodeWorker(readFileSync(worker, 'utf8'), version));
 console.log(`prepared webgpu player ${version}`);

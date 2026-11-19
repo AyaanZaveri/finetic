@@ -23,9 +23,9 @@ video route. The adaptation removes audio from the metadata used for that one
 negotiation. The engine's existing no-audio path then skips audio decoding and
 output. Normal audio requests keep their original behavior.
 
-`scripts/webgpu-runtime-patch.mjs` checks the pinned module's version and SHA-256
-before applying these changes. A different runtime fails asset preparation
-until the adaptations are reviewed. Workers and WASM stay byte-for-byte unchanged.
+`scripts/webgpu-runtime-patch.mjs` checks the pinned version and each patched
+file's SHA-256. A different runtime fails asset preparation until the
+adaptations are reviewed. The other workers and WASM stay byte-for-byte unchanged.
 The runtime test exercises the shipped embedding function at its negotiation
 boundary, including its original refusal and its video-only route.
 
@@ -65,6 +65,13 @@ URL. Successful resolutions are retained in client memory for one minute, with
 a 32-entry limit, so a compatibility probe and playback can reuse the result.
 Cancellation stops the resolution request. Servers without this endpoint keep
 the existing direct-source behavior.
+
+The pinned range reader uses an unencoded `206` response's `Content-Range` to
+discover the file size. Some media hosts explicitly send
+`Content-Encoding: identity` on these responses. Navigator accepts this as
+unencoded in both the embedding module and the decode worker. Without the file
+size, the Matroska demuxer skips the seek index and can scan sequentially
+through a large file on a jump. Compressed responses still skip size inference.
 
 ## Fallback and resource limits
 

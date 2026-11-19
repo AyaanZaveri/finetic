@@ -324,12 +324,17 @@ function fixture({ result, resolvedSource, audioFailure = false, deferred = fals
     assert.ok(fs.statSync(path.join(root, file)).size > 0, `Runtime includes ${file}`);
   }
   const installed = path.dirname(require.resolve('@aiostreams/webgpu-player/package.json'));
-  const { patchWebGpuRuntime } = await import('./webgpu-runtime-patch.mjs');
+  const { patchWebGpuDecodeWorker, patchWebGpuRuntime } = await import('./webgpu-runtime-patch.mjs');
+  const runtimePatches = {
+    'webgpu-player/EmbeddedPlayer.js': patchWebGpuRuntime,
+    'webgpu-player/CustomDecode.worker.js': patchWebGpuDecodeWorker,
+  };
   for (const file of fs.readdirSync(path.join(installed, 'libraries'), { recursive: true })) {
     const source = path.join(installed, 'libraries', file);
     if (fs.statSync(source).isFile()) {
-      const expected = file === 'webgpu-player/EmbeddedPlayer.js' ? Buffer.from(patchWebGpuRuntime(fs.readFileSync(source, 'utf8'), manifest.version)) : fs.readFileSync(source);
-      assert.deepEqual(fs.readFileSync(path.join(root, file)), expected, `Preserve runtime bytes except the reviewed video-only adaptation: ${file}`);
+      const patch = runtimePatches[file];
+      const expected = patch ? Buffer.from(patch(fs.readFileSync(source, 'utf8'), manifest.version)) : fs.readFileSync(source);
+      assert.deepEqual(fs.readFileSync(path.join(root, file)), expected, `Preserve runtime bytes except the reviewed adaptations: ${file}`);
     }
   }
   console.log('PASS: webgpu media API, language selection, seeking, frame callbacks, fallback, stale loads, timeout, probe locking, capability gates and runtime integrity');

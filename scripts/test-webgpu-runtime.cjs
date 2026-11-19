@@ -8,6 +8,31 @@ const ts = require('typescript');
   const patched = patchWebGpuRuntime(original, '0.5.0');
   assert.throws(() => patchWebGpuRuntime(original + ' ', '0.5.0'), /Review/);
   assert.throws(() => patchWebGpuRuntime(original, '0.6.0'), /Review/);
+  const inferFileSize = (source, contentEncoding) => {
+    // Execute the shipped UrlSource branch for a 206 range near a large file's end.
+    const start = source.indexOf('e:if(this._orchestrator.fileSize===null');
+    const end = source.indexOf('if(this._fileSizeDetermined=', start);
+    assert.ok(start >= 0 && end > start, 'Find the pinned range-size branch');
+    const sizeBranch = source.slice(start, end);
+    const response = sizeBranch.match(/(\w+)\.headers\.get\("Content-Range"\)/)?.[1];
+    assert.ok(response);
+    const headers = new Headers({ 'Content-Range': 'bytes 22547354247-22547358342/22547495077', 'Content-Length': '4096' });
+    if (contentEncoding !== undefined) headers.set('Content-Encoding', contentEncoding);
+    const orchestrator = { fileSize: null, supplyFileSize(value) { this.fileSize = value; } };
+    const read = vm.runInNewContext(`(function(${response},e){${sizeBranch}})`);
+    read.call({ _orchestrator: orchestrator }, { status: 206, type: 'cors', headers }, { currentPos: 22547354247 });
+    return orchestrator.fileSize;
+  };
+  assert.equal(inferFileSize(original, 'identity'), null, 'Reproduce the missing file size that disables Matroska Cues');
+  for (const file of ['EmbeddedPlayer.js', 'CustomDecode.worker.js']) {
+    const served = fs.readFileSync(`public/webgpu-player/0.5.0/libraries/webgpu-player/${file}`, 'utf8');
+    assert.equal(inferFileSize(served), 22547495077, `${file} preserves an ordinary unencoded range`);
+    assert.equal(inferFileSize(served, 'Identity'), 22547495077, `${file} accepts explicitly unencoded ranges`);
+    for (const coding of ['gzip', 'br', 'gzip, identity']) {
+      assert.equal(inferFileSize(served, coding), null, `${file} rejects compressed stream offsets`);
+    }
+  }
+  console.log('PASS: embedded and worker range readers infer the size of 206 responses with identity encoding');
   const inspectDuration = (source, format, headerDuration) => {
     const start = source.indexOf('async function NV(r)');
     const end = source.indexOf('var Uoe=', start);

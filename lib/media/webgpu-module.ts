@@ -53,7 +53,7 @@ export function canUseWebGpu(url: string): boolean {
 let loading: Promise<WebGpuModule | null> | undefined;
 export function loadWebGpuModule(): Promise<WebGpuModule | null> {
     if (!loading) {
-        const url = new URL(`/webgpu-player/${manifest.version}/libraries/webgpu-player/EmbeddedPlayer.js?adapter=4`, location.href).href;
+        const url = new URL(`/webgpu-player/${manifest.version}/libraries/webgpu-player/EmbeddedPlayer.js?adapter=5`, location.href).href;
         // The module resolves its workers and WASM relative to its own URL.
         loading = import(/* webpackIgnore: true */ /* turbopackIgnore: true */ url)
             .then((module: WebGpuModule) => module.isEmbeddedPlayerSupported() ? module : null)
