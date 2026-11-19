@@ -100,7 +100,7 @@ export function CastScrollArea({ cast }: { cast: CastMember[] }) {
             <div ref={viewport} onScroll={updatePosition} tabIndex={0} role="region" aria-label="Cast members" className="overflow-x-auto overscroll-x-contain rounded-lg pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/22">
                 <ul className="flex w-max gap-6">
                     {cast.map((member) => (
-                        <li key={member.id} className="w-28 shrink-0 text-center">
+                        <li key={member.id} className="w-28 shrink-0 text-center motion-safe:transition-[scale] motion-safe:duration-150 motion-safe:ease-[var(--ease-out)] motion-safe:has-[>a:active]:scale-[0.98]">
                             <CastProfile member={member} />
                             {member.role && <CastRole role={member.role} name={member.name} />}
                         </li>
@@ -123,6 +123,6 @@ function CastProfile({ member }: { member: CastMember }) {
     </>;
     // Add-on fallback names are not TMDB IDs and cannot open a person lookup.
     return /^[1-9]\d*$/.test(member.id)
-        ? <Link href={`/person/${member.id}`} prefetch={false} draggable={false} className="block rounded-lg outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/22 motion-safe:transition-[scale] motion-safe:duration-150 motion-safe:ease-[var(--ease-out)] motion-safe:active:scale-[0.98]">{content}</Link>
+        ? <Link href={`/person/${member.id}`} prefetch={false} draggable={false} className="block rounded-lg outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/22">{content}</Link>
         : <div>{content}</div>;
 }
