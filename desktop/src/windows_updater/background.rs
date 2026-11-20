@@ -53,6 +53,11 @@ impl Background {
                     // No console and no parent-owned job: installation must
                     // continue after the app and its server have stopped.
                     .stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null());
+                if apply {
+                    // The helper waits for the installer. An inherited install
+                    // working directory would keep that folder locked on Windows.
+                    command.current_dir(&this.cache);
+                }
                 #[cfg(windows)]
                 command.creation_flags(0x08000000 | 0x00000200);
                 let child = command.spawn().map_err(|e| e.to_string())?;

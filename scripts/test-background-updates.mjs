@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
+import { EventEmitter } from 'node:events';
 import { mkdtemp, mkdir, writeFile, readFile, rm, cp, symlink } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { runInNewContext } from 'node:vm';
 import runtime from '../desktop/windows/background-update.cjs';
 import deltaRuntime from '../desktop/windows/delta.cjs';
 import { makeWindowsBackgroundFeed } from './windows-update-feed.mjs';
@@ -57,7 +60,23 @@ try {
   assert.equal(requests.filter(u=>u.endsWith('.exe')).length,1,'A verified cached payload is reused after relaunch');
   const installed=[];
   await assert.rejects(runtime.apply(cache,publicKey,fetcher,async()=>{throw Error('Must not run');},()=>{},{installed:'0.5.0'}),/different installation/);
-  await runtime.apply(cache,publicKey,fetcher,async file=>{installed.push(file);return file.includes('-delta.exe')?13:0;});
+  const helperPath = new URL('../desktop/windows/background-update.cjs', import.meta.url);
+  const require = createRequire(helperPath);
+  const helper = { exports: {} };
+  runInNewContext(await readFile(helperPath, 'utf8'), {
+    module: helper, Buffer, URL, AbortSignal,
+    require: name => name === 'node:child_process' ? {
+      spawn(file, args, { cwd }) {
+        assert.equal(cwd, cache, 'The installer must not inherit the running app’s working directory');
+        assert.deepEqual(Array.from(args), ['/S', '/UPDATE']);
+        installed.push(file);
+        const child = new EventEmitter();
+        queueMicrotask(() => child.emit('exit', file.includes('-delta.exe') ? 13 : 0));
+        return child;
+      },
+    } : require(name),
+  });
+  await helper.exports.apply(cache, publicKey, fetcher);
   assert.deepEqual(installed.map(file=>file.includes('-delta.exe')), [true,false], 'Base mismatch automatically falls back to the signed full installer');
   assert.equal(requests.filter(u=>u.endsWith('-setup.exe')).length,1);
   await assert.rejects(readFile(join(cache,'ready.json')),/ENOENT/);

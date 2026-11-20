@@ -2,7 +2,7 @@
 const { createHash, createPublicKey, verify } = require('node:crypto');
 const { createReadStream, createWriteStream } = require('node:fs');
 const { readFile, writeFile, mkdir, rename, rm, copyFile, lstat } = require('node:fs/promises');
-const { join, resolve } = require('node:path');
+const { dirname, join, resolve } = require('node:path');
 const { spawn } = require('node:child_process');
 const { pipeline } = require('node:stream/promises');
 const { Transform, Readable } = require('node:stream');
@@ -119,7 +119,7 @@ async function prepare(install, installed, cache, publicKey, fetcher = fetch, re
 }
 function runInstaller(file) {
   return new Promise((resolve,reject)=>{
-    const child=spawn(file,['/S','/UPDATE'],{stdio:'ignore',windowsHide:true});
+    const child=spawn(file,['/S','/UPDATE'],{cwd:dirname(file),stdio:'ignore',windowsHide:true});
     child.once('error',reject);
     child.once('exit',code=>resolve(code));
   });
