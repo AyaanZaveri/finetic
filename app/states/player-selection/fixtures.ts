@@ -39,6 +39,18 @@ const seasonSixAirDates = [
     "01-10", "01-17", "01-24", "01-31", "02-07", "02-14", "02-21", "02-28", "03-07",
     "03-14", "03-21", "04-11", "04-18", "04-25", "05-02", "05-09", "05-16", "05-16",
 ];
+const seasonSixStills = [
+    "bLZSOzRAqO5V74D2koPksQscC3t", "sfWFDgNUDjDBo9HOgNG4tSIAk7d", "l1NZcemvW2husp07poXhHxABhmt",
+    "dGbTIbYP315IkTJ20UoNeiH1IH5", "20nigWdg6hichDRKLwdBBRMxpxL", "10MdhUpcykGVTJLvy7GeVznCnuy",
+    "isKURUcTgOx2V774NyltOShGlqe", "5maSCF0Yobq9gGixbFj33rGHPBw", "5z7U6f7PpeZmIJm3sH6OY6Bj3NB",
+    "oZ9UMk7MKTIumOzD7DIFmeN1lZD", "likXfZnk9bhfx2IyECRuvECVcIO", "bxU2nWhLrhpde3fS0keqal5A7a2",
+    "sKdBlH6oVTO70V2vvRxiIz5g6z1", "xnv8adqyfG70DQEnp9ugLHs16mp", "o4LiSkg9Izbero76SwZpon1PZ1w",
+    "7V16fperXSPfFyoYVC3e2YmxCkZ", "ub4PLlJv2KGXETOQrq5JVjqKDYs", "yMu84cLYRJdfnUUxA2XF1GB45uO",
+];
+const seasonSevenStills = [
+    "tMf1OuqIyQCgzcCSXsjWEX7vbui", "yM30bgDLlxL8vbIknbbHN9G3xZn", "ok8rYTTi1skrwHmoPtUX3VVAXux",
+    "5T7aBAyWhu5rFee3WaCcgLMMQ7U", "aRvd8Fz7iE395jLkDsqa3qGdsZz", "7ST7k5QRYkMp0iqLfVrq3Enx8WQ",
+];
 
 export function fixtures(state: StateId) {
     const seriesId = `tmdb:${991000 + states.findIndex(item => item.id === state)}`;
@@ -49,14 +61,16 @@ export function fixtures(state: StateId) {
     function episodes(season: number): Episode[] {
         if (state === "episode-empty") return [];
         const names = season === 7 ? seasonSeven : state === "episode-single" ? seasonSix.slice(0, 1) : seasonSix;
-        return names.map((title, index) => ({
-            id: `${seriesId}:${season}:${index + 1}`, season, episode: index + 1, title,
-            ...(season === 6 ? { runtime: 22, released: `2019-${seasonSixAirDates[index]}` } : {}),
-            ...(season === currentSeason && index + 1 === currentEpisode ? {
-                thumbnail: "https://image.tmdb.org/t/p/w500/5z7U6f7PpeZmIJm3sH6OY6Bj3NB.jpg",
-            } : {}),
-            ...(season === 7 && index === names.length - 1 ? { released: "2099-01-01" } : {}),
-        }));
+        const stills = season === 7 ? seasonSevenStills : seasonSixStills;
+        return names.map((title, index) => {
+            const still = stills[index];
+            return {
+                id: `${seriesId}:${season}:${index + 1}`, season, episode: index + 1, title,
+                thumbnail: still ? `https://image.tmdb.org/t/p/w500/${still}.jpg` : undefined,
+                ...(season === 6 ? { runtime: 22, released: `2019-${seasonSixAirDates[index]}` } : {}),
+                ...(season === 7 && index === names.length - 1 ? { released: "2099-01-01" } : {}),
+            };
+        });
     }
     const currentStream = "https://stream.example/brooklyn-nine-nine-1080p.mp4";
     const streams: StremioStream[] = [
