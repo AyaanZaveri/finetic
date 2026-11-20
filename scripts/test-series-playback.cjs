@@ -68,14 +68,13 @@ async function run() {
     const nextButton = control.props.children;
     assert.equal(control.props.tooltip, 'S2 E1 · Next season');
     assert.equal(nextButton.props['aria-label'], 'Play next episode: Next season');
-    assert.equal(nextButton.props.size, 'icon-sm');
+    assert.equal(nextButton.props.variant, 'player-control');
     nextButton.props.onClick(); assert.ok(advanced, 'Manual Next shares the continuation controller');
     const busyButton = PlayerNextEpisode({ next, advancing: true, onAdvance() {} }).props.children;
-    assert.equal(busyButton.props.size, nextButton.props.size);
+    assert.equal(busyButton.props.variant, nextButton.props.variant);
     assert.equal(busyButton.props.loading, true);
-    const spacer = PlayerNextEpisode({ next: null, advancing: false, onAdvance() {} });
-    assert.equal(spacer.type, 'span');
-    assert.equal(spacer.props['data-player-next-slot'], '');
+    assert.equal(PlayerNextEpisode({ next: null, advancing: false, onAdvance() {} }), null,
+        'An unavailable next episode must not reserve a toolbar slot');
     let cancelled = 0, played = 0;
     const thumbnail = 'https://image.tmdb.org/t/p/w300/next.jpg';
     const prompt = PlayerUpNext({ next, thumbnail, seconds: 5, onPlay: () => played++, onCancel: () => cancelled++ });

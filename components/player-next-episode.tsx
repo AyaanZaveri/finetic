@@ -14,9 +14,9 @@ import type { Episode } from "@/app/actions/tv-shows";
 export function PlayerNextEpisode({ next, advancing, onAdvance }: {
     next: Episode | null; advancing: boolean; onAdvance(): void;
 }) {
-    if (!next) return <span data-player-next-slot="" className="size-8 shrink-0" aria-hidden="true" />;
+    if (!next) return null;
     return <MediaPlayerTooltip tooltip={`S${next.season} E${next.episode} · ${next.title}`}>
-        <Button data-player-next-slot="" type="button" variant="player-control" loading={advancing}
+        <Button type="button" variant="player-control" loading={advancing}
             aria-label={`Play next episode: ${next.title}`} onClick={onAdvance}>
             <SkipForward aria-hidden="true" />
         </Button>

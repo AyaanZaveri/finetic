@@ -210,7 +210,6 @@ html[data-native-engine="exoplayer"] [data-slot="media-player-volume-container"]
   [data-player-toolbar] > div:first-child { flex-wrap: wrap; }
   [data-player-toolbar] > div:last-child { max-width: 100%; flex-wrap: wrap; justify-content: flex-end; margin-inline-start: auto; }
   [data-player-toolbar] button { min-width: 2.75rem; min-height: 2.75rem; }
-  [data-player-next-slot] { width: 2.75rem; height: 2.75rem; }
   [data-player-toolbar] button > svg { width: 1.25rem; height: 1.25rem; }
   [data-slot="media-player-time"] { max-width: 100%; flex-wrap: wrap; font-size: .875rem; font-weight: 400; line-height: 1.4; white-space: nowrap; }
 }
