@@ -4,7 +4,7 @@
     <title>Navigator for macOS</title>
     <language>en</language>
     <item>
-      <title>Navigator 0.6.4</title>
+      <title>Navigator 0.6.5</title>
       <description>&lt;!doctype html&gt;
 &lt;html lang=&quot;en&quot;&gt;
 &lt;head&gt;
@@ -23,11 +23,11 @@ p { margin: 0; }
 &lt;body&gt;&lt;p&gt;Update Navigator, then reopen it with your existing sign-in and settings.&lt;/p&gt;&lt;/body&gt;
 &lt;/html&gt;</description>
       <sparkle:minimumSystemVersion>13.5</sparkle:minimumSystemVersion>
-      <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.6.4/Navigator-0.6.4-macos-arm64.zip"
-        sparkle:version="0.6.4" sparkle:shortVersionString="0.6.4"
-        sparkle:edSignature="HQ/RGlB1pPW+rtZ/iiJbnVl3NEiUUNMw1dXLex5RyZ/+V5RJEzc6ftDD05oy4rH9Fmpe5tFy9GLiGpHuzwS+BA==" length="94051206" type="application/octet-stream" />
+      <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.6.5/Navigator-0.6.5-macos-arm64.zip"
+        sparkle:version="0.6.5" sparkle:shortVersionString="0.6.5"
+        sparkle:edSignature="+MkxPS2a2kbuXwVLCDfcmYEftP0raDadfdNT7zHhzl7Z6qPXAUE/M6zfJTvgyP+LRG4984zHjkcRPVYJcuApCw==" length="94500460" type="application/octet-stream" />
       <sparkle:deltas>
-        <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.6.4/Navigator-0.6.4-macos-arm64-from-0.6.3.delta" sparkle:version="0.6.4" sparkle:deltaFrom="0.6.3" sparkle:edSignature="2OqsYHlJZTgJsJcA1ODXHPxCuEiN7tiYO0UFYibyM55nFcBi9fuQdE+2vUoJJQ/46U54CvdTfduj85Q4pbHcDw==" length="770414" type="application/octet-stream" />
+        <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.6.5/Navigator-0.6.5-macos-arm64-from-0.6.4.delta" sparkle:version="0.6.5" sparkle:deltaFrom="0.6.4" sparkle:edSignature="JkM9CecWAgz5beXujQHM2wkoFW3Kijd1e4vhuyBXZEmPv8om5BT4iKi3iUKnMqm8N8m1BeXbHQK6qos56/0rDg==" length="1014950" type="application/octet-stream" />
       </sparkle:deltas>
     </item>
   </channel>
