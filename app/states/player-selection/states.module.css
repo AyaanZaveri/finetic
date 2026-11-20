@@ -1,0 +1,23 @@
+.page { container: player-selection-states / inline-size; margin-inline: calc(50% - 50vw); padding: 24px; }
+.layout { display: flex; flex-direction: column; gap: 16px; max-width: 960px; margin-inline: auto; }
+.frame { display: block; width: 100%; min-width: 0; height: min(76dvh, 660px); min-height: 400px; border: 0; }
+.switcher { all: unset; display: none; flex-direction: column; gap: 16px; max-height: calc(100dvh - 48px); overflow-y: auto; scrollbar-width: none; padding: 6px; border-radius: 14px; background: rgb(20 20 20 / .92); box-shadow: inset 0 0 0 1px rgb(255 255 255 / .1); font: 13px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; user-select: none; }
+.group { display: flex; flex-direction: column; gap: 2px; }
+.heading { display: flex; align-items: center; gap: 6px; padding: 4px 10px 6px; font-size: 11px; font-weight: 500; color: rgb(255 255 255 / .45); }
+.switcher button { all: unset; flex: none; padding: 8px 10px; border-radius: 8px; font: inherit; color: rgb(255 255 255 / .6); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: font-weight 160ms ease-out; }
+.switcher button:hover { color: rgb(255 255 255 / .85); }
+.switcher button[aria-pressed="true"] { background: rgb(255 255 255 / .14); color: white; font-weight: 500; }
+.switcher button:focus-visible, .select select:focus-visible { outline: 2px solid rgb(255 255 255 / .7); outline-offset: 2px; }
+.select { position: relative; align-self: flex-start; max-width: 100%; color: white; }
+.select select { all: unset; box-sizing: border-box; max-width: 100%; padding: 10px 36px 10px 16px; border-radius: 999px; background: rgb(20 20 20 / .92); box-shadow: inset 0 0 0 1px rgb(255 255 255 / .1); font: 500 13px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; cursor: pointer; }
+.select option, .select optgroup { color: white; background: #141414; }
+.select svg { position: absolute; top: 50%; right: 14px; translate: 0 -50%; pointer-events: none; color: rgb(255 255 255 / .6); }
+@container player-selection-states (min-width: 1192px) {
+  .layout { display: grid; grid-template-columns: 208px 960px; justify-content: center; gap: 24px; align-items: start; max-width: none; }
+  .switcher { display: flex; position: sticky; top: 24px; }
+  .select { display: none; }
+}
+.page[data-switcher-hidden] .switcher, .page[data-switcher-hidden] .select { display: none; }
+.page[data-switcher-hidden] .layout { display: flex; }
+
+@media (prefers-reduced-motion: reduce) { .switcher button { transition: none; } }
