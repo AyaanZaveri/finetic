@@ -27,16 +27,16 @@ export function PlayerControlBar({ title, episode, releaseYear, endTime, preview
     return <MediaPlayerControls className="flex-col items-start gap-2.5 px-6 pb-4 z-20">
         <MediaPlayerControlsOverlay />
         <div className="flex flex-col w-full gap-1.5 pb-2">
-            {!episode && releaseYear !== undefined && <div data-player-meta="" className="text-sm text-white/60">{releaseYear}</div>}
+            {metadata && <div data-player-meta="" className="flex min-w-0 items-center gap-3 text-sm font-medium text-white/60">
+                <span className="min-w-0 truncate" title={metadata}>{metadata}</span>
+            </div>}
             <div data-player-heading-row="" className="flex min-w-0 items-center justify-between w-full">
                 <h2 data-player-title="" title={title} className="min-w-0 text-3xl font-semibold text-white truncate font-poppins">
                     {title}
                 </h2>
                 {endTime}
             </div>
-            {metadata && <div data-player-meta="" className="flex min-w-0 items-center gap-3 text-sm text-white/60">
-                <span className="min-w-0 truncate" title={metadata}>{metadata}</span>
-            </div>}
+            {!episode && releaseYear !== undefined && <div data-player-meta="" className="text-sm font-medium text-white/60">{releaseYear}</div>}
         </div>
         <MediaPlayerSeek previewFrames previewSource={previewSource} skipSegments={skipSegments} />
         <div data-player-toolbar="" className="flex w-full items-center gap-2">

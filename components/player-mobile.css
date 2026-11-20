@@ -203,7 +203,7 @@ html[data-native-engine="exoplayer"] [data-slot="media-player-volume-container"]
     font-size: 1.5rem; font-weight: 600; line-height: 1.4;
   }
   [data-player-end-time] { display: none; }
-  [data-player-meta] { min-width: 0; flex-wrap: wrap; gap: .25rem .75rem; font-size: .875rem; font-weight: 400; line-height: 1.4; }
+  [data-player-meta] { min-width: 0; flex-wrap: wrap; gap: .25rem .75rem; font-size: .875rem; line-height: 1.4; }
   [data-player-meta] > span { min-width: 0; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
   [data-player-toolbar] { flex-wrap: wrap; gap: .5rem 1rem; }
   [data-player-toolbar] > div { min-width: 0; gap: .25rem; }
