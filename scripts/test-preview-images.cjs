@@ -63,16 +63,20 @@ async function main() {
   decode() { return this.ready.promise; }
   removeAttribute() {}
  }
- const { PreviewImage } = load('components/preview-image.tsx', {
+ const { PreviewImage, PreviewLoadingIndicator } = load('components/preview-image.tsx', {
   react: runtime.react, 'react/jsx-runtime': runtime.jsx,
+  '@/components/ui/loading-placeholder': { LoadingPlaceholder: 'LoadingPlaceholder' },
   '@/lib/media/preview-crop-client': { previewCrop(source, signal) { const task = { source, signal, ...deferred() }; analyses.push(task); return task.promise; } },
  }, { Image });
  const render = src => { const tree = runtime.render(PreviewImage, { src }); runtime.flush(); return tree; };
  render('one'); images[0].ready.resolve(); await flush();
  let tree = render('one'); assert.equal(tree.props.style.height, 126, 'Preview height stays bounded independently of decoded image geometry'); assert.equal(tree.props.children[0].props.src, 'one', 'Display does not wait for crop analysis');
  tree = render('two'); assert.equal(tree.props.children[0].props.src, 'one', 'Retain the decoded image while its replacement loads');
- assert.equal(tree.props['aria-busy'], true); assert.ok(!JSON.stringify(tree).includes('Updating preview'), 'Pending frames use a quiet overlay without a text banner'); assert.equal(analyses[0].signal.aborted, true);
+ assert.equal(tree.props['aria-busy'], true);
+ assert.equal(tree.props.children[2].type, PreviewLoadingIndicator, 'Keep the old frame visible with a corner indicator');
+ assert.equal(analyses[0].signal.aborted, true);
  images[1].ready.resolve(); await flush(); tree = render('two'); assert.equal(tree.props.children[0].props.src, 'two');
+ assert.equal(tree.props.children[2], false, 'Decoded frames clear the loading indicator');
  analyses[1].resolve({ width: 448, height: 252, bounds: { x: 0, y: 20, width: 448, height: 212 } }); await flush();
  tree = render('two'); assert.equal(tree.props.style.height, 126, 'Crop analysis cannot resize the popup');
  render('three'); render('four'); images[2].ready.resolve(); await flush(); tree = render('four');

@@ -1,10 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { previewCrop } from "@/lib/media/preview-crop-client";
 
 type Crop = { source: string; ratio: number; left: number; top: number; width: number; height: number };
 const crops = new Map<string, Crop>();
+
+export function PreviewLoadingIndicator() {
+    return (
+        <LoadingPlaceholder className="pointer-events-none absolute end-2 bottom-2 grid size-6 place-items-center rounded-full bg-black/55 text-white/85">
+            <Loader2 aria-hidden="true" className="size-3.5 motion-safe:animate-spin" />
+        </LoadingPlaceholder>
+    );
+}
 
 /** Decode replacements before swapping; analyze letterbox bands off the UI thread. */
 export function PreviewImage({ src, alt = "", pending = false }: { src: string; alt?: string; pending?: boolean }) {
@@ -50,7 +60,7 @@ export function PreviewImage({ src, alt = "", pending = false }: { src: string; 
                 style={{ left: `${(100 - width) / 2 + (current?.left ?? 0) * width / 100}%`, top: `${(100 - height) / 2 + (current?.top ?? 0) * height / 100}%`, width: `${(current?.width ?? 100) * width / 100}%`, height: `${(current?.height ?? 100) * height / 100}%`, visibility: current ? "visible" : "hidden" }}
             />
             {!current && <div className="absolute inset-0 bg-white/10" />}
-            {current && busy && <div aria-hidden="true" className="pointer-events-none absolute inset-0 animate-pulse bg-white/5 motion-reduce:animate-none" />}
+            {busy && <PreviewLoadingIndicator />}
         </div>
     );
 }

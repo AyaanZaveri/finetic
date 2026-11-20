@@ -2,8 +2,7 @@
 
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import MuxVideo from "@mux/mux-video-react";
-import { PreviewImage } from "@/components/preview-image";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PreviewImage, PreviewLoadingIndicator } from "@/components/preview-image";
 import type { MpvElementHandle } from "@/lib/desktop/mpv-element";
 import { BrowserPreviewFrames, PreviewCache, PreviewScheduler, previewBucket, type PreviewMedia } from "@/lib/media/preview-frames";
 import { RangePreviewFrames } from "@/lib/media/range-preview-frames";
@@ -188,8 +187,9 @@ function PreviewSource({ media, source, time, displayTime, duration, active: fal
     const image = displaySrc || ((active || frame.time === displayBucket) ? frame.src : null);
     const ready = !!displaySrc || (frame.time === displayBucket && !!(frame.src || frame.video));
     const unavailable = frame.time === displayBucket && frame.unavailable;
+    const loading = rangeActive && !ready && !unavailable;
     return (
-        <div data-slot="media-player-seek-thumbnail" data-native-preview-provider={nativeFrames ? window.navigatorDesktop?.platform : undefined} aria-busy={active && !ready && !unavailable} className="relative w-56 overflow-hidden rounded-lg" style={{ width: 224, height: 126, flex: "none" }}>
+        <div data-slot="media-player-seek-thumbnail" data-native-preview-provider={nativeFrames ? window.navigatorDesktop?.platform : undefined} aria-busy={loading} className="relative w-56 overflow-hidden rounded-lg" style={{ width: 224, height: 126, flex: "none" }}>
             {browserMode && !rangeMode && source && (muxPreview ? (
                 <MuxVideo
                     ref={videoRef}
@@ -205,8 +205,9 @@ function PreviewSource({ media, source, time, displayTime, duration, active: fal
                     className={`pointer-events-none absolute inset-0 size-full object-contain ${frame.video ? "opacity-100" : "opacity-0"}`}
                 />
             ))}
-            {image && <PreviewImage src={image} pending={!ready} />}
-            {!image && !ready && !unavailable && <Skeleton className="absolute inset-0 size-full rounded-none bg-white/10" />}
+            {image && <PreviewImage src={image} pending={loading} />}
+            {loading && !image && !frame.video && <div aria-hidden="true" className="absolute inset-0 bg-white/10" />}
+            {loading && !image && <PreviewLoadingIndicator />}
             {unavailable && <div className="absolute inset-0 flex items-center justify-center text-xs text-white/60">Preview unavailable</div>}
         </div>
     );

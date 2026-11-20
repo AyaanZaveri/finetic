@@ -9,7 +9,7 @@ const context = { exports: {}, require(name) {
   };
   if (name === 'react/jsx-runtime') return { jsx: (type, props, key) => ({ type, props, key }), jsxs: (type, props, key) => ({ type, props, key }) };
   if (name.includes('preview-frames')) return { PreviewCache: class { get() {} }, PreviewScheduler: class {}, previewBucket: Math.round };
-  return { __esModule: true, default: 'MuxVideo', PreviewImage: 'PreviewImage', Skeleton: 'Skeleton' };
+  return { __esModule: true, default: 'MuxVideo', PreviewImage: 'PreviewImage', PreviewLoadingIndicator: 'PreviewLoadingIndicator' };
 } };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('components/seek-preview.tsx', 'utf8'), {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
@@ -27,6 +27,7 @@ for (const [source, expected] of [
   assert.equal(decoder.type, expected);
   assert.equal(decoder.props.src, source);
   assert.equal(decoder.props.preload, 'auto', 'An active preview must request decoded video data, not stop at metadata');
+  assert.ok(view.props.children.some(node => node?.type === 'PreviewLoadingIndicator'), 'A pending first frame uses the corner indicator');
 }
 const plain = { src: 'https://stream.test/plain.webm', getAttribute: () => null };
 assert.equal(context.exports.SeekPreview({ media: plain, time: 0, duration: 120, active: false }).props.source, plain.src);

@@ -76,7 +76,7 @@ test('Slow HDR frames can complete after the timeout without restarting their se
   const provider = new context.exports.BrowserPreviewFrames(video, (...args) => results.push(args));
   try {
     provider.want(20); assert.ok(timer.delay >= 30000);
-    timer.fn(); assert.equal(results.at(-1)[3], true, 'A genuinely stalled source leaves the loading skeleton');
+    timer.fn(); assert.equal(results.at(-1)[3], true, 'A genuinely stalled source leaves the loading state');
     video.dispatchEvent(new Event('progress')); assert.equal(seeks, 1, 'Progress cannot restart the same slow seek');
     video.readyState = 2; video.finish();
     assert.equal(results.at(-1)[0], 20); assert.ok(results.at(-1)[1], 'A late decoded frame recovers the preview');

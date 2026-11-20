@@ -138,7 +138,7 @@ function renderSource() {
   do {
     assert.ok(++rounds < 20);
     dirty = false; cursor = 0;
-    node = sourceComponent({ media: nativeMedia, source:'https://video.test/a.mkv', time:at, displayTime:at, duration:1200, active:requesting });
+    node = sourceComponent({ media: nativeMedia, source:'https://video.test/a.mkv', time:at, displayTime:at, duration:1200, active:requesting, rangeActive:requesting });
     while (effects.length) effects.shift()();
   } while (dirty);
   return node;
