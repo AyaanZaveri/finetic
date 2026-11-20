@@ -130,6 +130,15 @@
   user-select: none;
 }
 
+.streamRow[aria-current="true"]::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border: 2px solid var(--primary);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
 .streamRow:focus-visible {
   outline: var(--keyboard-focus-width) solid var(--ring);
   outline-offset: 0;
@@ -173,6 +182,10 @@
 @media (hover: hover) and (pointer: fine) {
   .streamRow:enabled:hover {
     background: color-mix(in oklab, var(--muted) 35%, var(--card));
+  }
+
+  .root[data-stream-picker] .streamRow:enabled:hover {
+    background-color: color-mix(in srgb, var(--foreground) var(--player-selection-row-hover-strength), var(--stream-card-surface));
   }
 }
 

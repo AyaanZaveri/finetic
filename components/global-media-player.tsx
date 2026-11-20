@@ -21,6 +21,7 @@ import { nextEpisodeRequest } from "@/lib/media/episode-continuation";
 import { safeResumePosition } from "@/lib/media/resume-playback";
 import { PlayerNextEpisode, PlayerUpNext } from "@/components/player-next-episode";
 import { PlayerSelectionControls } from "@/components/player-selection-controls";
+import { PlayerControlBar } from "@/components/player-control-bar";
 import { formatRuntime } from "@/lib/format-runtime";
 
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect, useMemo } from "react";
@@ -33,20 +34,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { PlayerNavigatorButton } from "@/components/player-navigator-button";
 import {
   MediaPlayer,
-  MediaPlayerControls,
-  MediaPlayerControlsOverlay,
   MediaPlayerFullscreen,
   MediaPlayerLoading,
   MediaPlayerPiP,
-  MediaPlayerPlay,
-  MediaPlayerSeek,
-  MediaPlayerSeekBackward,
-  MediaPlayerSeekForward,
-  MediaPlayerTime,
   MediaPlayerVideo,
-  MediaPlayerVolume,
   MediaPlayerSettings,
-  MediaPlayerTooltip,
 } from "@/components/ui/media-player";
 import { WebPlaybackVideo } from "@/components/web-playback-video";
 import { PlayerPlaybackStats } from "@/components/player-playback-stats";
@@ -69,7 +61,7 @@ import { PlayerVideoFit } from "@/components/player-video-fit";
 import { NativePlayerGlass } from "@/components/native-player-glass";
 import { DesktopTracks } from "@/components/desktop/tracks";
 import type { MpvElementHandle } from "@/lib/desktop/mpv-element";
-import { ArrowLeft, RotateCcw, RotateCw, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { useMediaPlayer } from "@/contexts/MediaPlayerContext";
 import {
   reportPlaybackStart,
@@ -924,6 +916,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const loadingLogo = mediaDetails?.logo || initialPlaybackDetails(currentMedia).logo;
   const videoGeneration = loadGenerationRef.current;
   const upNext = streamUrl && !loading && !playbackError ? episodeContinuation.upNext : null;
+  const chapterMedia = videoRef.current;
 
   const Video = nativePlayback
     ? MpvVideo
@@ -1160,81 +1153,39 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           />
         )}
 
-        <MediaPlayerControls className="flex-col items-start gap-2.5 px-6 pb-4 z-20">
-
-
-          <MediaPlayerControlsOverlay />
-
-          <div className="flex flex-col w-full gap-1.5 pb-2">
-            <div data-player-heading-row="" className="flex min-w-0 items-center justify-between w-full">
-              <h2 data-player-title="" title={primaryTitle} className="min-w-0 text-3xl font-semibold text-white truncate font-poppins">
-                {primaryTitle}
-              </h2>
-
-              <PlayerEndTime key={`${streamUrl}:${playerAttempt}`} duration={duration} mediaRef={videoRef} />
-            </div>
-
-            <div data-player-meta="" className="flex min-w-0 items-center gap-3 text-sm text-white/60">
-              {isEpisodePlayback && (
-                <span className="min-w-0 truncate" title={showTitle || "TV Show"}>
-                  {showTitle || "TV Show"}
-                  {currentMedia.seasonNumber && currentMedia.episodeNumber
-                    ? ` · S${currentMedia.seasonNumber} · E${currentMedia.episodeNumber}`
-                    : ""}
-                </span>
-              )}
-              {mediaDetails?.runtime && (
-                <span>{formatRuntime(mediaDetails.runtime)}</span>
-              )}
-              {mediaDetails?.year && <span>{mediaDetails.year}</span>}
-              {titleRating && <span>{titleRating}</span>}
-            </div>
-          </div>
-
-          <MediaPlayerSeek previewFrames previewSource={streamUrl ?? undefined}
-            skipSegments={skipTimeline.source === streamUrl ? skipTimeline.segments : []} />
-
-          <div data-player-toolbar="" className="flex w-full items-center gap-2">
-            <div className="flex min-w-0 flex-1 items-center gap-2">
-              <MediaPlayerPlay />
-              {isEpisodePlayback && season !== undefined && episodeNumber !== undefined && (
-                <PlayerNextEpisode next={episodeContinuation?.next || null} advancing={Boolean(episodeContinuation?.busy)}
-                  onAdvance={() => episodeContinuation?.advance()} />
-              )}
-              <MediaPlayerSeekBackward>
-                <RotateCcw />
-              </MediaPlayerSeekBackward>
-              <MediaPlayerSeekForward>
-                <RotateCw />
-              </MediaPlayerSeekForward>
-              <MediaPlayerVolume expandable />
-              <MediaPlayerTime />
-            </div>
-            <div className="flex items-center gap-2">
-              {onToggleAIAsk && <PlayerNavigatorButton onToggle={onToggleAIAsk} />}
-
-              {selectorMedia && streamUrl && activePlaybackRequestRef.current === playbackRequest && (
-                <PlayerSelectionControls key={selectorMedia.id} media={selectorMedia} streamUrl={streamUrl}
-                  playingEpisode={playingEpisode} onStreamSelect={changeStream} onEpisodeSelect={episode => {
-                    sendPlaybackUpdate("stopped");
-                    void playMedia({
-                      ...nextEpisodeRequest({ ...currentMedia, details: mediaDetails || currentMedia.details }, episode),
-                      resumePositionTicks: episode.resumePositionTicks,
-                    });
-                  }} />
-              )}
-              <DesktopTracks mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} />
-              <PlayerSubtitles mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} native={nativePlayback}
-                tracks={subtitleTracks} requestedSrc={requestedSubtitleSrc} onTrackChange={handleCustomSubtitleChange}
-                timing={{ seconds: subtitleTiming.seconds, open: Boolean(subtitleTiming.key && timingOpenKey === subtitleTiming.key),
-                  onOpen: () => setTimingOpenKey(subtitleTiming.key), onClose: () => setTimingOpenKey(null) }} />
-              <PlayerVideoFit key={`${streamUrl}:${playerAttempt}`} mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} />
-              <MediaPlayerSettings stats={nativePlayback ? undefined : { open: showPlaybackStats, onOpenChange: setShowPlaybackStats }} />
-              {!nativePlayback && <MediaPlayerPiP />}
-              <MediaPlayerFullscreen />
-            </div>
-          </div>
-        </MediaPlayerControls>
+        <PlayerControlBar title={primaryTitle} previewSource={streamUrl ?? undefined}
+          episode={isEpisodePlayback ? { showTitle, season, episodeNumber } : undefined}
+          releaseYear={currentMedia.type === "movie" ? mediaDetails?.year : undefined}
+          endTime={<PlayerEndTime key={`${streamUrl}:${playerAttempt}`} duration={duration} mediaRef={videoRef} />}
+          skipSegments={skipTimeline.source === streamUrl ? skipTimeline.segments : []}
+          nextEpisode={isEpisodePlayback && season !== undefined && episodeNumber !== undefined && (
+            <PlayerNextEpisode next={episodeContinuation?.next || null} advancing={Boolean(episodeContinuation?.busy)}
+              onAdvance={() => episodeContinuation?.advance()} />
+          )}>
+          {onToggleAIAsk && <PlayerNavigatorButton onToggle={onToggleAIAsk} />}
+          {selectorMedia && streamUrl && activePlaybackRequestRef.current === playbackRequest && (
+            <PlayerSelectionControls key={selectorMedia.id} media={selectorMedia} streamUrl={streamUrl}
+              chapterNavigation={{ chapters, media: chapterMedia, source: streamUrl, onSeek: time => {
+                if (chapterMedia && videoRef.current === chapterMedia) chapterMedia.currentTime = time;
+              } }}
+              playingEpisode={playingEpisode} onStreamSelect={changeStream} onEpisodeSelect={episode => {
+                sendPlaybackUpdate("stopped");
+                void playMedia({
+                  ...nextEpisodeRequest({ ...currentMedia, details: mediaDetails || currentMedia.details }, episode),
+                  resumePositionTicks: episode.resumePositionTicks,
+                });
+              }} />
+          )}
+          <DesktopTracks mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} />
+          <PlayerSubtitles mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} native={nativePlayback}
+            tracks={subtitleTracks} requestedSrc={requestedSubtitleSrc} onTrackChange={handleCustomSubtitleChange}
+            timing={{ seconds: subtitleTiming.seconds, open: Boolean(subtitleTiming.key && timingOpenKey === subtitleTiming.key),
+              onOpen: () => setTimingOpenKey(subtitleTiming.key), onClose: () => setTimingOpenKey(null) }} />
+          <PlayerVideoFit key={`${streamUrl}:${playerAttempt}`} mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} />
+          <MediaPlayerSettings stats={nativePlayback ? undefined : { open: showPlaybackStats, onOpenChange: setShowPlaybackStats }} />
+          {!nativePlayback && <MediaPlayerPiP />}
+          <MediaPlayerFullscreen />
+        </PlayerControlBar>
       </MediaPlayer>
     </div>
   );

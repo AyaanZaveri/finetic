@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useReducer, useRef, useState, type MouseEvent } from "react";
-import { Layers, ListVideo, Play, TriangleAlert, X } from "lucide-react";
+import { useEffect, useLayoutEffect, useReducer, useRef, useState, type FocusEvent, type MouseEvent } from "react";
+import { Layers, ListOrdered, ListVideo, Play, TriangleAlert, X } from "lucide-react";
+import { useMediaSelector } from "media-chrome/react/media-store";
 import { fetchEpisodes, fetchSeasons, type Episode, type Season } from "@/app/actions/tv-shows";
 import { ArtworkImage } from "@/components/artwork-image";
 import { MediaActions } from "@/components/media-actions";
+import { PlayerChapterChoices, type ChapterNavigation } from "@/components/player-chapter-choices";
 import { MediaPlayerTooltip } from "@/components/ui/media-player";
 import { Button } from "@/components/ui/button";
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
@@ -13,8 +15,10 @@ import { Drawer, DrawerClose, DrawerContent, DrawerTitle } from "@/components/ui
 import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Select } from "@/components/arc/select/select";
 import seasonStyles from "@/components/season-episodes.module.css";
-import artworkStyles from "@/components/media-page/detail-artwork.module.css";
-import cardStyles from "@/components/media-card.module.css";
+import {
+    selectionListClass, selectionMetadataText, selectionRowClass, selectionRowLayout,
+    selectionThumbnailClass, selectionThumbnailSize, selectionTitleText,
+} from "./player-selection-row-styles";
 import floatingSurface from "@/components/arc/floating-surface.module.css";
 import drawerStyles from "./player-selection-controls.module.css";
 import { episodeThumbnailUrl } from "@/lib/artwork";
@@ -23,10 +27,11 @@ import { formatRuntime } from "@/lib/format-runtime";
 import { acquireSeriesSeason } from "@/lib/media/series-season";
 import type { MediaItem, StremioStream } from "@/types/stremio";
 
-type Panel = "episodes" | "streams";
+type Panel = "episodes" | "streams" | "chapters";
+const panelTitles: Record<Panel, string> = { episodes: "Episodes", streams: "Streams", chapters: "Chapters" };
 type DrawerPanel =
     | { view: "episodes"; container: HTMLElement; season: number }
-    | { view: "streams"; container: HTMLElement };
+    | { view: "streams" | "chapters"; container: HTMLElement };
 type DrawerState = { open: false; panel: null } | { open: boolean; panel: DrawerPanel };
 type DrawerEvent =
     | { type: "open"; panel: Panel; container: HTMLElement; season: number }
@@ -41,7 +46,7 @@ function drawerTransition(state: DrawerState, event: DrawerEvent): DrawerState {
     case "open":
         return { open: true, panel: event.panel === "episodes"
             ? { view: "episodes", container: event.container, season: event.season }
-            : { view: "streams", container: event.container } };
+            : { view: event.panel, container: event.container } };
     case "choose-season":
         return state.open && state.panel.view === "episodes"
             ? { ...state, panel: { ...state.panel, season: event.season } } : state;
@@ -53,24 +58,22 @@ function drawerTransition(state: DrawerState, event: DrawerEvent): DrawerState {
 }
 
 type PlayingEpisode = { seriesId: string; season: number; episode: number };
-const episodeListSpacing = "-mx-[6px] space-y-2 py-1";
-const episodeRowLayout = "flex items-center gap-4 rounded-lg p-2";
-const episodeThumbnailSize = "aspect-video w-[clamp(3.5rem,25cqw,6rem)] shrink-0";
-const episodeThumbnail = `${artworkStyles.surface} ${cardStyles.card} ${cardStyles.frame} ${episodeThumbnailSize} relative grid place-items-center overflow-hidden bg-muted`;
-const episodeTitleText = "text-[0.9375rem] leading-[1.4] font-medium";
-const episodeMetadataText = "mt-1 text-sm leading-snug text-muted-foreground";
 
-export function PlayerSelectionControls({ media, streamUrl, playingEpisode, onEpisodeSelect, onStreamSelect }: {
+export function PlayerSelectionControls({ media, streamUrl, playingEpisode, chapterNavigation, onEpisodeSelect, onStreamSelect }: {
     media: MediaItem;
     streamUrl: string | null;
     playingEpisode?: PlayingEpisode;
+    chapterNavigation?: ChapterNavigation;
     onEpisodeSelect(_episode: Episode): void;
     onStreamSelect(_stream: StremioStream): void;
 }) {
     const [state, dispatch] = useReducer(drawerTransition, closed);
     const opener = useRef<HTMLButtonElement | null>(null);
+    const returningFocus = useRef<{ button: HTMLButtonElement } | null>(null);
     const afterClose = useRef<(() => void) | null>(null);
     const [popup, setPopup] = useState<HTMLDivElement | null>(null);
+    const trackChapters = useMediaSelector(state => state.mediaChaptersCues);
+    const availableChapters = chapterNavigation?.chapters.length ? chapterNavigation.chapters : trackChapters ?? [];
     const { open, panel } = state;
     const show = (panel: Panel, event: MouseEvent<HTMLButtonElement>) => {
         const container = event.currentTarget.closest<HTMLElement>('[data-slot="media-player"]');
@@ -83,9 +86,26 @@ export function PlayerSelectionControls({ media, streamUrl, playingEpisode, onEp
         afterClose.current = select ?? null;
         dispatch({ type: "close" });
     };
+    const restoreFocus = (fallback: HTMLElement) => {
+        const button = opener.current;
+        if (!button?.isConnected) return fallback;
+        const target = { button };
+        returningFocus.current = target;
+        // Base UI restores focus in a microtask. Expire the marker even if it cancels that move.
+        setTimeout(() => {
+            if (returningFocus.current === target) returningFocus.current = null;
+        }, 0);
+        return button;
+    };
+    const onOpenerFocus = (event: FocusEvent<HTMLButtonElement>) => {
+        if (returningFocus.current?.button !== event.currentTarget) return;
+        returningFocus.current = null;
+        // Radix skips opening the tooltip when the trigger's focus event is handled.
+        event.preventDefault();
+    };
 
     return (
-        <Drawer open={open} swipeDirection="right" onOpenChange={visible => { if (!visible) close(); }}
+        <Drawer modal open={open} swipeDirection="right" onOpenChange={visible => { if (!visible) close(); }}
             onOpenChangeComplete={visible => {
                 if (visible) return;
                 const select = afterClose.current;
@@ -96,14 +116,14 @@ export function PlayerSelectionControls({ media, streamUrl, playingEpisode, onEp
             {playingEpisode && (
                 <MediaPlayerTooltip tooltip="Episodes">
                     <Button type="button" variant="player-control" aria-label="Episodes"
-                        aria-haspopup="dialog" aria-expanded={open && panel.view === "episodes"} onClick={event => show("episodes", event)}>
+                        aria-haspopup="dialog" aria-expanded={open && panel.view === "episodes"} onFocus={onOpenerFocus} onClick={event => show("episodes", event)}>
                         <ListVideo aria-hidden="true" />
                     </Button>
                 </MediaPlayerTooltip>
             )}
             <MediaPlayerTooltip tooltip="Streams">
                 <Button type="button" variant="player-control" aria-label="Streams"
-                    aria-haspopup="dialog" aria-expanded={open && panel.view === "streams"} onClick={event => show("streams", event)}>
+                    aria-haspopup="dialog" aria-expanded={open && panel.view === "streams"} onFocus={onOpenerFocus} onClick={event => show("streams", event)}>
                     <Layers aria-hidden="true" />
                 </Button>
             </MediaPlayerTooltip>
@@ -111,9 +131,9 @@ export function PlayerSelectionControls({ media, streamUrl, playingEpisode, onEp
                 <DrawerContent ref={setPopup} container={panel.container} data-player-selection-drawer="" data-player-native-glass=""
                     overlayClassName={`${drawerStyles.overlay} bg-black/25`}
                     className={`${drawerStyles.popup} ${floatingSurface.surface} rounded-2xl border border-border shadow-xl [--drawer-inset:1rem] after:hidden`}
-                    initialFocus={false} finalFocus={() => opener.current?.isConnected ? opener.current : panel.container}>
+                    initialFocus finalFocus={() => restoreFocus(panel.container)}>
                     <div className="flex shrink-0 items-center justify-between gap-2 px-4 pt-3 pb-2">
-                        <DrawerTitle className="text-lg font-semibold">{panel.view === "episodes" ? "Episodes" : "Streams"}</DrawerTitle>
+                        <DrawerTitle className="text-lg font-semibold">{panelTitles[panel.view]}</DrawerTitle>
                         <DrawerClose render={<Button type="button" variant="ghost" size="icon-sm" aria-label="Close" />}>
                             <X aria-hidden="true" />
                         </DrawerClose>
@@ -133,7 +153,19 @@ export function PlayerSelectionControls({ media, streamUrl, playingEpisode, onEp
                             } }} />
                         </div>
                     )}
+                    {panel.view === "chapters" && chapterNavigation && (
+                        <PlayerChapterChoices key={chapterNavigation.source} {...chapterNavigation} chapters={availableChapters}
+                            onSeek={time => close(() => chapterNavigation.onSeek(time))} />
+                    )}
                 </DrawerContent>
+            )}
+            {chapterNavigation && availableChapters.length > 0 && (
+                <MediaPlayerTooltip tooltip="Chapters">
+                    <Button type="button" variant="player-control" aria-label="Chapters"
+                        aria-haspopup="dialog" aria-expanded={open && panel.view === "chapters"} onFocus={onOpenerFocus} onClick={event => show("chapters", event)}>
+                        <ListOrdered aria-hidden="true" />
+                    </Button>
+                </MediaPlayerTooltip>
             )}
         </Drawer>
     );
@@ -202,15 +234,15 @@ function EpisodeChoices({ playing, season, onSelect }: {
             {result.status === "loading" && (
                 <>
                     <p role="status" className="sr-only">Loading episodes</p>
-                    <LoadingPlaceholder className={episodeListSpacing}>
+                    <LoadingPlaceholder className={selectionListClass}>
                         {Array.from({ length: 6 }, (_, index) => (
-                            <div key={index} className={episodeRowLayout}>
-                                <Skeleton className={`${episodeThumbnailSize} rounded-[calc(var(--radius)-2px)]`} />
+                            <div key={index} className={selectionRowLayout}>
+                                <Skeleton className={`${selectionThumbnailSize} rounded-[calc(var(--radius)-2px)]`} />
                                 <div className="min-w-0 flex-1">
-                                    <div className={`${episodeTitleText} flex h-[1lh] items-center`}>
+                                    <div className={`${selectionTitleText} flex h-[1lh] items-center`}>
                                         <Skeleton className="h-3.5 w-3/5 max-w-44" />
                                     </div>
-                                    <div className={`${episodeMetadataText} flex h-[1lh] items-center`}>
+                                    <div className={`${selectionMetadataText} flex h-[1lh] items-center`}>
                                         <Skeleton className="h-3 w-2/5 max-w-28" />
                                     </div>
                                 </div>
@@ -234,7 +266,7 @@ function EpisodeChoices({ playing, season, onSelect }: {
                 </Empty>
             )}
             {result.status === "ready" && (result.episodes.length ? (
-                <ul className={episodeListSpacing}>
+                <ul className={selectionListClass}>
                     {result.episodes.map(episode => {
                         const selected = episode.season === playing.season && episode.episode === playing.episode;
                         const releasedAt = Date.parse(episode.released ?? "");
@@ -248,21 +280,18 @@ function EpisodeChoices({ playing, season, onSelect }: {
                             <li key={episode.id}>
                                 <button type="button" ref={selected ? current : undefined} aria-current={selected || undefined}
                                     disabled={upcoming && !selected} onClick={() => onSelect(episode)}
-                                    className={`${episodeRowLayout} w-full text-start outline-none select-none aria-[current=true]:bg-accent/70 enabled:cursor-pointer enabled:hover:bg-accent/40 enabled:aria-[current=true]:hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-60 motion-safe:transition-[scale] motion-safe:duration-150 motion-safe:ease-[var(--ease-out)] motion-safe:enabled:active:scale-[0.98]`}>
-                                    <div className={episodeThumbnail}>
+                                    className={selectionRowClass}>
+                                    <div className={selectionThumbnailClass}>
                                         {thumbnail ? <ArtworkImage src={thumbnail} alt="" loading="lazy" draggable={false}
                                             className="absolute inset-0 size-full object-cover" />
                                             : <Play aria-hidden="true" className="size-4 text-muted-foreground" />}
                                     </div>
                                     <span className="min-w-0">
-                                        <span className={`${episodeTitleText} flex items-start gap-1.5`}>
-                                            <span className="min-w-0 wrap-break-word">
-                                                <span className="font-normal text-muted-foreground">{episode.episode}.</span>
-                                                {"\u00a0"}{episode.title}
-                                            </span>
-                                            {selected && <Play aria-hidden="true" className="mt-1 size-3 shrink-0 fill-current text-foreground/75" />}
+                                        <span className={`${selectionTitleText} block wrap-break-word`}>
+                                            <span className="font-normal text-muted-foreground">{episode.episode}.</span>
+                                            {"\u00a0"}{episode.title}
                                         </span>
-                                        {metadata && <span className={`${episodeMetadataText} block`}>{metadata}</span>}
+                                        {metadata && <span className={`${selectionMetadataText} block`}>{metadata}</span>}
                                     </span>
                                 </button>
                             </li>

@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const ts = require('typescript');
 
 function load(file, require) {
-    const context = { exports: {}, require, URLSearchParams, AbortSignal, console };
+    const context = { exports: {}, require, URLSearchParams, AbortSignal, console, setTimeout };
     vm.runInNewContext(ts.transpileModule(fs.readFileSync(file, 'utf8'), {
         compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
     }).outputText, context);
@@ -118,6 +118,8 @@ async function run() {
     assert.equal(optionsPopup.props['data-base-ui-swipe-ignore'], '', 'The portalled options must opt out of drawer pointer capture');
 
     const drawer = hooks();
+    const chapters = [{ startTime: 18, endTime: 40, text: 'Second act' }];
+    let trackChapters;
     let activeHooks = drawer;
     drawer.react.useReducer = (transition, initial) => {
         const [state, setState] = drawer.react.useState(initial);
@@ -125,6 +127,8 @@ async function run() {
     };
     const { PlayerSelectionControls } = load('components/player-selection-controls.tsx', name => {
         if (name === 'react') return new Proxy({}, { get: (_, key) => activeHooks.react[key] });
+        if (name === 'media-chrome/react/media-store') return { useMediaSelector: selector => selector({ mediaChaptersCues: trackChapters }) };
+        if (name === './player-selection-row-styles') return load('components/player-selection-row-styles.ts', () => ({ default: {} }));
         if (name === 'react/jsx-runtime') return drawer.jsx;
         if (name.endsWith('.css')) return { default: { surface: 'surface' } };
         if (name === '@/app/actions/tv-shows') return context.exports;
@@ -134,17 +138,33 @@ async function run() {
         return new Proxy({}, { get: (_, key) => key });
     });
     const container = {};
-    const button = { closest: () => container };
+    const button = { closest: () => container, isConnected: true };
     const selections = [];
+    let chapterNavigation;
     const renderDrawer = () => drawer.render(PlayerSelectionControls, {
         media: { id: 'tt123:2:1' }, streamUrl: 'https://stream.test/current',
         playingEpisode: { seriesId: 'tt123', season: 2, episode: 1 },
+        chapterNavigation,
         onEpisodeSelect: value => selections.push(value), onStreamSelect: value => selections.push(value),
     });
     const openPanel = index => renderDrawer().props.children[index].props.children.props.onClick({ currentTarget: button });
     const getPanel = () => renderDrawer().props.children[2];
     assert.equal(renderDrawer().props.open, false);
+    assert.equal(renderDrawer().props.children[3], undefined, 'Hide the chapter control when nothing can be selected');
     openPanel(0);
+    assert.equal(renderDrawer().props.modal, true, 'The drawer traps Tab and Shift+Tab');
+    assert.equal(getPanel().props.initialFocus, true, 'Move focus to the first control inside the drawer');
+    assert.equal(getPanel().props.finalFocus(), button, 'Return focus to the toolbar opener');
+    const onOpenerFocus = renderDrawer().props.children[0].props.children.props.onFocus;
+    let suppressed = 0;
+    const focusEvent = { currentTarget: button, preventDefault() { suppressed++; } };
+    onOpenerFocus(focusEvent);
+    assert.equal(suppressed, 1, 'Restoring focus does not reopen the tooltip');
+    onOpenerFocus(focusEvent);
+    assert.equal(suppressed, 1, 'An ordinary later focus can show the tooltip');
+    button.isConnected = false;
+    assert.equal(getPanel().props.finalFocus(), container, 'Fall back to the player when the opener was removed');
+    button.isConnected = true;
     assert.equal(getPanel().props.container, container, 'The drawer opens inside the fullscreen root');
     assert.equal(getPanel().props.children[1].props.season, 2);
     getPanel().props.children[1].props.onSeasonChange(1);
@@ -186,6 +206,18 @@ async function run() {
     assert.equal(episodeRow.props.children[0].props.children.props.src, still, 'IMDb playback loads a TMDB still for an episode without addon artwork');
     assert.equal(episodeRow.props['aria-current'], true);
     activeHooks.unmount();
+    activeHooks = drawer;
+    chapterNavigation = { chapters: [],
+        media: null, source: 'https://stream.test/replacement', onSeek: time => selections.push(time) };
+    assert.equal(renderDrawer().props.children[3], false, 'A source with no markers has no chapter control');
+    trackChapters = chapters;
+    openPanel(3);
+    const chapterList = getPanel().props.children[3];
+    assert.equal(chapterList.props.chapters, trackChapters, 'Use browser chapter cues when there are no embedded markers');
+    chapterList.props.onSeek(18);
+    assert.equal(selections.length, 1, 'A chapter seek also waits for the drawer to close');
+    renderDrawer().props.onOpenChangeComplete(false);
+    assert.equal(selections[1], 18);
 
     console.log('PASS: series Play starts S1E1, skips specials, and episode playback uses the show backdrop.');
 }

@@ -121,6 +121,7 @@ function harness({ native = false, automatic = false, autoSelectWebStream = true
             if (name === '@/lib/media/playback-titles') return utility('lib/media/playback-titles.ts');
             if (name === '@/lib/media/resume-playback') return utility('lib/media/resume-playback.ts');
             if (name === '@/lib/media/use-episode-continuation') return { useEpisodeContinuation: () => ({}) };
+            if (name === '@/components/use-player-chapters') return { usePlayerChapters: () => [] };
             if (name === '@/lib/media/episode-continuation') return utility('lib/media/episode-continuation.ts');
             if (name === '@/lib/media/stream-playability') return { probeStreamPlayability: async () => 'supported' };
             if (name === '@/lib/media/fetch-playback-streams') return {

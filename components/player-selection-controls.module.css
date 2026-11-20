@@ -7,6 +7,16 @@
   --drawer-content-width: min(26rem, calc(100% - 2rem));
 }
 
+.popup {
+  --player-selection-row-hover-strength: 4%;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .row:enabled:hover {
+    background-color: color-mix(in srgb, var(--foreground) var(--player-selection-row-hover-strength), transparent);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .popup,
   .overlay {

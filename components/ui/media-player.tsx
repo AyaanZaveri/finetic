@@ -3303,6 +3303,7 @@ function MediaPlayerTooltip(props: MediaPlayerTooltipProps) {
         {children}
       </TooltipTrigger>
       <TooltipContent
+        data-player-control-tooltip=""
         container={context.portalContainer}
         sideOffset={tooltipSideOffset}
         className="flex items-center gap-2 border px-2 py-1 data-[side=top]:mb-3.5 [&>span]:hidden"

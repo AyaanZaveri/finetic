@@ -276,6 +276,10 @@ html[data-native-platform="ios"] [data-player-shell] {
 [data-player-shell] [data-player-close] {
   left: var(--player-chrome-left);
 }
+/* Player tooltips can be portalled to the document outside the modal. */
+html:has([data-player-selection-drawer]) [data-player-control-tooltip] {
+  visibility: hidden;
+}
 /* The extra shell scope also wins over CSS injected by already installed APKs. */
 [data-player-shell] [data-slot="media-player"] [data-player-loading-copy] {
   left: var(--player-chrome-left);
