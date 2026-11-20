@@ -76,6 +76,7 @@ import {
 } from "@/app/actions";
 import { PlaybackSubtitles, type PlaybackSubtitleTrack } from "@/lib/media/playback-subtitles";
 import { useSettings } from "@/contexts/settings-context";
+import { stepSubtitleSize } from "@/lib/subtitle-appearance";
 import { PlayerSubtitles } from "@/components/player-subtitles";
 import { useNativeSubtitleTiming } from "@/lib/media/use-native-subtitle-timing";
 import { SubtitleTimingPopover } from "@/components/subtitle-timing-popover";
@@ -112,7 +113,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     routedRequest.current = playbackRequest;
     router.push(playbackRequest.detailsPath, { scroll: false });
   }, [isPlayerVisible, playbackRequest, router]);
-  const { videoBitrate, subtitleSize, subtitleOutline, subtitleWeight, subtitleColor, subtitlePosition } = useSettings();
+  const { videoBitrate, subtitleSize, setSubtitleSize, subtitleOutline, subtitleWeight, subtitleColor, subtitlePosition } = useSettings();
   const [preparedPlayback, setPreparedPlayback] = useState<{ request: MediaToPlay; media: MediaToPlay } | null>(null);
   const currentMedia = preparedPlayback && preparedPlayback.request === playbackRequest
     ? preparedPlayback.media : playbackRequest;
@@ -877,6 +878,10 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     if (active) void selectSubtitle(null);
     else choosePreferredSubtitle.current?.();
   }, [requestedSubtitleSrc, selectSubtitle, subtitleTracks]);
+  const adjustSubtitleSize = useCallback((direction: -1 | 1) => {
+    const size = stepSubtitleSize(subtitleSize, direction);
+    if (size !== subtitleSize) setSubtitleSize(size);
+  }, [subtitleSize, setSubtitleSize]);
 
   if (!isPlayerVisible || !currentMedia) return null;
 
@@ -904,6 +909,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         subtitleTiming={subtitleTimingActions}
         chapters={chapters}
         onToggleCaptions={toggleCaptions}
+        onAdjustSubtitleSize={adjustSubtitleSize}
         onKeyDown={event => {
           if (event.defaultPrevented || event.key !== "Escape" || !episodeContinuation.upNext) return;
           event.preventDefault();

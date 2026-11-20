@@ -9,6 +9,10 @@ function mount(){
  return {get value(){return context.useSettings();},render(){host.render(context.SettingsProvider,{children:null});}};
 }
 let settings=mount();assert.equal(settings.value.subtitleSize,'standard');assert.equal(settings.value.subtitleOutline,'thin');
+assert.equal(appearance.stepSubtitleSize('standard', 1), 'large');
+assert.equal(appearance.stepSubtitleSize('standard', -1), 'small');
+assert.equal(appearance.stepSubtitleSize('large', 1), 'large');
+assert.equal(appearance.stepSubtitleSize('small', -1), 'small');
 assert.equal(settings.value.subtitlePosition,10);
 settings.value.setSubtitlePosition(18);settings.render();settings=mount();assert.equal(settings.value.subtitlePosition,18);
 settings.value.setSubtitlePosition(100);settings.render();assert.equal(settings.value.subtitlePosition,30);

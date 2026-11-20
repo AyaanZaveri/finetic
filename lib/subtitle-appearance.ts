@@ -11,6 +11,11 @@ export const SUBTITLE_OUTLINES = [
 export type SubtitleSize = typeof SUBTITLE_SIZES[number]["value"];
 export type SubtitleOutline = typeof SUBTITLE_OUTLINES[number]["value"];
 
+export function stepSubtitleSize(size: SubtitleSize, direction: -1 | 1): SubtitleSize {
+  const index = SUBTITLE_SIZES.findIndex(option => option.value === size);
+  return SUBTITLE_SIZES[index + direction]?.value ?? size;
+}
+
 export const SUBTITLE_WEIGHTS = [
   { value: "regular", label: "Regular" },
   { value: "medium", label: "Medium" },

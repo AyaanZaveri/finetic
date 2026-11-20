@@ -245,6 +245,7 @@ interface MediaPlayerRootProps
   customSubtitlesEnabled?: boolean;
   onCustomSubtitleChange?: (track: CustomSubtitleTrack | null) => void;
   onToggleCaptions?: () => void;
+  onAdjustSubtitleSize?: (_direction: -1 | 1) => void;
   chapters?: ChapterCue[];
 }
 
@@ -299,6 +300,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     subtitleTiming,
     onCustomSubtitleChange,
     onToggleCaptions,
+    onAdjustSubtitleSize,
     chapters,
     children,
     className,
@@ -600,7 +602,13 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
       // handler, never to the player's bare-letter playback controls.
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       if (event.nativeEvent?.isComposing || event.keyCode === 229) return;
-      if (event.target instanceof Element && event.target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="combobox"], [role="listbox"], [role="option"], [role="dialog"], [role="menu"], [role="slider"], button, a[href]')) return;
+      const key = event.key.toLowerCase();
+      const sizeStep = key === "-" ? -1 : key === "+" || key === "=" ? 1 : 0;
+      const resizeCaptions = sizeStep !== 0 && onAdjustSubtitleSize;
+      if (event.target instanceof Element && (
+        event.target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="combobox"], [role="listbox"], [role="option"], [role="dialog"], [role="menu"], [role="slider"], a[href]') ||
+        (!resizeCaptions && event.target.closest("button"))
+      )) return;
 
       const mediaElement = mediaRef.current;
       if (!mediaElement) return;
@@ -611,7 +619,11 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
 
       if (!isMediaFocused && !isPlayerFocused && !(autoFocus && desktopBridge())) return;
 
-      const key = event.key.toLowerCase();
+      if (sizeStep && onAdjustSubtitleSize) {
+        event.preventDefault();
+        onAdjustSubtitleSize(sizeStep);
+        return;
+      }
       const volumeKey = ["arrowup", "arrowdown", "m", "audiovolumeup", "audiovolumedown", "audiovolumemute"].includes(key);
       const playbackKey = [" ", "k", "f", "arrowright", "arrowleft", "<", ">", "a", "c", "d", "p", "r", "j", "l", "home", "end"].includes(key) || /^[0-9]$/.test(key);
       if (autoHide && playbackKey && !volumeKey) onControlsShow();
@@ -848,6 +860,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
       keyboardScrubber,
       rootImplProps.onKeyDown,
       onToggleCaptions,
+      onAdjustSubtitleSize,
       onVolumeIndicatorTrigger,
       onPipError,
       disabled,

@@ -10,7 +10,7 @@ const source = process.argv.includes('--baseline')
 const parsed = ts.createSourceFile('player.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const implementation = parsed.statements.find(n => ts.isFunctionDeclaration(n) && n.name?.text === 'MediaPlayerRootImpl');
 
-function mount({ native = true, autoFocus = true, platform = 'windows', scrubClock, onToggleCaptions } = {}) {
+function mount({ native = true, autoFocus = true, platform = 'windows', scrubClock, onToggleCaptions, onAdjustSubtitleSize } = {}) {
   const host = hooks(), listeners = new Map(), sent = [], timers = new Map();
   let timerId = 0;
   class Element {
@@ -57,7 +57,7 @@ function mount({ native = true, autoFocus = true, platform = 'windows', scrubClo
   vm.runInNewContext(ts.transpileModule(`${implementation.getText(parsed)}\nexports.Root = MediaPlayerRootImpl;`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, jsxImportSource: 'test' },
   }).outputText.replace(/require\("test\/jsx-runtime"\)/g, '({ jsx, jsxs })'), context);
-  const props = { autoFocus, autoHide: true, onToggleCaptions };
+  const props = { autoFocus, autoHide: true, onToggleCaptions, onAdjustSubtitleSize };
   let tree = host.render(context.exports.Root, props);
   tree.props.children.props.ref(root);
   tree.props.value.mediaRef.current = media;
@@ -86,7 +86,8 @@ function mount({ native = true, autoFocus = true, platform = 'windows', scrubClo
 }
 for (const native of [true, false]) {
   let toggles = 0, framing = 0;
-  const player = mount({ native, onToggleCaptions: () => { toggles++; } });
+  const sizeSteps = [];
+  const player = mount({ native, onToggleCaptions: () => { toggles++; }, onAdjustSubtitleSize: direction => sizeSteps.push(direction) });
   player.rerender();
   player.root.focus();
   player.root.framing = { click: () => { framing++; } };
@@ -99,6 +100,22 @@ for (const native of [true, false]) {
   }
   assert.equal(toggles, 1, 'C uses the player caption action even without browser text tracks');
   assert.equal(framing, 1, 'A uses the same action as the framing button');
+  assert.equal(player.key('+', player.root, { shiftKey: true }).defaultPrevented, true);
+  assert.equal(player.key('-', player.root).defaultPrevented, true);
+  const captionsButton = new player.Element('button');
+  captionsButton.inPlayer = true;
+  const closest = captionsButton.closest.bind(captionsButton);
+  captionsButton.closest = selector => player.root.closest(selector) || closest(selector);
+  player.document.activeElement = captionsButton;
+  assert.equal(player.key('=', captionsButton).defaultPrevented, true, 'Size shortcuts work after the captions menu returns focus');
+  assert.equal(player.key('+', player.root, { ctrlKey: true }).defaultPrevented, false, 'Preserve browser zoom shortcuts');
+  for (const role of ['input', '[role="menu"]', '[role="slider"]']) {
+    const target = new player.Element(role);
+    target.inPlayer = true;
+    assert.equal(player.key('-', target).defaultPrevented, false, 'Leave editing and menu keys to the focused control');
+  }
+  assert.deepEqual(sizeSteps, [1, -1, 1]);
+  player.root.focus();
   player.root.framing = null;
   assert.equal(player.key('a', player.root).defaultPrevented, false, 'Unsupported framing leaves A available');
   player.unmount();
