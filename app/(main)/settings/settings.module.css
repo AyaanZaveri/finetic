@@ -148,20 +148,6 @@
   letter-spacing: -.01em;
 }
 
-.connectionHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: .75rem;
-}
-
-.feedback {
-  color: var(--settings-description-color);
-  font-size: .8125rem;
-  line-height: 1.5;
-}
-
 .feedback:empty {
   position: absolute;
   width: 1px;
@@ -171,20 +157,13 @@
   white-space: nowrap;
 }
 
-.credits {
-  color: var(--settings-description-color);
-  font-size: .8125rem;
-  line-height: 1.5;
-}
-
-.credits { max-width: 65ch; text-wrap: pretty; }
 .credits a { text-decoration: underline; text-underline-offset: .2em; }
 
 .content {
   --settings-description-color: var(--muted-foreground);
 }
 
-.content [data-slot="field-label"] {
+.section :is([data-slot="field-label"], label) {
   font-size: .875rem;
   font-weight: 500;
   line-height: 1.45;
@@ -206,6 +185,8 @@
 .content [data-slot="field-content"] { min-width: 0; }
 
 .content [data-slot="field-description"],
+.feedback,
+.credits,
 .description,
 .keyLink {
   font-size: .8125rem;
@@ -215,6 +196,7 @@
   text-wrap: pretty;
 }
 
+.content [data-slot="field-description"], .feedback, .credits, .description { max-width: 65ch; }
 .keyLink { text-underline-offset: .2em; overflow-wrap: anywhere; }
 
 .apiKeyInput[data-slot="input-group"],

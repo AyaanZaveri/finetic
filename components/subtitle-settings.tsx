@@ -15,7 +15,7 @@ import styles from "@/app/(main)/settings/settings.module.css";
 export function SubtitleSettings() {
   const { subtitleSize, setSubtitleSize, subtitleOutline, setSubtitleOutline, subtitleWeight, setSubtitleWeight, subtitleColor, setSubtitleColor, subtitlePosition, setSubtitlePosition, resetSubtitleAppearance } = useSettings();
   return <section aria-labelledby="subtitle-appearance-title" className={`${styles.section} ${styles.subtitleSettings}`}>
-    <h2 id="subtitle-appearance-title" className="text-lg font-medium">Appearance</h2>
+    <h2 id="subtitle-appearance-title">Appearance</h2>
     <FieldGroup className="min-w-0">
       <figure className={styles.subtitlePreviewFigure} aria-labelledby="subtitle-preview-title">
         <div className={styles.subtitlePreview}>
@@ -48,7 +48,7 @@ export function SubtitleSettings() {
       <Field>
         <Slider label="Position from bottom" value={subtitlePosition} onValueChange={setSubtitlePosition}
           min={SUBTITLE_POSITION.min} max={SUBTITLE_POSITION.max} step={1} largeStep={5} format={value => `${value}%`} />
-        <FieldDescription>Top-positioned captions stay at the top.</FieldDescription>
+        <FieldDescription>Captions set to appear at the top stay there.</FieldDescription>
       </Field>
       <div className="flex"><Button type="button" variant="ghost" size="sm" onClick={resetSubtitleAppearance}
         disabled={subtitleSize === "standard" && subtitleOutline === "thin" && subtitleWeight === "medium" && subtitleColor === "white" && subtitlePosition === SUBTITLE_POSITION.default}>

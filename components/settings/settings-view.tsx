@@ -117,14 +117,13 @@ function SettingsInput({ id, label, value, onValueChange, placeholder, descripti
     );
 }
 
-function ApiKeyInput({ id, value, onValueChange, keyUrl, label = "API key", description, placeholder = "Enter your API key", keyLinkLabel = "Get an API key", error, disabled, icon }: {
+function ApiKeyInput({ id, value, onValueChange, keyUrl, label = "API key", description, keyLinkLabel = "Get an API key", error, disabled, icon }: {
     id: string;
     value: string;
     onValueChange: (_value: string) => void;
     keyUrl?: string;
     label?: string;
     description?: string;
-    placeholder?: string;
     keyLinkLabel?: string;
     error?: string | null;
     disabled?: boolean;
@@ -154,7 +153,6 @@ function ApiKeyInput({ id, value, onValueChange, keyUrl, label = "API key", desc
                     type={visible ? "text" : "password"}
                     value={value}
                     onChange={(event) => onValueChange(event.target.value)}
-                    placeholder={placeholder}
                     aria-describedby={[description && `${id}-description`, error && `${id}-error`].filter(Boolean).join(" ") || undefined}
                     aria-invalid={!!error || undefined}
                     disabled={disabled}
@@ -244,7 +242,7 @@ function WebSearchSettings({ variant }: { variant: "preference" | "connection" }
         finally { setPending(false); }
     }
     return <section aria-label={variant === "connection" ? "TinyFish connection" : "Web search"} className={styles.section}>
-        <h2 className="text-lg font-medium">Web search</h2>
+        <h2>Web search</h2>
         <div className={`flex min-w-0 flex-col ${variant === "preference" ? "gap-2" : "gap-4"}`}>
             {variant === "preference" && <Field orientation="horizontal">
                 <FieldContent><FieldLabel htmlFor="tinyfish-web-search"><TinyFishIcon size={16} className="shrink-0" />Use TinyFish web search</FieldLabel></FieldContent>
@@ -263,7 +261,6 @@ function WebSearchSettings({ variant }: { variant: "preference" | "connection" }
                 <FieldGroup className="gap-4">
                     <ApiKeyInput id="tinyfish-api-key" label="TinyFish API key" value={key} icon={<TinyFishIcon />}
                         onValueChange={value => { setKey(value); setError(null); setStatus(""); }} keyUrl="https://tinyfish.ai" keyLinkLabel="Get a TinyFish key"
-                        placeholder="API key"
                         disabled={loading || pending} error={error} />
                     <div className="flex flex-wrap items-center gap-1">
                         <Button type="submit" variant="outline" size="sm" disabled={loading || pending || !key.trim()}>{pending ? "Updating…" : "Save key"}</Button>
@@ -314,9 +311,7 @@ function ArtworkSettings() {
 
     return (
         <section id="tmdb" aria-labelledby="artwork-settings-title" className={styles.section}>
-            <div className={styles.connectionHeader}>
-                <h2 id="artwork-settings-title">Artwork</h2>
-            </div>
+            <h2 id="artwork-settings-title">Artwork</h2>
             <form autoComplete="off" data-form-type="other" className="min-w-0" aria-busy={loading || !!pending} onSubmit={(event) => { event.preventDefault(); if (!pending && token.trim()) void update("save"); }}>
                 <FieldGroup className="gap-4">
                     <ApiKeyInput
@@ -326,7 +321,6 @@ function ArtworkSettings() {
                         onValueChange={(value) => { setToken(value); setError(null); setStatus(""); }}
                         keyUrl="https://www.themoviedb.org/settings/api"
                         keyLinkLabel="Get a TMDB token"
-                        placeholder="Read access token"
                         disabled={loading || !!pending}
                         error={error}
                     />
@@ -645,11 +639,11 @@ function NavigatorSettings() {
 
     return <>
     <section aria-labelledby="settings-assistant-title" className={`${styles.section} ${styles.navigatorSettings}`}>
-        <h2 id="settings-assistant-title" className="text-lg font-medium">Assistant</h2>
+        <h2 id="settings-assistant-title">Assistant</h2>
         <FieldGroup className={styles.navigatorPreferences}>
             <Field orientation="horizontal">
                 <FieldContent>
-                    <FieldLabel htmlFor="navigator-enabled">Enable Navigator</FieldLabel>
+                    <FieldLabel htmlFor="navigator-enabled">Use Ask Navigator</FieldLabel>
                 </FieldContent>
                 <Switch
                     id="navigator-enabled"
@@ -694,7 +688,7 @@ function NavigatorSettings() {
                             onValueChange={setOllamaBaseUrl}
                             placeholder="http://localhost:11434"
                         />
-                        <ApiKeyInput id="ollama-api-key" label="API key (optional)" description="For hosted Ollama endpoints that require authentication." value={ollamaApiKey} onValueChange={setOllamaApiKey} />
+                        <ApiKeyInput id="ollama-api-key" label="API key (optional)" description="Required only if your Ollama server uses authentication." value={ollamaApiKey} onValueChange={setOllamaApiKey} />
                     </>
                 ) : (
                     <ApiKeyInput key={`${aiProvider}-api-key`} id={`${aiProvider}-api-key`} {...apiKeySettings[aiProvider]} />
@@ -757,7 +751,7 @@ export function SettingsView({ category }: { category: SettingsCategory }) {
     case "about":
         return <><AppUpdates />
             <section aria-labelledby="settings-credits" className={styles.section}>
-            <h2 id="settings-credits" className="text-lg font-medium">Credits and licenses</h2>
+            <h2 id="settings-credits">Credits and licenses</h2>
             <p className={styles.credits}>Skip timings from <a draggable={false} href="https://theintrodb.org" target="_blank" rel="noreferrer">TheIntroDB</a>, <a draggable={false} href="https://introdb.app" target="_blank" rel="noreferrer">IntroDB</a>, and <a draggable={false} href="https://skipdb.tv" target="_blank" rel="noreferrer">SkipDB</a> (<a draggable={false} href="https://skipdb.tv/license" target="_blank" rel="noreferrer">ODbL license</a>).</p>
             </section>
         </>;

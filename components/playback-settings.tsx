@@ -20,7 +20,7 @@ export function PlaybackSettings() {
   const automaticNativePeak = playbackPreferences.nativeHdrPeakNits === null;
   return <>
     <section aria-labelledby="playback-episodes" className={styles.section}>
-      <h2 id="playback-episodes" className="text-lg font-medium">Episodes</h2>
+      <h2 id="playback-episodes">Episodes</h2>
       <FieldGroup className="min-w-0 gap-6">
         <Field orientation="horizontal">
           <FieldContent>
@@ -40,20 +40,19 @@ export function PlaybackSettings() {
     </section>
     <PlaybackLanguageSettings kind="audio" />
     <section aria-labelledby="playback-startup" className={styles.section}>
-      <h2 id="playback-startup" className="text-lg font-medium">Startup and recovery</h2>
+      <h2 id="playback-startup">Startup and recovery</h2>
       <FieldGroup className="min-w-0 gap-6">
         <Field orientation="horizontal">
           <FieldContent>
             <FieldLabel htmlFor="metadata-prefetch">Preload title details</FieldLabel>
-            <FieldDescription id="metadata-prefetch-description">Prepare title details and episode names in the background.</FieldDescription>
           </FieldContent>
-          <Switch id="metadata-prefetch" aria-describedby="metadata-prefetch-description" checked={playbackPreferences.metadataPrefetch}
+          <Switch id="metadata-prefetch" checked={playbackPreferences.metadataPrefetch}
             onCheckedChange={metadataPrefetch => updatePlaybackPreferences({ metadataPrefetch })} />
         </Field>
         <Field orientation="horizontal">
           <FieldContent>
             <FieldLabel htmlFor="continue-watching-prefetch">Preload Continue Watching</FieldLabel>
-            <FieldDescription id="continue-watching-prefetch-description">Find streams in the background so you can resume sooner.</FieldDescription>
+            <FieldDescription id="continue-watching-prefetch-description">Find streams before you resume.</FieldDescription>
           </FieldContent>
           <Switch id="continue-watching-prefetch" aria-describedby="continue-watching-prefetch-description" checked={playbackPreferences.continueWatchingPrefetch}
             onCheckedChange={continueWatchingPrefetch => updatePlaybackPreferences({ continueWatchingPrefetch })} />
@@ -61,7 +60,7 @@ export function PlaybackSettings() {
         {!desktop && <Field orientation="horizontal">
           <FieldContent>
             <FieldLabel htmlFor="automatic-web-stream">Automatically find a playable stream</FieldLabel>
-            <FieldDescription id="automatic-web-stream-description">On web, try other streams if playback fails or audio is unsupported.</FieldDescription>
+            <FieldDescription id="automatic-web-stream-description">Try another stream if playback fails or the audio is unsupported.</FieldDescription>
           </FieldContent>
           <Switch id="automatic-web-stream" aria-describedby="automatic-web-stream-description" checked={playbackPreferences.autoSelectWebStream}
             onCheckedChange={autoSelectWebStream => updatePlaybackPreferences({ autoSelectWebStream })} />
@@ -69,39 +68,38 @@ export function PlaybackSettings() {
       </FieldGroup>
     </section>
     {desktop ? (desktop.platform === "macos" || desktop.platform === "windows") && <section aria-labelledby="playback-video" className={styles.section}>
-      <h2 id="playback-video" className="text-lg font-medium">Native HDR</h2>
-      <p className={styles.credits}>HDR turns on automatically for compatible videos and displays.</p>
+      <h2 id="playback-video">Native HDR</h2>
+      <p className={styles.description}>HDR turns on for supported videos and displays.</p>
       {(desktop.capabilities?.nativeHdrPeak || desktop.capabilities?.macHdrPeak) && <FieldGroup className="min-w-0 gap-6">
         <Field orientation="horizontal">
           <FieldContent>
             <FieldLabel htmlFor="native-hdr-auto">Automatic HDR peak brightness</FieldLabel>
-            <FieldDescription id="native-hdr-auto-description">Use the HDR peak reported by the system. Changes apply to the next video.</FieldDescription>
+            <FieldDescription id="native-hdr-auto-description">Use the system’s HDR peak. Changes apply to the next video.</FieldDescription>
           </FieldContent>
           <Switch id="native-hdr-auto" aria-describedby="native-hdr-auto-description" checked={automaticNativePeak}
             onCheckedChange={automatic => updatePlaybackPreferences({ nativeHdrPeakNits: automatic ? null : 1000 })} />
         </Field>
         {!automaticNativePeak && <NumberField id="native-hdr-peak-nits" label="Native HDR peak brightness" suffix=" nits"
-          description="Set a tone-mapping target up to the display’s HDR capability. The display controls the brightness it can deliver."
+          description="Set a tone-mapping target within your display’s HDR range."
           min={203} max={10000} step={1} buttonStep={50} largeStep={100} size="sm"
           value={playbackPreferences.nativeHdrPeakNits ?? 1000}
           onValueChange={nativeHdrPeakNits => updatePlaybackPreferences({ nativeHdrPeakNits })} />}
       </FieldGroup>}
     </section> : <section aria-labelledby="playback-video" className={styles.section}>
-      <h2 id="playback-video" className="text-lg font-medium">Video and HDR</h2>
-      <p className={styles.credits}>Changes in this section apply to the next video.</p>
+      <h2 id="playback-video">Video and HDR</h2>
+      <p className={styles.description}>Changes apply to the next video.</p>
       <FieldGroup className="min-w-0 gap-6">
         <Field orientation="horizontal">
           <FieldContent>
             <FieldLabel htmlFor="webgpu-playback">WebGPU playback</FieldLabel>
-            <FieldDescription id="webgpu-playback-description">Use WebGPU for supported video files in the browser.</FieldDescription>
           </FieldContent>
-          <Switch id="webgpu-playback" aria-describedby="webgpu-playback-description" checked={playbackPreferences.webGpuPlayback}
+          <Switch id="webgpu-playback" checked={playbackPreferences.webGpuPlayback}
             onCheckedChange={webGpuPlayback => updatePlaybackPreferences({ webGpuPlayback })} />
         </Field>
         <Field orientation="horizontal">
           <FieldContent>
             <FieldLabel htmlFor="webgpu-native-decoding">Browser decoding with WebGPU</FieldLabel>
-            <FieldDescription id="webgpu-native-decoding-description">Experimental. Try browser decoding when HDR output is off and the browser supports the audio.</FieldDescription>
+            <FieldDescription id="webgpu-native-decoding-description">Experimental. Requires HDR output to be off and a supported audio format.</FieldDescription>
           </FieldContent>
           <Switch id="webgpu-native-decoding" aria-describedby="webgpu-native-decoding-description" checked={playbackPreferences.nativeWebGpuDecoding}
             disabled={!playbackPreferences.webGpuPlayback || playbackPreferences.hdrOutput}
@@ -110,7 +108,7 @@ export function PlaybackSettings() {
         <Field orientation="horizontal">
           <FieldContent>
             <FieldLabel htmlFor="hdr-output">HDR output</FieldLabel>
-            <FieldDescription id="hdr-output-description">Use HDR with WebGPU on compatible browsers and displays. Other displays use SDR tone mapping.</FieldDescription>
+            <FieldDescription id="hdr-output-description">Requires WebGPU and a compatible browser and display. Falls back to SDR.</FieldDescription>
           </FieldContent>
           <Switch id="hdr-output" aria-describedby="hdr-output-description" checked={playbackPreferences.hdrOutput}
             disabled={!playbackPreferences.webGpuPlayback}
@@ -118,7 +116,7 @@ export function PlaybackSettings() {
         </Field>
         <div className="flex flex-col gap-2 border-l-2 pl-4">
           <NumberField id="hdr-peak-nits" label="HDR peak brightness" suffix=" nits"
-            description="Set this to your display's peak HDR brightness. Default: 1,000 nits."
+            description="Match your display’s HDR peak. The default is 1,000 nits."
             min={203} max={10000} step={1} buttonStep={50} largeStep={100} size="sm"
             disabled={hdrBrightnessDisabled}
             value={playbackPreferences.hdrPeakNits}
