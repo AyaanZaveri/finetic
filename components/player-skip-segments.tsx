@@ -27,16 +27,6 @@ export function PlayerSkipSegments({ lookup, currentTime, mediaRef, onSeek, onSk
     useEffect(() => () => onSegmentsChange?.([]), [onSegmentsChange]);
     const { id, type, season, episode, duration } = lookup;
     useEffect(() => {
-        const root = mediaRef.current?.closest<HTMLElement>('[data-slot="media-player"]');
-        const controls = root?.querySelector<HTMLElement>('[data-slot="media-player-controls"]');
-        if (!root || !controls) return;
-        const update = () => root.style.setProperty("--player-controls-height", `${controls.getBoundingClientRect().height}px`);
-        const observer = new ResizeObserver(update);
-        observer.observe(controls);
-        update();
-        return () => { observer.disconnect(); root.style.removeProperty("--player-controls-height"); };
-    }, [mediaRef]);
-    useEffect(() => {
         const controller = new AbortController();
         void fetchSkipSegments({ id, type, season, episode, duration }, controller.signal, resolveSkipIMDbId, undefined,
             result => { if (!controller.signal.aborted) setSegments(result); })

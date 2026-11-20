@@ -58,18 +58,18 @@ export function PlayerUpNext({ next, thumbnail, seconds, timerRunning = true, on
     }, [counting]);
     return (
         <section data-player-up-next="" data-player-native-glass="" data-player-hdr-glass="" aria-label="Up Next"
-            className={`${floatingSurface.surface} absolute end-4 z-[60] w-[min(27.5rem,calc(100%_-_2rem))] rounded-xl border border-border p-3.5 text-popover-foreground shadow-lg`}
+            className={`${floatingSurface.surface} absolute end-4 z-[60] w-[min(27.5rem,calc(100%_-_2rem))] rounded-xl border border-border/50 p-2 text-popover-foreground shadow-lg`}
             onKeyDown={event => {
                 if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onCancel(); }
             }}>
-            <div data-player-up-next-content="" className="flex items-stretch gap-3.5">
+            <div data-player-up-next-content="" className="flex items-stretch gap-4">
                 {thumbnail && (
                     <div className="relative w-[clamp(3.5rem,33%,9rem)] shrink-0 overflow-hidden rounded-lg bg-muted">
                         <ArtworkImage src={thumbnail} alt="" reveal={false} fallbackText="" draggable={false}
                             className="absolute inset-0 block size-full object-cover" />
                     </div>
                 )}
-                <div className="min-w-0 flex-1">
+                <div className={`min-w-0 flex-1 p-2 ${thumbnail ? "ps-0" : ""}`}>
                     <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
                             <p className="text-xs text-muted-foreground">Up Next</p>

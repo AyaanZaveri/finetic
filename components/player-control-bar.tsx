@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { RotateCcw, RotateCw } from "lucide-react";
 import {
     MediaPlayerControls, MediaPlayerControlsOverlay, MediaPlayerPlay, MediaPlayerSeek,
@@ -18,13 +18,29 @@ export function PlayerControlBar({ title, episode, releaseYear, endTime, preview
     nextEpisode?: ReactNode;
     children: ReactNode;
 }) {
+    const controlsRef = useRef<HTMLDivElement>(null);
+    useLayoutEffect(() => {
+        const controls = controlsRef.current;
+        const player = controls?.closest<HTMLElement>('[data-slot="media-player"]');
+        if (!controls || !player) return;
+
+        const update = () => player.style.setProperty("--player-controls-height", `${controls.getBoundingClientRect().height}px`);
+        const observer = new ResizeObserver(update);
+        observer.observe(controls);
+        update();
+        return () => {
+            observer.disconnect();
+            player.style.removeProperty("--player-controls-height");
+        };
+    }, []);
+
     const episodeCode = episode?.season !== undefined && episode.episodeNumber !== undefined
         ? `S${episode.season} E${episode.episodeNumber}` : undefined;
     const metadata = episode
         ? [episode.showTitle, episodeCode].filter(Boolean).join(" · ")
         : undefined;
 
-    return <MediaPlayerControls className="flex-col items-start gap-2.5 px-6 pb-4 z-20">
+    return <MediaPlayerControls ref={controlsRef} className="flex-col items-start gap-2.5 px-6 pb-4 z-20">
         <MediaPlayerControlsOverlay />
         <div className="flex flex-col w-full gap-1.5 pb-2">
             {metadata && <div data-player-meta="" className="flex min-w-0 items-center gap-3 text-sm font-medium text-white/60">
