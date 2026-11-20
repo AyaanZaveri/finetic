@@ -4,7 +4,7 @@
     <title>Navigator for macOS</title>
     <language>en</language>
     <item>
-      <title>Navigator 0.6.3</title>
+      <title>Navigator 0.6.4</title>
       <description>&lt;!doctype html&gt;
 &lt;html lang=&quot;en&quot;&gt;
 &lt;head&gt;
@@ -23,11 +23,11 @@ p { margin: 0; }
 &lt;body&gt;&lt;p&gt;Update Navigator, then reopen it with your existing sign-in and settings.&lt;/p&gt;&lt;/body&gt;
 &lt;/html&gt;</description>
       <sparkle:minimumSystemVersion>13.5</sparkle:minimumSystemVersion>
-      <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.6.3/Navigator-0.6.3-macos-arm64.zip"
-        sparkle:version="0.6.3" sparkle:shortVersionString="0.6.3"
-        sparkle:edSignature="gRd83gNmdpWaxuFv+K81BBeBEBDFYeK/QAXlOWUgMZqz33ryMg8vItYN333bTjHmt7Fe/H7CbhW/qTU8/p66Dw==" length="94060583" type="application/octet-stream" />
+      <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.6.4/Navigator-0.6.4-macos-arm64.zip"
+        sparkle:version="0.6.4" sparkle:shortVersionString="0.6.4"
+        sparkle:edSignature="HQ/RGlB1pPW+rtZ/iiJbnVl3NEiUUNMw1dXLex5RyZ/+V5RJEzc6ftDD05oy4rH9Fmpe5tFy9GLiGpHuzwS+BA==" length="94051206" type="application/octet-stream" />
       <sparkle:deltas>
-        <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.6.3/Navigator-0.6.3-macos-arm64-from-0.6.2.delta" sparkle:version="0.6.3" sparkle:deltaFrom="0.6.2" sparkle:edSignature="YgCW/3fgC3e2BmIzbSgr6WnJUGm7/O+xJA7bdM5bKrPHSTYDokAjGaZsjIaA1kJT0ZEZNnIQmHLBfB6ARnMyBg==" length="772954" type="application/octet-stream" />
+        <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.6.4/Navigator-0.6.4-macos-arm64-from-0.6.3.delta" sparkle:version="0.6.4" sparkle:deltaFrom="0.6.3" sparkle:edSignature="2OqsYHlJZTgJsJcA1ODXHPxCuEiN7tiYO0UFYibyM55nFcBi9fuQdE+2vUoJJQ/46U54CvdTfduj85Q4pbHcDw==" length="770414" type="application/octet-stream" />
       </sparkle:deltas>
     </item>
   </channel>
