@@ -2505,10 +2505,10 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
                   <div
                     data-slot="media-player-seek-thumbnail"
                     className="relative overflow-hidden rounded-lg"
-                    style={{
+                    style={thumbnail.coords ? {
                       width: `${SPRITE_CONTAINER_WIDTH}px`,
-                      aspectRatio: thumbnail.coords ? `${thumbnail.coords[2]} / ${thumbnail.coords[3]}` : undefined,
-                    }}
+                      aspectRatio: `${thumbnail.coords[2]} / ${thumbnail.coords[3]}`,
+                    } : undefined}
                   >
                     {thumbnail.coords ? (
                       <div className="absolute top-0 left-0" style={spriteStyle} />

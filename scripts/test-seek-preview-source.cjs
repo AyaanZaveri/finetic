@@ -2,19 +2,22 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
+const { previewFrameSize } = require('./test-support/react-hooks.cjs').load('lib/media/preview-frames.ts');
+const portrait = previewFrameSize(9 / 16);
+assert.equal(portrait.width / portrait.height, 9 / 16, 'Bound tall frames without distorting them');
 const context = { exports: {}, require(name) {
   if (name === 'react') return {
     useState: value => [value, () => {}], useRef: value => ({ current: value }),
     useLayoutEffect() {}, useCallback: value => value,
   };
   if (name === 'react/jsx-runtime') return { jsx: (type, props, key) => ({ type, props, key }), jsxs: (type, props, key) => ({ type, props, key }) };
-  if (name.includes('preview-frames')) return { PreviewCache: class { get() {} }, PreviewScheduler: class {}, previewBucket: Math.round };
+  if (name.includes('preview-frames')) return { PreviewCache: class { get() {} }, PreviewScheduler: class {}, previewBucket: Math.round, previewFrameSize };
   return { __esModule: true, default: 'MuxVideo', PreviewImage: 'PreviewImage', PreviewLoadingIndicator: 'PreviewLoadingIndicator' };
 } };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('components/seek-preview.tsx', 'utf8'), {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
 }).outputText, context);
-const media = { src: 'blob:https://navigator.test/main-decoder', getAttribute: () => 'blob:https://navigator.test/main-decoder' };
+const media = { src: 'blob:https://navigator.test/main-decoder', getAttribute: () => 'blob:https://navigator.test/main-decoder', videoWidth: 1920, videoHeight: 1440 };
 for (const [source, expected] of [
   ['https://stream.test/movie.m3u8?token=fixture', 'MuxVideo'],
   ['https://stream.test/movie.mp4', 'video'],
@@ -28,6 +31,7 @@ for (const [source, expected] of [
   assert.equal(decoder.props.src, source);
   assert.equal(decoder.props.preload, 'auto', 'An active preview must request decoded video data, not stop at metadata');
   assert.ok(view.props.children.some(node => node?.type === 'PreviewLoadingIndicator'), 'A pending first frame uses the corner indicator');
+  assert.equal(view.props.style.height, 168, 'The loading preview uses the known media dimensions');
 }
 const plain = { src: 'https://stream.test/plain.webm', getAttribute: () => null };
 assert.equal(context.exports.SeekPreview({ media: plain, time: 0, duration: 120, active: false }).props.source, plain.src);

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { previewCrop } from "@/lib/media/preview-crop-client";
+import { previewFrameSize } from "@/lib/media/preview-frames";
 
 type Crop = { source: string; ratio: number; left: number; top: number; width: number; height: number };
 const crops = new Map<string, Crop>();
@@ -17,7 +18,9 @@ export function PreviewLoadingIndicator() {
 }
 
 /** Decode replacements before swapping; analyze letterbox bands off the UI thread. */
-export function PreviewImage({ src, alt = "", pending = false }: { src: string; alt?: string; pending?: boolean }) {
+export function PreviewImage({ src, alt = "", pending = false, fallbackRatio }: {
+    src: string; alt?: string; pending?: boolean; fallbackRatio?: number;
+}) {
     const [current, setCurrent] = useState<Crop | null>(null);
     useEffect(() => {
         const controller = new AbortController();
@@ -47,17 +50,13 @@ export function PreviewImage({ src, alt = "", pending = false }: { src: string; 
         });
         return () => { controller.abort(); image.onload = null; image.removeAttribute("src"); };
     }, [src]);
-    // Decoder dimensions and letterbox analysis must never grow the tooltip.
-    const ratio = current?.ratio && Number.isFinite(current.ratio) ? current.ratio : 16 / 9;
-    const width = Math.min(100, ratio / (16 / 9) * 100);
-    const height = Math.min(100, (16 / 9) / ratio * 100);
     const busy = pending || current?.source !== src;
     return (
-        <div aria-busy={busy} className="relative w-56 overflow-hidden rounded-lg" style={{ width: 224, height: 126, flex: "none" }}>
+        <div aria-busy={busy} className="relative flex-none overflow-hidden rounded-lg" style={previewFrameSize(current?.ratio ?? fallbackRatio)}>
             <img
                 src={current?.source} alt={pending || (current && current.source !== src) ? "Previous preview" : alt} draggable={false} decoding="async"
                 className="absolute max-w-none"
-                style={{ left: `${(100 - width) / 2 + (current?.left ?? 0) * width / 100}%`, top: `${(100 - height) / 2 + (current?.top ?? 0) * height / 100}%`, width: `${(current?.width ?? 100) * width / 100}%`, height: `${(current?.height ?? 100) * height / 100}%`, visibility: current ? "visible" : "hidden" }}
+                style={{ left: `${current?.left ?? 0}%`, top: `${current?.top ?? 0}%`, width: `${current?.width ?? 100}%`, height: `${current?.height ?? 100}%`, visibility: current ? "visible" : "hidden" }}
             />
             {!current && <div className="absolute inset-0 bg-white/10" />}
             {busy && <PreviewLoadingIndicator />}

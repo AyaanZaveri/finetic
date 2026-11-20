@@ -70,7 +70,7 @@ async function main() {
  }, { Image });
  const render = src => { const tree = runtime.render(PreviewImage, { src }); runtime.flush(); return tree; };
  render('one'); images[0].ready.resolve(); await flush();
- let tree = render('one'); assert.equal(tree.props.style.height, 126, 'Preview height stays bounded independently of decoded image geometry'); assert.equal(tree.props.children[0].props.src, 'one', 'Display does not wait for crop analysis');
+ let tree = render('one'); assert.equal(tree.props.style.height, 126, 'A 16:9 preview uses the standard height'); assert.equal(tree.props.children[0].props.src, 'one', 'Display does not wait for crop analysis');
  tree = render('two'); assert.equal(tree.props.children[0].props.src, 'one', 'Retain the decoded image while its replacement loads');
  assert.equal(tree.props['aria-busy'], true);
  assert.equal(tree.props.children[2].type, PreviewLoadingIndicator, 'Keep the old frame visible with a corner indicator');
@@ -78,9 +78,17 @@ async function main() {
  images[1].ready.resolve(); await flush(); tree = render('two'); assert.equal(tree.props.children[0].props.src, 'two');
  assert.equal(tree.props.children[2], false, 'Decoded frames clear the loading indicator');
  analyses[1].resolve({ width: 448, height: 252, bounds: { x: 0, y: 20, width: 448, height: 212 } }); await flush();
- tree = render('two'); assert.equal(tree.props.style.height, 126, 'Crop analysis cannot resize the popup');
+ tree = render('two'); assert.equal(tree.props.style.height, 106, 'Letterbox removal shrinks the thumbnail to the content height');
  render('three'); render('four'); images[2].ready.resolve(); await flush(); tree = render('four');
  assert.equal(tree.props.children[0].props.src, 'two', 'An abandoned decode cannot replace the visible frame');
+ assert.equal(tree.props.style.height, 106, 'Pending frames keep the displayed frame’s size');
+ render('imax');
+ images[4].naturalWidth = 360;
+ images[4].ready.resolve();
+ await flush();
+ tree = render('imax');
+ assert.equal(tree.props.style.width, 224, 'A taller landscape frame keeps the standard width');
+ assert.ok(Math.abs(tree.props.style.height - 156.8) < .01, 'An IMAX-like frame gets a taller preview');
  runtime.unmount(); assert.equal(analyses.at(-1).signal.aborted, true);
  console.log('PASS: binary image validation, shared fetches, byte/count bounds, URL revocation, source cancellation, decode-before-swap and independent crop analysis');
 }

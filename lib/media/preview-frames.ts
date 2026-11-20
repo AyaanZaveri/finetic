@@ -26,6 +26,14 @@ export function previewBucket(time: number, duration: number) {
     return Math.min(Math.round(time), Math.max(0, Math.floor(duration - 0.1)));
 }
 
+export function previewFrameSize(ratio?: number) {
+    const aspect = ratio !== undefined && Number.isFinite(ratio) && ratio > 0 ? ratio : 16 / 9;
+    // Keep the normal thumbnail width. Narrow portrait frames to keep the
+    // preview bounded while preserving their aspect ratio.
+    const limit = 224;
+    return { width: Math.min(limit, limit * aspect), height: Math.min(limit, limit / aspect) };
+}
+
 export type PreviewMedia = HTMLVideoElement;
 
 /** One independent, muted decoder. Coalesce pointer requests; never seek the playing media. */
