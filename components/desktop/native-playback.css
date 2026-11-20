@@ -10,8 +10,8 @@ html[data-desktop="mpv"] body { isolation: isolate; }
 /* The WKWebView viewport can rubber-band over fixed player controls even
    when the player itself has no scroll range. */
 html[data-native-platform="macos"]:has([data-player-shell]) {
-  overflow-x: clip;
-  overscroll-behavior-x: none;
+  overflow: clip;
+  overscroll-behavior: none;
 }
 
 /* Desktop gestures should not select the page. Keep editing and copyable text

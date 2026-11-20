@@ -19,10 +19,10 @@ function rules(file) {
 }
 const nativeRules = rules('app/globals.css');
 const macPlayerViewport = nativeRules.find(rule => rule.selector === 'html[data-native-platform="macos"]:has([data-player-shell])');
-assert.equal(macPlayerViewport?.nodes.find(node => node.prop === 'overscroll-behavior-x')?.value, 'none',
-  'Suppress horizontal rubber-banding at the macOS viewport only while the player shell is mounted');
-assert.equal(macPlayerViewport?.nodes.find(node => node.prop === 'overflow-x')?.value, 'clip',
-  'Player contents cannot widen the macOS viewport into a horizontal scroll range');
+assert.equal(macPlayerViewport?.nodes.find(node => node.prop === 'overscroll-behavior')?.value, 'none',
+  'Suppress rubber-banding on both axes at the macOS viewport only while the player shell is mounted');
+assert.equal(macPlayerViewport?.nodes.find(node => node.prop === 'overflow')?.value, 'clip',
+  'Player contents cannot create a macOS viewport scroll range on either axis');
 function pagePolicy(attributes) {
   const policy = {};
   for (const rule of nativeRules) {
