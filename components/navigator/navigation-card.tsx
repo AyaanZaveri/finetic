@@ -46,7 +46,10 @@ export function NavigationCard({
       }
       icon={mediaType === "person" ? User : mediaType === "movie" ? Film : Tv}
       subtitle={result.seriesName}
-      image={(episode ? result.thumbnail : result.poster)}
+      image={episode ? result.thumbnail : result.poster}
+      poster={result.poster}
+      background={result.background}
+      loadArtwork={result.success}
       imageAspect={episode ? "landscape" : "portrait"}
       href={
         result.success &&

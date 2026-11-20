@@ -34,12 +34,14 @@ interface MediaLinkCardProps {
   };
   className?: string;
   index?: number;
+  loadArtwork?: boolean;
 }
 
 export function MediaLinkCard({
   item,
   className,
   index = 0,
+  loadArtwork,
 }: MediaLinkCardProps) {
   const title = item.name || item.title || "Untitled";
   const type =
@@ -57,6 +59,9 @@ export function MediaLinkCard({
       subtitle={episode ? item.seriesName : undefined}
       icon={type === "movie" ? Film : Tv}
       image={episode ? item.thumbnail : item.poster}
+      poster={item.poster}
+      background={item.background}
+      loadArtwork={loadArtwork}
       imageAspect={episode ? "landscape" : "portrait"}
       href={href}
       metadata={

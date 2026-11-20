@@ -18,6 +18,7 @@ import { NavigatorFocus } from "./focus";
 import { preloadPlayer } from "@/lib/preload-tools";
 import { desktopBridge } from "@/lib/desktop/bridge";
 import { isNavigatorRequestSettled, navigatorResponseDurations } from "@/lib/navigator-timing";
+import { publicArtworkUrl } from "@/lib/artwork";
 
 const AIAsk = ({ userId }: { userId: string }) => {
     const playbackStore = useStore();
@@ -349,14 +350,23 @@ const AIAsk = ({ userId }: { userId: string }) => {
     const prepareRequest = () => {
         actionAbortRef.current = new AbortController();
         continuationCountRef.current = 0;
-        subtitleSnapshotRef.current = subtitleQueries?.snapshot(isPlayerVisible ? currentMediaWithSource : null,
+        const media = isPlayerVisible ? currentMediaWithSource : null;
+        subtitleSnapshotRef.current = subtitleQueries?.snapshot(media,
             AbortSignal.any([actionAbortRef.current.signal, AbortSignal.timeout(15_000)]));
         // Handle an early cancellation before the transport starts awaiting it.
         void subtitleSnapshotRef.current?.catch(() => undefined);
         const opencodeSessionId = opencodeSessionIdRef.current ?? crypto.randomUUID();
         opencodeSessionIdRef.current = opencodeSessionId;
         requestBodyRef.current = {
-            currentMedia: isPlayerVisible ? currentMediaWithSource : null, currentTimestamp: playbackStore.get(currentTimestampAtom), pathname,
+            currentMedia: media ? {
+                id: media.id, name: media.name, type: media.type, mediaSourceId: media.mediaSourceId,
+                seriesId: media.seriesId, showName: media.showName, episodeTitle: media.episodeTitle,
+                seasonNumber: media.seasonNumber, episodeNumber: media.episodeNumber,
+                subtitleFilename: media.subtitleFilename, subtitleVideoSize: media.subtitleVideoSize,
+                poster: publicArtworkUrl(media.poster), thumbnail: publicArtworkUrl(media.thumbnail),
+                backdropUrl: publicArtworkUrl(media.backdropUrl),
+            } : null,
+            currentTimestamp: playbackStore.get(currentTimestampAtom), pathname,
             aiProvider, openaiBaseUrl, openaiModel, geminiModel, ollamaApiKey, ollamaBaseUrl, ollamaModel,
             groqModel, openrouterModel, openrouterReasoningEffort, cerebrasModel, cerebrasReasoningEffort,
             opencodeModel, openaiApiKey, googleApiKey, groqApiKey, openrouterApiKey, cerebrasApiKey,

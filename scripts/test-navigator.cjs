@@ -488,6 +488,18 @@ async function main() {
   assert.equal(titleProgress.media.name, 'Example');
   assert.equal(titleProgress.media.year, 2020);
   assert.equal(titleProgress.media.poster, 'https://image.tmdb.org/t/p/w500/poster.jpg');
+  const currentEpisodeProgress = [];
+  const still = 'https://image.tmdb.org/t/p/w300/episode.jpg';
+  const poster = 'https://image.tmdb.org/t/p/w500/series.jpg';
+  const episodeTools = createAllTools({ id: 'tt13623608', seriesId: 'tt13623608', mediaSourceId: 'tt13623608:1:1',
+    type: 'series', name: 'Land of Enchantment', showName: 'The Curse', episodeTitle: 'Land of Enchantment',
+    seasonNumber: 1, episodeNumber: 1, thumbnail: still, poster }, 10, analysisModel);
+  const seek = await episodeTools.skipToSubtitleContent.execute({ userDescription: 'Earlier evidence' },
+    { ...toolOptions, context: { onSceneProgress: progress => currentEpisodeProgress.push(progress) } });
+  assert.equal(seek.success, true);
+  const currentTitle = currentEpisodeProgress.find(progress => progress.stage === 'title' && progress.state === 'completed').media;
+  assert.equal(currentTitle.thumbnail, still, 'Seeking within the current episode preserves its still');
+  assert.equal(currentTitle.poster, poster, 'The show poster is available as a fallback');
   const trackProgress = sceneCardsProgress.find(progress => progress.stage === 'subtitles' && progress.state === 'completed');
   assert.equal(trackProgress.subtitles.language, 'en');
   assert.equal(trackProgress.subtitles.lineCount, 3);
@@ -648,6 +660,13 @@ async function main() {
   assert.deepEqual(Array.from(streamedProgress, part => part.data.stage), ['title', 'subtitles', 'scene']);
   assert.ok(streamedProgress.every(part => part.data.state === 'completed'), 'SDK must update each stage in place rather than append duplicate traces');
   assert.ok(streamedProgress.every(part => part.data.toolCallId === directScenePart.toolCallId));
+  const currentMovie = await readResponse(await POST(request({ ...payload, pathname: '/',
+    currentMedia: { id: 'tt123', name: 'Example', type: 'movie', poster, backdropUrl: 'https://example.test/private.jpg' },
+    aiProvider: 'opencode', opencodeModel: 'muse-spark-1.3-contributor', opencodeApiKey: 'test-key', opencodeSessionId: 'test-session',
+    messages: [user('current-movie-scene', 'Seek to a scene in the movie playing now')] })));
+  const currentMovieTitle = currentMovie.parts.find(part => part.type === 'data-sceneProgress' && part.data.stage === 'title').data.media;
+  assert.equal(currentMovieTitle.poster, poster, 'Public playback artwork survives chat request validation and scene streaming');
+  assert.equal(currentMovieTitle.background, undefined, 'Do not echo private client artwork URLs into scene progress');
   const previousCompoundSubtitles = subtitleContent;
   const modelPromptText = options => options.prompt.flatMap(message => Array.isArray(message.content) ? message.content.filter(part => part.type === 'text').map(part => part.text) : []).join('\n');
   const assertOriginalSceneRequest = (prompt, expected) => {

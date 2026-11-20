@@ -332,7 +332,7 @@ export function toNavigatorSegments(
       const output = record(toolPart?.output);
       const input = record(toolPart?.input);
       if (episode && !canonicalAction) segments.push({ kind: "results", key: `episode-match-${text(part.id) || index}`, results: {
-        cards: <MediaLinkCard item={{ ...episode, type: "Episode" } as ComponentProps<typeof MediaLinkCard>["item"]} />,
+        cards: <MediaLinkCard item={{ ...episode, type: "Episode" } as ComponentProps<typeof MediaLinkCard>["item"]} loadArtwork />,
       } });
       if (progress.stage === "episodes" && progress.state === "completed") {
         const catalog = Object.keys(record(progress.catalog)).length ? record(progress.catalog) : {
@@ -376,7 +376,7 @@ export function toNavigatorSegments(
       } });
       if (progress.state === "completed") {
         const cards = progress.stage === "title" && progress.media
-          ? <MediaLinkCard item={progress.media} />
+          ? <MediaLinkCard item={progress.media} loadArtwork />
           : progress.stage === "subtitles" && progress.subtitles
             ? <SubtitleTrackCard track={progress.subtitles} />
             : progress.stage === "scene" && progress.scene

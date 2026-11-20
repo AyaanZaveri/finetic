@@ -70,6 +70,8 @@ export interface CurrentMediaWithSource {
   seasonNumber?: number;
   episodeNumber?: number;
   backdropUrl?: string;
+  poster?: string;
+  thumbnail?: string;
   subtitleFilename?: string;
   subtitleVideoSize?: number;
 }

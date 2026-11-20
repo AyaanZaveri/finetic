@@ -1,4 +1,5 @@
 import { subtitleSnapshotSchema } from "@/lib/media/subtitle-snapshot";
+import { publicArtworkUrl } from "@/lib/artwork";
 import { providerFetch, outboundUrl, outboundFetch, OutboundRequestError } from "@/lib/server/outbound-fetch";
 import { createGoogle } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -50,6 +51,9 @@ const contextSchema = z.object({
         showName: z.string().optional(), episodeTitle: z.string().optional(),
         seasonNumber: z.number().optional(), episodeNumber: z.number().optional(),
         subtitleFilename: z.string().optional(), subtitleVideoSize: z.number().optional(),
+        poster: z.string().optional().transform(publicArtworkUrl),
+        thumbnail: z.string().optional().transform(publicArtworkUrl),
+        backdropUrl: z.string().optional().transform(publicArtworkUrl),
     }).nullish(),
 });
 

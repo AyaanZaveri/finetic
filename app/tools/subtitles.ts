@@ -429,16 +429,20 @@ export const skipToSubtitleContent = (
                 if (playback && !playback.success) return playback;
                 // Reuse an already-playing copy instead of opening/fetching the same movie again.
                 if (playback && currentMedia && (playback.mediaSourceId || playback.mediaId) === (currentMedia.mediaSourceId || currentMedia.id)) playback = null;
-                const targetMedia = playback ? { id: playback.mediaId!, name: playback.mediaName!, type: playback.mediaType === "Movie" ? "movie" as const : "series" as const,
+                const targetMedia: CurrentMediaWithSource | null = playback ? { id: playback.mediaId!, name: playback.mediaName!, type: playback.mediaType === "Movie" ? "movie" : "series",
                     mediaSourceId: playback.mediaSourceId, seasonNumber: playback.seasonNumber, episodeNumber: playback.episodeNumber,
-                    episodeTitle: playback.episodeTitle, showName: playback.showName } : currentMedia;
+                    episodeTitle: playback.episodeTitle, showName: playback.showName, seriesId: playback.seriesId,
+                    thumbnail: playback.thumbnail } : currentMedia;
                 timings.resolveTitleMs = Date.now() - resolveStartedAt;
                 const loadStartedAt = Date.now();
                 report({ stage: "title", state: "completed", detail: targetMedia?.name,
                     media: targetMedia ? { ...selectedTitle, id: targetMedia.id,
                         name: targetMedia.episodeNumber !== undefined ? (playback ? playback.episodeTitle : currentMedia?.episodeTitle) || targetMedia.name : targetMedia.name,
                         type: targetMedia.episodeNumber !== undefined ? "episode" : targetMedia.type === "movie" ? "movie" : "series",
-                        seriesId: playback ? playback.seriesId : currentMedia?.seriesId, seriesName: playback ? playback.showName : currentMedia?.showName,
+                        seriesId: targetMedia.seriesId, seriesName: targetMedia.showName,
+                        thumbnail: targetMedia.thumbnail || selectedTitle?.thumbnail,
+                        poster: targetMedia.poster || selectedTitle?.poster,
+                        background: targetMedia.backdropUrl || selectedTitle?.background,
                         seasonNumber: targetMedia.seasonNumber, episodeNumber: targetMedia.episodeNumber } : undefined });
                 report({ stage: "subtitles", state: "running", detail: targetMedia?.name });
                 const subtitleResult = await loadParsedSubtitles(targetMedia, subtitleIndex, abortSignal, currentSubtitles);

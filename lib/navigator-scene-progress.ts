@@ -10,6 +10,7 @@ export interface SceneProgress {
         communityRating?: number;
         poster?: string;
         thumbnail?: string;
+        background?: string;
         source?: string;
         seriesId?: string;
         seriesName?: string;

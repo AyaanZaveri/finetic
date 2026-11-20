@@ -48,6 +48,7 @@ export function EpisodeCard({
       icon={Tv}
       image={episode.thumbnail}
       imageAspect="landscape"
+      artworkPath={href}
       href={onClick ? undefined : href}
       onClick={onClick}
       metadata={

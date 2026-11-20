@@ -540,6 +540,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     let sourceReady = false;
     let resolvedEpisodeTitle: string | undefined;
     let resolvedEpisodeRuntime: string | undefined;
+    let resolvedEpisodeThumbnail: string | undefined;
     let episodeLookupKey: string | undefined;
     const episodeRequests = new Map<string, ReturnType<typeof fetchPlaybackEpisode>>();
     const loadEpisode = (id: string, season: number, episode: number) => {
@@ -564,6 +565,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         ...activeMedia,
         id: activeMedia.seriesId || activeMedia.id,
         mediaSourceId: activeMedia.mediaSourceId || activeMedia.id,
+        poster: latestDetails?.poster,
+        backdropUrl: latestDetails?.background || activeMedia.backdropUrl,
+        thumbnail: resolvedEpisodeThumbnail,
       });
     };
 
@@ -587,14 +591,15 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     const resolveEpisodeTitle = () => {
       const titles = getPlaybackTitles(activeMedia, latestDetails);
       if (!titles.isEpisode || titles.season === undefined || titles.episodeNumber === undefined) return;
-      if (!metadataQueries && isMeaningfulEpisodeTitle(titles.episodeTitle) && titles.episodeTitle !== titles.showTitle) return;
       const seriesId = activeMedia.seriesId || activeMedia.id;
       const key = `${seriesId}:${titles.season}:${titles.episodeNumber}`;
       if (episodeLookupKey === key) return;
       episodeLookupKey = key;
+      resolvedEpisodeThumbnail = undefined;
       void loadEpisode(seriesId, titles.season, titles.episodeNumber).then(episode => {
         if (!isCurrent() || !episode || episodeLookupKey !== key) return;
         if (isMeaningfulEpisodeTitle(episode.title)) resolvedEpisodeTitle = episode.title;
+        resolvedEpisodeThumbnail = episode.thumbnail;
         resolvedEpisodeRuntime = typeof episode.runtime === "number" ? `${episode.runtime} min` : episode.runtime;
         if (resolvedEpisodeRuntime && latestDetails) { latestDetails = { ...latestDetails, runtime: resolvedEpisodeRuntime }; setMediaDetails(latestDetails); }
         publishTitle();

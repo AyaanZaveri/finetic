@@ -55,6 +55,7 @@ export function PlayMediaCard({
       image={image}
       imageAspect={episode ? "landscape" : "portrait"}
       href={href}
+      loadArtwork
       metadata={
         <>
           <ResultMeta>{result.mediaType || "Media"}</ResultMeta>

@@ -21,6 +21,7 @@ interface MediaDetailsCardProps {
     criticRating?: number;
     poster?: string;
     thumbnail?: string;
+    background?: string;
     seriesName?: string;
     showName?: string;
     seasonNumber?: number;
@@ -37,7 +38,7 @@ export function MediaDetailsCard({
   index = 0,
   onClick,
 }: MediaDetailsCardProps) {
-  const href = navigatorTitlePath(media.id, media.type);
+  const href = navigatorTitlePath(media.id, media.type, media.seasonNumber, media.episodeNumber);
   return (
     <ResultCard
       className={className}
@@ -45,8 +46,12 @@ export function MediaDetailsCard({
       title={media.name}
       subtitle={media.type === "Episode" ? media.seriesName || media.showName : undefined}
       icon={media.type === "Movie" ? Film : Tv}
-      image={(media.type === "Episode" ? media.thumbnail : media.poster)}
+      image={media.type === "Episode" ? media.thumbnail : media.poster}
+      poster={media.poster}
+      background={media.background}
       imageAspect={media.type === "Episode" ? "landscape" : "portrait"}
+      artworkPath={href}
+      loadArtwork
       href={onClick ? undefined : href}
       onClick={onClick}
       metadata={

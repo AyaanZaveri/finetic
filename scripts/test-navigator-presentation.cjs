@@ -530,11 +530,12 @@ const { SeasonCard } = load('components/navigator/season-card.tsx', {
 });
 const seasonCard = SeasonCard({ season: { id: 'tmdb:114294:1', name: 'Season 1', poster: 'https://image.tmdb.org/t/p/w500/season.jpg' } });
 assert.match(seasonCard.props.image, /season.jpg$/, 'Season cards render the supplied portrait poster');
+const titlePaths = load('lib/navigator-title-path.ts', { '@/lib/series-route': load('lib/series-route.ts', {}), '@/lib/navigator-chat': chat });
 const { PlayMediaCard } = load('components/navigator/play-media-card.tsx', {
     ...resultDependencies,
     '@/lib/artwork': load('lib/artwork.ts', {}),
     '@/lib/series-route': load('lib/series-route.ts', {}),
-    '@/lib/navigator-title-path': load('lib/navigator-title-path.ts', { '@/lib/series-route': load('lib/series-route.ts', {}) }),
+    '@/lib/navigator-title-path': titlePaths,
 });
 assert.equal(PlayMediaCard({ result: { success: false } }), null, 'Failed actions never render Media/Media even outside the segment renderer');
 const playbackCard = PlayMediaCard({ result: { success: true, mediaId: 'tt13623608:1:1', mediaName: 'The Curse', showName: 'The Curse', episodeTitle: 'Land of Enchantment', mediaType: 'Episode', seasonNumber: 1, episodeNumber: 1, thumbnail: 'https://image.tmdb.org/t/p/w500/still.jpg' } });
@@ -545,6 +546,11 @@ assert.equal(playbackCard.props.title, 'Land of Enchantment');
 assert.equal(playbackCard.props.subtitle, 'The Curse', 'The show name belongs under the episode title, before badges');
 assert.equal(playbackCard.props.description, undefined);
 assert.equal(playbackCard.props.href, '/series/tt13623608/1/1', 'Playback cards link to the exact episode and enable the shared hover arrow');
+assert.equal(titlePaths.navigatorArtworkTarget(playbackCard.props.href)?.episodeNumber, 1);
+assert.equal(titlePaths.navigatorArtworkTarget('/movie/tt123')?.type, 'movie');
+assert.equal(titlePaths.navigatorArtworkTarget('/person/123'), undefined);
+assert.equal(titlePaths.navigatorArtworkTarget('/api/navigator/title?id=tmdb%3A114294&type=series&season=0&episode=7')?.episodeNumber, 7);
+assert.equal(titlePaths.navigatorArtworkTarget('/api/navigator/title?id=tmdb%3A114294&type=series&season=0'), undefined);
 const suppliedStill = PlayMediaCard({ result: { success: true, mediaId: 'tmdb:114294:1:1', mediaType: 'Episode', thumbnail: 'https://image.tmdb.org/t/p/w500/still.jpg' } });
 assert.match(suppliedStill.props.image, /\/still.jpg$/, 'Prefer the still returned with single-episode metadata');
 const nativeEpisodeLink = new URL(suppliedStill.props.href, 'http://localhost');
