@@ -54,6 +54,8 @@ function drawerTransition(state: DrawerState, event: DrawerEvent): DrawerState {
 
 type PlayingEpisode = { seriesId: string; season: number; episode: number };
 const episodeThumbnailSize = "aspect-video w-[clamp(3.5rem,25cqw,6rem)] shrink-0";
+const episodeListSpacing = "space-y-2 py-1";
+const episodeRowLayout = "flex items-center gap-4 rounded-lg p-2";
 
 export function PlayerSelectionControls({ media, streamUrl, playingEpisode, onEpisodeSelect, onStreamSelect }: {
     media: MediaItem;
@@ -155,7 +157,7 @@ function PlayerEpisodePicker({ playing, season, portalContainer, onSeasonChange,
     }];
     return (
         <>
-            <div className="shrink-0 px-4 pb-2">
+            <div className="shrink-0 px-4 pb-3">
                 <div className="w-48 min-w-0 max-w-full">
                     <Select label="Season" hideLabel className={seasonStyles.seasonTrigger} portalContainer={portalContainer}
                         value={String(season)} onValueChange={value => onSeasonChange(Number(value))} placeholder="Select season"
@@ -197,9 +199,9 @@ function EpisodeChoices({ playing, season, onSelect }: {
             {result.status === "loading" && (
                 <>
                     <p role="status" className="sr-only">Loading episodes</p>
-                    <LoadingPlaceholder className="space-y-1 py-1">
+                    <LoadingPlaceholder className={episodeListSpacing}>
                         {Array.from({ length: 6 }, (_, index) => (
-                            <div key={index} className="flex items-center gap-3 p-1.5">
+                            <div key={index} className={episodeRowLayout}>
                                 <Skeleton className={`${episodeThumbnailSize} rounded-lg`} />
                                 <div className="min-w-0 flex-1 space-y-2">
                                     <Skeleton className="h-3.5 w-3/5 max-w-44" />
@@ -225,7 +227,7 @@ function EpisodeChoices({ playing, season, onSelect }: {
                 </Empty>
             )}
             {result.status === "ready" && (result.episodes.length ? (
-                <ul className="space-y-1 py-1">
+                <ul className={episodeListSpacing}>
                     {result.episodes.map(episode => {
                         const selected = episode.season === playing.season && episode.episode === playing.episode;
                         const releasedAt = Date.parse(episode.released ?? "");
@@ -239,7 +241,7 @@ function EpisodeChoices({ playing, season, onSelect }: {
                             <li key={episode.id}>
                                 <button type="button" ref={selected ? current : undefined} aria-current={selected || undefined}
                                     disabled={upcoming && !selected} onClick={() => onSelect(episode)}
-                                    className="flex w-full items-center gap-3 rounded-lg p-1.5 text-start outline-none select-none aria-[current=true]:bg-accent/70 enabled:cursor-pointer enabled:hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 motion-safe:transition-[scale] motion-safe:duration-150 motion-safe:ease-[var(--ease-out)] motion-safe:enabled:active:scale-[0.98]">
+                                    className={`${episodeRowLayout} w-full text-start outline-none select-none aria-[current=true]:bg-accent/70 enabled:cursor-pointer enabled:hover:bg-accent/40 enabled:aria-[current=true]:hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-60 motion-safe:transition-[scale] motion-safe:duration-150 motion-safe:ease-[var(--ease-out)] motion-safe:enabled:active:scale-[0.98]`}>
                                     <div className={`${artworkStyles.surface} ${cardStyles.card} ${cardStyles.frame} ${episodeThumbnailSize} relative grid place-items-center overflow-hidden bg-muted`}>
                                         {thumbnail ? <ArtworkImage src={thumbnail} alt="" loading="lazy" draggable={false}
                                             className="absolute inset-0 size-full object-cover" />
@@ -253,7 +255,7 @@ function EpisodeChoices({ playing, season, onSelect }: {
                                             </span>
                                             {selected && <Play aria-hidden="true" className="mt-1 size-3 shrink-0 fill-current text-foreground/75" />}
                                         </span>
-                                        {metadata && <span className="mt-1 block text-[0.8125rem] leading-snug text-muted-foreground">{metadata}</span>}
+                                        {metadata && <span className="mt-1 block text-sm leading-snug text-muted-foreground">{metadata}</span>}
                                     </span>
                                 </button>
                             </li>
