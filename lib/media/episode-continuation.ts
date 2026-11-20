@@ -17,6 +17,7 @@ export function nextEpisodeRequest(media: MediaToPlay, next: Episode): MediaToPl
         showName: media.showName || media.details?.name, backdropUrl: media.backdropUrl,
         details: media.details, detailsLoaded: false,
         mediaSourceId: next.id, seasonNumber: next.season, episodeNumber: next.episode,
+        episodeReleasePreference: { filename: media.subtitleFilename, url: media.streamUrl },
     };
 }
 

@@ -63,6 +63,31 @@ const base = { environment: 'web', autoSelectWebStream: true, canPlayType: () =>
     }, () => {});
     assert.equal(fallback.streamUrl, backup.url);
 
+    const sameRelease = { url: 'https://example.test/Show.S02E03.1080p.WEB-DL.H264.AAC-NTb.mp4' };
+    const episode = { id: 'show', type: 'series', name: 'Show', mediaSourceId: 'show:2:3',
+        episodeReleasePreference: { url: 'https://example.test/Show.S02E02.1080p.WEB-DL.H264.AAC-NTb.mp4' } };
+    const matchingSource = source();
+    let matched;
+    const matchPending = resolvePlayback(episode, { ...base, createStreamRequest: () => matchingSource,
+        verifyStream: async () => 'supported',
+    }, () => {}).then(result => { matched = result; return result; });
+    matchingSource.publish([fast]); await flush();
+    assert.equal(matched, undefined, 'Give another add-on a short window to report the matching release');
+    matchingSource.publish([fast, sameRelease], true);
+    assert.equal((await matchPending).streamUrl, sameRelease.url);
+    const unsupported = source();
+    unsupported.publish([sameRelease, fast], true);
+    assert.equal((await resolvePlayback(episode, { ...base, createStreamRequest: () => unsupported,
+        verifyStream: async candidate => candidate === sameRelease ? 'unsupported' : 'supported',
+    }, () => {})).streamUrl, fast.url, 'A matched release must still pass browser compatibility checks');
+
+    const similar = { url: 'https://example.test/Show.S02E03.1080p.AAC.H264.WEB-DL.PROPER.mp4' };
+    const similaritySource = source();
+    similaritySource.publish([fast, similar, sameRelease], true);
+    assert.equal((await resolvePlayback(episode, { ...base, createStreamRequest: () => similaritySource,
+        verifyStream: async candidate => candidate === sameRelease ? 'unsupported' : 'supported',
+    }, () => {})).streamUrl, similar.url, 'A verified similarity match wins when the exact release is unsupported');
+
     const timed = source(), hanging = deferred(); let timedSignal;
     const timedPending = resolvePlayback({ ...request, streamRequest: timed }, { ...base,
         verifyStream: (_, options) => { timedSignal = options.signal; assert.equal(options.timeoutMs, 45000); return hanging.promise; },

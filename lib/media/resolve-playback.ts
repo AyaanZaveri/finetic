@@ -99,6 +99,98 @@ export function webMetadataSupport(metadata: StreamMetadata, canPlayType: (_mime
 const INITIAL_WEB_PROBES = 5;
 const BACKGROUND_WEB_PROBES = 2;
 const WEB_PROBE_BYTES = 8 * 1024 * 1024;
+const EPISODE_RELEASE_MATCH_WAIT_MS = 500;
+const EXACT_RELEASE_MATCH = 102;
+const GROUP_RELEASE_MATCH = 101;
+const MIN_RELEASE_SIMILARITY = 80;
+const RELEASE_SIMILARITY_MARGIN = 10;
+
+function episodeReleaseProfile(filename?: string, url?: string) {
+    for (const input of [filename, url]) {
+        if (!input) continue;
+        let name = input.split(/[?#]/, 1)[0].split(/[/\\]/).pop() || "";
+        try { name = decodeURIComponent(name); } catch { /* keep the original name */ }
+        name = name.replace(/\.(mkv|mp4|m4v|webm|avi|mov|ts)$/i, "").toLowerCase();
+        const episode = /(^|[^a-z0-9])(?:s\d{1,3}[ ._-]*e\d{1,4}|\d{1,3}x\d{1,4})(?![a-z0-9])/.exec(name);
+        if (!episode) continue;
+        const show = name.slice(0, episode.index).replace(/[^a-z0-9]/g, "");
+        const suffix = name.slice(episode.index + episode[0].length);
+        const technical = suffix.replace(/_/g, ".").search(/\b(?:\d{3,4}p|4k|web[ .-]?(?:dl|rip)|blu[ .-]?ray|hdtv|remux)\b/i);
+        if (!show || technical < 0 || /^[ ._-]*e\d/i.test(suffix)) continue;
+        const groupTag = suffix.match(/-([a-z0-9]{2,})$/)?.[1];
+        const group = groupTag && !/^(?:dl|rip|ray|hdr\d*|sdr|dv|hevc|avc|[hx]26[45]|aac|atmos|opus|proper|repack\d*|internal|\d+p)$/.test(groupTag)
+            ? groupTag : undefined;
+        const release = parseStreamReleaseInfo({ behaviorHints: { filename: name } });
+        const { resolution, source, videoCodecs, audioCodecs, dynamicRange } = release;
+        const technicalTags = suffix.slice(technical, group ? -(group.length + 1) : undefined);
+        return {
+            show, group, release,
+            template: suffix.replace(/[^a-z0-9]/g, ""),
+            format: JSON.stringify([resolution, source, videoCodecs, audioCodecs, dynamicRange]),
+            tokens: new Set(technicalTags.match(/[a-z0-9]+/g) || []),
+        };
+    }
+}
+
+type EpisodeReleaseProfile = NonNullable<ReturnType<typeof episodeReleaseProfile>>;
+
+function episodeReleaseSimilarity(active: EpisodeReleaseProfile, candidate: EpisodeReleaseProfile): number {
+    if (active.group && candidate.group && active.group !== candidate.group) return 0;
+    const a = active.release;
+    const b = candidate.release;
+    const conflictingTag = (["resolution", "source", "dynamicRange", "bitDepth"] as const)
+        .some(key => a[key] !== undefined && b[key] !== undefined && a[key] !== b[key]);
+    const conflictingCodecs = (["videoCodecs", "audioCodecs"] as const)
+        .some(key => a[key].length && b[key].length && a[key].join() !== b[key].join());
+    if (conflictingTag || conflictingCodecs) return 0;
+
+    const shared = [...active.tokens].filter(token => candidate.tokens.has(token)).length;
+    if (shared < 4) return 0;
+    return 100 * shared / (active.tokens.size + candidate.tokens.size - shared);
+}
+
+function preferEpisodeRelease(reference?: MediaToPlay["episodeReleasePreference"]) {
+    const active = episodeReleaseProfile(reference?.filename, reference?.url);
+    if (!active) return;
+    const scores = new WeakMap<StremioStream, number>();
+    return (stream: StremioStream) => {
+        const cached = scores.get(stream);
+        if (cached !== undefined) return cached;
+        const candidate = episodeReleaseProfile(stream.behaviorHints?.filename, stream.url || stream.externalUrl);
+        const score = candidate?.show !== active.show ? 0
+            : candidate.template === active.template ? EXACT_RELEASE_MATCH
+                : active.group && candidate.group === active.group && candidate.format === active.format ? GROUP_RELEASE_MATCH
+                    : episodeReleaseSimilarity(active, candidate);
+        scores.set(stream, score);
+        return score;
+    };
+}
+
+type ReleasePreference = ReturnType<typeof preferEpisodeRelease>;
+
+/** Only promote a clear similarity winner within an audio-language tier. */
+function rankEpisodeReleases(streams: StremioStream[], languageTier: (_stream: StremioStream) => number, preference?: ReleasePreference) {
+    if (!preference) return () => 0;
+    const byLanguage = new Map<number, { stream: StremioStream; best: number; runnerUp: number }>();
+    for (const stream of streams) {
+        const score = preference(stream);
+        if (!score || score >= GROUP_RELEASE_MATCH) continue;
+        const tier = languageTier(stream);
+        const previous = byLanguage.get(tier);
+        if (!previous || score > previous.best) {
+            byLanguage.set(tier, { stream, best: score, runnerUp: previous?.best ?? 0 });
+        } else {
+            previous.runnerUp = Math.max(previous.runnerUp, score);
+        }
+    }
+    return (stream: StremioStream) => {
+        const score = preference(stream);
+        if (score >= GROUP_RELEASE_MATCH) return score;
+        const winner = byLanguage.get(languageTier(stream));
+        return winner?.stream === stream && score >= MIN_RELEASE_SIMILARITY
+            && score - winner.runnerUp >= RELEASE_SIMILARITY_MARGIN ? score : 0;
+    };
+}
 
 /** Race real audiovisual decoder checks. Unknown must never reach the main player. */
 function selectFastWebStream(
@@ -108,6 +200,7 @@ function selectFastWebStream(
     },
     dependencies: PlaybackDependencies,
     preferredLanguage: string,
+    releasePreference?: ReleasePreference,
 ): Promise<StremioStream> {
     return new Promise((resolve, reject) => {
         const support = new Map<string, ReturnType<typeof webMetadataSupport>>();
@@ -120,6 +213,8 @@ function selectFastWebStream(
         const languagePending = new Set<string>();
         let streams: StremioStream[] = [], complete = false, running = 0, selected = false, closed = false;
         let workTimer: ReturnType<typeof setTimeout> | undefined;
+        let matchTimer: ReturnType<typeof setTimeout> | undefined;
+        let matchWaitExpired = false;
         const pool = new AbortController();
         const budget: StreamProbeBudget = { remainingBytes: WEB_PROBE_BYTES };
         let workStopped = false, playbackConfirmed = false;
@@ -147,19 +242,18 @@ function selectFastWebStream(
         };
         const ranked = () => {
             const seen = new Set<string>();
-            // Keep browser compatibility ahead of language for probe scheduling;
-            // selection below still waits for a viable preferred-language match.
             return streams.filter(stream => {
                 const url = urlOf(stream);
                 if (!/^https?:\/\//i.test(url || "") || seen.has(url) || dependencies.excludeUrls?.has(url)
                     || decoded.get(url) === "unsupported") return false;
                 seen.add(url);
                 return true;
-            }).sort((a, b) => score(b) - score(a));
+            });
         };
         const cleanup = () => {
             closed = true;
             clearTimeout(workTimer);
+            clearTimeout(matchTimer);
             pool.abort();
             removeConfirmation?.();
             unsubscribe?.();
@@ -179,6 +273,10 @@ function selectFastWebStream(
         const update = () => {
             if (closed) return;
             const candidates = ranked();
+            const releaseRank = rankEpisodeReleases(candidates, languageTier, releasePreference);
+            const byRelease = (a: StremioStream, b: StremioStream) => releaseRank(b) - releaseRank(a);
+            // Probe release matches early. Final selection below still checks language and decoding.
+            candidates.sort((a, b) => byRelease(a, b) || score(b) - score(a));
             dependencies.onCandidates?.(candidates);
             // Fast cached/CORS results can chain microtasks ahead of timers.
             const elapsed = workStartedAt === undefined ? 0 : Date.now() - workStartedAt;
@@ -193,7 +291,7 @@ function selectFastWebStream(
             }
             const verifiedCandidates = candidates.filter(stream => decoded.get(urlOf(stream)) === "supported"
                 && (workStopped || !languagePending.has(urlOf(stream))))
-                .sort((a, b) => languageTier(b) - languageTier(a) || score(b) - score(a));
+                .sort((a, b) => languageTier(b) - languageTier(a) || byRelease(a, b) || score(b) - score(a));
             const pending = (stream: StremioStream) => decoded.get(urlOf(stream)) === undefined || languagePending.has(urlOf(stream));
             const preferredPending = candidates.some(stream => languageTier(stream) > 0 && pending(stream));
             const possibleMatchPending = candidates.some(stream => pending(stream)
@@ -203,7 +301,14 @@ function selectFastWebStream(
             const verified = verifiedCandidates.find(stream => languageTier(stream) > 0)
                 || (!preferredPending ? verifiedCandidates.find(stream => languageTier(stream) === 0) : undefined)
                 || ((workStopped || (complete && !possibleMatchPending)) ? verifiedCandidates[0] : undefined);
-            if (verified) choose(verified);
+            if (!selected && verified) {
+                const waitingForMatch = releasePreference && !workStopped && !matchWaitExpired
+                    && ((!complete && releaseRank(verified) < EXACT_RELEASE_MATCH) || candidates.some(stream =>
+                        releaseRank(stream) > releaseRank(verified) && pending(stream)
+                        && (languageTier(stream) >= languageTier(verified) || preferredTrackAvailable.get(urlOf(stream)) !== false)));
+                if (!waitingForMatch) { clearTimeout(matchTimer); choose(verified); }
+                else matchTimer ??= setTimeout(() => { matchWaitExpired = true; update(); }, EPISODE_RELEASE_MATCH_WAIT_MS);
+            }
             const hasBackup = candidates.some(stream => urlOf(stream) !== selectedUrl && decoded.get(urlOf(stream)) === "supported"
                 && !languagePending.has(urlOf(stream)) && languageTier(stream) >= 0);
             if (selected && (workStopped || (playbackConfirmed && hasBackup))) { cleanup(); return; }
@@ -285,7 +390,7 @@ function selectFastWebStream(
     });
 }
 
-function rankNativeStreams(streams: StremioStream[], preferredAudioLanguage: string, excluded?: ReadonlySet<string>, preferences = new WeakMap<StremioStream, number>()) {
+function rankNativeStreams(streams: StremioStream[], preferredAudioLanguage: string, excluded?: ReadonlySet<string>, preferences = new WeakMap<StremioStream, number>(), releasePreference?: ReleasePreference) {
     const seen = new Set<string>();
     const candidates = streams.filter(stream => {
         const url = stream.url || stream.externalUrl || "";
@@ -294,21 +399,25 @@ function rankNativeStreams(streams: StremioStream[], preferredAudioLanguage: str
         return true;
     });
     for (const stream of candidates) if (!preferences.has(stream)) preferences.set(stream, streamLanguagePreference(stream, preferredAudioLanguage));
-    return candidates.sort((a, b) => preferences.get(b)! - preferences.get(a)!);
+    const releaseRank = rankEpisodeReleases(candidates, stream => preferences.get(stream)!, releasePreference);
+    return candidates.sort((a, b) => preferences.get(b)! - preferences.get(a)!
+        || releaseRank(b) - releaseRank(a));
 }
 
 /** Commit early only when no pending add-on can change the existing winner. */
-function selectNativeStream(source: PlaybackStreamRequest, dependencies: PlaybackDependencies, language: string): Promise<StremioStream> {
+function selectNativeStream(source: PlaybackStreamRequest, dependencies: PlaybackDependencies, language: string, releasePreference?: ReleasePreference): Promise<StremioStream> {
     return new Promise((resolve, reject) => {
         let finished = false;
         const preferences = new WeakMap<StremioStream, number>();
+        let matchTimer: ReturnType<typeof setTimeout> | undefined;
+        let matchWaitExpired = false;
         let unsubscribe = () => {};
-        const cleanup = () => { unsubscribe(); dependencies.signal?.removeEventListener("abort", abort); };
+        const cleanup = () => { clearTimeout(matchTimer); unsubscribe(); dependencies.signal?.removeEventListener("abort", abort); };
         const fail = (error: unknown) => { if (!finished) { finished = true; cleanup(); reject(error); } };
         const abort = () => fail(dependencies.signal?.reason || new Error("Playback cancelled"));
         const update = (snapshot: PlaybackStreamSnapshot) => {
             if (finished) return;
-            const candidates = rankNativeStreams(snapshot.streams, language, dependencies.excludeUrls, preferences);
+            const candidates = rankNativeStreams(snapshot.streams, language, dependencies.excludeUrls, preferences, releasePreference);
             dependencies.onCandidates?.(candidates);
             const best = candidates[0] as (StremioStream & { addonIndex?: number }) | undefined;
             const index = best?.addonIndex;
@@ -319,6 +428,10 @@ function selectNativeStream(source: PlaybackStreamRequest, dependencies: Playbac
                 && typeof index === "number" && Number.isInteger(index) && index >= 0
                 && typeof prefix === "number" && Number.isInteger(prefix) && prefix <= snapshot.total && index < prefix;
             if (!snapshot.complete && !stable) return;
+            if (!snapshot.complete && !matchWaitExpired && best && releasePreference && releasePreference(best) < EXACT_RELEASE_MATCH) {
+                matchTimer ??= setTimeout(() => { matchWaitExpired = true; update(source.snapshot); }, EPISODE_RELEASE_MATCH_WAIT_MS);
+                return;
+            }
             if (!best) { fail(new Error("No playable streams found. Try another title or check your add-ons.")); return; }
             finished = true; cleanup(); resolve(best);
         };
@@ -432,6 +545,7 @@ async function resolvePlaybackAttempt(
         return media;
     }
     onPhase("fetching-streams");
+    const releasePreference = preferEpisodeRelease(media.episodeReleasePreference);
     const autoSelectWebStream = dependencies.environment === "web" && dependencies.autoSelectWebStream === true;
     const progressive = knownStreams || (autoSelectWebStream || dependencies.environment === "native"
         ? dependencies.createStreamRequest?.(media.mediaSourceId || media.id, media.type) : undefined);
@@ -449,7 +563,7 @@ async function resolvePlaybackAttempt(
             };
         })();
         onPhase("checking-streams");
-        const stream = await selectFastWebStream(source, dependencies, preferredAudioLanguage);
+        const stream = await selectFastWebStream(source, dependencies, preferredAudioLanguage, releasePreference);
         onPhase("loading-stream");
         return {
             ...media, streamRequest: progressive || media.streamRequest,
@@ -460,7 +574,7 @@ async function resolvePlaybackAttempt(
         };
     }
     if (dependencies.environment === "native" && progressive) {
-        const stream = await selectNativeStream(progressive, dependencies, preferredAudioLanguage);
+        const stream = await selectNativeStream(progressive, dependencies, preferredAudioLanguage, releasePreference);
         onPhase("loading-stream");
         return { ...media, streamRequest: progressive,
             streamUrl: stream.url || stream.externalUrl,
@@ -470,7 +584,7 @@ async function resolvePlaybackAttempt(
     }
     const streams = knownStreams ? await knownStreams.promise
         : await dependencies.fetchStreams(media.mediaSourceId || media.id, media.type);
-    const candidates = rankNativeStreams(streams, preferredAudioLanguage, dependencies.excludeUrls);
+    const candidates = rankNativeStreams(streams, preferredAudioLanguage, dependencies.excludeUrls, undefined, releasePreference);
     dependencies.onCandidates?.(candidates);
     const stream = candidates[0];
     if (!stream) throw new Error("No playable streams found. Try another title or check your add-ons.");

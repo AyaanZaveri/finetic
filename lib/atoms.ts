@@ -42,6 +42,7 @@ export interface MediaToPlay {
   type: "movie" | "series" | "channel" | "tv";
   resumePositionTicks?: number;
   streamUrl?: string;
+  episodeReleasePreference?: { filename?: string; url?: string };
   requestHeaders?: Record<string, string>;
   mediaSourceId?: string;
   seriesId?: string;

@@ -52,6 +52,39 @@ async function main() {
  const emptyCheck = assert.rejects(noStreams, /No playable streams/); empty.publish([], 3, true); await emptyCheck;
  const manual = await resolvePlayback({ ...request, streamUrl: 'https://fixture.test/manual.mkv' }, { ...deps, createStreamRequest: () => assert.fail('Manual selection must not start discovery') }, () => {});
  assert.equal(manual.streamUrl, 'https://fixture.test/manual.mkv');
+ const { nextEpisodeRequest } = load('lib/media/episode-continuation.ts');
+ const nextEpisode = nextEpisodeRequest({ id: 'tt123', type: 'series', name: 'Example Show',
+  subtitleFilename: 'Example.Show.S06E09.The.Golden.Child.1080p.WEB-DL.H264.AAC-NTb.mkv' },
+ { id: 'tt123:7:1', title: 'Manhunter', season: 7, episode: 1 });
+ const otherRelease = { ...stream('other', 0), behaviorHints: { filename: 'Example.Show.S07E01.Manhunter.1080p.WEB-DL.H264.AAC-Other.mkv' } };
+ const sameGroup = { ...stream('same-group', 1), behaviorHints: { filename: 'Example.Show.S07E01.Manhunter.1080p.WEB-DL.H264.AAC-NTb.mkv' } };
+ const changedQuality = { ...stream('other-quality', 0), behaviorHints: { filename: 'Example.Show.S07E01.Manhunter.720p.WEB-DL.H264.AAC-NTb.mkv' } };
+ const conflictingGroup = { ...sameGroup, title: 'German' };
+ const prefer = candidates => resolvePlayback(nextEpisode, { ...deps, fetchStreams: async () => candidates }, () => {});
+ assert.equal((await prefer([otherRelease, changedQuality, sameGroup])).streamUrl, sameGroup.url, 'A new title or season can match a release group with the same format');
+ assert.equal((await prefer([otherRelease, changedQuality])).streamUrl, otherRelease.url, 'A group alone does not override the normal ranking');
+ assert.equal((await prefer([otherRelease, conflictingGroup])).streamUrl, otherRelease.url, 'Release preference remains below the configured audio language');
+ const similarRelease = (id, tags) => ({
+  ...stream(id, 1), behaviorHints: { filename: `Example.Show.S07E01.Manhunter.${tags}.mkv` },
+ });
+ const reordered = similarRelease('reordered', '1080p.AAC.H264.WEB-DL.PROPER');
+ const anotherSimilar = similarRelease('another-similar', '1080p.WEB-DL.AAC.H264.REPACK');
+ const titleOnly = similarRelease('title-only', '1080p.H264.AAC');
+ assert.equal((await prefer([otherRelease, titleOnly, reordered])).streamUrl, reordered.url, 'A clear similarity winner can have reordered and extra tags');
+ assert.equal((await prefer([otherRelease, reordered, sameGroup])).streamUrl, sameGroup.url, 'A group and format match outranks similarity');
+ assert.equal((await prefer([otherRelease, reordered, anotherSimilar])).streamUrl, otherRelease.url, 'Ambiguous similarity falls back to add-on order');
+ const reference = { ...nextEpisode, episodeReleasePreference: {
+  filename: 'Example.Show.S06E09.The.Golden.Child.1080p.WEB-DL.H264.AAC.5.1.8bit.EXTENDED.PROPER-NTb.mkv',
+ } };
+ const preferReference = candidate => resolvePlayback(reference, {
+  ...deps, fetchStreams: async () => [otherRelease, candidate],
+ }, () => {});
+ const commonTags = 'WEB-DL.AAC.5.1.8bit.EXTENDED.PROPER';
+ const withoutGroup = similarRelease('without-group', `1080p.H264.${commonTags}`);
+ assert.equal((await preferReference(withoutGroup)).streamUrl, withoutGroup.url, 'A longer matching tag list can make a strong similarity match');
+ for (const tags of [`720p.H264.${commonTags}`, `1080p.H265.${commonTags}`, `1080p.H264.${commonTags}-Other`]) {
+  assert.equal((await preferReference(similarRelease('conflict', tags))).streamUrl, otherRelease.url, `Conflicting tags block even high similarity: ${tags}`);
+ }
  // Every completion order and language-tier combination must keep the final winner.
  const titles = ['German', '1080p H264', 'Multi English German', 'English'];
  const orders = [[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]];
