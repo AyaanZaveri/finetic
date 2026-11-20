@@ -78,3 +78,62 @@ disconnectSkip();assert.equal(listeners.size, 0);
 node.readyState = 1; node.currentTime = 0;
 assert.equal(readSkipTime(), null, 'Metadata alone does not activate Skip');
 console.log('PASS: 500 clock events without root updates, stable caption subscriptions, preprocessed long files, timing, gaps, backward seeks and overlap semantics');
+
+async function checkReplacementClock(platform) {
+    const { createMediaStore } = require('media-chrome/media-store/media-store');
+    const { createPlayerMediaStore } = load('lib/media/player-media-store.ts', {
+        '../desktop/bridge': { desktopBridge: () => platform === 'web' ? undefined : { platform } },
+        'media-chrome/media-store/media-store': {
+            createMediaStore({ stateMediator: { mediaCurrentTime, mediaDuration, mediaSeekable } }) {
+                return createMediaStore({
+                    stateMediator: { mediaCurrentTime, mediaDuration, mediaSeekable },
+                    monitorStateOwnersOnlyWithSubscriptions: false,
+                });
+            },
+        },
+    });
+    const store = createPlayerMediaStore();
+    const emptyRange = { length: 0 };
+    const media = () => Object.assign(new EventTarget(), { currentTime: 0, duration: NaN, seekable: emptyRange });
+    const register = async element => {
+        store.dispatch({ type: 'mediaelementchangerequest', detail: element });
+        await new Promise(setImmediate);
+    };
+    const reportDuration = (element, duration) => {
+        element.duration = duration;
+        element.seekable = { length: 1, start: () => 0, end: () => duration };
+        element.dispatchEvent(new Event('durationchange'));
+    };
+
+    let previous = media();
+    await register(previous);
+    reportDuration(previous, 2500);
+    for (const [position, duration] of [[15, 2640], [1670, 2638]]) {
+        const replacement = media();
+        await register(replacement);
+        previous.currentTime = 2000;
+        previous.dispatchEvent(new Event('timeupdate'));
+        assert.equal(store.getState().mediaCurrentTime, 0, `${platform}: discard the previous source clock`);
+
+        replacement.currentTime = position;
+        replacement.dispatchEvent(new Event('timeupdate'));
+        assert.equal(store.getState().mediaCurrentTime, position);
+        assert.equal(store.getState().mediaSeekable, undefined);
+        reportDuration(replacement, duration);
+        assert.equal(store.getState().mediaDuration, duration);
+        assert.deepEqual(store.getState().mediaSeekable, [0, duration], `${platform}: late duration enables seeking without a progress event`);
+        previous = replacement;
+    }
+
+    Object.assign(previous, { currentTime: 0, duration: NaN, seekable: emptyRange });
+    previous.dispatchEvent(new Event('emptied'));
+    assert.equal(store.getState().mediaCurrentTime, 0, `${platform}: clear the position when the media element is reused`);
+    assert.equal(store.getState().mediaSeekable, undefined);
+}
+
+Promise.all(['web', 'macos', 'windows'].map(checkReplacementClock)).then(() => {
+    console.log('PASS: episode and stream replacement clocks handle late duration on web and native');
+}).catch(error => {
+    console.error(error);
+    process.exitCode = 1;
+});

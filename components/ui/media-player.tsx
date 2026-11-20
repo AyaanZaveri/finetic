@@ -53,7 +53,7 @@ import * as React from "react";
 import * as ReactDOM from "react-dom";
 
 import { desktopBridge, setMacOSWindowControlsVisible } from "@/lib/desktop/bridge";
-import { createDesktopMediaStore } from "@/lib/desktop/media-store";
+import { createPlayerMediaStore } from "@/lib/media/player-media-store";
 import { boundSkipChapterLabels, chapterTrackMask } from "@/lib/media/chapter-timeline";
 import { PlayerSkipTimeline } from "@/components/player-skip-timeline";
 import type { SkipSegment } from "@/lib/media/skip-segments";
@@ -265,9 +265,9 @@ function MediaPlayerRoot(props: MediaPlayerRootProps) {
     [listenersRef, stateRef]
   );
 
-  const [nativeStore] = React.useState(() => desktopBridge() ? createDesktopMediaStore() : undefined);
+  const [mediaStore] = React.useState(createPlayerMediaStore);
   return (
-    <MediaProvider mediaStore={nativeStore}>
+    <MediaProvider mediaStore={mediaStore}>
       <StoreContext.Provider value={store}>
         <MediaPlayerRootImpl {...props} />
       </StoreContext.Provider>
@@ -1781,10 +1781,16 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
 
   // Use the same transient target as the clock, including keyboard holds.
   // A prior pointer commit must not leave this slider on a stale local value.
-  const displayValue = keyboardPreviewTime ?? mediaCurrentTime;
+  const hasSeekableRange = Number.isFinite(seekableStart) && Number.isFinite(seekableEnd) && seekableEnd > seekableStart;
+  const position = keyboardPreviewTime ?? mediaCurrentTime;
+  const sliderMin = hasSeekableRange ? seekableStart : 0;
+  const sliderMax = hasSeekableRange ? seekableEnd : 1;
+  const displayValue = hasSeekableRange && Number.isFinite(position)
+    ? Math.min(seekableEnd, Math.max(seekableStart, position))
+    : sliderMin;
   if (keyboardScrubbing && keyboardPreviewTime !== null) hoverTimeRef.current = keyboardPreviewTime;
 
-  const isDisabled = disabled || context.disabled;
+  const isDisabled = disabled || context.disabled || !hasSeekableRange;
   const tooltipDisabled =
     withoutTooltip || context.withoutTooltip || store.getState().menuOpen;
 
@@ -1810,8 +1816,8 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
   }, []);
 
   const currentTime = getCachedTime(displayValue, seekableEnd);
-  const duration = getCachedTime(seekableEnd, seekableEnd);
-  const remainingTime = getCachedTime(seekableEnd - displayValue, seekableEnd);
+  const duration = hasSeekableRange ? getCachedTime(seekableEnd, seekableEnd) : "--:--";
+  const remainingTime = hasSeekableRange ? getCachedTime(seekableEnd - displayValue, seekableEnd) : "--:--";
 
   const onCollisionDataUpdate = React.useCallback(() => {
     if (collisionDataRef.current) return collisionDataRef.current;
@@ -1986,7 +1992,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
   // decoders receive bounded updates independently of the display refresh rate.
   React.useEffect(() => {
     const timeline = seekRef.current;
-    if (!timeline || !context.keyboardScrubber) return;
+    if (!timeline || !context.keyboardScrubber || isDisabled) return;
     let rect = timeline.getBoundingClientRect();
     let width = rect.width, tooltipWidth = SEEK_TOOLTIP_WIDTH_FALLBACK;
     let minX = SEEK_COLLISION_PADDING, maxX = window.innerWidth - SEEK_COLLISION_PADDING;
@@ -2032,14 +2038,14 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
       timeline.setAttribute("data-keyboard-scrubbing", "");
     });
     return () => { unsubscribe(); resize?.disconnect(); restore(); };
-  }, [context.keyboardScrubber, seekableStart, seekableEnd, currentTooltipSideOffset, onCollisionDataUpdate]);
+  }, [context.keyboardScrubber, isDisabled, seekableStart, seekableEnd, currentTooltipSideOffset, onCollisionDataUpdate]);
 
   React.useLayoutEffect(() => {
-    if (!keyboardScrubbing || keyboardPreviewTime === null || !seekRef.current) return;
+    if (isDisabled || !keyboardScrubbing || keyboardPreviewTime === null || !seekRef.current) return;
     const rect = seekRef.current.getBoundingClientRect();
     onTooltipPositionUpdate(rect.left + (keyboardPreviewTime - seekableStart) / (seekableEnd - seekableStart) * rect.width);
     onPreviewUpdate(keyboardPreviewTime);
-  }, [keyboardScrubbing, keyboardPreviewTime, seekableStart, seekableEnd, onTooltipPositionUpdate, onPreviewUpdate]);
+  }, [isDisabled, keyboardScrubbing, keyboardPreviewTime, seekableStart, seekableEnd, onTooltipPositionUpdate, onPreviewUpdate]);
 
   React.useEffect(() => {
     if (!seekState.isHovering || tooltipDisabled) return;
@@ -2063,7 +2069,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
   }, [dispatch, seekState.isHovering, tooltipDisabled]);
 
   const bufferedProgress = React.useMemo(() => {
-    if (mediaBuffered.length === 0 || seekableEnd <= 0) return 0;
+    if (mediaBuffered.length === 0 || !hasSeekableRange) return 0;
 
     if (mediaEnded) return 1;
 
@@ -2076,7 +2082,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
     }
 
     return Math.min(1, seekableStart / seekableEnd);
-  }, [mediaBuffered, mediaCurrentTime, seekableEnd, mediaEnded, seekableStart]);
+  }, [mediaBuffered, mediaCurrentTime, seekableEnd, mediaEnded, seekableStart, hasSeekableRange]);
 
   const onPointerEnter = React.useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     // Physical touch uses the gesture handler; Android preview messages use
@@ -2356,7 +2362,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
 
   // Reposition after controls/preview layout changes, even without another move.
   React.useLayoutEffect(() => {
-    if (!touchScrubbingRef.current || !seekRef.current) return;
+    if (isDisabled || !touchScrubbingRef.current || !seekRef.current) return;
     const rect = seekRef.current.getBoundingClientRect();
     onTooltipPositionUpdate(rect.left + (hoverTimeRef.current - seekableStart) / (seekableEnd - seekableStart) * rect.width);
   });
@@ -2404,8 +2410,8 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
         disabled={isDisabled}
         {...seekProps}
         ref={seekRef}
-        min={seekableStart}
-        max={seekableEnd}
+        min={sliderMin}
+        max={sliderMax}
         step={0.01}
         className={cn(
           "relative flex w-full touch-none select-none items-center data-[disabled]:pointer-events-none data-[disabled]:opacity-50 group",
@@ -2454,7 +2460,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
           />
           <SliderPrimitive.Range data-slot="media-player-seek-range" className="absolute h-full rounded-full bg-white will-change-[width]" />
           <span ref={keyboardRangeRef} aria-hidden="true" data-slot="media-player-keyboard-range" className="pointer-events-none absolute inset-0 rounded-full bg-white" />
-          {seekState.isHovering && seekableEnd > 0 && (
+          {seekState.isHovering && hasSeekableRange && (
             <div
               data-slot="media-player-seek-hover-range"
               className="absolute h-full rounded-full bg-white/20 will-change-[width,opacity]"
@@ -2474,7 +2480,7 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
       {!withoutTooltip &&
         !context.withoutTooltip &&
         (seekState.isHovering || keyboardScrubbing || previewFrames) &&
-        seekableEnd > 0 && (
+        hasSeekableRange && (
           <MediaPlayerPortal>
             <div
               ref={tooltipRef}
@@ -2713,34 +2719,36 @@ function MediaPlayerTime(props: MediaPlayerTimeProps) {
   const mediaCurrentTime = useMediaSelector(
     (state) => state.mediaCurrentTime ?? 0
   );
-  const [, seekableEnd = 0] = useMediaSelector(
-    (state) => state.mediaSeekable ?? [0, 0]
-  );
+  const duration = useMediaSelector((state) => {
+    const duration = state.mediaDuration;
+    if (typeof duration === "number" && Number.isFinite(duration) && duration > 0) return duration;
+    return state.mediaSeekable?.[1] ?? 0;
+  });
 
   const previewTime = useStoreSelector((state) => state.seekPreviewTime);
   const displayTime = previewTime ?? mediaCurrentTime;
 
   const times = React.useMemo(() => {
+    const hasDuration = Number.isFinite(duration) && duration > 0;
+    const formattedDuration = hasDuration ? timeUtils.formatTime(duration, duration) : "--:--";
+
     if (variant === "remaining") {
       return {
-        remaining: timeUtils.formatTime(
-          seekableEnd - displayTime,
-          seekableEnd
-        ),
+        remaining: hasDuration ? timeUtils.formatTime(Math.max(0, duration - displayTime), duration) : "--:--",
       };
     }
 
     if (variant === "duration") {
       return {
-        duration: timeUtils.formatTime(seekableEnd, seekableEnd),
+        duration: formattedDuration,
       };
     }
 
     return {
-      current: timeUtils.formatTime(displayTime, seekableEnd),
-      duration: timeUtils.formatTime(seekableEnd, seekableEnd),
+      current: timeUtils.formatTime(displayTime, hasDuration ? duration : undefined),
+      duration: formattedDuration,
     };
-  }, [variant, displayTime, seekableEnd]);
+  }, [variant, displayTime, duration]);
 
   const TimePrimitive = asChild ? Slot : "div";
 

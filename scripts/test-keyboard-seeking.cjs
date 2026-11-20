@@ -5,6 +5,7 @@ const ts = require('typescript');
 const { hooks, load } = require('./test-support/react-hooks.cjs');
 const parsed = ts.createSourceFile('player.tsx', fs.readFileSync('components/ui/media-player.tsx', 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const component = parsed.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'MediaPlayerSeek');
+const clock = parsed.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'MediaPlayerTime');
 const h = hooks(), sent = [];
 const media = { currentTime: 8 };
 const state = { seekMode: null, menuOpen: false, dragging: false, seekPreviewTime: null };
@@ -19,9 +20,9 @@ const context = { exports: {}, React: h.react, jsx: h.jsx.jsx, jsxs: h.jsx.jsxs,
     MediaActionTypes: { MEDIA_SEEK_REQUEST: 'seek', MEDIA_PREVIEW_REQUEST: 'preview' },
     SliderPrimitive: { Root: 'slider', Track: 'track', Range: 'range', Thumb: 'thumb' },
     PlayerSkipTimeline: 'skips', boundSkipChapterLabels: () => [], chapterTrackMask: () => undefined,
-    timeUtils: { formatTime: String }, cn: () => '', Date, clearTimeout, cancelAnimationFrame() {},
+    timeUtils: require('media-chrome/utils/time'), cn: () => '', Date, clearTimeout, cancelAnimationFrame() {},
 };
-vm.runInNewContext(ts.transpileModule(`${component.getText(parsed)}\nexports.Seek = MediaPlayerSeek;`, {
+vm.runInNewContext(ts.transpileModule(`${component.getText(parsed)}\n${clock.getText(parsed)}\nexports.Seek = MediaPlayerSeek; exports.Time = MediaPlayerTime;`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, jsxImportSource: 'test' },
 }).outputText.replace(/require\("test\/jsx-runtime"\)/g, '({ jsx, jsxs })'), context);
 function slider(props = {}) { return h.render(context.exports.Seek, props).props.children[0]; }
@@ -85,6 +86,24 @@ assert.equal(visualHost.updates, rendersAtStart, 'Display frames must not schedu
 context.keyboardInstance.release('arrowright');
 assert.equal(attributes.has('data-keyboard-scrubbing'), false, 'Release restores the normal slider presentation');
 visualHost.unmount(); context.keyboardInstance.dispose();
+
+state.seekPreviewTime = null;
+Object.assign(mediaState, { mediaCurrentTime: 1670, mediaSeekable: undefined, mediaDuration: NaN });
+bar = slider();
+assert.equal(bar.props.disabled, true, 'A source without a seekable range cannot be scrubbed');
+assert.ok(bar.props.max > bar.props.min, 'The slider must have a nonzero span even when disabled');
+assert.equal(bar.props.value[0], bar.props.min, 'A resume position without a range must leave the track empty');
+const clockHost = hooks();
+Object.assign(context, { React: clockHost.react, jsx: clockHost.jsx.jsx, jsxs: clockHost.jsx.jsxs });
+const readClock = () => clockHost.render(context.exports.Time, {}).props.children.map(child => child.props.children).join(' ');
+assert.equal(readClock(), '27:50 / --:--');
+mediaState.mediaDuration = 2640;
+assert.equal(readClock(), '27:50 / 44:00', 'The clock uses duration even before the stream is seekable');
+mediaState.mediaSeekable = [0, 2640];
+Object.assign(context, { React: h.react, jsx: h.jsx.jsx, jsxs: h.jsx.jsxs });
+bar = slider();
+assert.equal(bar.props.disabled, false);
+assert.equal(bar.props.value[0], 1670, 'The bar resumes from the media position when the range arrives');
 
 const crypto = require('node:crypto');
 const { MpvController } = load('lib/desktop/mpv-controller.ts', {}, { Event, EventTarget, CustomEvent, DOMException, URL, crypto });
