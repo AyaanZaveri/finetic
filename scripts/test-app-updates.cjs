@@ -13,8 +13,9 @@ for (const platform of ['windows', 'macos']) {
         '@/lib/desktop/bridge': { desktopBridge: () => bridge },
         '@/components/ui/button': { Button: 'Button' }, '@/components/github-icon': { GitHubIcon: 'GitHubIcon' },
         '@/components/arc/switch/switch': { Switch: 'Switch' },
+        '@/components/motion-primitives/activity-text-shimmer': { ActivityTextShimmer: 'Shimmer' },
         '@/components/ui/field': { Field: 'Field', FieldContent: 'Content', FieldLabel: 'Label', FieldDescription: 'Description' },
-        '@/package.json': { version: '0.5.2' }, '@/app/(main)/settings/settings.module.css': {},
+        '@/package.json': { version: '0.5.2' }, '@/app/(main)/settings/settings.module.css': { feedback: 'feedback' },
     });
     let tree = host.render(AppUpdates); host.flush();
     const github = find(tree, 'Button')[0];
@@ -37,6 +38,26 @@ for (const platform of ['windows', 'macos']) {
     listener({ type: 'update-status', version: '0.5.2', available: true, automatic: false, state: 'checking' });
     tree = host.render(AppUpdates);
     assert.equal(find(tree, 'Button').find(button => button.props.onClick).props.disabled, true);
+    for (const [state, label] of [['checking', 'Checking for updates…'], ['downloading', 'Downloading update…']]) {
+        listener({ type: 'update-status', version: '0.5.2', available: true, automatic: false, state, message: 'Background progress' });
+        tree = host.render(AppUpdates);
+        const button = find(tree, 'Button').find(button => button.props.onClick);
+        assert.equal(button.props.disabled, true);
+        assert.equal(button.props['aria-busy'], true);
+        assert.equal(find(button, 'Shimmer')[0].props.children, label);
+        assert.equal(find(tree, 'p').find(node => node.props.role === 'status').props.className, 'sr-only');
+        assert.doesNotMatch(JSON.stringify(tree), /Background progress|in the background/);
+    }
+    for (const [state, label] of [['available', 'Download update'], ['ready', 'Restart to update']]) {
+        listener({ type: 'update-status', version: '0.5.2', available: true, automatic: false, state });
+        tree = host.render(AppUpdates);
+        assert.equal(find(tree, 'Button').find(button => button.props.onClick).props.children, label);
+    }
+    listener({ type: 'update-status', version: '0.5.2', available: true, automatic: false, state: 'current' });
+    tree = host.render(AppUpdates);
+    const feedback = find(tree, 'p').find(node => node.props.role === 'status');
+    assert.equal(feedback.props.className, 'feedback');
+    assert.equal(feedback.props.children, 'You’re up to date.');
     listener({ type: 'update-status', version: '0.5.2', available: false, automatic: false, state: 'error', message: 'Couldn’t check for updates.' });
     tree = host.render(AppUpdates);
     assert.equal(find(tree, 'Button').filter(button => button.props.onClick).length, 0);
