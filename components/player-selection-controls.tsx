@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useReducer, useRef, useState, type MouseEvent } from "react";
-import { Layers, ListVideo, Loader2, Play, X } from "lucide-react";
+import { Layers, ListVideo, Play, TriangleAlert, X } from "lucide-react";
 import { fetchEpisodes, fetchSeasons, type Episode, type Season } from "@/app/actions/tv-shows";
 import { ArtworkImage } from "@/components/artwork-image";
 import { MediaActions } from "@/components/media-actions";
 import { MediaPlayerTooltip } from "@/components/ui/media-player";
 import { Button } from "@/components/ui/button";
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Drawer, DrawerClose, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
+import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Select } from "@/components/arc/select/select";
 import seasonStyles from "@/components/season-episodes.module.css";
 import artworkStyles from "@/components/media-page/detail-artwork.module.css";
@@ -50,6 +53,7 @@ function drawerTransition(state: DrawerState, event: DrawerEvent): DrawerState {
 }
 
 type PlayingEpisode = { seriesId: string; season: number; episode: number };
+const episodeThumbnailSize = "aspect-video w-[clamp(3.5rem,25cqw,6rem)] shrink-0";
 
 export function PlayerSelectionControls({ media, streamUrl, playingEpisode, onEpisodeSelect, onStreamSelect }: {
     media: MediaItem;
@@ -174,7 +178,7 @@ function EpisodeChoices({ playing, season, onSelect }: {
     useEffect(() => {
         let cancelled = false;
         const lease = /^tmdb:[1-9]\d*$/.test(playing.seriesId) ? acquireSeriesSeason(playing.seriesId, season) : undefined;
-        const request = lease?.promise ?? fetchEpisodes(playing.seriesId, season, undefined, false);
+        const request = lease?.promise ?? fetchEpisodes(playing.seriesId, season);
         void request.then(episodes => {
             if (!cancelled) setResult({ status: "ready", episodes: [...episodes].sort((a, b) => a.episode - b.episode), checkedAt: Date.now() });
         }).catch(() => { if (!cancelled) setResult({ status: "error" }); });
@@ -190,16 +194,36 @@ function EpisodeChoices({ playing, season, onSelect }: {
 
     return (
         <div ref={choices} className="@container min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-4 pb-4">
-            {result.status === "loading" && <p role="status" className="flex items-center gap-2 py-5 text-sm text-muted-foreground">
-                <Loader2 aria-hidden="true" className="size-4 motion-safe:animate-spin" /> Loading episodes
-            </p>}
-            {result.status === "error" && <div role="alert" className="flex items-center justify-between gap-2 py-5 text-sm">
-                Couldn’t load episodes
-                <Button type="button" variant="secondary" size="sm" onClick={() => {
-                    setResult({ status: "loading" });
-                    setAttempt(value => value + 1);
-                }}>Retry</Button>
-            </div>}
+            {result.status === "loading" && (
+                <>
+                    <p role="status" className="sr-only">Loading episodes</p>
+                    <LoadingPlaceholder className="space-y-1 py-1">
+                        {Array.from({ length: 6 }, (_, index) => (
+                            <div key={index} className="flex items-center gap-3 p-1.5">
+                                <Skeleton className={`${episodeThumbnailSize} rounded-lg`} />
+                                <div className="min-w-0 flex-1 space-y-2">
+                                    <Skeleton className="h-3.5 w-3/5 max-w-44" />
+                                    <Skeleton className="h-3 w-2/5 max-w-28" />
+                                </div>
+                            </div>
+                        ))}
+                    </LoadingPlaceholder>
+                </>
+            )}
+            {result.status === "error" && (
+                <Empty>
+                    <EmptyHeader role="alert">
+                        <EmptyMedia variant="icon"><TriangleAlert aria-hidden="true" /></EmptyMedia>
+                        <EmptyTitle>Couldn’t load episodes</EmptyTitle>
+                    </EmptyHeader>
+                    <EmptyContent>
+                        <Button type="button" variant="secondary" size="sm" onClick={() => {
+                            setResult({ status: "loading" });
+                            setAttempt(value => value + 1);
+                        }}>Retry</Button>
+                    </EmptyContent>
+                </Empty>
+            )}
             {result.status === "ready" && (result.episodes.length ? (
                 <ul className="space-y-1 py-1">
                     {result.episodes.map(episode => {
@@ -215,28 +239,35 @@ function EpisodeChoices({ playing, season, onSelect }: {
                             <li key={episode.id}>
                                 <button type="button" ref={selected ? current : undefined} aria-current={selected || undefined}
                                     disabled={upcoming && !selected} onClick={() => onSelect(episode)}
-                                    className="flex w-full items-center gap-3 rounded-lg p-1.5 text-start outline-none aria-[current=true]:bg-accent/70 enabled:hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60">
-                                    <div className={`${artworkStyles.surface} ${cardStyles.card} ${cardStyles.frame} relative grid aspect-video w-[clamp(3.5rem,25cqw,6rem)] shrink-0 place-items-center overflow-hidden bg-muted`}>
+                                    className="flex w-full items-center gap-3 rounded-lg p-1.5 text-start outline-none select-none aria-[current=true]:bg-accent/70 enabled:cursor-pointer enabled:hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 motion-safe:transition-[scale] motion-safe:duration-150 motion-safe:ease-[var(--ease-out)] motion-safe:enabled:active:scale-[0.98]">
+                                    <div className={`${artworkStyles.surface} ${cardStyles.card} ${cardStyles.frame} ${episodeThumbnailSize} relative grid place-items-center overflow-hidden bg-muted`}>
                                         {thumbnail ? <ArtworkImage src={thumbnail} alt="" loading="lazy" draggable={false}
                                             className="absolute inset-0 size-full object-cover" />
                                             : <Play aria-hidden="true" className="size-4 text-muted-foreground" />}
                                     </div>
                                     <span className="min-w-0">
-                                        <span className="flex items-start gap-1.5 text-sm font-medium">
+                                        <span className="flex items-start gap-1.5 text-[0.9375rem] leading-[1.4] font-medium">
                                             <span className="min-w-0 wrap-break-word">
                                                 <span className="font-normal text-muted-foreground">{episode.episode}.</span>
                                                 {"\u00a0"}{episode.title}
                                             </span>
                                             {selected && <Play aria-hidden="true" className="mt-1 size-3 shrink-0 fill-current text-foreground/75" />}
                                         </span>
-                                        {metadata && <span className="mt-1 block text-xs text-muted-foreground">{metadata}</span>}
+                                        {metadata && <span className="mt-1 block text-[0.8125rem] leading-snug text-muted-foreground">{metadata}</span>}
                                     </span>
                                 </button>
                             </li>
                         );
                     })}
                 </ul>
-            ) : <p className="py-5 text-sm text-muted-foreground">No episodes available for this season.</p>)}
+            ) : (
+                <Empty>
+                    <EmptyHeader>
+                        <EmptyMedia variant="icon"><ListVideo aria-hidden="true" /></EmptyMedia>
+                        <EmptyTitle>No episodes available for this season</EmptyTitle>
+                    </EmptyHeader>
+                </Empty>
+            ))}
         </div>
     );
 }

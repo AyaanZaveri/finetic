@@ -13,6 +13,7 @@ function load(file, require) {
 
 async function run() {
     const artwork = load('lib/artwork.ts');
+    const still = 'https://image.tmdb.org/t/p/w500/episode-still.jpg';
     let videos = [
         { id: 'tt123:0:1', season: 0, episode: 1, title: 'Special' },
         { id: 'tt123:2:1', season: 2, episode: 1 },
@@ -21,7 +22,7 @@ async function run() {
     ];
     const context = { exports: {}, URLSearchParams, AbortSignal, console,
         fetch: async () => ({ ok: true, json: async () => ({ meta: { videos } }) }),
-        require: name => name === '@/lib/series-route' ? load('lib/series-route.ts') : name === '@/lib/server/outbound-fetch' ? { outboundFetch: async () => ({ ok: true, json: async () => ({ meta: { videos } }) }) } : name === '@/lib/tmdb-artwork' ? { getTMDBArtwork: async () => undefined } : name === '@/lib/artwork' ? artwork : name === '@/lib/media/shuffle-episode' ? load('lib/media/shuffle-episode.ts') : name === '@/lib/tmdb-discovery' ? {
+        require: name => name === '@/lib/series-route' ? load('lib/series-route.ts') : name === '@/lib/server/outbound-fetch' ? { outboundFetch: async () => ({ ok: true, json: async () => ({ meta: { videos } }) }) } : name === '@/lib/tmdb-artwork' ? { getTMDBArtwork: async () => still } : name === '@/lib/artwork' ? artwork : name === '@/lib/media/shuffle-episode' ? load('lib/media/shuffle-episode.ts') : name === '@/lib/tmdb-discovery' ? {
             getTMDBEpisodes: async (id, season) => {
                 assert.equal(season, 1);
                 return [{ id: `${id}:1:2`, season: 1, episode: 2 }, { id: `${id}:1:1`, season: 1, episode: 1 }];
@@ -102,14 +103,19 @@ async function run() {
 
     const { hooks } = require('./test-support/react-hooks.cjs');
     const drawer = hooks();
+    let activeHooks = drawer;
     drawer.react.useReducer = (transition, initial) => {
         const [state, setState] = drawer.react.useState(initial);
         return [state, event => setState(previous => transition(previous, event))];
     };
     const { PlayerSelectionControls } = load('components/player-selection-controls.tsx', name => {
-        if (name === 'react') return drawer.react;
+        if (name === 'react') return new Proxy({}, { get: (_, key) => activeHooks.react[key] });
         if (name === 'react/jsx-runtime') return drawer.jsx;
         if (name.endsWith('.css')) return { default: { surface: 'surface' } };
+        if (name === '@/app/actions/tv-shows') return context.exports;
+        if (name === '@/lib/artwork') return artwork;
+        if (name === '@/lib/format-runtime') return load('lib/format-runtime.ts');
+        if (name === '@/lib/format-release-date') return load('lib/format-release-date.ts');
         return new Proxy({}, { get: (_, key) => key });
     });
     const container = {};
@@ -148,6 +154,23 @@ async function run() {
     assert.equal(selections.length, 0, 'Keep playback mounted until the drawer exits');
     renderDrawer().props.onOpenChangeComplete(false);
     assert.equal(selections[0], replacement);
+
+    openPanel(0);
+    const picker = getPanel().props.children[1];
+    activeHooks = hooks();
+    const choices = activeHooks.render(picker.type, picker.props).props.children[1];
+    activeHooks = hooks();
+    videos = [{ id: 'tt123:2:1', season: 2, episode: 1, title: 'Manhunter' }];
+    const renderChoices = () => activeHooks.render(choices.type, choices.props);
+    const placeholder = renderChoices().props.children[0].props.children[1];
+    assert.equal(placeholder.type, 'LoadingPlaceholder');
+    assert.equal(placeholder.props.children.length, 6);
+    activeHooks.flush();
+    await new Promise(resolve => setImmediate(resolve));
+    const episodeRow = renderChoices().props.children[2].props.children[0].props.children;
+    assert.equal(episodeRow.props.children[0].props.children.props.src, still, 'IMDb playback loads a TMDB still for an episode without addon artwork');
+    assert.equal(episodeRow.props['aria-current'], true);
+    activeHooks.unmount();
 
     console.log('PASS: series Play starts S1E1, skips specials, and episode playback uses the show backdrop.');
 }
