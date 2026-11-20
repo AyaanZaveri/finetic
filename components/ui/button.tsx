@@ -24,6 +24,7 @@ const buttonVariants = cva(
         "media-primary": "border-0 bg-foreground text-background shadow-xs hover:bg-foreground/90",
         "media-secondary": "border-0 bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
         ghost: "bg-transparent text-foreground hover:bg-[var(--surface-muted)] aria-expanded:bg-[var(--surface-muted)] disabled:opacity-100",
+        "player-control": "bg-transparent text-foreground hover:bg-[var(--surface-muted)] aria-expanded:bg-accent/50 disabled:opacity-100",
         destructive: danger,
         danger,
         link: "bg-transparent text-primary underline-offset-4 hover:underline",
@@ -40,6 +41,9 @@ const buttonVariants = cva(
         "icon-lg": "size-10 rounded-[12px] p-0",
       },
     },
+    compoundVariants: [
+      { variant: "player-control", size: "default", className: "size-8 rounded-[12px] p-0" },
+    ],
     defaultVariants: { variant: "default", size: "default" },
   },
 );

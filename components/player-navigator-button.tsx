@@ -16,8 +16,7 @@ export function PlayerNavigatorButton({ onToggle }: { onToggle: () => void }) {
     <MediaPlayerTooltip tooltip="Navigator" shortcut={shortcut}>
       <Button
         type="button"
-        variant="ghost"
-        size="icon-sm"
+        variant="player-control"
         data-navigator-click-zone=""
         aria-label="Ask Navigator"
         aria-expanded={open}

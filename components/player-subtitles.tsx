@@ -83,8 +83,8 @@ export function PlayerSubtitles({ mediaRef, sourceKey, native, tracks, requested
 
   return <DropdownMenu modal={false} onOpenChange={open => { if (!open) timing.onClose(); }}>
     <MediaPlayerTooltip tooltip="Subtitles" shortcut="C">
-      <DropdownMenuTrigger asChild><Button type="button" variant="ghost" size="icon" aria-label="Subtitles" aria-keyshortcuts="C"
-        data-slot="media-player-subtitles" className="size-8 aria-[expanded=true]:bg-accent/50"><Subtitles aria-hidden="true" /></Button></DropdownMenuTrigger>
+      <DropdownMenuTrigger asChild><Button type="button" variant="player-control" aria-label="Subtitles" aria-keyshortcuts="C"
+        data-slot="media-player-subtitles"><Subtitles aria-hidden="true" /></Button></DropdownMenuTrigger>
     </MediaPlayerTooltip>
     <DropdownMenuContent container={snapshot.container} side="top" sideOffset={10} align="end" aria-label="Subtitles"
       data-player-native-glass="" className={styles.menu}

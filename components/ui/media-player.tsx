@@ -1527,10 +1527,9 @@ function MediaPlayerPlay(props: MediaPlayerPlayProps) {
         data-state={mediaPaused ? "off" : "on"}
         disabled={isDisabled}
         {...playButtonProps}
-        variant="ghost"
-        size="icon"
+        variant="player-control"
         className={cn(
-          "size-8 [&_svg:not([class*='fill-'])]:fill-current",
+          "[&_svg:not([class*='fill-'])]:fill-current",
           className
         )}
         onClick={onPlayToggle}
@@ -1591,9 +1590,8 @@ function MediaPlayerSeekBackward(props: MediaPlayerSeekBackwardProps) {
         data-slot="media-player-seek-backward"
         disabled={isDisabled}
         {...seekBackwardProps}
-        variant="ghost"
-        size="icon"
-        className={cn("size-8", className)}
+        variant="player-control"
+        className={className}
         onClick={onSeekBackward}
       >
         {children ?? <RewindIcon />}
@@ -1657,9 +1655,8 @@ function MediaPlayerSeekForward(props: MediaPlayerSeekForwardProps) {
         data-slot="media-player-seek-forward"
         disabled={isDisabled}
         {...seekForwardProps}
-        variant="ghost"
-        size="icon"
-        className={cn("size-8", className)}
+        variant="player-control"
+        className={className}
         onClick={onSeekForward}
       >
         {children ?? <FastForwardIcon />}
@@ -2647,9 +2644,7 @@ function MediaPlayerVolume(props: MediaPlayerVolumeProps) {
           aria-pressed={mediaMuted}
           data-slot="media-player-volume-trigger"
           data-state={mediaMuted ? "on" : "off"}
-          variant="ghost"
-          size="icon"
-          className="size-8"
+          variant="player-control"
           disabled={isDisabled}
           onClick={onMute}
         >
@@ -2820,8 +2815,8 @@ function MediaPlayerPlaybackSpeed(props: MediaPlayerPlaybackSpeedProps) {
   return <DropdownMenu open={open} defaultOpen={defaultOpen} onOpenChange={onOpenChange} modal={false}>
     <MediaPlayerTooltip tooltip="Playback speed" shortcut={["<", ">"]}>
       <DropdownMenuTrigger asChild>
-        <Button type="button" variant="ghost" size="icon" disabled={isDisabled}
-          aria-label="Playback speed" className={cn("h-8 w-16 aria-[expanded=true]:bg-accent/50", className)}>
+        <Button type="button" variant="player-control" disabled={isDisabled}
+          aria-label="Playback speed" className={cn("w-16", className)}>
           {mediaPlaybackRate}×
         </Button>
       </DropdownMenuTrigger>
@@ -2893,9 +2888,8 @@ function MediaPlayerLoop(props: MediaPlayerLoopProps) {
         data-state={isLooping ? "on" : "off"}
         disabled={isDisabled}
         {...loopProps}
-        variant="ghost"
-        size="icon"
-        className={cn("size-8", className)}
+        variant="player-control"
+        className={className}
         onClick={onLoopToggle}
       >
         {children ??
@@ -2948,9 +2942,8 @@ function MediaPlayerFullscreen(props: MediaPlayerFullscreenProps) {
         data-state={isFullscreen ? "on" : "off"}
         disabled={isDisabled}
         {...fullscreenProps}
-        variant="ghost"
-        size="icon"
-        className={cn("size-8", className)}
+        variant="player-control"
+        className={className}
         onClick={onFullscreen}
       >
         {children ?? (isFullscreen ? <Minimize2Icon /> : <Maximize2Icon />)}
@@ -3018,9 +3011,8 @@ function MediaPlayerPiP(props: MediaPlayerPiPProps) {
         data-state={isPictureInPicture ? "on" : "off"}
         disabled={isDisabled}
         {...pipButtonProps}
-        variant="ghost"
-        size="icon"
-        className={cn("size-8", className)}
+        variant="player-control"
+        className={className}
         onClick={onPictureInPicture}
       >
         {isPictureInPicture ? (
@@ -3071,9 +3063,8 @@ function MediaPlayerCaptions(props: MediaPlayerCaptionsProps) {
         data-state={isSubtitlesActive ? "on" : "off"}
         disabled={isDisabled}
         {...captionsProps}
-        variant="ghost"
-        size="icon"
-        className={cn("size-8", className)}
+        variant="player-control"
+        className={className}
         onClick={onCaptionsToggle}
       >
         {children ??
@@ -3123,9 +3114,8 @@ function MediaPlayerDownload(props: MediaPlayerDownloadProps) {
         data-slot="media-player-download"
         disabled={isDisabled}
         {...downloadProps}
-        variant="ghost"
-        size="icon"
-        className={cn("size-8", className)}
+        variant="player-control"
+        className={className}
         onClick={onDownload}
       >
         {children ?? <DownloadIcon />}
@@ -3204,8 +3194,8 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
         <DropdownMenuTrigger asChild>
           <Button type="button" aria-controls={context.mediaId} aria-label="Settings"
             data-disabled={isDisabled ? "" : undefined} data-slot="media-player-settings"
-            disabled={isDisabled} {...settingsProps} variant="ghost" size="icon"
-            className={cn("size-8 aria-[expanded=true]:bg-accent/50", className)}>
+            disabled={isDisabled} {...settingsProps} variant="player-control"
+            className={className}>
             <SettingsIcon />
           </Button>
         </DropdownMenuTrigger>

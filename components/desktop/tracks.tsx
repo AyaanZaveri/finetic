@@ -47,7 +47,7 @@ export function DesktopTracks({ mediaRef, sourceKey }: {
     .map(option => ({ ...option, value: String(tracks[Number(option.value)].id) }));
   return <DropdownMenu modal={false}>
     <DropdownMenuTrigger asChild>
-      <Button variant="ghost" size="icon" aria-label="Audio track" className="text-white hover:text-white hover:bg-white/20"><AudioLines aria-hidden="true" /></Button>
+      <Button type="button" variant="player-control" aria-label="Audio track"><AudioLines aria-hidden="true" /></Button>
     </DropdownMenuTrigger>
     <DropdownMenuContent data-player-native-glass="" container={container} side="top" sideOffset={10} align="end" aria-label="Audio track" className={styles.trackMenu}>
       <DropdownMenuOptions value={String(tracks.find(track => track.selected)?.id ?? "no")} options={options}

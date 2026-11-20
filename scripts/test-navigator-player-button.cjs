@@ -54,7 +54,7 @@ context.exports.dismiss({ button: 0, composedPath: () => [new Element()] });
 assert.equal(open, false, 'Outside dismissal still works');
 const button = render().props.children;
 assert.equal(button.props.type, 'button');
-assert.equal(button.props.size, 'icon-sm', 'Use the same square 32px size as adjacent player controls');
+assert.equal(button.props.variant, 'player-control', 'Use the same button as adjacent player controls');
 assert.equal(button.props['aria-label'], 'Ask Navigator');
 assert.deepEqual(Array.from(render().props.shortcut), ['Ctrl', 'K']);
 
