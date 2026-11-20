@@ -1,0 +1,26 @@
+.panel {
+  --stats-transition-duration: var(--duration-fast);
+  opacity: 0;
+  scale: 0.97;
+  visibility: hidden;
+  transform-origin: center top;
+  transition:
+    opacity var(--stats-transition-duration) var(--ease-out),
+    scale var(--stats-transition-duration) var(--ease-out),
+    visibility 0s var(--stats-transition-duration);
+}
+
+.panel[data-open] {
+  opacity: 1;
+  scale: 1;
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .panel[data-open] {
+    --stats-transition-duration: var(--duration-instant);
+    scale: none;
+  }
+}

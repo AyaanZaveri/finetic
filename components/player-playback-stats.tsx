@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type 
 import { GripHorizontal, Pause, Play, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { playbackFrameRate, readWebPlaybackStats } from "@/lib/media/playback-stats";
+import styles from "./player-playback-stats.module.css";
 
 const seconds = (ms?: number | null) => ms == null ? undefined : `${(ms / 1000).toFixed(1)} s`;
 const gutter = 12;
@@ -103,9 +104,9 @@ export function PlayerPlaybackStats({ open, videoRef, onClose }: {
         ["Audio underruns", stats?.audioUnderflows],
         ["Fallback reason", stats?.fallback],
     ] as const;
-    return <section ref={panelRef} hidden={!open} aria-label="Stats for nerds" data-player-stats=""
+    return <section ref={panelRef} inert={!open} aria-label="Stats for nerds" data-player-stats="" data-open={open ? "" : undefined}
         style={position ? { left: position.x, top: position.y } : undefined}
-        className={`absolute top-3 z-[var(--layer-overlay)] pointer-events-auto transform-gpu max-h-[55%] w-[22rem] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-xl border border-white/8 bg-black/85 text-[0.8125rem] leading-normal text-white shadow-lg shadow-black/35 ${open ? "flex" : "hidden"} ${position ? "" : "end-3"}`}>
+        className={`${styles.panel} absolute top-3 z-[var(--layer-overlay)] pointer-events-auto transform-gpu flex max-h-[55%] w-[22rem] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-xl border border-white/8 bg-black/85 text-[0.8125rem] leading-normal text-white shadow-lg shadow-black/35 ${position ? "" : "end-3"}`}>
         <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-0.5 px-3 pb-1 pt-1.5">
             <span id={moveInstructionsId} className="sr-only">Use arrow keys to move the stats panel.</span>
             <h2 tabIndex={0} aria-describedby={moveInstructionsId}

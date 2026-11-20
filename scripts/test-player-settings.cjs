@@ -105,6 +105,7 @@ assert.deepEqual(statsVisibility, [true, false], 'The menu requests explicit sho
     'lucide-react': { GripHorizontal: 'grip', Pause: 'pause-icon', Play: 'play-icon', X: 'close-icon' },
     '@/components/ui/button': { Button: 'Button' },
     '@/lib/media/playback-stats': {},
+    './player-playback-stats.module.css': { panel: 'panel' },
   }, {
     ResizeObserver: class { constructor(callback) { resize = callback; } observe() {} disconnect() { resize = undefined; } },
     window: { setInterval() { sampling = true; return 1; }, clearInterval() { sampling = false; } },
@@ -159,7 +160,10 @@ assert.deepEqual(statsVisibility, [true, false], 'The menu requests explicit sho
   header.props.onPointerDown({ isPrimary: true, button: 0, pointerId: 10, clientX: 40, clientY: 100,
     currentTarget: handle, preventDefault() {} });
   props.open = false;
-  assert.equal(render().props.hidden, true, 'Hiding removes the panel from hit testing');
+  const exiting = render();
+  assert.equal(exiting.props['data-open'], undefined, 'Closing starts the exit transition');
+  assert.equal(exiting.props.inert, true, 'The panel stops receiving interaction as soon as it closes');
+  assert.equal(exiting.props.ref, initial.props.ref, 'The exit animates the existing panel');
   host.flush();
   assert.equal(captures.size, 0, 'Hiding from Settings also releases an active drag');
   assert.equal(sampling, false, 'A hidden panel stops sampling');
@@ -167,7 +171,8 @@ assert.deepEqual(statsVisibility, [true, false], 'The menu requests explicit sho
   props.open = true;
   const reopened = render();
   host.flush();
-  assert.equal(reopened.props.hidden, false);
+  assert.equal(reopened.props['data-open'], '');
+  assert.equal(reopened.props.inert, false);
   assert.equal(reopened.props.style.left, 20, 'Reopening preserves the last panel position');
   assert.equal(sampling, true);
   host.unmount();
