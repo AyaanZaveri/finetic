@@ -213,10 +213,13 @@ export function MediaActions({ media, movie, streamSelection }: MediaActionsProp
       ? `${(sizeInBytes / 1024 ** 3).toFixed(2)} GB`
       : null;
 
-  const streamStatus = isAddonLoading ? (
+  const showStreamLoader = isAddonLoading || (switchingStream && (loading || !hasCheckedStreams));
+  const streamStatus = showStreamLoader ? (
     <>
       <Loader2 aria-hidden="true" className="size-3.5 animate-spin motion-reduce:animate-none" />
-      <span>{pendingAddons} add-on{pendingAddons === 1 ? "" : "s"} loading</span>
+      {isAddonLoading
+        ? <span>{pendingAddons} add-on{pendingAddons === 1 ? "" : "s"} loading</span>
+        : <span className="sr-only">Loading streams</span>}
     </>
   ) : hasCheckedStreams || streams.length > 0 ? (
     <span>{filteredStreams.length} stream{filteredStreams.length === 1 ? "" : "s"}{switchingStream ? "" : " found"}</span>
@@ -224,7 +227,7 @@ export function MediaActions({ media, movie, streamSelection }: MediaActionsProp
 
   return (
     <div className={styles.root} data-stream-picker={switchingStream || undefined}>
-      {totalAddons > 0 && (switchingStream ? (
+      {switchingStream ? (
         <InputGroup className="backdrop-blur-none [--text-input-fill:var(--stream-card-surface)]">
           <InputGroupInput ref={drawerSearch} type="search" aria-label="Search streams" placeholder="Search streams"
             autoComplete="off" value={streamSearchQuery} onChange={event => setStreamSearchQuery(event.target.value)}
@@ -244,7 +247,7 @@ export function MediaActions({ media, movie, streamSelection }: MediaActionsProp
             </span>
           </InputGroupAddon>
         </InputGroup>
-      ) : (
+      ) : totalAddons > 0 && (
         <div className={styles.toolbar}>
           <div className={styles.controls}>
             <div className={styles.search}>
@@ -276,7 +279,7 @@ export function MediaActions({ media, movie, streamSelection }: MediaActionsProp
             <span className={styles.loading}>{streamStatus}</span>
           </div>
         </div>
-      ))}
+      )}
 
       {filteredStreams.length > 0 && (
         <div className={styles.results}>
@@ -333,9 +336,8 @@ export function MediaActions({ media, movie, streamSelection }: MediaActionsProp
           <div className={styles.streamList}>
             {[1, 2, 3, 4, 5, 6].map((item) => (
               <div key={item} className={styles.streamSkeleton}>
-                <div className={`${styles.streamName} ${styles.streamMetadata} ${styles.streamSkeletonLine}`}>
+                <div className={`${styles.streamName} ${styles.streamSkeletonLine}`}>
                   <Skeleton className="h-3.5 w-12" />
-                  <Skeleton className="h-[1.375rem] w-12 rounded-full" />
                 </div>
                 <div className={`${styles.streamTitle} ${styles.streamSkeletonLine}`}>
                   <Skeleton className="h-3 w-2/5 max-w-32" />

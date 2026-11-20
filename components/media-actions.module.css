@@ -122,8 +122,7 @@
 }
 
 .streamSkeleton {
-  border-color: transparent;
-  background: transparent;
+  border-color: color-mix(in oklab, var(--border) 30%, transparent);
 }
 
 .root[data-stream-picker] .streamRow {

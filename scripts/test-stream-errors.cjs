@@ -15,7 +15,7 @@ const visibleText = node => Array.isArray(node) ? node.map(visibleText).join('')
             const failed = attempts++ === 0;
             return { release: () => released++, request: {
                 subscribe: listener => {
-                    publishStreams = (streams, pending = 0) => listener({ streams, total: 2, pending, complete: pending === 0 });
+                    publishStreams = (streams, pending = 0, total = 2) => listener({ streams, total, pending, complete: pending === 0 });
                     publishStreams([]);
                     return () => {};
                 },
@@ -44,6 +44,10 @@ const visibleText = node => Array.isArray(node) ? node.map(visibleText).join('')
         './media-actions.module.css': {},
     }, { console: { error() {} } });
     const render = streamSelection => { const tree = h.render(MediaActions, { media: { id: 'tt123:2:2', type: 'series', name: 'Episode' }, streamSelection }); h.flush(); return tree; };
+    const drawer = { currentUrl: null, onSelect() {} };
+    const initialDrawer = render(drawer);
+    assert.equal(find(initialDrawer, node => node.type === 'InputGroupInput').length, 1, 'Show stream search before the first snapshot');
+    assert.match(visibleText(find(initialDrawer, node => node.props.role === 'status')[0]), /Loading streams/);
     render(); await tick(); let tree = render();
     assert.equal(find(tree, node => node.type === 'EmptyTitle')[0].props.children, 'Could not load streams');
     find(tree, node => node.type === 'button' && node.props.children === 'Retry')[0].props.onClick();
@@ -64,7 +68,7 @@ const visibleText = node => Array.isArray(node) ? node.map(visibleText).join('')
     assert.equal(downloads[0].props.filename, 'Episode.mkv');
     assert.equal(find(tree, node => node.type === 'chips').length, 1);
 
-    const drawer = { currentUrl: fileUrl, onSelect() {} };
+    drawer.currentUrl = fileUrl;
     publishStreams(streams, 1);
     tree = render(drawer);
     assert.equal(find(tree, node => node.type === 'chips').length, 0);
@@ -77,6 +81,10 @@ const visibleText = node => Array.isArray(node) ? node.map(visibleText).join('')
     assert.equal(visibleText(find(tree, node => node.props.role === 'status')[0]), '1 stream');
     find(tree, node => node.props['aria-label'] === 'Clear search')[0].props.onClick();
     assert.equal(visibleText(find(render(drawer), node => node.props.role === 'status')[0]), '3 streams');
+    publishStreams([], 0, 0);
+    tree = render(drawer);
+    assert.equal(find(tree, node => node.type === 'InputGroupInput').length, 1, 'Keep search mounted when there are no add-ons');
+    assert.equal(visibleText(find(tree, node => node.props.role === 'status')[0]), '0 streams');
     h.unmount();
     console.log('PASS: stream errors, retry, and direct media downloads');
 })().catch(error => { console.error(error); process.exitCode = 1; });
