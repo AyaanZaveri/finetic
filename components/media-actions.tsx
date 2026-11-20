@@ -333,8 +333,16 @@ export function MediaActions({ media, movie, streamSelection }: MediaActionsProp
           <div className={styles.streamList}>
             {[1, 2, 3, 4, 5, 6].map((item) => (
               <div key={item} className={styles.streamSkeleton}>
-                <Skeleton className="h-6 w-56 max-w-full rounded-md" />
-                <Skeleton className="mt-2 h-4 w-72 max-w-full rounded-md" />
+                <div className={`${styles.streamName} ${styles.streamMetadata} ${styles.streamSkeletonLine}`}>
+                  <Skeleton className="h-3.5 w-12" />
+                  <Skeleton className="h-[1.375rem] w-12 rounded-full" />
+                </div>
+                <div className={`${styles.streamTitle} ${styles.streamSkeletonLine}`}>
+                  <Skeleton className="h-3 w-2/5 max-w-32" />
+                </div>
+                <div className={`${styles.streamTitle} ${styles.streamSkeletonLine}`}>
+                  <Skeleton className="h-3 w-3/5 max-w-48" />
+                </div>
               </div>
             ))}
           </div>

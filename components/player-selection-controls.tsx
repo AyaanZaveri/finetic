@@ -53,9 +53,11 @@ function drawerTransition(state: DrawerState, event: DrawerEvent): DrawerState {
 }
 
 type PlayingEpisode = { seriesId: string; season: number; episode: number };
-const episodeThumbnailSize = "aspect-video w-[clamp(3.5rem,25cqw,6rem)] shrink-0";
 const episodeListSpacing = "space-y-2 py-1";
 const episodeRowLayout = "flex items-center gap-4 rounded-lg p-2";
+const episodeThumbnail = `${artworkStyles.surface} ${cardStyles.card} ${cardStyles.frame} relative grid aspect-video w-[clamp(3.5rem,25cqw,6rem)] shrink-0 place-items-center overflow-hidden bg-muted`;
+const episodeTitleText = "text-[0.9375rem] leading-[1.4] font-medium";
+const episodeMetadataText = "mt-1 text-sm leading-snug text-muted-foreground";
 
 export function PlayerSelectionControls({ media, streamUrl, playingEpisode, onEpisodeSelect, onStreamSelect }: {
     media: MediaItem;
@@ -202,10 +204,14 @@ function EpisodeChoices({ playing, season, onSelect }: {
                     <LoadingPlaceholder className={episodeListSpacing}>
                         {Array.from({ length: 6 }, (_, index) => (
                             <div key={index} className={episodeRowLayout}>
-                                <Skeleton className={`${episodeThumbnailSize} rounded-lg`} />
-                                <div className="min-w-0 flex-1 space-y-2">
-                                    <Skeleton className="h-3.5 w-3/5 max-w-44" />
-                                    <Skeleton className="h-3 w-2/5 max-w-28" />
+                                <Skeleton className={episodeThumbnail} />
+                                <div className="min-w-0 flex-1">
+                                    <div className={`${episodeTitleText} flex h-[1lh] items-center`}>
+                                        <Skeleton className="h-3.5 w-3/5 max-w-44" />
+                                    </div>
+                                    <div className={`${episodeMetadataText} flex h-[1lh] items-center`}>
+                                        <Skeleton className="h-3 w-2/5 max-w-28" />
+                                    </div>
                                 </div>
                             </div>
                         ))}
@@ -242,20 +248,20 @@ function EpisodeChoices({ playing, season, onSelect }: {
                                 <button type="button" ref={selected ? current : undefined} aria-current={selected || undefined}
                                     disabled={upcoming && !selected} onClick={() => onSelect(episode)}
                                     className={`${episodeRowLayout} w-full text-start outline-none select-none aria-[current=true]:bg-accent/70 enabled:cursor-pointer enabled:hover:bg-accent/40 enabled:aria-[current=true]:hover:bg-accent/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-60 motion-safe:transition-[scale] motion-safe:duration-150 motion-safe:ease-[var(--ease-out)] motion-safe:enabled:active:scale-[0.98]`}>
-                                    <div className={`${artworkStyles.surface} ${cardStyles.card} ${cardStyles.frame} ${episodeThumbnailSize} relative grid place-items-center overflow-hidden bg-muted`}>
+                                    <div className={episodeThumbnail}>
                                         {thumbnail ? <ArtworkImage src={thumbnail} alt="" loading="lazy" draggable={false}
                                             className="absolute inset-0 size-full object-cover" />
                                             : <Play aria-hidden="true" className="size-4 text-muted-foreground" />}
                                     </div>
                                     <span className="min-w-0">
-                                        <span className="flex items-start gap-1.5 text-[0.9375rem] leading-[1.4] font-medium">
+                                        <span className={`${episodeTitleText} flex items-start gap-1.5`}>
                                             <span className="min-w-0 wrap-break-word">
                                                 <span className="font-normal text-muted-foreground">{episode.episode}.</span>
                                                 {"\u00a0"}{episode.title}
                                             </span>
                                             {selected && <Play aria-hidden="true" className="mt-1 size-3 shrink-0 fill-current text-foreground/75" />}
                                         </span>
-                                        {metadata && <span className="mt-1 block text-sm leading-snug text-muted-foreground">{metadata}</span>}
+                                        {metadata && <span className={`${episodeMetadataText} block`}>{metadata}</span>}
                                     </span>
                                 </button>
                             </li>
