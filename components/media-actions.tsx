@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { MediaItem, StremioStream } from "@/types/stremio";
 import {
   Empty,
@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/empty";
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, SearchX } from "lucide-react";
+import { Loader2, Search, SearchX, X } from "lucide-react";
 import { usePlaybackActions } from "@/contexts/MediaPlayerContext";
 import { fetchPlaybackProgress } from "@/app/actions";
 import { SearchField } from "@/components/arc/search-field/search-field";
@@ -24,6 +24,7 @@ import { projectPlaybackDetails } from "@/lib/media/playback-details";
 import { safeResumePosition } from "@/lib/media/resume-playback";
 import { useAccountAccess } from "@/contexts/account-context";
 import { Button } from "@/components/ui/button";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
 import { desktopBridge } from "@/lib/desktop/bridge";
 import { StreamActionsMenu } from "@/components/stream-actions-menu";
 import { SignInForStreams } from "@/components/sign-in-for-streams";
@@ -31,17 +32,20 @@ import { SignInForStreams } from "@/components/sign-in-for-streams";
 interface MediaActionsProps {
   media?: MediaItem;
   movie?: MediaItem;
+  streamSelection?: { currentUrl: string | null; onSelect(_stream: StremioStream): void };
 }
 
 
 const RESOLUTION_FILTERS = ["2160p", "1080p", "720p"] as const;
 
-export function MediaActions({ media, movie }: MediaActionsProps) {
+export function MediaActions({ media, movie, streamSelection }: MediaActionsProps) {
   const { authenticated } = useAccountAccess();
   const activeMedia = media ?? movie;
   const queries = useStreamQueries();
   const activeId = activeMedia?.id;
   const activeType = activeMedia?.type;
+  const switchingStream = Boolean(streamSelection);
+  const drawerSearch = useRef<HTMLInputElement>(null);
   const { setIsPlayerVisible, playMedia } = usePlaybackActions();
   const [streams, setStreams] = useState<StreamWithAddon[]>([]);
   const [loading, setLoading] = useState(false);
@@ -59,7 +63,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
   const resumePositionTicks = savedProgress?.key === progressKey ? savedProgress.position : activeMedia?.resumePositionTicks;
 
   useEffect(() => {
-    if (!authenticated || !libraryItemId) return;
+    if (!authenticated || !libraryItemId || switchingStream) return;
     let cancelled = false;
 
     void (async () => {
@@ -75,7 +79,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
     return () => {
       cancelled = true;
     };
-  }, [libraryItemId, targetVideoId, progressKey, activeType, authenticated]);
+  }, [libraryItemId, targetVideoId, progressKey, activeType, authenticated, switchingStream]);
 
   useEffect(() => {
     if (!authenticated || !activeId || !activeType) return;
@@ -106,7 +110,7 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
   if (!authenticated) return <SignInForStreams />;
 
   const normalizedSearchQuery = streamSearchQuery.trim().toLowerCase();
-  const hasActiveFilters = selectedResolutions.length > 0;
+  const hasActiveFilters = !switchingStream && selectedResolutions.length > 0;
   const filteredStreams = streams.filter((stream) => {
     const searchableText = [
       getSourceLabel(stream),
@@ -118,19 +122,20 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
       .filter(Boolean)
       .join(" ")
       .toLowerCase();
+    const resolution = detectStreamResolution(searchableText);
+    const searchIndex = resolution === "2160p" ? `${searchableText} 2160p 4k uhd` : searchableText;
 
     if (
       normalizedSearchQuery &&
-      !searchableText.includes(normalizedSearchQuery)
+      !searchIndex.includes(normalizedSearchQuery)
     ) {
       return false;
     }
 
-    if (selectedResolutions.length > 0) {
-      const detectedResolution = detectStreamResolution(searchableText);
+    if (hasActiveFilters) {
       if (
-        !detectedResolution ||
-        !selectedResolutions.includes(detectedResolution)
+        !resolution ||
+        !selectedResolutions.includes(resolution)
       ) {
         return false;
       }
@@ -146,6 +151,10 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
 
     const streamUrl = stream.url || stream.externalUrl || undefined;
     if (!streamUrl) return;
+    if (streamSelection) {
+      streamSelection.onSelect(stream);
+      return;
+    }
     const isEpisode =
       activeMedia.type === "series" &&
       !!activeMedia.seriesId &&
@@ -204,9 +213,38 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
       ? `${(sizeInBytes / 1024 ** 3).toFixed(2)} GB`
       : null;
 
+  const streamStatus = isAddonLoading ? (
+    <>
+      <Loader2 aria-hidden="true" className="size-3.5 animate-spin motion-reduce:animate-none" />
+      <span>{pendingAddons} add-on{pendingAddons === 1 ? "" : "s"} loading</span>
+    </>
+  ) : hasCheckedStreams || streams.length > 0 ? (
+    <span>{filteredStreams.length} stream{filteredStreams.length === 1 ? "" : "s"}{switchingStream ? "" : " found"}</span>
+  ) : null;
+
   return (
     <div className={styles.root}>
-      {totalAddons > 0 && (
+      {totalAddons > 0 && (switchingStream ? (
+        <InputGroup className="backdrop-blur-none [--text-input-fill:var(--stream-card-surface)]">
+          <InputGroupInput ref={drawerSearch} type="search" aria-label="Search streams" placeholder="Search streams"
+            autoComplete="off" value={streamSearchQuery} onChange={event => setStreamSearchQuery(event.target.value)}
+            className="[&::-webkit-search-cancel-button]:appearance-none" />
+          <InputGroupAddon align="inline-start"><Search aria-hidden="true" /></InputGroupAddon>
+          <InputGroupAddon align="inline-end" className="shrink-0">
+            <span className="flex items-center gap-1.5">
+              {streamSearchQuery && (
+                <InputGroupButton size="icon-xs" aria-label="Clear search" onClick={() => {
+                  setStreamSearchQuery("");
+                  drawerSearch.current?.focus();
+                }}>
+                  <X aria-hidden="true" />
+                </InputGroupButton>
+              )}
+              <InputGroupText role="status" className="whitespace-nowrap text-xs">{streamStatus}</InputGroupText>
+            </span>
+          </InputGroupAddon>
+        </InputGroup>
+      ) : (
         <div className={styles.toolbar}>
           <div className={styles.controls}>
             <div className={styles.search}>
@@ -235,25 +273,10 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
             </fieldset>
           </div>
           <div className={styles.feedback} role="status">
-            {isAddonLoading ? (
-              <span className={styles.loading}>
-                <Loader2
-                  aria-hidden="true"
-                  className="size-3.5 animate-spin motion-reduce:animate-none"
-                />
-                <span>
-                  {pendingAddons} addon{pendingAddons === 1 ? "" : "s"} loading
-                </span>
-              </span>
-            ) : hasCheckedStreams || streams.length > 0 ? (
-              <span className={styles.loading}>
-                {filteredStreams.length} stream
-                {filteredStreams.length === 1 ? "" : "s"} found
-              </span>
-            ) : null}
+            <span className={styles.loading}>{streamStatus}</span>
           </div>
         </div>
-      )}
+      ))}
 
       {filteredStreams.length > 0 && (
         <div className={styles.results}>
@@ -263,33 +286,41 @@ export function MediaActions({ media, movie }: MediaActionsProps) {
               const filePath = stream.url?.split(/[?#]/, 1)[0];
               const downloadUrl = filePath && /^https?:\/\//i.test(filePath)
                 && !/\.(m3u8|mpd)$/i.test(filePath) && !desktopBridge() ? stream.url : undefined;
+              const current = Boolean(streamUrl && streamUrl === streamSelection?.currentUrl);
+              const row = (
+                <button
+                  type="button"
+                  className={styles.streamRow}
+                  disabled={!streamUrl}
+                  aria-current={current || undefined}
+                  aria-label={`Play ${getSourceLabel(stream)}${stream.title ? `: ${stream.title}` : ""}`}
+                  onClick={() => handlePlay(stream)} draggable={false}
+                >
+                  <StreamSummary stream={stream} fallbackLabel={getSourceLabel(stream)} />
+                  {current && <span className={styles.streamFile}>Current stream</span>}
+                  {(stream.behaviorHints?.filename ||
+                    stream.behaviorHints?.videoSize) && (
+                    <span className={styles.streamFile}>
+                      {stream.behaviorHints?.filename}
+                      {formatVideoSize(stream.behaviorHints?.videoSize) && (
+                        <span className={styles.streamSize}>
+                          {stream.behaviorHints?.filename && (
+                            <> <span aria-hidden="true">·</span> </>
+                          )}
+                          {formatVideoSize(stream.behaviorHints?.videoSize)}
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </button>
+              );
               return (
                 <div key={index} className={styles.streamEntry}>
-                  <StreamActionsMenu label={getSourceLabel(stream)} url={streamUrl} downloadUrl={downloadUrl} filename={stream.behaviorHints?.filename}>
-                  <button
-                    type="button"
-                    className={styles.streamRow}
-                    disabled={!streamUrl}
-                    aria-label={`Play ${getSourceLabel(stream)}${stream.title ? `: ${stream.title}` : ""}`}
-                    onClick={() => handlePlay(stream)} draggable={false}
-                  >
-                    <StreamSummary stream={stream} fallbackLabel={getSourceLabel(stream)} />
-                    {(stream.behaviorHints?.filename ||
-                      stream.behaviorHints?.videoSize) && (
-                      <span className={styles.streamFile}>
-                        {stream.behaviorHints?.filename}
-                        {formatVideoSize(stream.behaviorHints?.videoSize) && (
-                          <span className={styles.streamSize}>
-                            {stream.behaviorHints?.filename && (
-                              <> <span aria-hidden="true">·</span> </>
-                            )}
-                            {formatVideoSize(stream.behaviorHints?.videoSize)}
-                          </span>
-                        )}
-                      </span>
-                    )}
-                  </button>
-                  </StreamActionsMenu>
+                  {streamSelection ? row : (
+                    <StreamActionsMenu label={getSourceLabel(stream)} url={streamUrl} downloadUrl={downloadUrl} filename={stream.behaviorHints?.filename}>
+                      {row}
+                    </StreamActionsMenu>
+                  )}
                 </div>
               );
             })}

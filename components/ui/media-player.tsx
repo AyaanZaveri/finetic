@@ -518,7 +518,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     // Keyboard/assistive activation and mouse clicks retain play/pause.
     if (event.detail === 0 || pointerTypeRef.current === "mouse") return;
     if ((event.target as Element).closest(
-      '[data-slot="media-player-controls"], [data-player-stats], button, a, input, select, textarea, [role="button"], [contenteditable="true"], [role="slider"], [role="menu"], [role="dialog"], [role="combobox"], [role="listbox"], [role="option"]'
+      '[data-slot="media-player-controls"], [data-slot="drawer-overlay"], [data-slot="drawer-viewport"], [data-player-stats], button, a, input, select, textarea, [role="button"], [contenteditable="true"], [role="slider"], [role="menu"], [role="dialog"], [role="combobox"], [role="listbox"], [role="option"]'
     )) return;
     event.preventDefault();
     event.stopPropagation();

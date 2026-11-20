@@ -138,6 +138,7 @@ export interface StremioVideo {
   title?: string;
   name?: string;
   released?: string;
+  runtime?: string | number;
   thumbnail?: string;
   overview?: string;
   season?: number;

@@ -41,6 +41,8 @@ export interface MediaToPlay {
   name: string;
   type: "movie" | "series" | "channel" | "tv";
   resumePositionTicks?: number;
+  /** The offset comes from active playback during a manual stream change. */
+  resumeFromCurrentPosition?: boolean;
   streamUrl?: string;
   episodeReleasePreference?: { filename?: string; url?: string };
   requestHeaders?: Record<string, string>;

@@ -17,8 +17,10 @@ import { parseSubtitleTextContent } from "@/lib/media/subtitle-content";
 import { subtitleMediaKey } from "@/lib/media/subtitle-snapshot";
 import { createSubtitleCueIndex } from "@/lib/media/subtitle-cue-index";
 import { useEpisodeContinuation } from "@/lib/media/use-episode-continuation";
+import { nextEpisodeRequest } from "@/lib/media/episode-continuation";
 import { safeResumePosition } from "@/lib/media/resume-playback";
 import { PlayerNextEpisode, PlayerUpNext } from "@/components/player-next-episode";
+import { PlayerSelectionControls } from "@/components/player-selection-controls";
 import { formatRuntime } from "@/lib/format-runtime";
 
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect, useMemo } from "react";
@@ -420,7 +422,8 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           Number.isFinite(mediaDuration) && mediaDuration > 1
             ? mediaDuration - 1
             : requestedResume;
-        const resumeTime = episodeResume ? safeResumePosition(requestedResume, mediaDuration, true) ?? 0
+        const resumeTime = episodeResume && !currentMedia.resumeFromCurrentPosition
+          ? safeResumePosition(requestedResume, mediaDuration, true) ?? 0
           : Math.max(0, Math.min(requestedResume, maxSeekTime));
         // Wait for the selected file's duration before seeking an episode.
         // Movies can still use the native load-time seek.
@@ -437,7 +440,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       });
       mediaElement.play().catch(() => {});
     }
-  }, [currentMedia?.type, currentMedia?.resumePositionTicks, sendPlaybackUpdate, setCurrentTimestamp]);
+  }, [currentMedia?.type, currentMedia?.resumePositionTicks, currentMedia?.resumeFromCurrentPosition, sendPlaybackUpdate, setCurrentTimestamp]);
 
   const handleClose = useCallback((options?: { ended?: boolean }) => {
     reportNavigatorPlayback("closed");
@@ -886,6 +889,33 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   if (!isPlayerVisible || !currentMedia) return null;
 
   const { isEpisode: isEpisodePlayback, showTitle, primaryTitle, season, episodeNumber } = getPlaybackTitles(currentMedia, mediaDetails);
+  const playingEpisode = isEpisodePlayback && season !== undefined && episodeNumber !== undefined
+    ? { seriesId: currentMedia.seriesId || currentMedia.id, season, episode: episodeNumber } : undefined;
+  const selectorMedia: MediaItem | null = currentMedia.type === "movie" || currentMedia.type === "series"
+    ? { id: currentMedia.mediaSourceId || currentMedia.id, type: currentMedia.type, name: primaryTitle, seriesId: currentMedia.seriesId }
+    : null;
+  const changeStream = (stream: StremioStream) => {
+    const url = stream.url || stream.externalUrl;
+    if (!url || url === streamUrl) return;
+
+    const position = videoRef.current?.currentTime ?? currentTimeRef.current;
+    sendPlaybackUpdate("stopped");
+    void playMedia({
+      ...currentMedia,
+      streamUrl: url,
+      resumePositionTicks: Number.isFinite(position) && position >= 0 ? position : currentMedia.resumePositionTicks,
+      resumeFromCurrentPosition: true,
+      requestHeaders: stream.behaviorHints?.proxyHeaders?.request,
+      subtitleFilename: stream.behaviorHints?.filename,
+      subtitleVideoSize: stream.behaviorHints?.videoSize,
+      detailsPath: undefined,
+      animateEntrance: false,
+      streamRequest: undefined,
+      nativePreload: undefined,
+      preparedWebStream: undefined,
+      navigatorActionId: undefined,
+    });
+  };
   // Keep the artwork available at launch through metadata enrichment.
   const fallbackBackdrop = playbackBackdrop(currentMedia) || playbackBackdrop(currentMedia, mediaDetails);
   const titleRating = mediaDetails?.imdbRating ? `IMDb ${mediaDetails.imdbRating}`
@@ -912,6 +942,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         onAdjustSubtitleSize={adjustSubtitleSize}
         onKeyDown={event => {
           if (event.defaultPrevented || event.key !== "Escape" || !episodeContinuation.upNext) return;
+          if (event.target instanceof Element && event.target.closest("[data-player-selection-drawer]")) return;
           event.preventDefault();
           event.stopPropagation();
           episodeContinuation.cancelUpNext();
@@ -1178,6 +1209,16 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             <div className="flex items-center gap-2">
               {onToggleAIAsk && <PlayerNavigatorButton onToggle={onToggleAIAsk} />}
 
+              {selectorMedia && streamUrl && activePlaybackRequestRef.current === playbackRequest && (
+                <PlayerSelectionControls key={selectorMedia.id} media={selectorMedia} streamUrl={streamUrl}
+                  playingEpisode={playingEpisode} onStreamSelect={changeStream} onEpisodeSelect={episode => {
+                    sendPlaybackUpdate("stopped");
+                    void playMedia({
+                      ...nextEpisodeRequest({ ...currentMedia, details: mediaDetails || currentMedia.details }, episode),
+                      resumePositionTicks: episode.resumePositionTicks,
+                    });
+                  }} />
+              )}
               <DesktopTracks mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} />
               <PlayerSubtitles mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} native={nativePlayback}
                 tracks={subtitleTracks} requestedSrc={requestedSubtitleSrc} onTrackChange={handleCustomSubtitleChange}

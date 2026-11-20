@@ -179,6 +179,7 @@ export async function fetchEpisodes(
           overview: v.overview,
           thumbnail: publicArtworkUrl(v.thumbnail) || (includeArtwork ? await getTMDBArtwork(seriesId, "series", "still", v.season ?? 1, v.episode ?? 1) : undefined),
           released: v.released,
+          runtime: v.runtime,
           resumePositionTicks:
             typeof v.resumePositionTicks === "number"
               ? v.resumePositionTicks

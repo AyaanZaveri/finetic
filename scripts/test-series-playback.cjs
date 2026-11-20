@@ -99,6 +99,56 @@ async function run() {
     prompt.props.onKeyDown({ key: 'Escape', preventDefault() {}, stopPropagation() {} });
     assert.equal(cancelled, 2);
     assert.equal(played, 1);
+
+    const { hooks } = require('./test-support/react-hooks.cjs');
+    const drawer = hooks();
+    drawer.react.useReducer = (transition, initial) => {
+        const [state, setState] = drawer.react.useState(initial);
+        return [state, event => setState(previous => transition(previous, event))];
+    };
+    const { PlayerSelectionControls } = load('components/player-selection-controls.tsx', name => {
+        if (name === 'react') return drawer.react;
+        if (name === 'react/jsx-runtime') return drawer.jsx;
+        if (name.endsWith('.css')) return { default: { surface: 'surface' } };
+        return new Proxy({}, { get: (_, key) => key });
+    });
+    const container = {};
+    const button = { closest: () => container };
+    const selections = [];
+    const renderDrawer = () => drawer.render(PlayerSelectionControls, {
+        media: { id: 'tt123:2:1' }, streamUrl: 'https://stream.test/current',
+        playingEpisode: { seriesId: 'tt123', season: 2, episode: 1 },
+        onEpisodeSelect: value => selections.push(value), onStreamSelect: value => selections.push(value),
+    });
+    const openPanel = index => renderDrawer().props.children[index].props.children.props.onClick({ currentTarget: button });
+    const getPanel = () => renderDrawer().props.children[2];
+    assert.equal(renderDrawer().props.open, false);
+    openPanel(0);
+    assert.equal(getPanel().props.container, container, 'The drawer opens inside the fullscreen root');
+    assert.equal(getPanel().props.children[1].props.season, 2);
+    getPanel().props.children[1].props.onSeasonChange(1);
+    assert.equal(getPanel().props.children[1].props.season, 1);
+    renderDrawer().props.onOpenChange(false);
+    openPanel(0);
+    assert.equal(getPanel().props.children[1].props.season, 2, 'Reopening starts at the playing season');
+    getPanel().props.children[1].props.onSelect({ season: 2, episode: 1 });
+    assert.equal(renderDrawer().props.open, false);
+    assert.ok(getPanel(), 'Keep the panel mounted for the closing transition');
+    assert.equal(selections.length, 0, 'Selecting the active episode does not restart it');
+    openPanel(1);
+    const selectStream = getPanel().props.children[2].props.children.props.streamSelection.onSelect;
+    selectStream({ url: 'https://stream.test/current' });
+    assert.equal(renderDrawer().props.open, false);
+    assert.equal(selections.length, 0, 'Selecting the active stream does not restart it');
+    renderDrawer().props.onOpenChangeComplete(false);
+    assert.equal(getPanel(), null, 'Remove the panel when the closing transition completes');
+    openPanel(1);
+    const replacement = { url: 'https://stream.test/replacement' };
+    getPanel().props.children[2].props.children.props.streamSelection.onSelect(replacement);
+    assert.equal(selections.length, 0, 'Keep playback mounted until the drawer exits');
+    renderDrawer().props.onOpenChangeComplete(false);
+    assert.equal(selections[0], replacement);
+
     console.log('PASS: series Play starts S1E1, skips specials, and episode playback uses the show backdrop.');
 }
 run().catch(error => { console.error(error); process.exitCode = 1; });

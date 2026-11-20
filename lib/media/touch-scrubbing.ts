@@ -18,7 +18,7 @@ export function scrubSpeed(startY: number, y: number) {
     return distance >= 140 ? 0.1 : distance >= 70 ? 0.25 : distance >= 35 ? 0.5 : 1;
 }
 
-const surfaceControls = '[data-player-stats], button, a, input, select, textarea, [role="button"], [role="slider"], [role="menu"], [role="dialog"], [role="combobox"], [role="listbox"], [role="option"]';
+const surfaceControls = '[data-player-stats], [data-slot="drawer-overlay"], [data-slot="drawer-viewport"], button, a, input, select, textarea, [role="button"], [role="slider"], [role="menu"], [role="dialog"], [role="combobox"], [role="listbox"], [role="option"]';
 
 export function attachTouchScrubbing(root: HTMLElement, options: TouchScrubbingOptions) {
     let gesture: { id: number; x: number; y: number; lastX: number; time: number; active: boolean; onBar: boolean } | null = null;

@@ -1,0 +1,21 @@
+.overlay {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.popup[data-swipe-axis="x"] {
+  --drawer-content-width: min(26rem, calc(100% - 2rem));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .popup,
+  .overlay {
+    transition: opacity var(--duration-instant) var(--ease-standard);
+  }
+
+  .popup[data-starting-style],
+  .popup[data-ending-style] {
+    transform: none;
+    opacity: 0;
+  }
+}

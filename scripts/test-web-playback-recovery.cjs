@@ -94,6 +94,7 @@ function harness({ native = false, automatic = false, autoSelectWebStream = true
             if (name === '@/contexts/MediaPlayerContext') return { useMediaPlayer: () => ({
                 currentMedia: request, isPlayerVisible: visible, skipTimestamp: null,
                 setIsPlayerVisible(value) { visible = value; dirty = true; },
+                playMedia(value) { request = value; dirty = true; },
                 setCurrentMediaWithSource: value => published.push(value), setCurrentTimestamp: noOp,
             }) };
             if (name === '@/contexts/settings-context') return { useSettings: () => ({}) };
@@ -109,6 +110,7 @@ function harness({ native = false, automatic = false, autoSelectWebStream = true
             if (name === '@/lib/media/playback-titles') return utility('lib/media/playback-titles.ts');
             if (name === '@/lib/media/resume-playback') return utility('lib/media/resume-playback.ts');
             if (name === '@/lib/media/use-episode-continuation') return { useEpisodeContinuation: () => ({}) };
+            if (name === '@/lib/media/episode-continuation') return utility('lib/media/episode-continuation.ts');
             if (name === '@/lib/media/stream-playability') return { probeStreamPlayability: async () => 'supported' };
             if (name === '@/lib/media/fetch-playback-streams') return {
                 async fetchPlaybackStreams() { streamFetches++; return streams; },
@@ -142,6 +144,7 @@ function harness({ native = false, automatic = false, autoSelectWebStream = true
         get errorVisible() { return find(tree, node => node.props?.role === 'alert').length > 0; },
         get statsMenu() { return find(tree, node => node.props?.stats !== undefined)[0]?.props.stats; },
         get statsPanel() { return find(tree, node => node.props?.videoRef && node.props?.onClose)[0]?.props; },
+        get selection() { return find(tree, node => node.props?.onEpisodeSelect && node.props?.onStreamSelect)[0]?.props; },
         async settle() { for (let i = 0; i < 20; i++) { if (dirty) render(); await Promise.resolve(); } },
         fail(code = 4) {
             media.error = { code, message: 'MEDIA_ELEMENT_ERROR: Format error' };
@@ -180,6 +183,29 @@ async function run() {
     stats.statsMenu.onOpenChange(false);
     await stats.settle();
     assert.equal(stats.statsPanel, undefined, 'Hiding stats from Settings unmounts the same panel');
+
+    const selection = harness({ episodePosition: 42, autoSelectWebStream: false });
+    await selection.settle();
+    assert.equal(selection.selection.media.id, 'buddy:1:2');
+    assert.equal(selection.selection.playingEpisode.season, 1);
+    assert.equal(selection.selection.playingEpisode.episode, 2);
+    selection.media.currentTime = 598;
+    const replacement = 'https://stream.example/replacement.mp4';
+    selection.selection.onStreamSelect({ url: replacement });
+    await selection.settle();
+    assert.equal(selection.video.props.src, replacement);
+    selection.video.props.onLoadedMetadata();
+    assert.equal(selection.media.currentTime, 598, 'A stream switch retains the current position near the end of an episode');
+    assert.equal(selection.routes.length, 1, 'A stream switch keeps the page behind the player');
+
+    selection.selection.onEpisodeSelect({ id: 'buddy:2:4', season: 2, episode: 4, title: 'A new episode', resumePositionTicks: 12 });
+    await selection.settle();
+    assert.equal(selection.selection.media.id, 'buddy:2:4');
+    assert.equal(selection.selection.playingEpisode.season, 2);
+    assert.equal(selection.selection.playingEpisode.episode, 4);
+    selection.video.props.onLoadedMetadata();
+    assert.equal(selection.media.currentTime, 12, 'A new episode uses its own resume position');
+    assert.equal(selection.routes.length, 1, 'An episode switch keeps the page behind the player');
 
     for (const native of [false, true]) {
         for (const [saved, expected] of [[650, 0], [599, 0], [42, 42]]) {
