@@ -20,7 +20,7 @@
 .content[data-side="left"] { --menu-x: 6px; --menu-y: 0px; }
 .content[data-side="right"] { --menu-x: -6px; --menu-y: 0px; }
 .content[data-state="closed"] { animation: select-out var(--duration-instant) var(--ease-standard) both; }
-.viewport { padding: 2px 0; }
+.viewport { padding: var(--keyboard-focus-halo-width); }
 .item { position: relative; display: flex; gap: 8px; align-items: center; min-height: 36px; border-radius: calc(var(--radius-control) - 4px); padding: 0 34px 0 11px; color: var(--foreground); font-size: var(--text-sm); cursor: default; outline: none; user-select: none; transition: background-color var(--duration-instant) var(--ease-standard), color var(--duration-instant) var(--ease-standard); }
 .item[data-highlighted] { background: color-mix(in oklab, var(--surface-raised) 96%, var(--foreground) 4%); }
 .item[data-disabled] { opacity: .45; }

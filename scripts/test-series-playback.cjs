@@ -102,6 +102,21 @@ async function run() {
     assert.equal(played, 1);
 
     const { hooks } = require('./test-support/react-hooks.cjs');
+    const selectHost = hooks();
+    const { Select } = load('components/arc/select/select.tsx', name => {
+        if (name === 'react') return { ...selectHost.react, useId: () => 'season', forwardRef: render => render };
+        if (name === 'react/jsx-runtime') return selectHost.jsx;
+        if (name === '@radix-ui/react-select') return new Proxy({}, { get: (_, key) => key });
+        if (name === 'motion/react') return { useReducedMotion: () => false, motion: { span: 'span' } };
+        if (name === '../lib/motion-tokens') return load('components/arc/motion-tokens.ts');
+        return { default: {} };
+    });
+    const seasonMenu = selectHost.render(Select, {
+        label: 'Season', value: '2', options: [{ value: '2', label: 'Season 2' }], portalContainer: {},
+    });
+    const optionsPopup = seasonMenu.props.children[1].props.children[1].props.children;
+    assert.equal(optionsPopup.props['data-base-ui-swipe-ignore'], '', 'The portalled options must opt out of drawer pointer capture');
+
     const drawer = hooks();
     let activeHooks = drawer;
     drawer.react.useReducer = (transition, initial) => {

@@ -73,7 +73,8 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
                     </SelectPrimitive.Icon>
                 </SelectPrimitive.Trigger>
                 <SelectPrimitive.Portal container={portalContainer}>
-                    <SelectPrimitive.Content className={styles.content} position="popper" sideOffset={4} collisionPadding={12}>
+                    {/* A portalled select inside a drawer owns its option presses and scrolling. */}
+                    <SelectPrimitive.Content data-base-ui-swipe-ignore="" className={styles.content} position="popper" sideOffset={4} collisionPadding={12}>
                         <SelectPrimitive.ScrollUpButton className={styles.scrollButton}>
                             <ChevronUp size={16} strokeWidth={1.75} aria-hidden="true" />
                         </SelectPrimitive.ScrollUpButton>
