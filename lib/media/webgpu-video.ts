@@ -38,8 +38,14 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
     let tracks: readonly WebGpuAudioTrack[] = [], selected: number | null = null;
     let switching = false;
     let fallbackMetadata: (() => void) | undefined;
-    const audioTracks = new EventTarget() as EventTarget & { length: number; [index: number]: unknown };
-    audioTracks.length = 0;
+    // Media Chrome iterates this list, including before the decoder finds tracks.
+    const audioTracks = new class extends EventTarget {
+        [index: number]: unknown;
+        length = 0;
+        *[Symbol.iterator]() {
+            for (let index = 0; index < this.length; index++) yield this[index];
+        }
+    }();
     const descriptors = new Map<string, PropertyDescriptor | undefined>();
     const frames = new Map<number, number>();
     let nextFrame = 0;

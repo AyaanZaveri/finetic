@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const { setMaxListeners } = require('node:events');
 const fs = require('node:fs');
 const path = require('node:path');
 const { load, hooks } = require('./test-support/react-hooks.cjs');
@@ -38,6 +39,8 @@ class Video extends EventTarget {
       duration: 100, paused: true, dataset: {}, parentElement: { tagName: 'DIV', querySelector: () => this.picture }, picture: {} });
   }
   closest() { return null; }
+  querySelector() { return null; }
+  hasAttribute() { return false; }
   play() { this.paused = false; return Promise.resolve(); }
   pause() { this.paused = true; }
 }
@@ -81,6 +84,33 @@ function fixture({ result, resolvedSource, audioFailure = false, deferred = fals
       const list = [...raf.values()]; raf.clear(); list.forEach(fn => fn(ms)); } };
 }
 (async () => {
+  const { createPlayerMediaStore } = load('lib/media/player-media-store.ts', {
+    '../desktop/bridge': { desktopBridge: () => undefined },
+  });
+  const { MediaUIEvents } = require('media-chrome/constants');
+  const store = createPlayerMediaStore();
+  const unsubscribe = store.subscribe(() => {});
+  for (const startPosition of [0, 20, 42]) {
+    const source = fixture({ startPosition, deferred: true });
+    setMaxListeners(0, source.video);
+    store.dispatch({ type: 'mediaelementchangerequest', detail: source.video });
+    await tick();
+    assert.deepEqual(store.getState().mediaAudioTrackList, [], 'Register a source before its tracks are available');
+    source.resolveOpen();
+    await tick();
+    assert.equal(store.getState().mediaAudioTrackList.length, 2, 'Media Chrome can read tracks announced by the replacement');
+    assert.equal(store.getState().mediaDuration, 100);
+    assert.equal(store.getState().mediaCurrentTime, startPosition);
+    store.dispatch({ type: MediaUIEvents.MEDIA_PLAY_REQUEST });
+    assert.ok(source.calls.some(([name]) => name === 'play'), 'Play reaches the registered source');
+    store.dispatch({ type: MediaUIEvents.MEDIA_PAUSE_REQUEST });
+    assert.equal(source.calls.at(-1)[0], 'pause', 'Pause reaches the registered source');
+    store.dispatch({ type: 'mediaelementchangerequest', detail: null });
+    await tick();
+    source.detach();
+  }
+  unsubscribe();
+
   const hdr = fixture({ hdrOutput: true, hdrDisplay: true }); await tick();
   assert.deepEqual(hdr.calls[0], ['hdr', true, 600], 'Configure HDR before opening the file');
   hdr.events.onState('playing');

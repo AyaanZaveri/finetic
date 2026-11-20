@@ -31,6 +31,17 @@ function find(tree, predicate) {
     if (!tree || typeof tree !== 'object') return [];
     return [...(predicate(tree) ? [tree] : []), ...React.Children.toArray(tree.props?.children).flatMap(child => find(child, predicate))];
 }
+function checkSiblingKeys(tree) {
+    const keys = new Set();
+    React.Children.forEach(tree?.props?.children, child => {
+        if (!React.isValidElement(child)) return;
+        if (child.key !== null) {
+            assert.ok(!keys.has(child.key), 'Player siblings must have unique keys during source replacement');
+            keys.add(child.key);
+        }
+        checkSiblingKeys(child);
+    });
+}
 class Media extends EventTarget {
     closest() { return null; }
     error = null;
@@ -128,6 +139,7 @@ function harness({ native = false, automatic = false, autoSelectWebStream = true
     function render() {
         index = 0; dirty = false;
         tree = context.exports.GlobalMediaPlayer({});
+        checkSiblingKeys(tree);
         const video = find(tree, node => node.props?.src && node.props.onError && node.props.onLoadedMetadata)[0];
         if (video) {
             if (!renderedVideo || renderedVideo.key !== video.key) media = new Media();

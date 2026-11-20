@@ -1105,7 +1105,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         )}
 
         {/* Clock-driven captions subscribe independently of the player shell. */}
-        <PlayerSubtitleLayer key={`${streamUrl}:${playerAttempt}`} mediaRef={videoRef} lookup={findCurrentSubtitle}
+        <PlayerSubtitleLayer key={`subtitles:${streamUrl}:${playerAttempt}`} mediaRef={videoRef} lookup={findCurrentSubtitle}
           delay={subtitleTiming.seconds} native={nativePlayback} enabled={!loading && videoReady}
           size={subtitleSize} outline={subtitleOutline} weight={subtitleWeight} color={subtitleColor} position={subtitlePosition} />
 
@@ -1132,7 +1132,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         )}
 
         {!nativePlayback && streamUrl && (
-          <PlayerPlaybackStats key={`${streamUrl}:${playerAttempt}`} open={showPlaybackStats}
+          <PlayerPlaybackStats key={`stats:${streamUrl}:${playerAttempt}`} open={showPlaybackStats}
             videoRef={videoRef} onClose={() => setShowPlaybackStats(false)} />
         )}
 
