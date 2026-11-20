@@ -143,7 +143,7 @@ function harness({ native = false, automatic = false, autoSelectWebStream = true
         get streamFetches() { return streamFetches; },
         get errorVisible() { return find(tree, node => node.props?.role === 'alert').length > 0; },
         get statsMenu() { return find(tree, node => node.props?.stats !== undefined)[0]?.props.stats; },
-        get statsPanel() { return find(tree, node => node.props?.videoRef && node.props?.onClose)[0]?.props; },
+        get statsPanels() { return find(tree, node => node.props?.videoRef && node.props?.onClose); },
         get selection() { return find(tree, node => node.props?.onEpisodeSelect && node.props?.onStreamSelect)[0]?.props; },
         async settle() { for (let i = 0; i < 20; i++) { if (dirty) render(); await Promise.resolve(); } },
         fail(code = 4) {
@@ -169,20 +169,24 @@ function harness({ native = false, automatic = false, autoSelectWebStream = true
 async function run() {
     const stats = harness();
     await stats.settle();
+    const [panel] = stats.statsPanels;
+    assert.equal(panel?.props.open, false, 'The player owns one hidden stats panel before opening it');
     assert.equal(stats.statsMenu.open, false);
     stats.statsMenu.onOpenChange(true);
     await stats.settle();
-    assert.ok(stats.statsPanel, 'Showing stats from Settings mounts the panel');
-    stats.statsPanel.onClose();
+    assert.equal(stats.statsPanels.length, 1);
+    assert.equal(stats.statsPanels[0].props.open, true);
+    stats.statsPanels[0].props.onClose();
     await stats.settle();
-    assert.equal(stats.statsPanel, undefined, 'Closing the panel unmounts it');
+    assert.equal(stats.statsPanels[0].props.open, false, 'Closing hides the panel');
     assert.equal(stats.statsMenu.open, false, 'Closing the panel also resets the Settings action');
-    stats.statsMenu.onOpenChange(true);
-    await stats.settle();
-    assert.ok(stats.statsPanel, 'The panel can reopen after dismissal');
-    stats.statsMenu.onOpenChange(false);
-    await stats.settle();
-    assert.equal(stats.statsPanel, undefined, 'Hiding stats from Settings unmounts the same panel');
+    for (const open of [true, false, true, false]) {
+        stats.statsMenu.onOpenChange(open);
+        await stats.settle();
+        assert.equal(stats.statsPanels.length, 1, 'Settings always controls a single panel');
+        assert.equal(stats.statsPanels[0].key, panel.key, 'Showing and hiding keep the same panel key');
+        assert.equal(stats.statsPanels[0].props.open, open);
+    }
 
     const selection = harness({ episodePosition: 42, autoSelectWebStream: false });
     await selection.settle();

@@ -957,7 +957,6 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         <NativePlayerGlass mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} ready={videoReady && !loading && !playbackError} />
         <PlaybackWakeLock mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} enabled={!nativePlayback && !!streamUrl && !playbackError} />
         {!nativePlayback && <BrowserPlayerGlass mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} ready={videoReady && !loading && !playbackError} />}
-        {showPlaybackStats && !nativePlayback && streamUrl && <PlayerPlaybackStats key={`${streamUrl}:${playerAttempt}`} videoRef={videoRef} onClose={() => setShowPlaybackStats(false)} />}
         {/* Video element */}
         {streamUrl && activePlaybackRequestRef.current === playbackRequest && (
           <MediaPlayerVideo asChild>
@@ -1130,6 +1129,11 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             <Loader2 aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />
             <PlayerLoadingStatus label="Fetching subtitles" />
           </div>
+        )}
+
+        {!nativePlayback && streamUrl && (
+          <PlayerPlaybackStats key={`${streamUrl}:${playerAttempt}`} open={showPlaybackStats}
+            videoRef={videoRef} onClose={() => setShowPlaybackStats(false)} />
         )}
 
         {upNext && (

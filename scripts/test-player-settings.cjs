@@ -110,7 +110,7 @@ assert.deepEqual(statsVisibility, [true, false], 'The menu requests explicit sho
     window: { setInterval() { sampling = true; return 1; }, clearInterval() { sampling = false; } },
     document: { addEventListener() {}, removeEventListener() {} },
   });
-  const props = { videoRef: { current: null }, onClose: () => closed++ };
+  const props = { open: true, videoRef: { current: null }, onClose: () => closed++ };
   const render = () => host.render(PlayerPlaybackStats, props);
   const initial = render();
   initial.props.ref.current = panel;
@@ -139,8 +139,10 @@ assert.deepEqual(statsVisibility, [true, false], 'The menu requests explicit sho
   assert.ok(consumed, 'Focused drag handle owns the arrow key instead of seeking');
   const action = label => find(render(), 'Button').find(node => node.props['aria-label'] === label);
   assert.equal(action('Freeze stats').props.children.type, 'pause-icon');
+  assert.equal(action('Freeze stats').props.children.props.fill, 'currentColor');
   action('Freeze stats').props.onClick();
   assert.equal(action('Resume stats updates').props.children.type, 'play-icon');
+  assert.equal(action('Resume stats updates').props.children.props.fill, 'currentColor');
   host.flush();
   assert.equal(sampling, false, 'Freezing stops the sampling timer');
   action('Resume stats updates').props.onClick();
@@ -156,9 +158,19 @@ assert.deepEqual(statsVisibility, [true, false], 'The menu requests explicit sho
   assert.equal(captures.size, 0, 'Closing from the panel releases an active drag');
   header.props.onPointerDown({ isPrimary: true, button: 0, pointerId: 10, clientX: 40, clientY: 100,
     currentTarget: handle, preventDefault() {} });
-  host.unmount();
-  assert.equal(captures.size, 0, 'Hiding from Settings also releases an active drag on unmount');
+  props.open = false;
+  assert.equal(render().props.hidden, true, 'Hiding removes the panel from hit testing');
+  host.flush();
+  assert.equal(captures.size, 0, 'Hiding from Settings also releases an active drag');
+  assert.equal(sampling, false, 'A hidden panel stops sampling');
   assert.equal(resize, undefined);
+  props.open = true;
+  const reopened = render();
+  host.flush();
+  assert.equal(reopened.props.hidden, false);
+  assert.equal(reopened.props.style.left, 20, 'Reopening preserves the last panel position');
+  assert.equal(sampling, true);
+  host.unmount();
 }
 let timingClosed = 0;
 const timingTree = component('MediaPlayerSettings', { ...context, subtitleTiming: { open: true, seconds: 0, onOpen() {}, onClose() { timingClosed++; } } }, state, []);

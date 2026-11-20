@@ -15,7 +15,11 @@ function fitPosition(panel: HTMLElement, bounds: Element, position: Position): P
     return x === position.x && y === position.y ? position : { x, y };
 }
 
-export function PlayerPlaybackStats({ videoRef, onClose }: { videoRef: RefObject<HTMLVideoElement | null>; onClose: () => void }) {
+export function PlayerPlaybackStats({ open, videoRef, onClose }: {
+    open: boolean;
+    videoRef: RefObject<HTMLVideoElement | null>;
+    onClose: () => void;
+}) {
     const moveInstructionsId = useId();
     const panelRef = useRef<HTMLElement>(null);
     const drag = useRef<{ id: number; handle: HTMLElement; start: Position; origin: Position } | null>(null);
@@ -29,9 +33,8 @@ export function PlayerPlaybackStats({ videoRef, onClose }: { videoRef: RefObject
         if (active?.handle.hasPointerCapture(active.id)) active.handle.releasePointerCapture(active.id);
     }, []);
 
-    useLayoutEffect(() => releaseDrag, [releaseDrag]);
-
     useLayoutEffect(() => {
+        if (!open) return;
         const panel = panelRef.current;
         const bounds = panel?.offsetParent;
         if (!panel || !bounds) return;
@@ -40,8 +43,11 @@ export function PlayerPlaybackStats({ videoRef, onClose }: { videoRef: RefObject
         });
         resize.observe(panel);
         resize.observe(bounds);
-        return () => resize.disconnect();
-    }, []);
+        return () => {
+            resize.disconnect();
+            releaseDrag();
+        };
+    }, [open, releaseDrag]);
 
     const moveTo = (target: Position) => {
         const panel = panelRef.current;
@@ -57,7 +63,7 @@ export function PlayerPlaybackStats({ videoRef, onClose }: { videoRef: RefObject
     };
 
     useEffect(() => {
-        if (frozen) return;
+        if (!open || frozen) return;
         let previous: { video: HTMLVideoElement; stats: ReturnType<typeof readWebPlaybackStats>; at: number } | undefined;
         const sample = () => {
             const video = videoRef.current;
@@ -78,7 +84,7 @@ export function PlayerPlaybackStats({ videoRef, onClose }: { videoRef: RefObject
             window.clearInterval(timer);
             document.removeEventListener("visibilitychange", reset);
         };
-    }, [frozen, videoRef]);
+    }, [open, frozen, videoRef]);
 
     const stats = reading?.stats;
     const freezeLabel = frozen ? "Resume stats updates" : "Freeze stats";
@@ -97,9 +103,9 @@ export function PlayerPlaybackStats({ videoRef, onClose }: { videoRef: RefObject
         ["Audio underruns", stats?.audioUnderflows],
         ["Fallback reason", stats?.fallback],
     ] as const;
-    return <section ref={panelRef} aria-label="Stats for nerds" data-player-stats=""
+    return <section ref={panelRef} hidden={!open} aria-label="Stats for nerds" data-player-stats=""
         style={position ? { left: position.x, top: position.y } : undefined}
-        className={`absolute top-3 z-30 flex max-h-[55%] w-[22rem] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-xl border border-white/8 bg-black/85 text-[0.8125rem] leading-normal text-white shadow-lg shadow-black/35 ${position ? "" : "end-3"}`}>
+        className={`absolute top-3 z-[var(--layer-overlay)] pointer-events-auto transform-gpu max-h-[55%] w-[22rem] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-xl border border-white/8 bg-black/85 text-[0.8125rem] leading-normal text-white shadow-lg shadow-black/35 ${open ? "flex" : "hidden"} ${position ? "" : "end-3"}`}>
         <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-0.5 px-3 pb-1 pt-1.5">
             <span id={moveInstructionsId} className="sr-only">Use arrow keys to move the stats panel.</span>
             <h2 tabIndex={0} aria-describedby={moveInstructionsId}
@@ -133,7 +139,7 @@ export function PlayerPlaybackStats({ videoRef, onClose }: { videoRef: RefObject
             <div className="-me-1 ms-auto flex items-center gap-1">
                 <Button type="button" variant="ghost" size="icon-xs" aria-label={freezeLabel} title={freezeLabel}
                     className="size-7 text-white/75 hover:bg-white/15 hover:text-white" onClick={() => setFrozen(value => !value)}>
-                    {frozen ? <Play aria-hidden="true" className="size-4" /> : <Pause aria-hidden="true" className="size-4" />}
+                    {frozen ? <Play aria-hidden="true" className="size-4" fill="currentColor" /> : <Pause aria-hidden="true" className="size-4" fill="currentColor" />}
                 </Button>
                 <Button type="button" variant="ghost" size="icon-xs" aria-label="Hide stats for nerds"
                     className="size-7 text-white/75 hover:bg-white/15 hover:text-white" onClick={() => {
