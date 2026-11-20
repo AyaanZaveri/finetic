@@ -4,14 +4,27 @@ const vm = require('node:vm');
 const ts = require('typescript');
 let hovered = null, menu = null, focused = null;
 class Element { closest() { return this.control; } matches() { return this.visibleFocus; } }
-const root = { querySelector(selector) { assert.ok(selector.includes('[data-player-close]:hover')); return hovered; }, contains: node => node.inPlayer };
+const root = {
+  querySelector(selector) {
+    assert.match(selector, /:is\(\[data-player-close\], \[data-slot="media-player-controls"\] :is\(button,.*\[data-slider\]\)\):hover$/);
+    return ['button', 'slider', 'back'].includes(hovered) ? hovered : null;
+  },
+  contains: node => node.inPlayer,
+};
 const context = { exports: {}, Element, document: { get activeElement() { return focused; }, querySelector: () => menu } };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/media/control-activity.ts', 'utf8'), {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
 }).outputText, context);
 const active = () => context.exports.playerControlsActive(root);
 assert.equal(active(), false);
-hovered = {}; for (let idle = 0; idle < 10; idle++) assert.equal(active(), true, 'Stationary mouse keeps timeline/buttons/Back visible indefinitely');
+for (const control of ['button', 'slider', 'back']) {
+  hovered = control;
+  assert.equal(active(), true, 'Stationary mouse keeps timeline/buttons/Back visible');
+}
+for (const text of ['title', 'heading gap', 'ends at']) {
+  hovered = text;
+  assert.equal(active(), false, `Hovering ${text} leaves the idle timer running`);
+}
 hovered = null; assert.equal(active(), false, 'Leaving the controls releases the idle hold');
 menu = {}; assert.equal(active(), true, 'Portalled menus stay interactive when the pointer leaves the player'); menu = null;
 focused = new Element(); Object.assign(focused, { inPlayer: true, control: true, visibleFocus: true });
@@ -37,9 +50,9 @@ Object.assign(context, { playerControlsActive: context.exports.playerControlsAct
 });
 vm.runInNewContext(ts.transpileModule(`exports.show = ${callback}`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText, context);
 const advance = ms => { now += ms; for (const [key, timer] of [...timers]) if (timer.at <= now) { timers.delete(key); timer.fn(); } };
-focused = null; hovered = {}; context.exports.show();
+focused = null; hovered = 'slider'; context.exports.show();
 for (let second = 0; second < 20; second++) { advance(1000); assert.equal(state.controlsVisible, true); }
-hovered = null; advance(1000); assert.equal(state.controlsVisible, false, 'The actual timer hides only after the pointer leaves controls');
+hovered = 'heading gap'; advance(1000); assert.equal(state.controlsVisible, false, 'The actual timer hides with the pointer over the title row gap');
 context.controlPointerHeldRef.current = true; context.exports.show(); advance(3000); assert.equal(state.controlsVisible, true);
 context.controlPointerHeldRef.current = false; advance(1000); assert.equal(state.controlsVisible, false);
 console.log('PASS: stationary timeline/button/Back hover, portalled menus, keyboard focus and release after leaving controls');
