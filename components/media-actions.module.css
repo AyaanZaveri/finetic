@@ -121,6 +121,11 @@
   transition: background-color var(--duration-instant) var(--ease-out);
 }
 
+.root[data-stream-picker] .streamRow {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .streamRow:focus-visible {
   outline: var(--keyboard-focus-width) solid var(--ring);
   outline-offset: 0;
@@ -168,14 +173,19 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  .root[data-stream-picker] {
+    --stream-press-duration: 150ms;
+    --stream-press-scale: 0.98;
+  }
+
   .streamRow {
     transition:
       background-color var(--duration-instant) var(--ease-out),
-      transform var(--duration-instant) var(--ease-out);
+      transform var(--stream-press-duration, var(--duration-instant)) var(--ease-out);
   }
 
   .streamRow:enabled:active {
-    transform: scale(0.998);
+    transform: scale(var(--stream-press-scale, 0.998));
   }
 }
 

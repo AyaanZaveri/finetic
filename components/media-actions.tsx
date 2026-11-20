@@ -223,7 +223,7 @@ export function MediaActions({ media, movie, streamSelection }: MediaActionsProp
   ) : null;
 
   return (
-    <div className={styles.root}>
+    <div className={styles.root} data-stream-picker={switchingStream || undefined}>
       {totalAddons > 0 && (switchingStream ? (
         <InputGroup className="backdrop-blur-none [--text-input-fill:var(--stream-card-surface)]">
           <InputGroupInput ref={drawerSearch} type="search" aria-label="Search streams" placeholder="Search streams"
