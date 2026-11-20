@@ -3,3 +3,4 @@ Source: https://www.pexels.com/photo/silhouette-of-mountains-1323550/
 Pexels License: https://www.pexels.com/license/
 Downloaded November 3, 2026, resized by the Pexels image service to 1200 x 675.
 Used as a decorative, bundled preview image in Navigator.
+The player workbench clip (player-workbench-preview.mp4) animates the same photograph.

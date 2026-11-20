@@ -3,14 +3,33 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChevronDown, CornerDownRight } from "lucide-react";
+import { BrowserPlayerGlass } from "@/components/browser-player-glass";
 import { PlayerSelectionControls } from "@/components/player-selection-controls";
-import { MediaPlayer } from "@/components/ui/media-player";
+import { PlayerControlBar } from "@/components/player-control-bar";
+import { PlayerEndTime, PlayerSubtitleLayer } from "@/components/player-clock-islands";
+import { PlayerNextEpisode, PlayerUpNext } from "@/components/player-next-episode";
+import { PlayerPlaybackStats } from "@/components/player-playback-stats";
+import { PlayerSubtitles } from "@/components/player-subtitles";
+import { PlayerVideoFit } from "@/components/player-video-fit";
+import { SubtitleTimingPopover } from "@/components/subtitle-timing-popover";
+import { MediaPlayer, MediaPlayerFullscreen, MediaPlayerPiP, MediaPlayerSettings, MediaPlayerVideo } from "@/components/ui/media-player";
 import { AccountContext } from "@/contexts/account-context";
+import { stepSubtitleSize, type SubtitleSize } from "@/lib/subtitle-appearance";
+import type { Episode } from "@/app/actions/tv-shows";
 import "@/components/player-mobile.css";
 import { fixtures, groups, installFixtureFetch, panelFor, readState, states, type StateId } from "./fixtures";
 import styles from "./states.module.css";
 
 const channel = "navigator-player-selection-workbench";
+const sample = "/images/player-workbench-preview.mp4";
+const sampleSubtitle = { text: "The mountains are quiet tonight.", positionTop: false };
+const subtitleAt = (time: number) => time >= 4 && time < 30 ? sampleSubtitle : null;
+const sampleChapters = [
+    { startTime: 0, endTime: 8, text: "Opening" },
+    { startTime: 8, endTime: 19, text: "Into the mountains" },
+    { startTime: 19, endTime: 29, text: "The ridge" },
+    { startTime: 29, endTime: 36, text: "Last light" },
+];
 
 function keyboardCommand(event: KeyboardEvent) {
     const target = event.target;
@@ -27,27 +46,57 @@ function Stage({ id }: { id: StateId }) {
         seriesId: data.seriesId, season: data.currentSeason, episode: data.currentEpisode,
     });
     const [source, setSource] = useState(data.currentStream);
-    const toolbar = useRef<HTMLDivElement>(null);
+    const [duration, setDuration] = useState(0);
+    const [statsOpen, setStatsOpen] = useState(false);
+    const [captions, setCaptions] = useState(false);
+    const [subtitleSize, setSubtitleSize] = useState<SubtitleSize>("standard");
+    const [timingOpen, setTimingOpen] = useState(false);
+    const [delay, setDelay] = useState(0);
+    const [upNextOpen, setUpNextOpen] = useState(id === "up-next");
+    const stage = useRef<HTMLDivElement>(null);
+    const video = useRef<HTMLVideoElement>(null);
     const movie = id === "movie";
 
     useEffect(() => installFixtureFetch(id, data), [id, data]);
 
     useEffect(() => {
         const panel = panelFor(id);
-        if (panel) toolbar.current?.querySelector<HTMLButtonElement>(`[aria-label="${panel}"]`)?.click();
+        if (panel) stage.current?.querySelector<HTMLButtonElement>(`[data-player-toolbar] [aria-label="${panel}"]`)?.click();
     }, [id]);
 
     const episodeTitle = data.episodes(episode.season).find(item => item.episode === episode.episode)?.title ?? "The Golden Child";
     const title = movie ? "Palm Springs" : episodeTitle;
-    return <MediaPlayer autoHide={false} className="relative h-dvh w-full justify-end object-contain">
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-75"
-            style={{ backgroundImage: "url('/images/subtitle-preview.jpg')" }} />
-        <div className="relative flex items-end justify-between gap-4 bg-linear-to-t from-black/85 to-transparent p-6 text-white">
-            <div className="min-w-0">
-                <h1 className="truncate text-2xl font-semibold">{title}</h1>
-                {!movie && <p className="text-sm text-white/70">Brooklyn Nine-Nine · S{episode.season} · E{episode.episode}</p>}
-            </div>
-            <div ref={toolbar} data-player-toolbar="" className="flex shrink-0 items-center gap-2">
+    const next = data.episodes(episode.season).find(item => item.episode > episode.episode) ?? null;
+    const selectEpisode = (item: Episode) => {
+        if (video.current) video.current.currentTime = 0;
+        setEpisode({ seriesId: data.seriesId, season: item.season, episode: item.episode });
+        setUpNextOpen(false);
+    };
+    return <div ref={stage} data-player-shell="" className="h-dvh w-full bg-black">
+        <MediaPlayer autoHide={id === "playing"} className="size-full" chapters={sampleChapters}
+            onToggleCaptions={() => setCaptions(value => !value)}
+            onAdjustSubtitleSize={direction => setSubtitleSize(size => stepSubtitleSize(size, direction))}>
+            <MediaPlayerVideo ref={video} src={sample} poster="/images/subtitle-preview.jpg"
+                playsInline preload="auto" className="size-full bg-black"
+                autoPlay={id === "playing"} muted={id === "playing"} loop={id === "playing"}
+                onLoadedMetadata={event => {
+                    const element = event.currentTarget;
+                    setDuration(element.duration);
+                    element.currentTime = Math.min(9, element.duration / 3);
+                }} />
+            <BrowserPlayerGlass mediaRef={video} sourceKey={sample} ready={duration > 0} />
+            <PlayerSubtitleLayer mediaRef={video} lookup={subtitleAt} delay={delay} native={false} enabled={captions}
+                size={subtitleSize} position={12} />
+            <SubtitleTimingPopover container={video.current?.closest<HTMLElement>('[data-slot="media-player"]')}
+                open={timingOpen} onOpenChange={setTimingOpen} seconds={delay} onChange={setDelay} available={captions} />
+            <PlayerPlaybackStats open={statsOpen} videoRef={video} onClose={() => setStatsOpen(false)} />
+            {upNextOpen && next && <PlayerUpNext next={next} thumbnail={next.thumbnail} seconds={5} timerRunning={false}
+                onPlay={() => selectEpisode(next)} onCancel={() => setUpNextOpen(false)} />}
+            <PlayerControlBar title={title} previewSource={sample}
+                episode={movie ? undefined : { showTitle: "Brooklyn Nine-Nine", season: episode.season, episodeNumber: episode.episode }}
+                releaseYear={movie ? 2020 : undefined}
+                endTime={<PlayerEndTime duration={duration} mediaRef={video} />}
+                nextEpisode={!movie && <PlayerNextEpisode next={next} advancing={false} onAdvance={() => { if (next) selectEpisode(next); }} />}>
                 <AccountContext.Provider value={{ authenticated: id !== "stream-signed-out", requestSignIn() {} }}>
                     <PlayerSelectionControls
                         media={{
@@ -55,12 +104,23 @@ function Stage({ id }: { id: StateId }) {
                             type: movie ? "movie" : "series", name: title,
                         }}
                         streamUrl={source} playingEpisode={movie ? undefined : episode}
-                        onEpisodeSelect={item => setEpisode({ seriesId: data.seriesId, season: item.season, episode: item.episode })}
+                        chapterNavigation={{ chapters: sampleChapters, media: video.current, source: sample, onSeek: time => {
+                            if (video.current) video.current.currentTime = time;
+                        } }}
+                        onEpisodeSelect={selectEpisode}
                         onStreamSelect={stream => { const url = stream.url || stream.externalUrl; if (url) setSource(url); }} />
                 </AccountContext.Provider>
-            </div>
-        </div>
-    </MediaPlayer>;
+                <PlayerSubtitles mediaRef={video} sourceKey={sample} native={false}
+                    tracks={[{ src: "workbench-captions", label: "English", language: "en", active: captions }]}
+                    onTrackChange={track => setCaptions(Boolean(track))}
+                    timing={{ seconds: delay, open: timingOpen, onOpen: () => setTimingOpen(true), onClose: () => setTimingOpen(false) }} />
+                <PlayerVideoFit mediaRef={video} sourceKey={sample} />
+                <MediaPlayerSettings stats={{ open: statsOpen, onOpenChange: setStatsOpen }} />
+                <MediaPlayerPiP />
+                <MediaPlayerFullscreen />
+            </PlayerControlBar>
+        </MediaPlayer>
+    </div>;
 }
 
 function StageFrame({ initialState }: { initialState: StateId }) {
@@ -73,7 +133,7 @@ function StageFrame({ initialState }: { initialState: StateId }) {
         };
         const onKey = (event: KeyboardEvent) => {
             const command = keyboardCommand(event);
-            if (command) {
+            if (command && (command === "hide" || !(event.target instanceof Element && event.target.closest('[data-slot="media-player"]')))) {
                 event.preventDefault();
                 window.parent.postMessage({ channel, command }, location.origin);
             }
@@ -152,7 +212,7 @@ function Switcher({ active }: { active: StateId }) {
                 <ChevronDown aria-hidden="true" size={12} />
             </div>
             <iframe ref={frame} src="/states/player-selection?__stage=1" className={styles.frame}
-                title="Player episode and stream selector" allowFullScreen />
+                title="Navigator player workbench" allow="fullscreen; picture-in-picture" allowFullScreen />
         </div>
     </div>;
 }

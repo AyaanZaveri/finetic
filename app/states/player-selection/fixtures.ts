@@ -3,8 +3,11 @@ import type { StremioStream } from "@/types/stremio";
 
 export const groups = [
     { title: "Player", states: [
-        { id: "closed", label: "Drawer closed" },
+        { id: "closed", label: "Episode toolbar" },
         { id: "movie", label: "Movie toolbar" },
+        { id: "playing", label: "Auto-hide controls" },
+        { id: "up-next", label: "Up Next" },
+        { id: "chapters", label: "Chapter drawer" },
     ] },
     { title: "Episodes", states: [
         { id: "episodes", label: "Playing episode" },
@@ -27,7 +30,8 @@ export const groups = [
 export const states = groups.flatMap(group => [...group.states] as { id: StateId; label: string }[]);
 export type StateId = typeof groups[number]["states"][number]["id"];
 export const readState = (value: string | null): StateId => states.find(state => state.id === value)?.id ?? "closed";
-export const panelFor = (id: StateId) => id.startsWith("episode") ? "Episodes" : id.startsWith("stream") ? "Streams" : null;
+export const panelFor = (id: StateId) => id.startsWith("episode") ? "Episodes"
+    : id.startsWith("stream") ? "Streams" : id === "chapters" ? "Chapters" : null;
 
 const seasonSix = [
     "Honeymoon", "Hitchcock & Scully", "The Tattler", "Four Movements", "A Tale of Two Bandits", "The Crime Scene",
