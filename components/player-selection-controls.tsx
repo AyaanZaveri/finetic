@@ -53,9 +53,10 @@ function drawerTransition(state: DrawerState, event: DrawerEvent): DrawerState {
 }
 
 type PlayingEpisode = { seriesId: string; season: number; episode: number };
-const episodeListSpacing = "space-y-2 py-1";
+const episodeListSpacing = "-mx-[6px] space-y-2 py-1";
 const episodeRowLayout = "flex items-center gap-4 rounded-lg p-2";
-const episodeThumbnail = `${artworkStyles.surface} ${cardStyles.card} ${cardStyles.frame} relative grid aspect-video w-[clamp(3.5rem,25cqw,6rem)] shrink-0 place-items-center overflow-hidden bg-muted`;
+const episodeThumbnailSize = "aspect-video w-[clamp(3.5rem,25cqw,6rem)] shrink-0";
+const episodeThumbnail = `${artworkStyles.surface} ${cardStyles.card} ${cardStyles.frame} ${episodeThumbnailSize} relative grid place-items-center overflow-hidden bg-muted`;
 const episodeTitleText = "text-[0.9375rem] leading-[1.4] font-medium";
 const episodeMetadataText = "mt-1 text-sm leading-snug text-muted-foreground";
 
@@ -204,7 +205,7 @@ function EpisodeChoices({ playing, season, onSelect }: {
                     <LoadingPlaceholder className={episodeListSpacing}>
                         {Array.from({ length: 6 }, (_, index) => (
                             <div key={index} className={episodeRowLayout}>
-                                <Skeleton className={episodeThumbnail} />
+                                <Skeleton className={`${episodeThumbnailSize} rounded-[calc(var(--radius)-2px)]`} />
                                 <div className="min-w-0 flex-1">
                                     <div className={`${episodeTitleText} flex h-[1lh] items-center`}>
                                         <Skeleton className="h-3.5 w-3/5 max-w-44" />

@@ -121,6 +121,11 @@
   transition: background-color var(--duration-instant) var(--ease-out);
 }
 
+.streamSkeleton {
+  border-color: transparent;
+  background: transparent;
+}
+
 .root[data-stream-picker] .streamRow {
   -webkit-user-select: none;
   user-select: none;
