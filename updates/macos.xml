@@ -4,7 +4,7 @@
     <title>Navigator for macOS</title>
     <language>en</language>
     <item>
-      <title>Navigator 0.6.6</title>
+      <title>Navigator 0.6.7</title>
       <description>&lt;!doctype html&gt;
 &lt;html lang=&quot;en&quot;&gt;
 &lt;head&gt;
@@ -23,11 +23,11 @@ p { margin: 0; }
 &lt;body&gt;&lt;p&gt;Update Navigator, then reopen it with your existing sign-in and settings.&lt;/p&gt;&lt;/body&gt;
 &lt;/html&gt;</description>
       <sparkle:minimumSystemVersion>13.5</sparkle:minimumSystemVersion>
-      <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.6.6/Navigator-0.6.6-macos-arm64.zip"
-        sparkle:version="0.6.6" sparkle:shortVersionString="0.6.6"
-        sparkle:edSignature="WKREJg30WaRVIGhGRZRg0otC24uTt8rLZ++ncXif5GI8vkMCtlTbIgUQll7gZeEAsaXL803jEx5eZBjA75loAw==" length="95106915" type="application/octet-stream" />
+      <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.6.7/Navigator-0.6.7-macos-arm64.zip"
+        sparkle:version="0.6.7" sparkle:shortVersionString="0.6.7"
+        sparkle:edSignature="MyWyOQxEyc1/NYx6ovpIHXiY+k1KqOr/HFhBY+UA+RDPUMwfj9lI+/nXiCWFeZoYxlgzci/MjFp2lvCeUnvhCA==" length="95340550" type="application/octet-stream" />
       <sparkle:deltas>
-        <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.6.6/Navigator-0.6.6-macos-arm64-from-0.6.5.delta" sparkle:version="0.6.6" sparkle:deltaFrom="0.6.5" sparkle:edSignature="fwCYgFtXoVESydgY4e0r4R3zE4JeS/DagiqjRvkBbHFqO37HWjOyvYolZwfR21dKwVF8Jehh58wmGWoX+U/eCQ==" length="1288010" type="application/octet-stream" />
+        <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.6.7/Navigator-0.6.7-macos-arm64-from-0.6.6.delta" sparkle:version="0.6.7" sparkle:deltaFrom="0.6.6" sparkle:edSignature="/OzJIbpC58lNL8SUf5wjXN61iu3puWQr1ZSfoaFgRHH+5x0C5UM8OMWpkQ+QWcxba8n4ABObLP7tCKDhy9c2Aw==" length="1041978" type="application/octet-stream" />
       </sparkle:deltas>
     </item>
   </channel>
