@@ -19,8 +19,6 @@ jobs:
         source: ["0.6.5", "0.6.6"]
     runs-on: windows-2025
     timeout-minutes: 18
-    env:
-      AGENT_BROWSER_SESSION: navigator-update
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
@@ -28,8 +26,6 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: 26.7.0
-      - name: Install browser driver
-        run: npm install --global agent-browser@0.43.0
       - name: Click Restart to update and verify the replacement
         shell: pwsh
         run: ./scripts/verify-windows-restart-update.ps1 -SourceVersion '${{ matrix.source }}'

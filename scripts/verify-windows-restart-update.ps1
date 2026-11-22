@@ -10,8 +10,9 @@ $cache = Join-Path $data 'updates'
 $ready = Join-Path $cache 'ready.json'
 $failure = Join-Path $cache 'last-error.txt'
 $executable = Join-Path $install 'navigator-desktop.exe'
-$port = 19422
-$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=$port"
+$startup = Join-Path $data 'startup.jsonl'
+$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--force-renderer-accessibility'
+Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 $fixture = $SourceVersion -eq '0.6.6'
 $app = $null
 $mode = if ($fixture) { 'released 0.6.6 with CI-signed reinstall fixture' } else { 'public 0.6.5 to 0.6.6' }
@@ -26,9 +27,25 @@ function Wait-For([scriptblock]$Condition, [int]$Seconds, [string]$Description) 
     throw "Timed out waiting for $Description"
 }
 
-function Get-Targets {
-    try { Invoke-RestMethod -Uri "http://127.0.0.1:$port/json/list" -TimeoutSec 2 }
-    catch { return }
+function Test-AppReady([int]$ProcessId) {
+    if (!(Test-Path $startup)) { return $false }
+    foreach ($line in (Get-Content $startup -ErrorAction SilentlyContinue)) {
+        try { $event = $line | ConvertFrom-Json } catch { continue }
+        if ($event.pid -eq $ProcessId -and $event.stage -eq 'app-ready') { return $true }
+    }
+    return $false
+}
+
+function Find-UpdateButton([Diagnostics.Process]$Process) {
+    $Process.Refresh()
+    if (!$Process.MainWindowHandle) { return }
+    $element = [System.Windows.Automation.AutomationElement]::FromHandle($Process.MainWindowHandle)
+    foreach ($name in 'Update ready. Restart to update.', 'Restart to update') {
+        $condition = [System.Windows.Automation.PropertyCondition]::new(
+            [System.Windows.Automation.AutomationElement]::NameProperty, $name)
+        $button = $element.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
+        if ($button -and $button.Current.IsEnabled) { return $button }
+    }
 }
 
 function Get-Version {
@@ -63,33 +80,21 @@ try {
     $app = Start-Process -FilePath $executable -WorkingDirectory $install -PassThru
     $oldPid = $app.Id
     Write-Output "Started installed Navigator $SourceVersion (PID $oldPid), case: $mode"
-    $target = Wait-For {
-        if ($app.HasExited) { throw "Navigator exited before opening WebView2: $($app.ExitCode)" }
-        Get-Targets | Where-Object { $_.type -eq 'page' -and $_.url -like 'http://127.0.0.1:37371/*' } | Select-Object -First 1
-    } 75 'the packaged WebView2 page'
-    Write-Output "WebView2 connected: $($target.url)"
-    agent-browser.cmd --cdp "$port" open 'http://127.0.0.1:37371/settings/about'
-    agent-browser.cmd --cdp "$port" wait --fn 'Array.from(document.querySelectorAll("button")).some(b => /^(Check for updates|Download update|Restart to update)$/.test(b.textContent.trim()))'
-    @'
-(() => {
-  const action = Array.from(document.querySelectorAll("button")).find(b => /^(Check for updates|Download update)$/.test(b.textContent.trim()));
-  if (action) action.click();
-})()
-'@ | agent-browser.cmd --cdp "$port" eval --stdin
-    agent-browser.cmd --cdp "$port" wait --fn 'Array.from(document.querySelectorAll("button")).some(b => b.textContent.trim() === "Restart to update" && !b.disabled)'
+    [void](Wait-For {
+        if ($app.HasExited) { throw "Navigator exited before app-ready: $($app.ExitCode)" }
+        Test-AppReady $oldPid
+    } 75 'the installed app to become ready')
+    $button = Wait-For {
+        if ($app.HasExited) { throw 'Navigator exited while preparing the update.' }
+        Find-UpdateButton $app
+    } 90 'the Restart to update button'
     if (!(Test-Path $ready)) { throw 'The UI reported ready without staging an update.' }
     $selection = (Get-Content -Raw $ready | ConvertFrom-Json).selected
     Write-Output "Staged signed payload: $selection"
-
+    $invoke = $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
     $timer = [Diagnostics.Stopwatch]::StartNew()
-    @'
-(() => {
-  const button = Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Restart to update" && !b.disabled);
-  if (!button) throw new Error("Restart button disappeared");
-  setTimeout(() => button.click(), 100);
-  return "Scheduled one Restart to update click";
-})()
-'@ | agent-browser.cmd --cdp "$port" eval --stdin
+    $invoke.Invoke()
+    Write-Output 'Invoked Restart to update once.'
     [void](Wait-For { $app.HasExited } 45 'the original app process to exit')
     $shutdownMs = $timer.ElapsedMilliseconds
     Write-Output "Original process exited after ${shutdownMs}ms (exit $($app.ExitCode))"
@@ -101,13 +106,11 @@ try {
             Where-Object { $_.Id -ne $oldPid -and $_.Path -eq $executable } | Select-Object -First 1
     } 200 'a successful install and new Navigator process'
     Write-Output "Replaced installation and relaunched PID $($relaunch.Id) in $($timer.ElapsedMilliseconds)ms"
-    [void](Wait-For {
-        Get-Targets | Where-Object { $_.type -eq 'page' -and $_.url -like 'http://127.0.0.1:37371/*' } | Select-Object -First 1
-    } 90 'the relaunched WebView2 page')
+    [void](Wait-For { Test-AppReady $relaunch.Id } 90 'the relaunched app to become ready')
     $record = [ordered]@{
         mode = $mode; clicks = 1; sourceVersion = $SourceVersion; installedVersion = Get-Version
         payload = $selection; oldPid = $oldPid; newPid = $relaunch.Id
-        shutdownMs = $shutdownMs; webviewPageMs = $timer.ElapsedMilliseconds
+        shutdownMs = $shutdownMs; appReadyMs = $timer.ElapsedMilliseconds
     }
     $record | ConvertTo-Json | Tee-Object -FilePath (Join-Path $results 'result.json')
 } finally {
