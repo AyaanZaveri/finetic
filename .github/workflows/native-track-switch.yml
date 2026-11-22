@@ -34,12 +34,13 @@ jobs:
         with:
           node-version: 26.7.0
       - uses: dtolnay/rust-toolchain@3da603d4464771f1a8c3dd4acb41f03bc8107551
-      - name: Download pinned playback library and fixture
+      - name: Download pinned playback library
+        run: node scripts/fetch-desktop-libs.mjs
+      - name: Download and check the fixture
         shell: bash
         env:
           LIBMPV_PATH: ${{ matrix.libmpv }}
         run: |
-          node scripts/fetch-desktop-libs.mjs
           node --input-type=module <<'JS'
           import { createHash } from "node:crypto";
           import { access, appendFile, writeFile } from "node:fs/promises";
