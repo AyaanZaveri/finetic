@@ -1,0 +1,61 @@
+name: Measure native track switching
+
+on:
+  push:
+    branches: [windows-workbench-verification]
+    paths:
+      - .github/workflows/native-track-switch.yml
+      - desktop/src/player.rs
+      - desktop/src/track_switch_probe.rs
+
+permissions:
+  contents: read
+
+jobs:
+  track-switch:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            libmpv: desktop/vendor/windows-x86_64/libmpv-2.dll
+          - os: macos-15
+            libmpv: desktop/vendor/macos-aarch64/libmpv.2.dylib
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      CARGO_BUILD_JOBS: "2"
+      NAVIGATOR_TEST_TRACK_URL: https://raw.githubusercontent.com/ietf-wg-cellar/matroska-test-files/e6965e5ca666322ed93e2748a10a4f132309e005/test_files/test5.mkv
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 26.7.0
+      - uses: dtolnay/rust-toolchain@3da603d4464771f1a8c3dd4acb41f03bc8107551
+      - name: Download pinned playback library
+        run: node scripts/fetch-desktop-libs.mjs
+      - name: Download and check the fixture
+        shell: bash
+        env:
+          LIBMPV_PATH: ${{ matrix.libmpv }}
+        run: |
+          node --input-type=module <<'JS'
+          import { createHash } from "node:crypto";
+          import { access, appendFile, writeFile } from "node:fs/promises";
+          import { join, resolve } from "node:path";
+
+          const library = resolve(process.env.LIBMPV_PATH);
+          await access(library);
+          const response = await fetch(process.env.NAVIGATOR_TEST_TRACK_URL, { signal: AbortSignal.timeout(60_000) });
+          if (!response.ok) throw new Error(`MKV download failed with HTTP ${response.status}`);
+          const bytes = Buffer.from(await response.arrayBuffer());
+          const expected = "92acdc33bb0b5d7a4d9b0d6ca792230a78c786a30179dc9999cee41c28642842";
+          if (createHash("sha256").update(bytes).digest("hex") !== expected) throw new Error("MKV checksum mismatch");
+          const sample = join(process.env.RUNNER_TEMP, "elephant-dreams-test5.mkv");
+          await writeFile(sample, bytes);
+          await appendFile(process.env.GITHUB_ENV, `NAVIGATOR_TEST_TRACK_SAMPLE=${sample}\nNAVIGATOR_TEST_LIBMPV=${library}\n`);
+          JS
+      - name: Measure the playback clock during actual track changes
+        run: cargo test --manifest-path desktop/Cargo.toml --locked headless_track_switch_clock -- --ignored --nocapture

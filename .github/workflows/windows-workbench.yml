@@ -1,0 +1,54 @@
+name: Verify Windows player workbench
+
+on:
+  push:
+    branches: [windows-workbench-verification]
+
+permissions:
+  contents: read
+
+jobs:
+  workbench:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      AGENT_BROWSER_SESSION: windows-workbench
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 26.7.0
+          cache: npm
+      - run: npm ci
+      - name: Check track switching and updater logic
+        shell: bash
+        run: |
+          node scripts/test-native-track-loading.cjs
+          node scripts/test-native-readiness.cjs
+          node scripts/test-series-playback.cjs
+          node scripts/test-background-updates.mjs
+      - name: Install browser
+        shell: bash
+        run: |
+          npm install --global agent-browser@0.43.0
+          agent-browser install
+      - name: Verify workbench in Chromium
+        shell: bash
+        run: |
+          npm run dev -- --hostname 127.0.0.1 --port 3000 > workbench-server.log 2>&1 &
+          server_pid=$!
+          trap 'agent-browser close || true; kill "$server_pid" 2>/dev/null || true' EXIT
+          curl --fail --silent --show-error --retry 30 --retry-connrefused --retry-delay 2 --max-time 60 \
+            --output /dev/null http://127.0.0.1:3000/states/player-selection
+          bash scripts/verify-windows-workbench.sh
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always()
+        with:
+          name: windows-player-workbench
+          path: |
+            workbench-server.log
+            workbench-captures/
+          retention-days: 3
