@@ -38,6 +38,7 @@ export function fixture(id: StateId): { addon: AddonListItem; share: AddonShareS
     case "loading": return { addon, share: { kind: "loading" } };
     case "unavailable": return { addon, share: { kind: "unavailable", message: "Could not load the addon link. Close this dialog and try again." } };
     case "copying": return { addon, share: { kind: "copying", url } };
+    case "copied": return { addon, share: { kind: "copied", url } };
     case "copy-error": return { addon, share: { kind: "copy-error", url, message: "Could not copy automatically. Select the link and copy it manually." } };
     default: return { addon, share: { kind: "ready", url } };
     }

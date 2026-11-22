@@ -5,7 +5,7 @@ import { Loader2, Settings, Share2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { getInstalledAddonLinks, uninstallAddon } from "@/app/actions/addons";
 import { Button } from "@/components/ui/button";
-import { AddonShareContent, type AddonShareState } from "@/components/addon-share-content";
+import { ADDON_COPY_CONFIRMATION_MS, AddonShareContent, type AddonShareState } from "@/components/addon-share-content";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import type { AddonListItem } from "@/lib/addons";
 import styles from "./addons-list.module.css";
@@ -48,6 +48,14 @@ export function AddonActions({ addon, onUninstalled, onRemovalFocus }: { addon: 
         return () => { active = false; };
     }, [shareOpen, addon.id]);
 
+    useEffect(() => {
+        if (!shareOpen || share.kind !== "copied") return;
+        const timer = window.setTimeout(() => {
+            setShare(current => current === share ? { kind: "ready", url: share.url } : current);
+        }, ADDON_COPY_CONFIRMATION_MS);
+        return () => window.clearTimeout(timer);
+    }, [shareOpen, share]);
+
     async function copyLink() {
         if (!("url" in share) || share.kind === "copying") return;
         const { url } = share;
@@ -56,8 +64,7 @@ export function AddonActions({ addon, onUninstalled, onRemovalFocus }: { addon: 
         try {
             await navigator.clipboard.writeText(url);
             if (session !== shareSession.current) return;
-            setShare({ kind: "ready", url });
-            toast.success("Addon link copied");
+            setShare({ kind: "copied", url });
         } catch {
             if (session !== shareSession.current) return;
             setShare({ kind: "copy-error", url, message: "Could not copy automatically. Select the link and copy it manually." });

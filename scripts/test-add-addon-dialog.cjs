@@ -20,7 +20,7 @@ async function main() {
         'react/jsx-runtime': h.jsx,
         'next/navigation': { useRouter: () => ({ refresh() {} }) },
         'next/image': { default: 'img' },
-        'lucide-react': components(['ArrowUpRight', 'ExternalLink', 'Link2', 'Loader2', 'Plus', 'Puzzle', 'X']),
+        'lucide-react': components(['ArrowUpRight', 'Check', 'Copy', 'ExternalLink', 'Link2', 'Loader2', 'Plus', 'Puzzle', 'X']),
         sonner: { toast: { success() {} } },
         '@/app/actions/addons': {
             previewAddon: link => new Promise(resolve => lookups.push({ link, resolve })),
@@ -69,7 +69,10 @@ async function main() {
         assert.equal(link?.props.value, share.url);
         if (link) assert.equal(link.props.readOnly, true);
         const copy = content.find(node => node.type === 'Button' && node.props.onClick === onCopy);
-        assert.equal(copy.props.disabled, !share.url || share.kind === 'copying');
+        assert.equal(copy.props.disabled, !share.url);
+        assert.equal(copy.props['aria-disabled'], share.kind === 'copying' || undefined);
+        assert.ok(copy.props.children.includes('Copy link'), 'The button label stays steady while reading the clipboard result');
+        assert.equal(nodes(copy).find(node => node.type === 'span').props['data-copied'], share.kind === 'copied' || undefined);
     }
     shareHost.unmount();
     mediaQuery.matches = false;

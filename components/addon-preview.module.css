@@ -12,6 +12,40 @@
     --addon-wash: 38%;
 }
 
+.copyIcons {
+    display: grid;
+    flex: none;
+    inline-size: 1rem;
+    block-size: 1rem;
+}
+
+.copyIcons > svg {
+    grid-area: 1 / 1;
+    inline-size: 100%;
+    block-size: 100%;
+}
+
+.copyIcons:not([data-copied]) > svg:last-child,
+.copyIcons[data-copied] > svg:first-child {
+    opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .copyIcons > svg {
+        scale: 1;
+        filter: blur(0);
+        transition-property: opacity, scale, filter;
+        transition-duration: 300ms;
+        transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+    }
+
+    .copyIcons:not([data-copied]) > svg:last-child,
+    .copyIcons[data-copied] > svg:first-child {
+        scale: 0.25;
+        filter: blur(4px);
+    }
+}
+
 @supports (-webkit-background-clip: text) {
     .loadingText {
         background-image: linear-gradient(90deg, currentColor 35%, color-mix(in srgb, currentColor 40%, transparent) 50%, currentColor 65%);

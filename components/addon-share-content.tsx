@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState, type RefObject } from "react";
-import { Copy, Link2, Loader2, X } from "lucide-react";
+import { Check, Copy, Link2, Loader2, X } from "lucide-react";
 import { AddonPreviewCard } from "@/components/addon-preview-card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/account-ui/dialog";
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/account-ui/drawer";
@@ -12,10 +12,12 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/in
 import type { AddonListItem } from "@/lib/addons";
 import previewStyle from "./addon-preview.module.css";
 
+export const ADDON_COPY_CONFIRMATION_MS = 1500;
+
 export type AddonShareState =
     | { kind: "loading" }
     | { kind: "unavailable"; message: string }
-    | { kind: "ready" | "copying"; url: string }
+    | { kind: "ready" | "copying" | "copied"; url: string }
     | { kind: "copy-error"; url: string; message: string };
 
 export function AddonShareContent({ addon, state, onCopy, open, onOpenChange, finalFocus }: {
@@ -43,6 +45,7 @@ export function AddonShareContent({ addon, state, onCopy, open, onOpenChange, fi
     const Description = isMobile ? DrawerDescription : DialogDescription;
     const loading = state.kind === "loading";
     const copying = state.kind === "copying";
+    const copied = state.kind === "copied";
     const warningId = addon.configurable ? `${id}-warning` : undefined;
     const errorId = "message" in state ? `${id}-error` : undefined;
 
@@ -80,12 +83,15 @@ export function AddonShareContent({ addon, state, onCopy, open, onOpenChange, fi
                     {state.kind === "unavailable" && <FieldError id={errorId}>{state.message}</FieldError>}
                     <div className={isMobile ? "flex flex-col gap-2" : "flex flex-wrap justify-end gap-2"}>
                         {!isMobile && <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>Close</Button>}
-                        <Button type="button" size={isMobile ? "default" : "sm"} disabled={!("url" in state) || copying}
-                            aria-busy={copying} onClick={onCopy}>
-                            {copying ? <Loader2 data-icon="inline-start" aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
-                                : <Copy data-icon="inline-start" aria-hidden="true" />}
-                            {copying ? "Copying…" : "Copy link"}
+                        <Button type="button" size={isMobile ? "default" : "sm"} disabled={!("url" in state)}
+                            aria-disabled={copying || undefined} onClick={onCopy}>
+                            <span className={previewStyle.copyIcons} data-copied={copied || undefined} aria-hidden="true">
+                                <Copy />
+                                <Check />
+                            </span>
+                            Copy link
                         </Button>
+                        <span className="sr-only" role="status">{copied ? "Addon link copied" : ""}</span>
                     </div>
                 </div>
             </div>

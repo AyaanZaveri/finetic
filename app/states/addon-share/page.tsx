@@ -3,8 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChevronDown, CornerDownRight, Share2 } from "lucide-react";
-import { toast } from "sonner";
-import { AddonShareContent } from "@/components/addon-share-content";
+import { ADDON_COPY_CONFIRMATION_MS, AddonShareContent, type AddonShareState } from "@/components/addon-share-content";
 import { Button } from "@/components/ui/button";
 import { fixture, groups, readState, states, type StateId } from "./fixtures";
 import styles from "./states.module.css";
@@ -23,24 +22,29 @@ function keyboardCommand(event: KeyboardEvent) {
 function Stage({ id }: { id: StateId }) {
     const { addon, share } = fixture(id);
     const [open, setOpen] = useState(false);
+    const [shareState, setShareState] = useState<AddonShareState>(share);
     const trigger = useRef<HTMLButtonElement>(null);
     useEffect(() => {
         // Mount closed so Base UI runs the same entrance as clicking Share.
+        setShareState(fixture(id).share);
         const frame = requestAnimationFrame(() => setOpen(true));
         return () => cancelAnimationFrame(frame);
     }, [id]);
     useEffect(() => {
-        if (id !== "copied") return;
-        const notice = toast.success("Addon link copied", { duration: Infinity });
-        return () => { toast.dismiss(notice); };
-    }, [id]);
+        if (!open || shareState.kind !== "copied") return;
+        const timer = window.setTimeout(() => {
+            setShareState(current => current === shareState ? { kind: "ready", url: shareState.url } : current);
+        }, ADDON_COPY_CONFIRMATION_MS);
+        return () => window.clearTimeout(timer);
+    }, [open, shareState]);
     return <div className={styles.stage}>
-        <Button ref={trigger} variant="outline" size="sm" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
+        <Button ref={trigger} variant="outline" size="sm" aria-haspopup="dialog" aria-expanded={open} onClick={() => { setShareState(share); setOpen(true); }}>
             <Share2 data-icon="inline-start" aria-hidden="true" />Share
         </Button>
-        <AddonShareContent addon={addon} state={share} open={open} onOpenChange={setOpen} finalFocus={trigger} onCopy={() => {
-            if (share.kind === "ready") toast.success("Addon link copied");
-        }} />
+        <AddonShareContent addon={addon} state={shareState}
+            open={open} onOpenChange={setOpen} finalFocus={trigger} onCopy={() => {
+                if ("url" in shareState && shareState.kind !== "copying") setShareState({ kind: "copied", url: shareState.url });
+            }} />
     </div>;
 }
 
