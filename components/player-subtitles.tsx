@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { CaptionsOff, Subtitles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -35,6 +35,7 @@ export function PlayerSubtitles({ mediaRef, sourceKey, native, tracks, requested
   timing: SubtitleTimingAction;
 }) {
   const [snapshot, setSnapshot] = useState<{ tracks: EmbeddedSubtitle[]; container: HTMLElement | null }>({ tracks: [], container: null });
+  const openingTiming = useRef(false);
   useEffect(() => {
     const element = mediaRef.current;
     const update = () => setSnapshot({
@@ -81,14 +82,17 @@ export function PlayerSubtitles({ mediaRef, sourceKey, native, tracks, requested
     }
   };
 
-  return <DropdownMenu modal={false} onOpenChange={open => { if (!open) timing.onClose(); }}>
+  return <DropdownMenu modal={false}>
     <MediaPlayerTooltip tooltip="Subtitles" shortcut="C">
       <DropdownMenuTrigger asChild><Button type="button" variant="player-control" aria-label="Subtitles" aria-keyshortcuts="C"
         data-slot="media-player-subtitles"><Subtitles aria-hidden="true" /></Button></DropdownMenuTrigger>
     </MediaPlayerTooltip>
     <DropdownMenuContent container={snapshot.container} side="top" sideOffset={10} align="end" aria-label="Subtitles"
       data-player-native-glass="" className={styles.menu}
-      onInteractOutside={event => { if ((event.target as Element).closest?.('[data-subtitle-timing]')) event.preventDefault(); }}>
+      onCloseAutoFocus={event => {
+        if (openingTiming.current) event.preventDefault();
+        openingTiming.current = false;
+      }}>
       <DropdownMenuGroup>
         <ScrollArea className={styles.list}>
           <DropdownMenuRadioGroup value={value} onValueChange={select} aria-label="Subtitle track">
@@ -104,8 +108,8 @@ export function PlayerSubtitles({ mediaRef, sourceKey, native, tracks, requested
           {!embedded.length && !external.length && <p className={styles.empty}>No subtitle tracks available.</p>}
         </ScrollArea>
         <DropdownMenuSeparator />
-        <DropdownMenuItem data-slot="media-player-subtitle-timing" aria-haspopup="dialog" aria-expanded={Boolean(timing.open)}
-          onSelect={event => { event.preventDefault(); if (timing.open) timing.onClose(); else timing.onOpen(); }}>
+        <DropdownMenuItem data-slot="media-player-subtitle-timing" aria-haspopup="dialog"
+          onSelect={() => { openingTiming.current = true; timing.onOpen(); }}>
           <span className={styles.timingLabel}>Subtitle timing</span>
           <span className={styles.summary}>{timing.seconds > 0 ? "+" : ""}{timing.seconds.toFixed(1)} s</span>
         </DropdownMenuItem>

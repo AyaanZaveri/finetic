@@ -17,6 +17,12 @@ export function subtitleTime(playbackSeconds: number, delaySeconds: number): num
   return playbackSeconds - delaySeconds;
 }
 
+export function subtitleDelayForMarks(delay: number, heard: number, saw: number): number | null {
+  const next = delay + (heard - saw);
+  if (!Number.isFinite(next) || Math.abs(next) > SUBTITLE_TIMING_LIMIT + 1e-9) return null;
+  return normalizeSubtitleDelay(next);
+}
+
 /** Timing is scoped to each video for this app session, never a global preference. */
 export function useSubtitleTiming(media: MediaToPlay | null) {
   const key = subtitleVideoKey(media);
