@@ -81,8 +81,7 @@ export function AddonShareContent({ addon, state, onCopy, open, onOpenChange, fi
                         <span className={previewStyle.loadingText}>Loading addon link…</span>
                     </p>}
                     {state.kind === "unavailable" && <FieldError id={errorId}>{state.message}</FieldError>}
-                    <div className={isMobile ? "flex flex-col gap-2" : "flex flex-wrap justify-end gap-2"}>
-                        {!isMobile && <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>Close</Button>}
+                    <div className={isMobile ? "flex flex-col" : "flex justify-end"}>
                         <Button type="button" size={isMobile ? "default" : "sm"} disabled={!("url" in state)}
                             aria-disabled={copying || undefined} onClick={onCopy}>
                             <span className={previewStyle.copyIcons} data-copied={copied || undefined} aria-hidden="true">
