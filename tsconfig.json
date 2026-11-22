@@ -41,7 +41,8 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "dist"
   ],
   "rules": {
     "@typescript-eslint/no-unused-vars": "warn"
