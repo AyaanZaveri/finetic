@@ -86,15 +86,17 @@
   }
   document.addEventListener("DOMContentLoaded", mark, { once: true });
   if (platform === "macos" || platform === "windows") {
-    // Only blank header space drags. Controls, suggestions and handled gestures
-    // retain their normal mouse behavior; synthetic events cannot move windows.
+    // Blank header space owns window gestures. Controls keep normal input.
     document.addEventListener("mousedown", (event) => {
-      if (!event.isTrusted || event.defaultPrevented || event.button !== 0 || fullscreen) return;
+      if (!event.isTrusted || event.defaultPrevented || event.button !== 0 || fullscreen ||
+          event.detail > 2 || (platform === "macos" && event.ctrlKey)) return;
       const target = event.target;
       if (!target?.closest || target.closest('a, button, input, textarea, select, [role="button"], [role="menu"], [role="listbox"], [role="option"], [contenteditable], [data-no-window-drag]')) return;
       if (!target.closest("[data-window-drag-region]") && event.clientY >= 20) return;
       event.preventDefault();
-      window.navigatorDesktop.send({ type: "window-drag" });
+      window.navigatorDesktop.send(event.detail === 2
+        ? { type: "window-drag", doubleClick: true }
+        : { type: "window-drag" });
     });
   }
   window.addEventListener("pagehide", () => {

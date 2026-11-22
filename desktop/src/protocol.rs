@@ -66,7 +66,10 @@ pub enum Command {
     UpdateStatus {},
     UpdateCheck {},
     UpdateAutomatic { enabled: bool },
-    WindowDrag {},
+    WindowDrag {
+        #[serde(default, rename = "doubleClick")]
+        double_click: bool,
+    },
     WindowControlsVisible {
         visible: bool,
     },
@@ -281,7 +284,8 @@ mod tests {
         assert!(parse(r#"{"type":"window-controls-visible","visible":true}"#).is_ok());
         assert!(parse(r#"{"type":"window-controls-visible","visible":"false"}"#).is_err());
         assert!(parse(r#"{"type":"window-controls-visible","visible":true,"script":"x"}"#).is_err());
-        assert!(parse(r#"{"type":"window-drag"}"#).is_ok());
+        assert!(matches!(parse(r#"{"type":"window-drag"}"#), Ok(Command::WindowDrag { double_click: false })));
+        assert!(matches!(parse(r#"{"type":"window-drag","doubleClick":true}"#), Ok(Command::WindowDrag { double_click: true })));
         assert!(parse(r#"{"type":"window-control","action":"toggle-maximize"}"#).is_ok());
         assert!(parse(r#"{"type":"window-control","action":"exec"}"#).is_err());
         assert!(parse(r#"{"type":"window-control","action":"close","script":"x"}"#).is_err());
