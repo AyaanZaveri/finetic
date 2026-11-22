@@ -17,7 +17,7 @@ enum UserEvent {
     WindowControlsVisible(bool),
     #[cfg(target_os = "macos")]
     NativeHdrPeak(Option<u32>),
-    DragWindow,
+    TitlebarPress { double_click: bool },
     Close,
     SyncFullscreen,
 }
@@ -98,8 +98,8 @@ pub fn run(mut app: App) -> Result<(), String> {
                 Ok(protocol::Command::NativeHdrPeak { nits }) => {
                     let _ = ipc_proxy.send_event(UserEvent::NativeHdrPeak(nits));
                 }
-                Ok(protocol::Command::WindowDrag {}) => {
-                    let _ = ipc_proxy.send_event(UserEvent::DragWindow);
+                Ok(protocol::Command::WindowDrag { double_click }) => {
+                    let _ = ipc_proxy.send_event(UserEvent::TitlebarPress { double_click });
                 }
                 Ok(
                     command @ (protocol::Command::UpdateStatus {}
@@ -190,6 +190,7 @@ pub fn run(mut app: App) -> Result<(), String> {
     let mut closing = false;
     let mut fullscreen = false;
     let mut window_controls_visible = true;
+    let mut titlebar_action = platform::TitlebarAction::default();
     let mut next_update_probe = Instant::now();
     event_loop.run(move |event, _, flow| {
         // AppKit/Dock quit can destroy the loop without a CloseRequested event.
@@ -295,9 +296,13 @@ pub fn run(mut app: App) -> Result<(), String> {
             }
             #[cfg(target_os = "macos")]
             Event::UserEvent(UserEvent::NativeHdrPeak(nits)) => platform::set_hdr_peak(nits),
-            Event::UserEvent(UserEvent::DragWindow) => {
+            Event::UserEvent(UserEvent::TitlebarPress { double_click }) => {
                 if window.fullscreen().is_none() {
-                    let _ = window.drag_window();
+                    if double_click {
+                        titlebar_action.double_click(&window);
+                    } else {
+                        let _ = window.drag_window();
+                    }
                 }
             }
             Event::UserEvent(UserEvent::SyncFullscreen) => {

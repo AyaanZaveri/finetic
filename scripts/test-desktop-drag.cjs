@@ -54,8 +54,17 @@ for (const platform of ['windows', 'macos']) {
   assert.equal(sent.at(-1).type, 'window-drag', 'Blank header space must still drag');
   press(element('div'), { clientY: 10 });
   assert.equal(sent.length, 2, 'Blank top-edge space must still drag');
+  assert.equal(press(header, { detail: 2 }).defaultPrevented, true);
+  assert.deepEqual(sent.at(-1), { type: 'window-drag', doubleClick: true },
+    'A double-click on blank header space must use the native titlebar action');
+  press(header, { detail: 3 });
+  press(element('button', {}, header), { detail: 2 });
+  press(poster, { detail: 2 });
+  if (platform === 'macos') press(header, { detail: 2, ctrlKey: true });
+  assert.equal(sent.length, 3, 'Triple clicks, controls and macOS context clicks must not trigger a titlebar action');
   window.__navigatorDesktopReceive({ type: 'fullscreen', value: true });
   press(header);
-  assert.equal(sent.length, 2, 'Fullscreen must disable window dragging');
-  console.log(`PASS: ${platform} search suggestion pointer input, nested artwork, interactive controls and native drag guards`);
+  press(header, { detail: 2 });
+  assert.equal(sent.length, 3, 'Fullscreen must disable window gestures');
+  console.log(`PASS: ${platform} search suggestions, interactive controls, native drag and double-click guards`);
 }

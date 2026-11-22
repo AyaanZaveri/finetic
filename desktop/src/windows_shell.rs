@@ -97,7 +97,7 @@ enum UserEvent {
     GlassFrame,
     GlassConsumed(u32, u64),
     Fullscreen(bool),
-    Drag,
+    TitlebarPress { double_click: bool },
     ChromeHover(u32),
     ToggleFullscreen,
     WindowControl(protocol::WindowAction),
@@ -213,8 +213,8 @@ fn make_view(
                 Ok(protocol::Command::GlassConsumed { slot, sequence }) => {
                     let _ = ipc.send_event(UserEvent::GlassConsumed(slot, sequence));
                 }
-                Ok(protocol::Command::WindowDrag {}) => {
-                    let _ = ipc.send_event(UserEvent::Drag);
+                Ok(protocol::Command::WindowDrag { double_click }) => {
+                    let _ = ipc.send_event(UserEvent::TitlebarPress { double_click });
                 }
                 Ok(command) => {
                     let session = serde_json::from_str::<Value>(request.body())
@@ -657,7 +657,13 @@ pub fn run(app: App) -> Result<(), String> {
                 protocol::WindowAction::ToggleMaximize => set_fullscreen(&window, window.fullscreen().is_none(), &mut remaximize),
                 protocol::WindowAction::Close => platform::request_close(&window),
             },
-            Event::UserEvent(UserEvent::Drag) => { if !fullscreen { let _ = window.drag_window(); } }
+            Event::UserEvent(UserEvent::TitlebarPress { double_click }) if !fullscreen => {
+                if double_click {
+                    window.set_maximized(!window.is_maximized());
+                } else {
+                    let _ = window.drag_window();
+                }
+            }
             Event::WindowEvent { event: WindowEvent::KeyboardInput { event: key, is_synthetic: false, .. }, .. }
                 if key.state == tao::event::ElementState::Pressed && !key.repeat
                     && (key.physical_key == tao::keyboard::KeyCode::F11
