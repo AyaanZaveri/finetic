@@ -23,10 +23,34 @@ if (location.pathname === "/states/player-selection") {
 }
 JS
 
+wait_for() {
+  if agent-browser wait --fn "$1"; then return; fi
+  agent-browser snapshot || true
+  agent-browser screenshot "$capture_dir/failure.png" || true
+  agent-browser eval --stdin <<'JS' || true
+({
+  url: location.href,
+  viewport: [innerWidth, innerHeight],
+  platform: window.navigatorDesktop?.platform,
+  statuses: [...document.querySelectorAll("[role=status]")].map(node => ({
+    text: node.textContent, width: node.getBoundingClientRect().width,
+  })),
+  drawer: [...document.querySelectorAll("[data-player-selection-drawer]")].map(node => ({
+    text: node.querySelector("[data-slot=drawer-title]")?.textContent,
+    width: node.getBoundingClientRect().width,
+    blur: getComputedStyle(node).backdropFilter,
+    left: node.getBoundingClientRect().left,
+    right: node.getBoundingClientRect().right,
+  })),
+})
+JS
+  return 1
+}
+
 agent-browser --init-script "$init_script" open "$base_url?__stage=1&__state=closed"
 agent-browser set viewport 1280 900
-agent-browser wait --fn 'Boolean(document.querySelector("[data-player-toolbar]"))'
-agent-browser wait --fn '![...document.querySelectorAll("[role=status]")].some(node => /^Fetching (audio|subtitles)$/.test(node.textContent.trim()))'
+wait_for 'Boolean(document.querySelector("[data-player-toolbar]"))'
+wait_for '![...document.querySelectorAll("[role=status]")].some(node => /^Fetching (audio|subtitles)$/.test(node.textContent.trim()))'
 
 for state in fetching-subtitles fetching-audio; do
   case "$state" in
@@ -34,14 +58,14 @@ for state in fetching-subtitles fetching-audio; do
     fetching-audio) label="Fetching audio" ;;
   esac
   agent-browser open "$base_url?__stage=1&__state=$state"
-  agent-browser wait --fn "[...document.querySelectorAll('[role=status]')].some(node => node.textContent.trim() === '$label' && node.getBoundingClientRect().width > 0)"
+  wait_for "[...document.querySelectorAll('[role=status]')].some(node => node.textContent.trim() === '$label' && node.getBoundingClientRect().width > 0)"
   agent-browser screenshot "$capture_dir/$state.png"
 done
 
 check_drawer() {
   local state="$1" heading="$2" expected_width="$3"
   agent-browser open "$base_url?__stage=1&__state=$state"
-  agent-browser wait --fn "(() => {
+  wait_for "(() => {
     const drawer = document.querySelector('[data-player-selection-drawer]');
     if (!drawer || window.navigatorDesktop?.platform !== 'windows') return false;
     const style = getComputedStyle(drawer);

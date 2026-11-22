@@ -132,7 +132,9 @@ function Stage({ id }: { id: StateId }) {
 
 function StageFrame({ initialState }: { initialState: StateId }) {
     const [id, setId] = useState(initialState);
+    const [mounted, setMounted] = useState(false);
     useEffect(() => {
+        setMounted(true);
         const receive = (event: MessageEvent) => {
             if (event.origin === location.origin && event.source === window.parent && event.data?.channel === channel) {
                 setId(readState(event.data.state));
@@ -153,7 +155,7 @@ function StageFrame({ initialState }: { initialState: StateId }) {
             window.removeEventListener("keydown", onKey);
         };
     }, []);
-    return <Stage key={id} id={id} />;
+    return mounted ? <Stage key={id} id={id} /> : null;
 }
 
 function Switcher({ active }: { active: StateId }) {
