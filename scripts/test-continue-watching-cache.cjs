@@ -32,20 +32,23 @@ const { continueWatchingOptions, continueWatchingCardKey } = load('lib/media/con
 })().catch(error=>{console.error(error);process.exitCode=1;});
 
 // Exercise the row's actual cached render, including optional captions and watcher.
-const h = hooks();
 const cachedItems = [{id:'tt1',type:'movie',name:'Known',year:2014},{id:'tt2',type:'movie',name:'Missing'}];
 let refreshed=0, listener, pendingRemovals=[];
-const { ContinueWatchingSection } = load('components/home-continue-watching.tsx', {
+let cachedAtMount = cachedItems;
+let resumeResult = { data: cachedItems, isPending: false, refetch: () => { refreshed++; } };
+const loadSection = h => load('components/home-continue-watching.tsx', {
     './media-section.module.css': { track: 'track' },
  react:h.react,'react/jsx-runtime':h.jsx,
- '@tanstack/react-query':{...require('@tanstack/react-query'),useMutationState:()=>pendingRemovals,useQuery:options=>options.queryKey[0]==='resume-movie-year'?{data:2014}:{data:cachedItems,isPending:false,refetch:()=>{refreshed++;}}},
- '@/components/stream-query-provider':{useStreamQueries:()=>({scope:'user:session',client:{getQueryData:()=>cachedItems}})},
+ '@tanstack/react-query':{...require('@tanstack/react-query'),useMutationState:()=>pendingRemovals,useQuery:options=>options.queryKey[0]==='resume-movie-year'?{data:2014}:resumeResult},
+ '@/components/stream-query-provider':{useStreamQueries:()=>({scope:'user:session',client:{getQueryData:()=>cachedAtMount}})},
  '@/app/actions/media':{fetchResumeItems(){},fetchResumeMovieYear(){}},
  '@/components/continue-watching-warmup':{ContinueWatchingWarmup:'warmup'},
  '@/components/home-palette-provider':{HomeInitialPalette:'palette'},
  '@/components/media-section':{MediaSection:'row'}, '@/components/ui/skeleton':{Skeleton:'skeleton'},
  '@/lib/artwork':{mediaArtwork:()=>({})},
-},{window:{addEventListener:(_,callback)=>{listener=callback;},removeEventListener(){}}});
+},{window:{addEventListener:(_,callback)=>{listener=callback;},removeEventListener(){}}}).ContinueWatchingSection;
+let h = hooks();
+let ContinueWatchingSection = loadSection(h);
 const tree=h.render(ContinueWatchingSection);h.flush();
 const nodes=node=>!node||typeof node!=='object'?[]:[node,...[node.props?.children].flat(Infinity).flatMap(nodes)];
 const row=nodes(tree).find(node=>node.type==='row');
@@ -63,4 +66,28 @@ pendingRemovals=[continueWatchingCardKey(cachedItems[0])];
 assert.deepEqual(Array.from(nodes(h.render(ContinueWatchingSection)).find(node=>node.type==='row').props.mediaItems),[cachedItems[1]],'A pending removal hides only the selected card');
 pendingRemovals=[];
 assert.deepEqual(Array.from(nodes(h.render(ContinueWatchingSection)).find(node=>node.type==='row').props.mediaItems),cachedItems,'A failed removal lets the card return in its original position');
+h.unmount();
+
+cachedAtMount = undefined;
+h = hooks();
+ContinueWatchingSection = loadSection(h);
+resumeResult = { ...resumeResult, data: undefined, dataUpdatedAt: 0, isPending: true };
+assert.ok(nodes(h.render(ContinueWatchingSection)).some(node => node.type === 'skeleton'));
+h.flush();
+resumeResult = { ...resumeResult, data: cachedItems, dataUpdatedAt: 1, isPending: false };
+const restored = nodes(h.render(ContinueWatchingSection));
+assert.equal(restored.find(node => node.type === 'row').props.revealArtwork, false);
+resumeResult = { ...resumeResult, data: [{ ...cachedItems[0], progressPercent: 25 }], dataUpdatedAt: Date.now() + 1 };
+const refreshedRow = nodes(h.render(ContinueWatchingSection));
+assert.equal(refreshedRow.find(node => node.type === 'row').props.revealArtwork, false,
+    'Refreshing an asynchronously restored snapshot must not restart the artwork fades');
+assert.equal(refreshedRow.find(node => node.type === 'row').props.mediaItems[0].progressPercent, 25);
+assert.ok(!refreshedRow.some(node => node.type === 'skeleton'));
+h.unmount();
+
+h = hooks();
+ContinueWatchingSection = loadSection(h);
+resumeResult = { ...resumeResult, dataUpdatedAt: Date.now() + 10_000 };
+assert.equal(nodes(h.render(ContinueWatchingSection)).find(node => node.type === 'row').props.revealArtwork, true,
+    'The first live response on a cold start still reveals the artwork');
 h.unmount();
