@@ -302,7 +302,6 @@ export function MediaActions({ media, movie, streamSelection }: MediaActionsProp
                   onClick={() => handlePlay(stream)} draggable={false}
                 >
                   <StreamSummary stream={stream} fallbackLabel={getSourceLabel(stream)} />
-                  {current && <span className={styles.streamFile}>Current stream</span>}
                   {(stream.behaviorHints?.filename ||
                     stream.behaviorHints?.videoSize) && (
                     <span className={styles.streamFile}>
