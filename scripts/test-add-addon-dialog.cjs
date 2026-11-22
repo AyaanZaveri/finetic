@@ -14,7 +14,8 @@ async function main() {
     let timerId = 0;
     let installs = 0;
     const components = names => Object.fromEntries(names.map(name => [name, name]));
-    const { AddAddonDialog } = load('components/add-addon-dialog.tsx', {
+    let previewHost = hooks();
+    const dependencies = {
         react: { ...h.react, useId: () => 'test-addon', useTransition: () => [false, work => { void work(); }] },
         'react/jsx-runtime': h.jsx,
         'next/navigation': { useRouter: () => ({ refresh() {} }) },
@@ -37,6 +38,31 @@ async function main() {
         '@/components/account-ui/surface.module.css': { surface: 'surface' },
         './browse-addon-link.module.css': { link: 'browse-link', arrow: 'browse-arrow' },
         './addon-preview.module.css': { card: 'preview-card', artwork: 'preview-artwork' },
+    };
+    const { AddonPreviewCard } = load('components/addon-preview-card.tsx', {
+        ...dependencies, react: new Proxy({}, { get: (_, key) => previewHost.react[key] }),
+    });
+    const { AddonShareContent } = load('components/addon-share-content.tsx', {
+        ...dependencies,
+        react: { useId: () => 'share-fixture' },
+        '@/components/addon-preview-card': { AddonPreviewCard },
+        '@/components/arc/dialog/dialog': components(['DialogClose', 'DialogContent']),
+        '@/components/ui/input': components(['Input']),
+        './addons-list.module.css': {},
+    });
+    const { groups, fixture } = load('app/states/addon-share/fixtures.ts');
+    for (const { id } of groups.flatMap(group => group.states)) {
+        const { addon, share } = fixture(id);
+        const content = nodes(AddonShareContent({ addon, state: share, onCopy() {} }));
+        const card = content.find(node => node.type === AddonPreviewCard);
+        assert.equal(card.props.addon, addon, 'Sharing uses the install preview card in every state');
+        const link = content.find(node => node.type === 'Input');
+        assert.equal(link?.props.value, share.url);
+        const copy = content.find(node => node.type === 'Button' && typeof node.props.onClick === 'function');
+        assert.equal(copy.props.disabled, !share.url || share.kind === 'copying');
+    }
+    const { AddAddonDialog } = load('components/add-addon-dialog.tsx', {
+        ...dependencies, '@/components/addon-preview-card': { AddonPreviewCard },
     }, {
         URL,
         navigator: { clipboard: { readText: () => readClipboard() } },
@@ -44,7 +70,17 @@ async function main() {
         setTimeout: (work, delay) => { assert.equal(delay, 600); timers.set(++timerId, work); return timerId; },
         clearTimeout: id => timers.delete(id),
     });
-    const render = () => { h.render(AddAddonDialog); h.flush(); return h.render(AddAddonDialog); };
+    const render = () => {
+        h.render(AddAddonDialog); h.flush();
+        const tree = h.render(AddAddonDialog);
+        const preview = nodes(tree).find(node => node.type === AddonPreviewCard);
+        if (preview) {
+            const card = previewHost.render(AddonPreviewCard, preview.props);
+            previewHost.flush();
+            Object.assign(preview, card);
+        } else { previewHost.unmount(); previewHost = hooks(); }
+        return tree;
+    };
     const find = type => nodes(render()).find(node => node.type === type);
     const change = value => { find('InputGroupInput').props.onChange({ target: { value } }); render(); };
     const runTimers = () => { const work = [...timers.values()]; timers.clear(); work.forEach(run => run()); };
@@ -154,6 +190,7 @@ async function main() {
     assert.equal(find('Drawer').props.open, false, 'Header close dismisses the drawer');
     assert.equal(find('InputGroupInput').props.value, '', 'Header close resets the link');
     h.unmount();
+    previewHost.unmount();
     console.log('PASS: debounced addon lookup, icon loading/fallback, stale result protection, cancel, directory link, and explicit install boundary');
 }
 

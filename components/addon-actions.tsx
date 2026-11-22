@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Copy, Loader2, Settings, Share2, Trash2 } from "lucide-react";
+import { Loader2, Settings, Share2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { getInstalledAddonLinks, uninstallAddon } from "@/app/actions/addons";
-import { Dialog, DialogClose, DialogContent, DialogTrigger } from "@/components/arc/dialog/dialog";
+import { Dialog, DialogTrigger } from "@/components/arc/dialog/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { AddonShareContent, type AddonShareState } from "@/components/addon-share-content";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import type { AddonListItem } from "@/lib/addons";
 import styles from "./addons-list.module.css";
@@ -23,36 +23,45 @@ export function AddonActions({ addon, onUninstalled, onRemovalFocus }: { addon: 
     const uninstalled = useRef(false);
     const [shareOpen, setShareOpen] = useState(false);
     const [removeOpen, setRemoveOpen] = useState(false);
-    const [shareUrl, setShareUrl] = useState<string | null>(null);
-    const [shareError, setShareError] = useState<string | null>(null);
+    const [share, setShare] = useState<AddonShareState>({ kind: "loading" });
+    const shareSession = useRef(0);
     const [removeError, setRemoveError] = useState<string | null>(null);
     const [removing, setRemoving] = useState(false);
-    const [copying, setCopying] = useState(false);
+
+    function changeShareOpen(open: boolean) {
+        shareSession.current++;
+        if (open) setShare({ kind: "loading" });
+        setShareOpen(open);
+    }
 
     useEffect(() => {
         if (!shareOpen) return;
         let active = true;
-        setShareError(null);
-        setShareUrl(null);
-        getInstalledAddonLinks(addon.id).then((result) => {
+        const fallback = "Could not load the addon link. Close this dialog and try again.";
+        void getInstalledAddonLinks(addon.id).then(result => {
             if (!active) return;
-            setShareUrl(result.shareUrl);
-            setShareError(result.error);
+            setShare(result.shareUrl ? { kind: "ready", url: result.shareUrl }
+                : { kind: "unavailable", message: result.error ?? fallback });
         }).catch(() => {
-            if (active) setShareError("Could not load the addon link. Close this dialog and try again.");
+            if (active) setShare({ kind: "unavailable", message: fallback });
         });
         return () => { active = false; };
     }, [shareOpen, addon.id]);
 
     async function copyLink() {
-        if (!shareUrl || copying) return;
-        setCopying(true);
+        if (!("url" in share) || share.kind === "copying") return;
+        const { url } = share;
+        const session = shareSession.current;
+        setShare({ kind: "copying", url });
         try {
-            await navigator.clipboard.writeText(shareUrl);
+            await navigator.clipboard.writeText(url);
+            if (session !== shareSession.current) return;
+            setShare({ kind: "ready", url });
             toast.success("Addon link copied");
         } catch {
-            setShareError("Could not copy automatically. Select the link and copy it manually.");
-        } finally { setCopying(false); }
+            if (session !== shareSession.current) return;
+            setShare({ kind: "copy-error", url, message: "Could not copy automatically. Select the link and copy it manually." });
+        }
     }
 
     async function remove(animate: boolean) {
@@ -82,24 +91,9 @@ export function AddonActions({ addon, onUninstalled, onRemovalFocus }: { addon: 
                         </a>
                     </Button>
                 )}
-                <Dialog open={shareOpen} onOpenChange={setShareOpen}>
+                <Dialog open={shareOpen} onOpenChange={changeShareOpen}>
                     <DialogTrigger asChild><Button variant="outline" size="sm" aria-label={`Share ${addon.name}`}><Share2 data-icon="inline-start" aria-hidden="true" />Share</Button></DialogTrigger>
-                    <DialogContent title={`Share ${addon.name}`} description="Copy the manifest link to install this addon in Stremio.">
-                        <div className={styles.dialogBody}>
-                            {shareUrl ? (
-                                <>
-                                    <label htmlFor={`share-${addon.id}`} className="text-sm font-medium">Addon link</label>
-                                    <Input id={`share-${addon.id}`} value={shareUrl} readOnly onFocus={(event) => event.currentTarget.select()} />
-                                    {addon.configurable && <p className="text-sm text-muted-foreground">This configured link may include your personal addon settings. Share it only with people you trust.</p>}
-                                </>
-                            ) : !shareError && <p role="status">Loading addon link…</p>}
-                            {shareError && <p role="alert" className={styles.error}>{shareError}</p>}
-                            <div className={styles.dialogActions}>
-                                <DialogClose asChild><Button variant="outline">Close</Button></DialogClose>
-                                <Button disabled={!shareUrl || copying} onClick={copyLink}><Copy data-icon="inline-start" aria-hidden="true" />{copying ? "Copying…" : "Copy link"}</Button>
-                            </div>
-                        </div>
-                    </DialogContent>
+                    <AddonShareContent addon={addon} state={share} onCopy={copyLink} />
                 </Dialog>
             </div>
             {!addon.protected && (

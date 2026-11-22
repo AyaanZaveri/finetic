@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState, useTransition, type CSSProperties, type FormEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { ArrowUpRight, ExternalLink, Link2, Loader2, Plus, Puzzle, X } from "lucide-react";
+import { ArrowUpRight, ExternalLink, Link2, Loader2, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { installAddon, previewAddon } from "@/app/actions/addons";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/account-ui/dialog";
@@ -11,10 +11,7 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } f
 import { Button } from "@/components/ui/button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { ADDON_CAPABILITIES } from "@/lib/addons";
-import { loadHomePalette } from "@/lib/aurora-palette-loader";
+import { AddonPreviewCard } from "@/components/addon-preview-card";
 import { useStreamQueries } from "@/components/stream-query-provider";
 import surface from "@/components/account-ui/surface.module.css";
 import browseLink from "./browse-addon-link.module.css";
@@ -52,17 +49,6 @@ export function AddAddonDialog() {
     const [error, setError] = useState<string | null>(null);
     const [pending, startTransition] = useTransition();
     const [lookupPending, setLookupPending] = useState(false);
-    const [logoPalette, setLogoPalette] = useState<{ source: string; color: string } | null>(null);
-
-    useEffect(() => {
-        const source = preview?.logo;
-        if (!source) return;
-        let cancelled = false;
-        void loadHomePalette(source).then(colors => {
-            if (!cancelled && colors?.[0]) setLogoPalette({ source, color: colors[0] });
-        }).catch(() => { /* Keep the neutral card when artwork cannot be sampled. */ });
-        return () => { cancelled = true; };
-    }, [preview?.logo]);
 
     const review = useCallback(async (value: string, currentRequest: number) => {
         try {
@@ -149,7 +135,6 @@ export function AddAddonDialog() {
         });
     }
 
-    const capabilities = ADDON_CAPABILITIES.filter(item => preview?.capabilities.includes(item.value));
 
     const Modal = isMobile ? Drawer : Dialog;
     const ModalContent = isMobile ? DrawerContent : DialogContent;
@@ -223,30 +208,11 @@ export function AddAddonDialog() {
                                 {error && <FieldError id={`${id}-error`}>{error}</FieldError>}
                             </Field>
                         </FieldGroup>
-                        {preview && (
-                            <section aria-label="Addon preview" className={`${previewStyle.card} flex min-w-0 flex-col gap-4 rounded-xl border p-4`} aria-live="polite"
-                                style={logoPalette && logoPalette.source === preview.logo ? { "--addon-color": logoPalette.color } as CSSProperties : undefined}>
-                                <div className="flex min-w-0 items-center gap-3">
-                                    <Avatar className="size-10 shrink-0 rounded-[10px]">
-                                        {preview.logo && <AvatarImage src={preview.logo} alt="" referrerPolicy="no-referrer" draggable={false} className="object-contain" />}
-                                        <AvatarFallback className="rounded-[10px] bg-transparent text-muted-foreground"><Puzzle className="size-5" /></AvatarFallback>
-                                    </Avatar>
-                                    <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-1">
-                                        <h2 className="break-words text-base font-semibold leading-[1.3]">{preview.name}</h2>
-                                        {preview.version && <span className="break-words text-base font-normal leading-[1.3] text-muted-foreground">v{preview.version}</span>}
-                                    </div>
-                                </div>
-                                {preview.description && <p className="break-words text-sm leading-[1.5] text-pretty text-muted-foreground">{preview.description}</p>}
-                                {capabilities.length > 0 && <div className="flex flex-wrap gap-1.5">
-                                    {capabilities.map(item => (
-                                        <Badge key={item.value} variant="outline" className="text-xs text-muted-foreground">{item.label}</Badge>
-                                    ))}
-                                </div>}
-                                {configurationRequired && <p className="text-sm leading-[1.5] text-muted-foreground">
-                                    Configure this addon first, then paste its configured link here.
-                                </p>}
-                            </section>
-                        )}
+                        {preview && <AddonPreviewCard addon={preview}>
+                            {configurationRequired && <p className="text-sm leading-[1.5] text-muted-foreground">
+                                Configure this addon first, then paste its configured link here.
+                            </p>}
+                        </AddonPreviewCard>}
                         {isMobile ? (
                             <div className="flex flex-col items-center gap-2">
                                 {primaryAction}
