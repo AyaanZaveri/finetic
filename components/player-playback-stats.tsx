@@ -89,6 +89,7 @@ export function PlayerPlaybackStats({ open, videoRef, onClose }: {
 
     const stats = reading?.stats;
     const freezeLabel = frozen ? "Resume stats updates" : "Freeze stats";
+    const FreezeIcon = frozen ? Play : Pause;
     const rows = [
         ["Playback", stats?.path],
         ["Decoder route", stats?.route],
@@ -139,11 +140,11 @@ export function PlayerPlaybackStats({ open, videoRef, onClose }: {
             </h2>
             <div className="-me-1 ms-auto flex items-center gap-1">
                 <Button type="button" variant="ghost" size="icon-xs" aria-label={freezeLabel} title={freezeLabel}
-                    className="size-7 text-white/75 hover:bg-white/15 hover:text-white" onClick={() => setFrozen(value => !value)}>
-                    {frozen ? <Play aria-hidden="true" className="size-4" fill="currentColor" /> : <Pause aria-hidden="true" className="size-4" fill="currentColor" />}
+                    className="size-7 text-white hover:bg-white/15" onClick={() => setFrozen(value => !value)}>
+                    <FreezeIcon aria-hidden="true" className="size-4 scale-70" fill="currentColor" />
                 </Button>
                 <Button type="button" variant="ghost" size="icon-xs" aria-label="Hide stats for nerds"
-                    className="size-7 text-white/75 hover:bg-white/15 hover:text-white" onClick={() => {
+                    className="size-7 text-white hover:bg-white/15" onClick={() => {
                         const player = panelRef.current?.parentElement;
                         releaseDrag();
                         onClose();
