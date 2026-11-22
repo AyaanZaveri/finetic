@@ -35,32 +35,44 @@ async function main() {
         '@/components/ui/badge': components(['Badge']),
         '@/lib/addons': load('lib/addons.ts', {}),
         '@/lib/aurora-palette-loader': { loadHomePalette: source => new Promise(resolve => palettes.push({ source, resolve })) },
-        '@/components/account-ui/surface.module.css': { surface: 'surface' },
+        '@/components/account-ui/surface.module.css': { surface: 'surface', addonBackdrop: 'addon-backdrop' },
         './browse-addon-link.module.css': { link: 'browse-link', arrow: 'browse-arrow' },
         './addon-preview.module.css': { card: 'preview-card', artwork: 'preview-artwork' },
     };
     const { AddonPreviewCard } = load('components/addon-preview-card.tsx', {
         ...dependencies, react: new Proxy({}, { get: (_, key) => previewHost.react[key] }),
     });
+    const shareHost = hooks();
     const { AddonShareContent } = load('components/addon-share-content.tsx', {
         ...dependencies,
-        react: { useId: () => 'share-fixture' },
+        react: { ...shareHost.react, useId: () => 'share-fixture' },
         '@/components/addon-preview-card': { AddonPreviewCard },
-        '@/components/arc/dialog/dialog': components(['DialogClose', 'DialogContent']),
-        '@/components/ui/input': components(['Input']),
-        './addons-list.module.css': {},
+    }, {
+        window: { matchMedia: query => { assert.equal(query, "(max-width: 639px)"); return mediaQuery; } },
     });
     const { groups, fixture } = load('app/states/addon-share/fixtures.ts');
-    for (const { id } of groups.flatMap(group => group.states)) {
+    for (const mobile of [false, true]) for (const { id } of groups.flatMap(group => group.states)) {
+        mediaQuery.matches = mobile;
+        mediaQuery.dispatchEvent(new Event('change'));
         const { addon, share } = fixture(id);
-        const content = nodes(AddonShareContent({ addon, state: share, onCopy() {} }));
+        const onCopy = () => {};
+        const props = { addon, state: share, open: true, onOpenChange() {}, onCopy, finalFocus: { current: null } };
+        shareHost.render(AddonShareContent, props); shareHost.flush();
+        const content = nodes(shareHost.render(AddonShareContent, props));
+        const shell = content.find(node => node.type === (mobile ? 'DrawerContent' : 'DialogContent'));
+        assert.equal(shell.props.finalFocus, props.finalFocus, 'Closing restores focus to the Share button');
+        assert.match(shell.props.className, /surface/);
+        assert.equal(shell.props.overlayClassName, 'addon-backdrop');
         const card = content.find(node => node.type === AddonPreviewCard);
         assert.equal(card.props.addon, addon, 'Sharing uses the install preview card in every state');
-        const link = content.find(node => node.type === 'Input');
+        const link = content.find(node => node.type === 'InputGroupInput');
         assert.equal(link?.props.value, share.url);
-        const copy = content.find(node => node.type === 'Button' && typeof node.props.onClick === 'function');
+        if (link) assert.equal(link.props.readOnly, true);
+        const copy = content.find(node => node.type === 'Button' && node.props.onClick === onCopy);
         assert.equal(copy.props.disabled, !share.url || share.kind === 'copying');
     }
+    shareHost.unmount();
+    mediaQuery.matches = false;
     const { AddAddonDialog } = load('components/add-addon-dialog.tsx', {
         ...dependencies, '@/components/addon-preview-card': { AddonPreviewCard },
     }, {

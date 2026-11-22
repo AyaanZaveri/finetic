@@ -83,19 +83,6 @@
   min-width: 0;
 }
 
-.dialogBody {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.dialogActions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
 .error {
   color: var(--destructive);
   overflow-wrap: anywhere;

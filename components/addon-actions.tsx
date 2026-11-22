@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2, Settings, Share2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { getInstalledAddonLinks, uninstallAddon } from "@/app/actions/addons";
-import { Dialog, DialogTrigger } from "@/components/arc/dialog/dialog";
 import { Button } from "@/components/ui/button";
 import { AddonShareContent, type AddonShareState } from "@/components/addon-share-content";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -21,6 +20,7 @@ export function AddonActions({ addon, onUninstalled, onRemovalFocus }: { addon: 
         return () => window.removeEventListener("focus", returned);
     }, [queries]);
     const uninstalled = useRef(false);
+    const shareTrigger = useRef<HTMLButtonElement>(null);
     const [shareOpen, setShareOpen] = useState(false);
     const [removeOpen, setRemoveOpen] = useState(false);
     const [share, setShare] = useState<AddonShareState>({ kind: "loading" });
@@ -91,10 +91,12 @@ export function AddonActions({ addon, onUninstalled, onRemovalFocus }: { addon: 
                         </a>
                     </Button>
                 )}
-                <Dialog open={shareOpen} onOpenChange={changeShareOpen}>
-                    <DialogTrigger asChild><Button variant="outline" size="sm" aria-label={`Share ${addon.name}`}><Share2 data-icon="inline-start" aria-hidden="true" />Share</Button></DialogTrigger>
-                    <AddonShareContent addon={addon} state={share} onCopy={copyLink} />
-                </Dialog>
+                <Button ref={shareTrigger} variant="outline" size="sm" aria-label={`Share ${addon.name}`} aria-haspopup="dialog"
+                    aria-expanded={shareOpen} onClick={() => changeShareOpen(true)}>
+                    <Share2 data-icon="inline-start" aria-hidden="true" />Share
+                </Button>
+                <AddonShareContent addon={addon} state={share} onCopy={copyLink}
+                    open={shareOpen} onOpenChange={changeShareOpen} finalFocus={shareTrigger} />
             </div>
             {!addon.protected && (
                 <AlertDialog open={removeOpen} onOpenChange={(open) => { if (!removing) { setRemoveOpen(open); setRemoveError(null); } }}>

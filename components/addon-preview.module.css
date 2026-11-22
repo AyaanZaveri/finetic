@@ -5,6 +5,7 @@
         color-mix(in oklab, var(--addon-color) var(--addon-wash), var(--background)) 0%,
         color-mix(in oklab, var(--addon-color) 4%, var(--background)) 60%,
         var(--background) 100%);
+    background-clip: padding-box;
 }
 
 :global(.dark) .card {

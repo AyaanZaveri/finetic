@@ -174,7 +174,7 @@ export function AddAddonDialog() {
                 <Plus data-icon="inline-start" aria-hidden="true" /><span className="hidden sm:inline">Add addon</span>
             </Button>
             <Modal open={open} onOpenChange={changeOpen} {...(isMobile ? { showSwipeHandle: true } : {})}>
-                <ModalContent id={`${id}-dialog`} className={isMobile
+                <ModalContent id={`${id}-dialog`} overlayClassName={surface.addonBackdrop} className={isMobile
                     ? `${surface.surface} [--drawer-inset:0.5rem] after:hidden`
                     : `${surface.surface} max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain gap-7 p-6 sm:max-w-[560px]`} finalFocus={trigger}>
                     <ModalHeader className={isMobile ? "relative p-6 pb-0" : "pr-8"}>

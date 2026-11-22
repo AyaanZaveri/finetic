@@ -12,6 +12,29 @@
     background: color-mix(in oklab, var(--background) 70%, transparent);
 }
 
+.addonBackdrop {
+    animation: none;
+}
+
+.addonBackdrop:not([data-swiping]) {
+    transition: opacity var(--duration-standard) var(--ease-out);
+}
+
+.addonBackdrop[data-starting-style],
+.addonBackdrop[data-ending-style] {
+    opacity: 0;
+}
+
+.addonBackdrop[data-ending-style]:not([data-swiping]) {
+    transition-duration: var(--duration-fast);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .addonBackdrop:not([data-swiping]) {
+        transition: none;
+    }
+}
+
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     .surface { background: var(--popover); }
 }

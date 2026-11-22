@@ -5,7 +5,6 @@ import { useSearchParams } from "next/navigation";
 import { ChevronDown, CornerDownRight, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { AddonShareContent } from "@/components/addon-share-content";
-import { Dialog, DialogTrigger } from "@/components/arc/dialog/dialog";
 import { Button } from "@/components/ui/button";
 import { fixture, groups, readState, states, type StateId } from "./fixtures";
 import styles from "./states.module.css";
@@ -23,19 +22,25 @@ function keyboardCommand(event: KeyboardEvent) {
 
 function Stage({ id }: { id: StateId }) {
     const { addon, share } = fixture(id);
-    const [open, setOpen] = useState(true);
+    const [open, setOpen] = useState(false);
+    const trigger = useRef<HTMLButtonElement>(null);
+    useEffect(() => {
+        // Mount closed so Base UI runs the same entrance as clicking Share.
+        const frame = requestAnimationFrame(() => setOpen(true));
+        return () => cancelAnimationFrame(frame);
+    }, [id]);
     useEffect(() => {
         if (id !== "copied") return;
         const notice = toast.success("Addon link copied", { duration: Infinity });
         return () => { toast.dismiss(notice); };
     }, [id]);
     return <div className={styles.stage}>
-        <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild><Button variant="outline" size="sm"><Share2 data-icon="inline-start" aria-hidden="true" />Share</Button></DialogTrigger>
-            <AddonShareContent addon={addon} state={share} onCopy={() => {
-                if (share.kind === "ready") toast.success("Addon link copied");
-            }} />
-        </Dialog>
+        <Button ref={trigger} variant="outline" size="sm" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
+            <Share2 data-icon="inline-start" aria-hidden="true" />Share
+        </Button>
+        <AddonShareContent addon={addon} state={share} open={open} onOpenChange={setOpen} finalFocus={trigger} onCopy={() => {
+            if (share.kind === "ready") toast.success("Addon link copied");
+        }} />
     </div>;
 }
 
@@ -62,10 +67,11 @@ function StageFrame({ initialState }: { initialState: StateId }) {
             window.removeEventListener("keydown", onKey);
         };
     }, []);
-    return <Stage key={id} id={id} />;
+    return <Stage id={id} />;
 }
 
 function Switcher({ active }: { active: StateId }) {
+    const [initialState] = useState(active);
     const [hidden, setHidden] = useState(false);
     const nav = useRef<HTMLElement>(null);
     const frame = useRef<HTMLIFrameElement>(null);
@@ -127,7 +133,7 @@ function Switcher({ active }: { active: StateId }) {
                 </select>
                 <ChevronDown aria-hidden="true" size={12} />
             </div>
-            <iframe ref={frame} src="/states/addon-share?__stage=1" className={styles.frame}
+            <iframe ref={frame} src={`/states/addon-share?__stage=1&__state=${initialState}`} className={styles.frame}
                 title="Addon share workbench" />
         </div>
     </div>;
