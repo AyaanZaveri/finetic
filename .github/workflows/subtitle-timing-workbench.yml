@@ -74,15 +74,31 @@ jobs:
           chmod +x "${RUNNER_TEMP}/cloudflared"
           "${RUNNER_TEMP}/cloudflared" tunnel --no-autoupdate --protocol http2 --url http://127.0.0.1:3001 \
             > "${RUNNER_TEMP}/subtitle-tunnel.log" 2>&1 &
-          url=
-          for attempt in {1..40}; do
-            url="$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "${RUNNER_TEMP}/subtitle-tunnel.log" | head -1 || true)"
-            if [[ -n "$url" ]]; then break; fi
-            sleep 2
-          done
-          if [[ -z "$url" ]]; then cat "${RUNNER_TEMP}/subtitle-tunnel.log"; exit 1; fi
-          curl --fail --silent --show-error --retry 20 --retry-all-errors --retry-delay 2 \
-            --output /dev/null "$url/states/subtitle-timing"
+          route=/states/subtitle-timing
+          wait_for_preview() {
+            local tunnel_log="$1" url_pattern="$2" url=
+            for attempt in {1..15}; do
+              url="$(grep -oE "$url_pattern" "$tunnel_log" | head -1 || true)"
+              if [[ -n "$url" ]] && curl --fail --silent --max-time 5 \
+                -H 'X-Pinggy-No-Screen: 1' "$url$route" -o "${RUNNER_TEMP}/subtitle-preview.html" \
+                && grep -qF 'Each beep stands in for a spoken line.' "${RUNNER_TEMP}/subtitle-preview.html"; then
+                printf '%s' "$url"
+                return
+              fi
+              sleep 2
+            done
+            return 1
+          }
+          if ! url="$(wait_for_preview "${RUNNER_TEMP}/subtitle-tunnel.log" 'https://[a-z0-9-]+\.trycloudflare\.com')"; then
+            tail -16 "${RUNNER_TEMP}/subtitle-tunnel.log"
+            ssh -T -p 443 -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o IdentityFile=none \
+              -o ExitOnForwardFailure=yes -o ServerAliveInterval=20 \
+              -R0:127.0.0.1:3001 free.pinggy.io > "${RUNNER_TEMP}/subtitle-tunnel-fallback.log" 2>&1 &
+            if ! url="$(wait_for_preview "${RUNNER_TEMP}/subtitle-tunnel-fallback.log" 'https://[a-zA-Z0-9.-]+\.pinggy\.(link|online)')"; then
+              cat "${RUNNER_TEMP}/subtitle-tunnel-fallback.log"
+              exit 1
+            fi
+          fi
           printf '%s\n' "$url/states/subtitle-timing" > "${RUNNER_TEMP}/subtitle-workbench-url.txt"
           printf 'Open the [subtitle timing workbench](%s/states/subtitle-timing). The tunnel stays up for this run.\n' "$url" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
@@ -113,9 +129,9 @@ jobs:
           agent-browser press s
           agent-browser wait --text 'Timing updated.'
         continue-on-error: true
-      - name: Keep the workbench available for one hour
+      - name: Keep the workbench available
         run: |
-          for minute in {1..60}; do
+          for minute in {1..54}; do
             curl --fail --silent --show-error --output /dev/null http://127.0.0.1:3001/states/subtitle-timing
             sleep 60
           done
