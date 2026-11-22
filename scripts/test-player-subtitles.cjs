@@ -38,6 +38,13 @@ const native=mount(true);
 assert.equal(native.tree.props.modal,false);
 assert.equal(find(native.tree,'MediaPlayerTooltip')[0].props.shortcut,'C');
 assert.equal(find(native.tree,'Button')[0].props['aria-keyshortcuts'],'C');
+const triggerFocus = find(native.tree,'Button')[0].props.onFocus;
+for (const restoring of [false, true]) {
+ let suppressed = false;
+ triggerFocus({ currentTarget: { hasAttribute: name => restoring && name === 'data-restoring-subtitle-focus' },
+  preventDefault() { suppressed = true; } });
+ assert.equal(suppressed, restoring, 'Only focus returned from timing skips the Subtitles tooltip');
+}
 const content=find(native.tree,'DropdownMenuContent')[0];
 assert.equal(content.props.container,native.container);
 assert.ok(Object.hasOwn(content.props,'data-player-native-glass'));
@@ -54,8 +61,16 @@ select('off');assert.deepEqual(native.calls.at(-1),['subtitle','no']);
 assert.deepEqual(native.calls, [['subtitle','91'], ['subtitle','no']], 'Each native selection sends exactly one track command');
 const count=native.calls.length;select('embedded:999');select('external:999');assert.equal(native.calls.length,count);
 let prevented=false;
-find(native.tree,'DropdownMenuItem')[0].props.onSelect({preventDefault(){prevented=true}});assert.ok(prevented);assert.equal(native.opened,1);
-native.tree.props.onOpenChange(false);assert.equal(native.closed,1);
+find(native.tree,'DropdownMenuItem')[0].props.onSelect({preventDefault(){prevented=true}});
+assert.equal(prevented,false,'Selecting Timing lets the subtitle menu close');
+assert.equal(native.opened,0,'The timing panel waits until the subtitle menu finishes closing');
+content.props.onCloseAutoFocus({preventDefault(){prevented=true}});
+assert.equal(prevented,true,'The timing panel owns focus when the menu closes');
+assert.equal(native.opened,1,'Timing opens once the old menu gives up focus');
+prevented=false;
+content.props.onCloseAutoFocus({preventDefault(){prevented=true}});
+assert.equal(prevented,false,'Normal menu dismissal still restores focus');
+assert.equal(native.opened,1,'Normal menu dismissal must not open timing');
 native.props.requestedSrc=native.props.tracks[0].src;
 assert.equal(find(native.render(),'DropdownMenuRadioGroup')[0].props.value,'external:0','Requested track is selected during download');
 assert.equal(find(native.render(),'DropdownMenuRadioItem').find(n=>n.props.value==='external:0').props['aria-busy'],true);

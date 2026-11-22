@@ -861,10 +861,6 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const embeddedSubtitleTiming = useNativeSubtitleTiming(videoRef, subtitleTiming.seconds,
     subtitleTracks.some(track => track.active), `${streamUrl}:${playerAttempt}`, nativePlayback);
 
-  const subtitleTimingActions = useMemo(() => ({
-    seconds: subtitleTiming.seconds, open: Boolean(subtitleTiming.key && timingOpenKey === subtitleTiming.key),
-    onOpen: () => setTimingOpenKey(subtitleTiming.key), onClose: () => setTimingOpenKey(null),
-  }), [subtitleTiming.seconds, subtitleTiming.key, timingOpenKey]);
   const handleCustomSubtitleChange = useCallback((track: { src: string } | null, keepEmbedded = false) => {
     subtitleShortcutEnabled.current = null;
     subtitleManualOverride.current = true;
@@ -947,7 +943,6 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         className="w-screen"
         customSubtitleTracks={subtitleTracks}
         customSubtitlesEnabled={subtitleTracks.length > 0}
-        subtitleTiming={subtitleTimingActions}
         chapters={chapters}
         onToggleCaptions={toggleCaptions}
         onAdjustSubtitleSize={adjustSubtitleSize}
@@ -964,6 +959,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           onOpenChange={open => setTimingOpenKey(open ? subtitleTiming.key : null)}
           seconds={subtitleTiming.seconds} onChange={subtitleTiming.onChange}
           available={embeddedSubtitleTiming || (subtitleData.length > 0 && subtitleTracks.some(track => track.active) && !fetchingSubtitles)}
+          mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`}
           container={videoRef.current?.closest<HTMLElement>('[data-slot="media-player"]')} />
         <NativePlayerGlass mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} ready={videoReady && !loading && !playbackError} />
         <PlaybackWakeLock mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} enabled={!nativePlayback && !!streamUrl && !playbackError} />
