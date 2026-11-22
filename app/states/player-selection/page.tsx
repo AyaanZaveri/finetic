@@ -2,10 +2,11 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ChevronDown, CornerDownRight } from "lucide-react";
+import { ChevronDown, CornerDownRight, Loader2 } from "lucide-react";
 import { BrowserPlayerGlass } from "@/components/browser-player-glass";
 import { PlayerSelectionControls } from "@/components/player-selection-controls";
 import { PlayerControlBar } from "@/components/player-control-bar";
+import { PlayerLoadingStatus } from "@/components/player-loading-status";
 import { PlayerEndTime, PlayerSubtitleLayer } from "@/components/player-clock-islands";
 import { PlayerNextEpisode, PlayerUpNext } from "@/components/player-next-episode";
 import { PlayerPlaybackStats } from "@/components/player-playback-stats";
@@ -85,6 +86,12 @@ function Stage({ id }: { id: StateId }) {
                     element.currentTime = Math.min(9, element.duration / 3);
                 }} />
             <BrowserPlayerGlass mediaRef={video} sourceKey={sample} ready={duration > 0} />
+            {data.trackLoadingLabel && (
+                <div className="pointer-events-none fixed right-4 top-4 z-50 h-9 bg-black/50 backdrop-blur-sm rounded-full px-3 text-white text-sm flex items-center gap-2">
+                    <Loader2 aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />
+                    <PlayerLoadingStatus label={data.trackLoadingLabel} />
+                </div>
+            )}
             <PlayerSubtitleLayer mediaRef={video} lookup={subtitleAt} delay={delay} native={false} enabled={captions}
                 size={subtitleSize} position={12} />
             <SubtitleTimingPopover container={video.current?.closest<HTMLElement>('[data-slot="media-player"]')}

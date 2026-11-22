@@ -179,6 +179,16 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   }, [currentMedia, playbackRequest, isPlayerVisible, subtitleQueries, subtitleTracks, subtitleTiming.seconds, subtitleData]);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [fetchingNativeTrack, setFetchingNativeTrack] = useState<"audio" | "subtitle" | null>(null);
+  useEffect(() => {
+    const controller = nativePlayback && isPlayerVisible
+      ? (videoRef.current as unknown as MpvElementHandle | null)?.controller
+      : undefined;
+    const update = () => setFetchingNativeTrack(controller?.fetchingTrack ?? null);
+    update();
+    controller?.addEventListener("trackloadingchange", update);
+    return () => controller?.removeEventListener("trackloadingchange", update);
+  }, [nativePlayback, isPlayerVisible, playbackRequest, streamUrl, playerAttempt]);
   const loadGenerationRef = useRef(0);
   const episodeContinuationRef = useRef<{ onEnded(): void } | null>(null);
   const subtitleSelectionRequest = useRef(0);
@@ -885,6 +895,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   if (!isPlayerVisible || !currentMedia) return null;
 
+  const trackLoadingLabel = fetchingSubtitles || fetchingNativeTrack === "subtitle" ? "Fetching subtitles"
+    : fetchingNativeTrack === "audio" ? "Fetching audio" : null;
+
   const { isEpisode: isEpisodePlayback, showTitle, primaryTitle, season, episodeNumber } = getPlaybackTitles(currentMedia, mediaDetails);
   const playingEpisode = isEpisodePlayback && season !== undefined && episodeNumber !== undefined
     ? { seriesId: currentMedia.seriesId || currentMedia.id, season, episode: episodeNumber } : undefined;
@@ -1122,10 +1135,10 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           </Button>
         )}
 
-        {fetchingSubtitles && (
+        {trackLoadingLabel && (
           <div className="pointer-events-none fixed right-4 top-4 z-50 h-9 bg-black/50 backdrop-blur-sm rounded-full px-3 text-white text-sm flex items-center gap-2">
             <Loader2 aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />
-            <PlayerLoadingStatus label="Fetching subtitles" />
+            <PlayerLoadingStatus label={trackLoadingLabel} />
           </div>
         )}
 

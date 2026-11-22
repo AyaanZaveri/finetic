@@ -120,6 +120,7 @@ async function run() {
     const drawer = hooks();
     const chapters = [{ startTime: 18, endTime: 40, text: 'Second act' }];
     let trackChapters;
+    let desktopPlatform = 'windows';
     let activeHooks = drawer;
     drawer.react.useReducer = (transition, initial) => {
         const [state, setState] = drawer.react.useState(initial);
@@ -127,6 +128,7 @@ async function run() {
     };
     const { PlayerSelectionControls } = load('components/player-selection-controls.tsx', name => {
         if (name === 'react') return new Proxy({}, { get: (_, key) => activeHooks.react[key] });
+        if (name === '@/lib/desktop/bridge') return { desktopBridge: () => ({ platform: desktopPlatform }) };
         if (name === 'media-chrome/react/media-store') return { useMediaSelector: selector => selector({ mediaChaptersCues: trackChapters }) };
         if (name === './player-selection-row-styles') return load('components/player-selection-row-styles.ts', () => ({ default: {} }));
         if (name === 'react/jsx-runtime') return drawer.jsx;
@@ -152,6 +154,10 @@ async function run() {
     assert.equal(renderDrawer().props.open, false);
     assert.equal(renderDrawer().props.children[3], undefined, 'Hide the chapter control when nothing can be selected');
     openPanel(0);
+    assert.equal(getPanel().props['data-player-native-glass'], undefined, 'Windows drawers use the shared CSS backdrop');
+    desktopPlatform = 'android';
+    assert.equal(getPanel().props['data-player-native-glass'], '', 'Android drawers still request sampled video');
+    desktopPlatform = 'windows';
     assert.equal(renderDrawer().props.modal, true, 'The drawer traps Tab and Shift+Tab');
     assert.equal(getPanel().props.initialFocus, true, 'Move focus to the first control inside the drawer');
     assert.equal(getPanel().props.finalFocus(), button, 'Return focus to the toolbar opener');

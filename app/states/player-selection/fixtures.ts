@@ -9,6 +9,10 @@ export const groups = [
         { id: "up-next", label: "Up Next" },
         { id: "chapters", label: "Chapter drawer" },
     ] },
+    { title: "Track loading", states: [
+        { id: "fetching-subtitles", label: "Fetching subtitles" },
+        { id: "fetching-audio", label: "Fetching audio" },
+    ] },
     { title: "Episodes", states: [
         { id: "episodes", label: "Playing episode" },
         { id: "episode-single", label: "One episode" },
@@ -84,7 +88,9 @@ export function fixtures(state: StateId) {
         { url: "https://stream.example/brooklyn-nine-nine-alt.mp4", name: "Relay • 1080p", title: "1080p WEB-DL · HEVC · English / Spanish" },
         { name: "Relay • 480p", title: "480p · No playable URL" },
     ];
-    return { seriesId, currentSeason, currentEpisode, seasons, episodes, currentStream, streams };
+    const trackLoadingLabel = state === "fetching-subtitles" ? "Fetching subtitles"
+        : state === "fetching-audio" ? "Fetching audio" : null;
+    return { seriesId, currentSeason, currentEpisode, seasons, episodes, currentStream, streams, trackLoadingLabel };
 }
 
 export function installFixtureFetch(state: StateId, data: ReturnType<typeof fixtures>) {

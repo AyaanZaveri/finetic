@@ -25,6 +25,15 @@ const initialState = (): NativeState => ({
   buffering: false, seeking: false, buffered: 0, width: 0, height: 0,
 });
 
+type TrackKind = "audio" | "subtitle";
+type TrackSwitch = {
+  id: string;
+  confirmed: boolean;
+  visible: boolean;
+  showTimer: ReturnType<typeof setTimeout>;
+  expiryTimer: ReturnType<typeof setTimeout>;
+};
+
 /** The HTML media contract used by our controls, backed by native playback. */
 export class MpvController extends EventTarget {
   private state = initialState();
@@ -144,11 +153,43 @@ export class MpvController extends EventTarget {
   }
 
   private audioChosen = false;
+  private trackSwitches = new Map<TrackKind, TrackSwitch>();
+
+  get fetchingTrack(): TrackKind | null {
+    if (this.trackSwitches.get("audio")?.visible) return "audio";
+    return this.trackSwitches.get("subtitle")?.visible ? "subtitle" : null;
+  }
+
+  private selectedTrackId(kind: TrackKind) {
+    return String(this.tracks.find(track => track.type === (kind === "audio" ? "audio" : "sub") && track.selected)?.id ?? "no");
+  }
+
+  private clearTrackSwitch(kind: TrackKind) {
+    const change = this.trackSwitches.get(kind);
+    if (!change) return;
+    const previous = this.fetchingTrack;
+    clearTimeout(change.showTimer);
+    clearTimeout(change.expiryTimer);
+    this.trackSwitches.delete(kind);
+    if (previous !== this.fetchingTrack) this.fire("trackloadingchange");
+  }
+
+  private finishTrackSwitches(advanced = false) {
+    if (this.state.buffering || this.state.seeking || (!this.state.paused && !advanced)) return;
+    for (const [kind, change] of this.trackSwitches) {
+      if (change.confirmed) this.clearTrackSwitch(kind);
+    }
+  }
+
+  private clearTrackSwitches() {
+    for (const kind of this.trackSwitches.keys()) this.clearTrackSwitch(kind);
+  }
 
   load(url: string, headers?: Record<string, string>, startPosition = 0) {
     this.cancelPreview();
     this.previewImages.clear();
     if (this.disposed) return;
+    this.clearTrackSwitches();
     this.pending.clear();
     if (this.session) this.bridge.send({ type: "stop", session: this.session });
     this.previewFrames.clear(); this.previewAliases.clear(); this.previewRanges.clear(); this.decodedPreviews.clear();
@@ -208,11 +249,39 @@ export class MpvController extends EventTarget {
     if (!this.supportsSubtitleTiming || this.disposed || !this.session) return;
     this.bridge.send({ type: "subtitle-delay", session: this.session, seconds: Number.isFinite(seconds) ? Math.round(Math.max(-30, Math.min(30, seconds)) * 10) / 10 : 0 });
   }
-  selectTrack(kind: "audio" | "subtitle", id: string) {
+  selectTrack(kind: TrackKind, id: string) {
+    if (this.disposed || !this.session) return;
     if (kind === "audio") this.audioChosen = true;
     if (kind === "subtitle" && id === "no") this.clearSubtitle();
-    this.bridge.send({ type: "track", session: this.session, kind, id });
+    const current = this.trackSwitches.get(kind);
+    if (id === "no") {
+      this.clearTrackSwitch(kind);
+    } else if (this.ready && this.bridge.platform !== "android" && this.bridge.platform !== "ios"
+      && current?.id !== id && (current || this.selectedTrackId(kind) !== id)) {
+      if (current) {
+        clearTimeout(current.showTimer);
+        clearTimeout(current.expiryTimer);
+      }
+      const change: TrackSwitch = {
+        id, confirmed: false, visible: current?.visible ?? false,
+        showTimer: setTimeout(() => {
+          const previous = this.fetchingTrack;
+          change.visible = true;
+          if (previous !== this.fetchingTrack) this.fire("trackloadingchange");
+        }, 250),
+        // An unavailable track or a bridge that never confirms must not leave a stuck pill.
+        expiryTimer: setTimeout(() => this.clearTrackSwitch(kind), 15000),
+      };
+      this.trackSwitches.set(kind, change);
+    }
+    try {
+      this.bridge.send({ type: "track", session: this.session, kind, id });
+    } catch (error) {
+      this.clearTrackSwitch(kind);
+      throw error;
+    }
   }
+
   preview(position: number): Promise<string | null> {
     if (this.previewPending?.position === position) return this.previewPending.promise;
     const cached = this.cachedPreview(position);
@@ -252,6 +321,7 @@ export class MpvController extends EventTarget {
     this.previewImages.clear();
     if (this.disposed) return;
     this.disposed = true;
+    this.clearTrackSwitches();
     this.pending.clear();
     this.previewFrames.clear(); this.previewAliases.clear(); this.previewRanges.clear(); this.decodedPreviews.clear();
     this.unsubscribe?.();
@@ -265,6 +335,7 @@ export class MpvController extends EventTarget {
     this.fire("subtitlechange");
   }
   private fail(message: string) {
+    this.clearTrackSwitches();
     this.pending.clear();
     this.cancelPreview();
     this.clearSubtitle();
@@ -330,6 +401,7 @@ export class MpvController extends EventTarget {
         }
         if (this.pending.has("position")) incoming.seeking = true;
         this.state = incoming;
+        this.finishTrackSwitches(incoming.position > previous.position);
         if (previous.position !== this.state.position) this.fire("timeupdate");
         if (previous.duration !== this.state.duration) this.fire("durationchange");
         if (previous.paused !== this.state.paused) this.fire(this.state.paused ? "pause" : "play");
@@ -355,10 +427,19 @@ export class MpvController extends EventTarget {
         if (!this.state.paused) this.fire("playing");
         break;
       case "loading": this.clearSubtitle(); this.fire("waiting"); break;
-      case "ended": this.clearSubtitle(); this.finished = true; this.fire("ended"); break;
+      case "ended":
+        this.clearTrackSwitches();
+        this.clearSubtitle();
+        this.finished = true;
+        this.fire("ended");
+        break;
       case "error": this.fail(message.message); break;
       case "tracks": {
         this.tracks = message.tracks;
+        for (const [kind, change] of this.trackSwitches) {
+          change.confirmed = this.selectedTrackId(kind) === change.id;
+        }
+        this.finishTrackSwitches();
         if (!this.audioChosen) {
           const english = preferredAudioTrack(this.tracks.filter(track => track.type === "audio"), readPlaybackPreferences().audioLanguage);
           if (english) {
