@@ -51,10 +51,10 @@ export function ContinueWatchingSection() {
         <div className="overflow-hidden" aria-hidden="true">
             <ul className={rowStyles.track}>
                 {Array.from({ length: 8 }, (_, index) => <li key={index} className="w-80 shrink-0">
-                    <Skeleton className="aspect-video w-full rounded-md" />
+                    <Skeleton animated={false} className="aspect-video w-full rounded-md" />
                     <div className="px-1">
-                        <Skeleton className="mt-2.5 h-5 w-3/4" />
-                        <Skeleton className="mt-0.5 h-4 w-2/5" />
+                        <Skeleton animated={false} className="mt-2.5 h-5 w-3/4" />
+                        <Skeleton animated={false} className="mt-0.5 h-4 w-2/5" />
                     </div>
                 </li>)}
             </ul>

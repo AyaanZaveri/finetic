@@ -49,7 +49,7 @@ const section = key => ({ key, sectionName: `Catalog ${key}`, mediaItems: [{ id:
     const placeholderSlots = markup => (markup.match(/aria-hidden="true"[^>]+min-height:360px/g) ?? []).length;
     const assertVisiblePlaceholders = markup => {
         assert.ok(!markup.includes(loadingClass), 'Catalog handoffs cannot restart the hidden placeholder delay');
-        assert.match(markup, /aspect-\[2\/3\] w-full rounded-md bg-accent/);
+        assert.match(markup, /class="(?=[^"]*\baspect-\[2\/3\])(?=[^"]*\bbg-accent\b)(?=[^"]*\brounded-md\b)[^"]*\bw-full\b[^"]*"/);
         assert.doesNotMatch(markup, /animate-pulse/);
     };
     assertVisiblePlaceholders(bootstrap);
