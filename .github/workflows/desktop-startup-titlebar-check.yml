@@ -30,6 +30,7 @@ jobs:
         run: |
           node scripts/test-continue-watching-cache.cjs
           node scripts/test-home-snapshot.cjs
+          node scripts/test-home-row-streaming.cjs
           node scripts/test-artwork-reveal.cjs
       - name: Check the desktop bridge
         run: node scripts/test-desktop.cjs
