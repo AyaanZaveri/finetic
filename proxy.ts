@@ -4,6 +4,10 @@ import { readSession, SESSION_COOKIE } from "@/lib/server/session";
 
 export async function proxy(request: NextRequest) {
     const path = request.nextUrl.pathname;
+    if (process.env.NAVIGATOR_SUBTITLE_WORKBENCH === "1" && path === "/states/subtitle-timing"
+        && ["localhost", "127.0.0.1"].includes(request.nextUrl.hostname)) {
+        return NextResponse.next();
+    }
     // The local workbenches supply their own fixture data.
     if (process.env.NODE_ENV === "development" && (path === "/states/player-selection" || path === "/states/addon-share")
         && ["localhost", "127.0.0.1"].includes(request.nextUrl.hostname)) {

@@ -1,0 +1,121 @@
+name: Subtitle timing workbench
+
+on:
+  push:
+    branches: [subtitle-timing-workbench]
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 85
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      NAVIGATOR_SUBTITLE_WORKBENCH: "1"
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 26.7.0
+          cache: npm
+      - run: npm ci
+      - name: Check timing and build the workbench
+        run: |
+          node scripts/test-subtitle-timing.cjs
+          node scripts/test-player-subtitles.cjs
+          node scripts/test-native-subtitle-timing.cjs
+          npm run build
+      - name: Start the production server and fixture-only tunnel
+        run: |
+          cp -R public .next/standalone/public
+          cp -R .next/static .next/standalone/.next/static
+          HOSTNAME=127.0.0.1 PORT=3000 node .next/standalone/server.js > "${RUNNER_TEMP}/subtitle-server.log" 2>&1 &
+          cat > "${RUNNER_TEMP}/subtitle-gateway.mjs" <<'JS'
+          import { createServer, request } from 'node:http';
+          const route = '/states/subtitle-timing';
+          createServer((incoming, outgoing) => {
+            const { pathname, search } = new URL(incoming.url, 'http://127.0.0.1');
+            const asset = /^\/_next\/static\/[a-zA-Z0-9_./-]+$/.test(pathname)
+              || pathname === '/images/player-workbench-preview.mp4';
+            if (!['GET', 'HEAD'].includes(incoming.method) || (pathname !== route && !asset)) {
+              outgoing.writeHead(404).end();
+              return;
+            }
+            const headers = { host: '127.0.0.1:3000' };
+            if (asset && incoming.headers.range) headers.range = incoming.headers.range;
+            const upstream = request({
+              hostname: '127.0.0.1', port: 3000, method: incoming.method,
+              path: pathname + (pathname === route ? search : ''), headers,
+            }, response => {
+              outgoing.writeHead(response.statusCode, response.headers);
+              response.pipe(outgoing);
+            });
+            outgoing.on('close', () => upstream.destroy());
+            upstream.on('error', () => {
+              if (!outgoing.headersSent) outgoing.writeHead(502);
+              outgoing.end();
+            });
+            upstream.end();
+          }).listen(3001, '127.0.0.1');
+          JS
+          node "${RUNNER_TEMP}/subtitle-gateway.mjs" > "${RUNNER_TEMP}/subtitle-gateway.log" 2>&1 &
+          curl --fail --silent --show-error --retry 20 --retry-all-errors --retry-delay 2 \
+            --output /dev/null http://127.0.0.1:3001/states/subtitle-timing
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/api/settings)" = 404
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:3001/states/subtitle-timing)" = 404
+          curl --fail --silent --show-error --location --retry 3 \
+            https://github.com/cloudflare/cloudflared/releases/download/2026.11.1/cloudflared-linux-amd64 \
+            --output "${RUNNER_TEMP}/cloudflared"
+          echo "97bb3b02d23a5980fc9c15a1a270e692da1923f103f920d5b16d4931d5ab55e7  ${RUNNER_TEMP}/cloudflared" | sha256sum --check
+          chmod +x "${RUNNER_TEMP}/cloudflared"
+          "${RUNNER_TEMP}/cloudflared" tunnel --no-autoupdate --protocol http2 --url http://127.0.0.1:3001 \
+            > "${RUNNER_TEMP}/subtitle-tunnel.log" 2>&1 &
+          url=
+          for attempt in {1..40}; do
+            url="$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "${RUNNER_TEMP}/subtitle-tunnel.log" | head -1 || true)"
+            if [[ -n "$url" ]]; then break; fi
+            sleep 2
+          done
+          if [[ -z "$url" ]]; then cat "${RUNNER_TEMP}/subtitle-tunnel.log"; exit 1; fi
+          curl --fail --silent --show-error --retry 20 --retry-all-errors --retry-delay 2 \
+            --output /dev/null "$url/states/subtitle-timing"
+          printf '%s\n' "$url/states/subtitle-timing" > "${RUNNER_TEMP}/subtitle-workbench-url.txt"
+          printf 'Open the [subtitle timing workbench](%s/states/subtitle-timing). The tunnel stays up for this run.\n' "$url" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: subtitle-workbench-url
+          path: ${{ runner.temp }}/subtitle-workbench-url.txt
+          retention-days: 1
+      - name: Check the fixture states in Chrome
+        env:
+          AGENT_BROWSER_SESSION: subtitle-timing-workbench
+        run: |
+          npm install --global agent-browser@0.43.0
+          trap 'agent-browser close || true' EXIT
+          url=http://127.0.0.1:3001/states/subtitle-timing
+          for state in ready early late limit unavailable; do
+            agent-browser --executable-path "$(command -v google-chrome)" open "$url?__state=$state"
+            agent-browser wait '[data-subtitle-timing]'
+            agent-browser wait "nav [aria-pressed=true]"
+            test "$(agent-browser eval 'document.querySelector("[data-subtitle-timing] [aria-keyshortcuts=H]").disabled')" = "$(if [[ "$state" == unavailable ]]; then echo true; else echo false; fi)"
+            agent-browser get text '[data-subtitle-timing] h2'
+          done
+          agent-browser open "$url?__state=late"
+          agent-browser wait '[data-subtitle-timing]'
+          agent-browser find role button click --name 'Play demo'
+          agent-browser find role button click --name 'Subtitle timing'
+          agent-browser press h
+          agent-browser wait --text 'Now mark when the same subtitle appears.'
+          agent-browser press s
+          agent-browser wait --text 'Timing updated.'
+        continue-on-error: true
+      - name: Keep the workbench available for one hour
+        run: |
+          for minute in {1..60}; do
+            curl --fail --silent --show-error --output /dev/null http://127.0.0.1:3001/states/subtitle-timing
+            sleep 60
+          done
