@@ -34,9 +34,10 @@ assert.match(source, /const busy = [\s\S]*?playerControlsActive\(root\)/, 'The r
 assert.match(source, /!dragging && !playerControlsActive\(rootRef.current\)/, 'Leaving the player must preserve portalled control activity');
 // Execute the real timer callback from the component with a stationary pointer.
 const parsed = ts.createSourceFile('player.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-let callback;
+let callback, click;
 function walk(node) {
   if (ts.isVariableDeclaration(node) && node.name.getText(parsed) === 'onControlsShow') callback = node.initializer.arguments[0].getText(parsed);
+  if (ts.isVariableDeclaration(node) && node.name.getText(parsed) === 'onPlayerClick') click = node.initializer.getText(parsed);
   ts.forEachChild(node, walk);
 }
 walk(parsed); assert.ok(callback);
@@ -56,3 +57,31 @@ hovered = 'heading gap'; advance(1000); assert.equal(state.controlsVisible, fals
 context.controlPointerHeldRef.current = true; context.exports.show(); advance(3000); assert.equal(state.controlsVisible, true);
 context.controlPointerHeldRef.current = false; advance(1000); assert.equal(state.controlsVisible, false);
 console.log('PASS: stationary timeline/button/Back hover, portalled menus, keyboard focus and release after leaving controls');
+
+const actions = [], media = { paused: true };
+Object.assign(context, {
+  rootImplProps: {}, disabled: false, pointerTypeRef: { current: 'mouse' }, mediaRef: { current: media },
+  dispatch: action => actions.push(action.type),
+  MediaActionTypes: { MEDIA_PLAY_REQUEST: 'play', MEDIA_PAUSE_REQUEST: 'pause' },
+});
+assert.ok(click);
+assert.match(source, /onClick=\{onPlayerClick\}/);
+assert.match(fs.readFileSync('components/player-control-bar.tsx', 'utf8'), /<MediaPlayerControls[^>]*data-player-click-to-play/);
+vm.runInNewContext(ts.transpileModule(`exports.click = ${click}`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText, context);
+function clickPlayer({ inControls = true, slot, detail = 1, defaultPrevented = false, inPlayer = true } = {}) {
+  const target = new Element();
+  target.inPlayer = inPlayer;
+  target.closest = selector => (selector === '[data-player-click-to-play]' ? inControls : slot && selector.includes(slot)) ? target : null;
+  context.exports.click({ target, currentTarget: root, button: 0, detail, defaultPrevented });
+}
+clickPlayer();
+media.paused = false;
+clickPlayer();
+for (const slot of ['button', '[role="menu"]', '[data-slot="media-player-seek-container"]', '[data-slot="media-player-volume-container"]']) clickPlayer({ slot });
+clickPlayer({ inControls: false });
+clickPlayer({ inPlayer: false });
+clickPlayer({ detail: 0 });
+clickPlayer({ defaultPrevented: true });
+context.pointerTypeRef.current = 'touch';
+clickPlayer();
+assert.deepEqual(actions, ['play', 'pause'], 'Passive mouse clicks toggle playback exactly once, while interactive controls and touch keep their own behavior');

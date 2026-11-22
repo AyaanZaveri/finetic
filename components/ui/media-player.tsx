@@ -530,6 +530,17 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     }
   };
 
+  const onPlayerClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    rootImplProps.onClick?.(event);
+    if (event.defaultPrevented || disabled || event.button !== 0 || event.detail === 0 || pointerTypeRef.current !== "mouse") return;
+    const target = event.target;
+    if (!(target instanceof Element) || !event.currentTarget.contains(target) || !target.closest("[data-player-click-to-play]")) return;
+    if (target.closest('button, a, input, textarea, select, [contenteditable], [role="button"], [role="dialog"], [role="menu"], [role="option"], [role="listbox"], [role="slider"], [data-slider], [data-slot="media-player-seek-container"], [data-slot="media-player-volume-container"]')) return;
+    const media = mediaRef.current;
+    if (!media) return;
+    dispatch({ type: media.paused ? MediaActionTypes.MEDIA_PLAY_REQUEST : MediaActionTypes.MEDIA_PAUSE_REQUEST });
+  };
+
   React.useEffect(() => {
     const release = () => {
       if (!controlPointerHeldRef.current) return;
@@ -1014,6 +1025,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
           pointerTypeRef.current = event.pointerType;
         }}
         onClickCapture={onClickCapture}
+        onClick={onPlayerClick}
         onMouseLeave={onMouseLeave}
         onMouseMove={onMouseMove}
         onKeyDown={onKeyDown}
