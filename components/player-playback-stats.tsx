@@ -141,7 +141,7 @@ export function PlayerPlaybackStats({ open, videoRef, onClose }: {
             <div className="-me-1 ms-auto flex items-center gap-1">
                 <Button type="button" variant="ghost" size="icon-xs" aria-label={freezeLabel} title={freezeLabel}
                     className="size-7 text-white hover:bg-white/15" onClick={() => setFrozen(value => !value)}>
-                    <FreezeIcon aria-hidden="true" className="size-4 scale-70" fill="currentColor" />
+                    <FreezeIcon aria-hidden="true" className="size-4 scale-80" fill="currentColor" />
                 </Button>
                 <Button type="button" variant="ghost" size="icon-xs" aria-label="Hide stats for nerds"
                     className="size-7 text-white hover:bg-white/15" onClick={() => {
