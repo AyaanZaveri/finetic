@@ -80,9 +80,25 @@ function chatError(error: unknown): { status: number; message: string } {
     return { status: 500, message: "Navigator could not complete this request. Please try again." };
 }
 
+function chatGPTRequestError(error: unknown) {
+    const failure = record(error);
+    let code = failure.code;
+    if (typeof failure.responseBody === "string") {
+        try { code = record(record(JSON.parse(failure.responseBody)).error).code; } catch { /* May be plain text. */ }
+    }
+    if (code === "subscription_sharing_usage_limit_exceeded" || failure.statusCode === 429) {
+        return "You’ve reached a ChatGPT usage limit. Check ChatGPT Settings → Usage.";
+    }
+    if (code === "subscription_sharing_user_not_eligible") return "This ChatGPT account or workspace isn’t eligible for plan usage.";
+    if (failure.statusCode === 401) return "ChatGPT rejected the session. Reconnect your account in Settings.";
+    if (failure.statusCode === 403) return "ChatGPT refused this request. Check your account’s plan and permissions.";
+    return "ChatGPT couldn’t complete this request. Try again or choose another ChatGPT model in Settings.";
+}
+
 export async function POST(req: Request) {
+    let useChatGPT = false;
     try {
-        await getAuthData();
+        const auth = await getAuthData();
 
         const requestPayload = await req.json();
         const context = contextSchema.parse(requestPayload);
@@ -111,9 +127,28 @@ export async function POST(req: Request) {
             opencodeSessionId,
         } = requestPayload;
         const { currentMedia, currentTimestamp, pathname } = context;
-        if (aiProvider === "openai") outboundUrl(openaiBaseUrl, { provider: true });
+        let planModel: ReturnType<typeof import("@/lib/server/chatgpt-model").createChatGPTModel> | undefined;
+        if (aiProvider === "openai" && process.env.NAVIGATOR_DESKTOP === "1") {
+            const { ChatGPTAuthError, chatGPTCredentials, localChatGPTAvailable } = await import("@/lib/server/chatgpt-auth");
+            if (localChatGPTAvailable(req)) {
+                try {
+                    const credentials = await chatGPTCredentials(auth.user._id);
+                    if (credentials) {
+                        useChatGPT = true;
+                        if (!credentials.model) return new Response("Choose a ChatGPT model in Settings.", { status: 400 });
+                        const { createChatGPTModel } = await import("@/lib/server/chatgpt-model");
+                        planModel = createChatGPTModel(credentials.model, credentials.accessToken);
+                    }
+                } catch (error) {
+                    if (error instanceof ChatGPTAuthError) return new Response(error.message, { status: error.status });
+                    return new Response("Couldn’t connect to ChatGPT. Try again.", { status: 502 });
+                }
+            }
+        }
+
+        if (aiProvider === "openai" && !planModel) outboundUrl(openaiBaseUrl, { provider: true });
         if (aiProvider === "ollama") outboundUrl(ollamaBaseUrl, { provider: true });
-        if (aiProvider === "openai" && openaiBaseUrl !== OPENAI_DEFAULT_BASE_URL && !openaiApiKey) {
+        if (aiProvider === "openai" && !planModel && openaiBaseUrl !== OPENAI_DEFAULT_BASE_URL && !openaiApiKey) {
             return new Response("A custom AI endpoint requires its own API key in Settings.", { status: 400 });
         }
 
@@ -174,7 +209,9 @@ export async function POST(req: Request) {
             let model;
             switch (aiProvider) {
             case "openai":
-                if (openaiApiKey) {
+                if (planModel) {
+                    model = planModel;
+                } else if (openaiApiKey) {
                     if (openaiBaseUrl === OPENAI_DEFAULT_BASE_URL) {
                         const openaiProvider = createOpenAI({
                             apiKey: openaiApiKey, fetch: providerFetch,
@@ -322,7 +359,7 @@ export async function POST(req: Request) {
       providerOptions?: any;
     } = {
         maxOutputTokens: 1400,
-        maxRetries: 2,
+        maxRetries: planModel ? 0 : 2,
         ...navigatorRoutingSettings(model, "minimal", "tools"),
     };
 
@@ -341,7 +378,7 @@ export async function POST(req: Request) {
 
         return createUIMessageStreamResponse({ stream: createUIMessageStream({
             originalMessages: validatedMessages,
-            onError: error => chatError(error).message,
+            onError: error => planModel ? chatGPTRequestError(error) : chatError(error).message,
             execute: async ({ writer }) => {
                 const progressTools: typeof generationTools = { ...generationTools, skipToSubtitleContent: {
                     ...generationTools.skipToSubtitleContent,
@@ -438,18 +475,19 @@ export async function POST(req: Request) {
                 });
             },
             onError: ({ error }) => {
-                console.error("[chat] stream error", error);
+                if (!planModel) console.error("[chat] stream error", error);
             },
         });
 
                 writer.merge(toUIMessageStream({
                 stream: result.stream,
                 originalMessages: validatedMessages,
-                onError: error => chatError(error).message,
+                onError: error => planModel ? chatGPTRequestError(error) : chatError(error).message,
                 }));
             },
         }) });
     } catch (error) {
+        if (useChatGPT) return new Response(chatGPTRequestError(error), { status: 502 });
         console.error("Chat API Error:", error);
 
         if (error instanceof Error && error.message === "Not authenticated") {

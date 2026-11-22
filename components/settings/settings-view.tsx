@@ -43,6 +43,7 @@ import { TinyFishIcon } from "@/components/icons/tinyfish";
 import { getWebSearchSettings, saveWebSearchKey, removeWebSearchKey, setWebSearchEnabled } from "@/app/actions/web-search-settings";
 import { useConnectionCredential } from "@/components/settings/use-connection-credential";
 import { useOpenAIModels } from "@/components/settings/use-openai-models";
+import { useChatGPTSettings } from "@/components/settings/use-chatgpt-settings";
 import { CONNECTION_CREDENTIALS_EVENT } from "@/lib/browser-connection-credentials";
 import { createOptimisticToggle } from "@/lib/optimistic-toggle";
 import type { SettingsCategory } from "@/lib/settings-navigation";
@@ -499,8 +500,10 @@ function NavigatorSettings() {
     const [cerebrasModelsError, setCerebrasModelsError] = useState<string | null>(
         null
     );
+    const chatgpt = useChatGPTSettings(aiProvider === "openai" && navigatorEnabled);
+    const usingChatGPT = aiProvider === "openai" && chatgpt.status?.enabled === true;
     const { models: openaiModels, loading: isLoadingOpenAIModels, error: openaiModelsError } = useOpenAIModels({
-        enabled: aiProvider === "openai",
+        enabled: aiProvider === "openai" && !usingChatGPT,
         baseUrl: openaiBaseUrl,
         apiKey: openaiApiKey,
     });
@@ -667,7 +670,45 @@ function NavigatorSettings() {
                     />
                 </Field>
 
-                {aiProvider === "openai" && (
+                {aiProvider === "openai" && chatgpt.status?.available && (
+                    <Field>
+                        {chatgpt.status.accounts?.length ? (
+                            <Select id="openai-auth" label="OpenAI authentication"
+                                value={usingChatGPT ? chatgpt.status.active ?? "api-key" : "api-key"}
+                                disabled={chatgpt.busy || chatgpt.status.pending}
+                                options={[{ value: "api-key", label: "API key" }, ...chatgpt.status.accounts.map((account, index) => ({
+                                    value: account.clientId, label: `ChatGPT · ${account.label} (${index + 1})`,
+                                }))]}
+                                onValueChange={value => void chatgpt.update(value === "api-key"
+                                    ? { action: "update", enabled: false } : { action: "update", active: value })}
+                            />
+                        ) : <FieldLabel>OpenAI authentication</FieldLabel>}
+                        <div className="flex flex-wrap gap-2">
+                            <Button type="button" variant="outline" size="sm" data-oai-siwc-button=""
+                                disabled={chatgpt.busy || chatgpt.status.pending}
+                                onClick={() => void chatgpt.update({ action: "signIn" })}>
+                                <OpenAI />{chatgpt.status.pending ? "Waiting for ChatGPT…" : chatgpt.status.accounts?.length ? "Add ChatGPT account" : "Continue with ChatGPT"}
+                            </Button>
+                            {usingChatGPT && chatgpt.account && (
+                                <>
+                                    <Button type="button" variant="ghost" size="sm" disabled={chatgpt.busy || chatgpt.status.pending}
+                                        onClick={() => void chatgpt.update({ action: "signIn", clientId: chatgpt.account?.clientId })}>
+                                        {chatgpt.account.connected ? "Reconnect" : "Enable ChatGPT plan usage"}
+                                    </Button>
+                                    {chatgpt.account.connected && (
+                                        <Button type="button" variant="ghost" size="sm" disabled={chatgpt.busy || chatgpt.status.pending}
+                                            onClick={() => void chatgpt.update({ action: "update", signOut: true })}>Sign out</Button>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                        {chatgpt.status.pending && <FieldDescription role="status">Finish signing in in your browser.</FieldDescription>}
+                        {chatgpt.error && <FieldError>{chatgpt.error}</FieldError>}
+                        {usingChatGPT && !chatgpt.account?.connected && <FieldDescription>Connect an eligible ChatGPT plan to load available models.</FieldDescription>}
+                        {usingChatGPT && <FieldDescription><a href="https://chatgpt.com/settings/usage" target="_blank" rel="noreferrer">Manage ChatGPT usage</a></FieldDescription>}
+                    </Field>
+                )}
+                {aiProvider === "openai" && !usingChatGPT && (
                     <SettingsInput
                         id="openai-base-url"
                         label="Base URL"
@@ -690,11 +731,21 @@ function NavigatorSettings() {
                         />
                         <ApiKeyInput id="ollama-api-key" label="API key (optional)" description="Required only if your Ollama server uses authentication." value={ollamaApiKey} onValueChange={setOllamaApiKey} />
                     </>
-                ) : (
+                ) : !usingChatGPT && (
                     <ApiKeyInput key={`${aiProvider}-api-key`} id={`${aiProvider}-api-key`} {...apiKeySettings[aiProvider]} />
                 )}
 
-                {currentModel.options ? (
+                {usingChatGPT ? chatgpt.account?.connected && (
+                    <>
+                        <ModelCombobox key={chatgpt.account.clientId} id="chatgpt-model"
+                            value={chatgpt.models.some(model => model.id === chatgpt.status?.model) ? chatgpt.status?.model ?? "" : ""}
+                            options={chatgpt.models} loading={chatgpt.loading} disabled={chatgpt.busy}
+                            providerIcon={OpenAI} error={chatgpt.modelError ?? (!chatgpt.loading && !chatgpt.models.length ? "No models are available for this ChatGPT account." : undefined)}
+                            onValueChange={model => { if (chatgpt.models.some(option => option.id === model)) void chatgpt.update({ action: "update", model, modelAccount: chatgpt.account?.clientId }); }}
+                        />
+                        {chatgpt.modelError && <Button type="button" variant="outline" size="sm" onClick={chatgpt.refreshModels}>Retry loading models</Button>}
+                    </>
+                ) : currentModel.options ? (
                     <ModelCombobox key={`${aiProvider}-model`} id={`${aiProvider}-model`} {...currentModel} description={currentModel.disabled ? "Add an API key to load models." : undefined} options={currentModel.options} providerIcon={selectedProvider.icon} />
                 ) : (
                     <SettingsInput
