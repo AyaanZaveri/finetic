@@ -4,7 +4,7 @@
 }
 
 .popup[data-swipe-axis="x"] {
-  --drawer-content-width: min(26rem, calc(100% - 2rem));
+  --drawer-content-width: min(clamp(26rem, 50%, 30rem), calc(100% - 2 * var(--drawer-inset, 1rem)));
 }
 
 .popup {

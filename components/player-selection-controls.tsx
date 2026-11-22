@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useReducer, useRef, useState, type FocusEvent, type MouseEvent } from "react";
+import { QueryClient, queryOptions, useQuery } from "@tanstack/react-query";
 import { Layers, ListOrdered, ListVideo, Play, TriangleAlert, X } from "lucide-react";
 import { useMediaSelector } from "media-chrome/react/media-store";
-import { fetchEpisodes, fetchSeasons, type Episode, type Season } from "@/app/actions/tv-shows";
+import { fetchEpisodes, fetchSeasons, type Episode } from "@/app/actions/tv-shows";
 import { ArtworkImage } from "@/components/artwork-image";
 import { MediaActions } from "@/components/media-actions";
-import { PlayerChapterChoices, type ChapterNavigation } from "@/components/player-chapter-choices";
+import { useStreamQueries } from "@/components/stream-query-provider";
+import { PlayerChapterChoices, useChapterPreviews, type ChapterNavigation } from "@/components/player-chapter-choices";
 import { MediaPlayerTooltip } from "@/components/ui/media-player";
 import { Button } from "@/components/ui/button";
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
@@ -22,9 +24,11 @@ import {
 import floatingSurface from "@/components/arc/floating-surface.module.css";
 import drawerStyles from "./player-selection-controls.module.css";
 import { episodeThumbnailUrl } from "@/lib/artwork";
+import { desktopBridge } from "@/lib/desktop/bridge";
 import { formatReleaseDate } from "@/lib/format-release-date";
 import { formatRuntime } from "@/lib/format-runtime";
 import { acquireSeriesSeason } from "@/lib/media/series-season";
+import { routePrefetchAllowed } from "@/lib/route-prefetch";
 import type { MediaItem, StremioStream } from "@/types/stremio";
 
 type Panel = "episodes" | "streams" | "chapters";
@@ -58,15 +62,44 @@ function drawerTransition(state: DrawerState, event: DrawerEvent): DrawerState {
 }
 
 type PlayingEpisode = { seriesId: string; season: number; episode: number };
+const episodeQueryDefaults = { staleTime: 5 * 60_000, gcTime: 15 * 60_000, retry: false, refetchOnWindowFocus: false } as const;
+const seasonOptions = (seriesId: string) => queryOptions({ ...episodeQueryDefaults,
+    queryKey: ["player-drawer", "seasons", seriesId], queryFn: () => fetchSeasons(seriesId),
+});
+const episodeOptions = (seriesId: string, season: number) => queryOptions({ ...episodeQueryDefaults,
+    queryKey: ["player-drawer", "episodes", seriesId, season],
+    queryFn: async () => {
+        const lease = /^tmdb:[1-9]\d*$/.test(seriesId) ? acquireSeriesSeason(seriesId, season) : undefined;
+        try {
+            const episodes = await (lease?.promise ?? fetchEpisodes(seriesId, season));
+            return [...episodes].sort((a, b) => a.episode - b.episode);
+        } finally { lease?.release(); }
+    },
+});
 
-export function PlayerSelectionControls({ media, streamUrl, playingEpisode, chapterNavigation, onEpisodeSelect, onStreamSelect }: {
+export function PlayerSelectionControls({ media, streamUrl, playingEpisode, chapterNavigation, playbackReady = false, onEpisodeSelect, onStreamSelect }: {
     media: MediaItem;
     streamUrl: string | null;
     playingEpisode?: PlayingEpisode;
     chapterNavigation?: ChapterNavigation;
+    playbackReady?: boolean;
     onEpisodeSelect(_episode: Episode): void;
     onStreamSelect(_stream: StremioStream): void;
 }) {
+    const queries = useStreamQueries();
+    const [workbenchClient] = useState(() => queries ? undefined : new QueryClient());
+    const client = queries?.client ?? workbenchClient!;
+    const seriesId = playingEpisode?.seriesId;
+    const playingSeason = playingEpisode?.season;
+    useEffect(() => {
+        if (!playbackReady || !seriesId || playingSeason === undefined) return;
+        const timer = setTimeout(() => {
+            if (!routePrefetchAllowed()) return;
+            void client.prefetchQuery(seasonOptions(seriesId));
+            void client.prefetchQuery(episodeOptions(seriesId, playingSeason));
+        }, 1500);
+        return () => clearTimeout(timer);
+    }, [client, playbackReady, seriesId, playingSeason]);
     const [state, dispatch] = useReducer(drawerTransition, closed);
     const opener = useRef<HTMLButtonElement | null>(null);
     const returningFocus = useRef<{ button: HTMLButtonElement } | null>(null);
@@ -75,6 +108,7 @@ export function PlayerSelectionControls({ media, streamUrl, playingEpisode, chap
     const trackChapters = useMediaSelector(state => state.mediaChaptersCues);
     const availableChapters = chapterNavigation?.chapters.length ? chapterNavigation.chapters : trackChapters ?? [];
     const { open, panel } = state;
+    const chapterPreviews = useChapterPreviews(chapterNavigation, availableChapters, open && panel.view === "chapters", playbackReady);
     const show = (panel: Panel, event: MouseEvent<HTMLButtonElement>) => {
         const container = event.currentTarget.closest<HTMLElement>('[data-slot="media-player"]');
         if (!container || afterClose.current) return;
@@ -128,7 +162,8 @@ export function PlayerSelectionControls({ media, streamUrl, playingEpisode, chap
                 </Button>
             </MediaPlayerTooltip>
             {panel && (
-                <DrawerContent ref={setPopup} container={panel.container} data-player-selection-drawer="" data-player-native-glass=""
+                <DrawerContent ref={setPopup} container={panel.container} data-player-selection-drawer=""
+                    data-player-native-glass={desktopBridge()?.platform === "windows" ? undefined : ""}
                     overlayClassName={`${drawerStyles.overlay} bg-black/25`}
                     className={`${drawerStyles.popup} ${floatingSurface.surface} rounded-2xl border border-border shadow-xl [--drawer-inset:1rem] after:hidden`}
                     initialFocus finalFocus={() => restoreFocus(panel.container)}>
@@ -139,7 +174,7 @@ export function PlayerSelectionControls({ media, streamUrl, playingEpisode, chap
                         </DrawerClose>
                     </div>
                     {panel.view === "episodes" && playingEpisode && (
-                        <PlayerEpisodePicker playing={playingEpisode} season={panel.season} portalContainer={popup}
+                        <PlayerEpisodePicker client={client} playing={playingEpisode} season={panel.season} portalContainer={popup}
                             onSeasonChange={season => dispatch({ type: "choose-season", season })}
                             onSelect={episode => {
                                 const current = episode.season === playingEpisode.season && episode.episode === playingEpisode.episode;
@@ -155,6 +190,7 @@ export function PlayerSelectionControls({ media, streamUrl, playingEpisode, chap
                     )}
                     {panel.view === "chapters" && chapterNavigation && (
                         <PlayerChapterChoices key={chapterNavigation.source} {...chapterNavigation} chapters={availableChapters}
+                            images={chapterPreviews.images} showFrames={chapterPreviews.showFrames}
                             onSeek={time => close(() => chapterNavigation.onSeek(time))} />
                     )}
                 </DrawerContent>
@@ -167,23 +203,18 @@ export function PlayerSelectionControls({ media, streamUrl, playingEpisode, chap
                     </Button>
                 </MediaPlayerTooltip>
             )}
+            {chapterPreviews.decoder}
         </Drawer>
     );
 }
 
-function PlayerEpisodePicker({ playing, season, portalContainer, onSeasonChange, onSelect }: {
+function PlayerEpisodePicker({ client, playing, season, portalContainer, onSeasonChange, onSelect }: {
+    client: QueryClient;
     playing: PlayingEpisode; season: number;
     portalContainer: HTMLElement | null;
     onSeasonChange(_season: number): void; onSelect(_episode: Episode): void;
 }) {
-    const [seasons, setSeasons] = useState<Season[]>([]);
-    useEffect(() => {
-        let cancelled = false;
-        void fetchSeasons(playing.seriesId).then(items => {
-            if (!cancelled) setSeasons(items);
-        }).catch(() => {});
-        return () => { cancelled = true; };
-    }, [playing.seriesId]);
+    const { data: seasons = [] } = useQuery(seasonOptions(playing.seriesId), client);
 
     const options = seasons.some(item => item.number === playing.season) ? seasons : [...seasons, {
         number: playing.season,
@@ -199,43 +230,34 @@ function PlayerEpisodePicker({ playing, season, portalContainer, onSeasonChange,
                         options={options.map(item => ({ value: String(item.number), label: item.name }))} />
                 </div>
             </div>
-            <EpisodeChoices key={`${playing.seriesId}:${season}`} playing={playing} season={season} onSelect={onSelect} />
+            <EpisodeChoices key={`${playing.seriesId}:${season}`} client={client} playing={playing} season={season} onSelect={onSelect} />
         </>
     );
 }
 
-function EpisodeChoices({ playing, season, onSelect }: {
+function EpisodeChoices({ client, playing, season, onSelect }: {
+    client: QueryClient;
     playing: PlayingEpisode; season: number; onSelect(_episode: Episode): void;
 }) {
-    type Result = { status: "loading" | "error" } | { status: "ready"; episodes: Episode[]; checkedAt: number };
-    const [result, setResult] = useState<Result>({ status: "loading" });
-    const [attempt, setAttempt] = useState(0);
+    const { data: episodes, dataUpdatedAt, isFetching, isError, refetch } = useQuery(episodeOptions(playing.seriesId, season), client);
+    const hasEpisodes = Boolean(episodes?.length);
     const current = useRef<HTMLButtonElement | null>(null);
     const choices = useRef<HTMLDivElement | null>(null);
-    useEffect(() => {
-        let cancelled = false;
-        const lease = /^tmdb:[1-9]\d*$/.test(playing.seriesId) ? acquireSeriesSeason(playing.seriesId, season) : undefined;
-        const request = lease?.promise ?? fetchEpisodes(playing.seriesId, season);
-        void request.then(episodes => {
-            if (!cancelled) setResult({ status: "ready", episodes: [...episodes].sort((a, b) => a.episode - b.episode), checkedAt: Date.now() });
-        }).catch(() => { if (!cancelled) setResult({ status: "error" }); });
-        return () => { cancelled = true; lease?.release(); };
-    }, [playing.seriesId, season, attempt]);
     useLayoutEffect(() => {
         if (!choices.current || !current.current) return;
         const panel = choices.current.getBoundingClientRect();
         const row = current.current.getBoundingClientRect();
         if (row.top < panel.top) choices.current.scrollTop += row.top - panel.top;
         else if (row.bottom > panel.bottom) choices.current.scrollTop += row.bottom - panel.bottom;
-    }, [result, playing.episode, playing.season]);
+    }, [hasEpisodes, playing.episode, playing.season]);
 
     return (
         <div ref={choices} className="@container min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-4 pb-4">
-            {result.status === "loading" && (
+            {!episodes && (isFetching || !isError) && (
                 <>
                     <p role="status" className="sr-only">Loading episodes</p>
                     <LoadingPlaceholder className={selectionListClass}>
-                        {Array.from({ length: 6 }, (_, index) => (
+                        {Array.from({ length: 12 }, (_, index) => (
                             <div key={index} className={selectionRowLayout}>
                                 <Skeleton className={`${selectionThumbnailSize} rounded-[calc(var(--radius)-2px)]`} />
                                 <div className="min-w-0 flex-1">
@@ -251,26 +273,23 @@ function EpisodeChoices({ playing, season, onSelect }: {
                     </LoadingPlaceholder>
                 </>
             )}
-            {result.status === "error" && (
+            {!episodes && isError && !isFetching && (
                 <Empty>
                     <EmptyHeader role="alert">
                         <EmptyMedia variant="icon"><TriangleAlert aria-hidden="true" /></EmptyMedia>
                         <EmptyTitle>Couldn’t load episodes</EmptyTitle>
                     </EmptyHeader>
                     <EmptyContent>
-                        <Button type="button" variant="secondary" size="sm" onClick={() => {
-                            setResult({ status: "loading" });
-                            setAttempt(value => value + 1);
-                        }}>Retry</Button>
+                        <Button type="button" variant="secondary" size="sm" onClick={() => void refetch()}>Retry</Button>
                     </EmptyContent>
                 </Empty>
             )}
-            {result.status === "ready" && (result.episodes.length ? (
+            {episodes && (episodes.length ? (
                 <ul className={selectionListClass}>
-                    {result.episodes.map(episode => {
+                    {episodes.map(episode => {
                         const selected = episode.season === playing.season && episode.episode === playing.episode;
                         const releasedAt = Date.parse(episode.released ?? "");
-                        const upcoming = releasedAt > result.checkedAt;
+                        const upcoming = releasedAt > dataUpdatedAt;
                         const airDate = episode.released && Number.isFinite(releasedAt) ? formatReleaseDate(episode.released) : undefined;
                         const runtime = formatRuntime(episode.runtime);
                         const metadata = [upcoming && !selected ? "Upcoming" : undefined, runtime, airDate]

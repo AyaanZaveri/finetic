@@ -8,6 +8,7 @@ import { ArtworkImage } from "@/components/artwork-image";
 import type { MpvElementHandle } from "@/lib/desktop/mpv-element";
 import { desktopBridge } from "@/lib/desktop/bridge";
 import type { Chapter } from "@/lib/media/chapters";
+import { videoPreloadAllowed } from "@/lib/media/preload-next-video";
 import { BrowserPreviewFrames } from "@/lib/media/preview-frames";
 import { RangePreviewFrames } from "@/lib/media/range-preview-frames";
 import {
@@ -24,19 +25,135 @@ export type ChapterNavigation = {
 const noChapter = () => undefined;
 const clockEvents = ["timeupdate", "seeked", "loadedmetadata"] as const;
 
-export function PlayerChapterChoices({ chapters, media, source, onSeek }: ChapterNavigation) {
-    const list = useRef<HTMLUListElement>(null);
-    const decoder = useRef<HTMLVideoElement>(null);
+const emptyImages: ReadonlyMap<number, string> = new Map();
+const emptyTimes: readonly number[] = [];
+
+export function useChapterPreviews(navigation: ChapterNavigation | undefined, chapters: readonly Chapter[], open: boolean, warm: boolean) {
+    const source = navigation?.source;
+    const media = navigation?.media;
     const controller = (media as unknown as MpvElementHandle | null)?.controller;
     const bridge = desktopBridge();
-    const mux = /\.m3u8(?:[?#]|$)|^https:\/\/stream\.mux\.com\/[^/.?#]+(?:[?#]|$)/i.test(source);
-    const manifest = mux || /\.mpd(?:[?#]|$)/i.test(source);
-    const native = !manifest && (bridge?.capabilities?.nativePreviews || bridge?.platform === "android")
-        ? controller : undefined;
-    const [rangeFailed, setRangeFailed] = useState(false);
-    const ranged = !native && !manifest && !rangeFailed && typeof VideoDecoder !== "undefined";
-    const [images, setImages] = useState(new Map<number, string>());
-    const attachDecoder = useCallback((node: unknown) => { decoder.current = node as HTMLVideoElement | null; }, []);
+    const mux = !!source && /\.m3u8(?:[?#]|$)|^https:\/\/stream\.mux\.com\/[^/.?#]+(?:[?#]|$)/i.test(source);
+    const manifest = mux || !!source && /\.mpd(?:[?#]|$)/i.test(source);
+    const native = !manifest && (bridge?.capabilities?.nativePreviews || bridge?.platform === "android") ? controller : undefined;
+    const [failedSource, setFailedSource] = useState<string>();
+    const ranged = !native && !manifest && failedSource !== source && typeof VideoDecoder !== "undefined";
+    const enabled = !!source && chapters.length > 0;
+    const [openedSource, setOpenedSource] = useState<string>();
+    useEffect(() => { if (open) setOpenedSource(source); }, [open, source]);
+    // The video-element fallback is demand-only. Keep its decoded images alive
+    // for this source after the first open, but don't seek it when closed.
+    const showDecoder = enabled && !native && !ranged && (open || openedSource === source);
+    const [decoder, setDecoder] = useState<HTMLVideoElement | null>(null);
+    const attachDecoder = useCallback((node: unknown) => setDecoder(node as HTMLVideoElement | null), []);
+    const [result, setResult] = useState<{ source: string; media: typeof media; frames: Map<number, string> }>();
+    const visible = useRef<readonly number[]>(emptyTimes);
+    const speculative = useRef<readonly number[]>(emptyTimes);
+    const pumpRef = useRef<(() => void) | null>(null);
+    const showFrames = useCallback((times: readonly number[]) => {
+        visible.current = times;
+        pumpRef.current?.();
+    }, []);
+
+    useEffect(() => {
+        if (!enabled || !source) return;
+        const frames = new Map<number, string>();
+        setResult({ source, media, frames });
+        const attempted = new Set<number>();
+        let waiting: number | undefined;
+        let cancelled = false;
+        const finish = (time: number, src: string | null) => {
+            if (cancelled || waiting !== time) return;
+            if (src) {
+                frames.set(time, src);
+                if (frames.size > 48) {
+                    const oldest = frames.keys().next().value!;
+                    frames.delete(oldest);
+                    attempted.delete(oldest);
+                }
+                setResult({ source, media, frames: new Map(frames) });
+            }
+            waiting = undefined;
+            queueMicrotask(pump);
+        };
+        const range = ranged ? new RangePreviewFrames(source, finish, () => {
+            if (!cancelled) {
+                setResult(undefined);
+                setFailedSource(source);
+            }
+        }) : undefined;
+        const browser = showDecoder && decoder ? new BrowserPreviewFrames(decoder, finish, false, !mux, !mux) : undefined;
+        if (browser && !mux && decoder) decoder.src = source;
+        function pump() {
+            if (cancelled || waiting !== undefined || (!native && !range && !browser)) return;
+            const foreground = visible.current.find(time => !attempted.has(time));
+            const background = foreground === undefined && speculative.current.length && (native || range) && videoPreloadAllowed(media, 5)
+                ? speculative.current.find(time => !attempted.has(time)) : undefined;
+            const time = foreground ?? background;
+            if (time === undefined) return;
+            attempted.add(time);
+            waiting = time;
+            if (native) {
+                const request = foreground === undefined ? native.previewIfIdle(time) : native.preview(time);
+                void request.then(src => {
+                    if (cancelled) return;
+                    // A scrub request can supersede background work. Allow
+                    // the drawer to retry that frame when the row is visible.
+                    if (!src && foreground === undefined) {
+                        speculative.current = emptyTimes;
+                        attempted.delete(time);
+                    }
+                    finish(time, src);
+                }, () => finish(time, null));
+            } else if (range) range.want(time);
+            else browser?.want(time);
+        }
+        pumpRef.current = pump;
+        pump();
+        return () => {
+            cancelled = true;
+            pumpRef.current = null;
+            range?.dispose();
+            browser?.dispose();
+        };
+    }, [decoder, enabled, media, mux, native, ranged, showDecoder, source]);
+
+    useEffect(() => {
+        if (!warm || !media || !enabled || (!native && !ranged)) return;
+        const check = () => pumpRef.current?.();
+        const stop = () => {
+            media.removeEventListener("timeupdate", check);
+            speculative.current = emptyTimes;
+        };
+        const timer = setTimeout(() => {
+            speculative.current = chapters.slice(0, 4).map(chapter => chapter.startTime);
+            media.addEventListener("timeupdate", check);
+            check();
+        }, 1500);
+        const deadline = setTimeout(stop, 20_000);
+        return () => {
+            clearTimeout(timer);
+            clearTimeout(deadline);
+            stop();
+        };
+    }, [chapters, enabled, media, native, ranged, warm]);
+
+    return {
+        images: result && result.source === source && result.media === media ? result.frames : emptyImages,
+        showFrames,
+        decoder: showDecoder && (mux
+            ? <MuxVideo ref={attachDecoder} src={source} muted playsInline preload="metadata" crossOrigin="anonymous"
+                disableTracking aria-hidden="true" tabIndex={-1} className="pointer-events-none absolute size-px opacity-0" />
+            : <video ref={attachDecoder} muted playsInline preload="metadata" crossOrigin="anonymous"
+                aria-hidden="true" tabIndex={-1} className="pointer-events-none absolute size-px opacity-0" />),
+    };
+}
+
+export function PlayerChapterChoices({ chapters, media, onSeek, images, showFrames }: ChapterNavigation & {
+    images: ReadonlyMap<number, string>;
+    showFrames(_times: readonly number[]): void;
+}) {
+    const list = useRef<HTMLUListElement>(null);
     const subscribe = useCallback((notify: () => void) => {
         clockEvents.forEach(event => media?.addEventListener(event, notify));
         return () => clockEvents.forEach(event => media?.removeEventListener(event, notify));
@@ -49,55 +166,20 @@ export function PlayerChapterChoices({ chapters, media, source, onSeek }: Chapte
         const root = list.current;
         if (!root) return;
         const rows = Array.from(root.querySelectorAll<HTMLLIElement>("[data-chapter-start]"));
+        const timeFor = (row: HTMLElement) => Number(row.dataset.chapterStart);
         const visible = new Set<number>();
-        const attempted = new Set<number>();
-        let waiting: number | undefined;
-        let cancelled = false;
-        setImages(previous => previous.size ? new Map() : previous);
-
-        const finish = (time: number, src: string | null) => {
-            if (cancelled || waiting !== time) return;
-            if (src) setImages(previous => new Map(previous).set(time, src));
-            waiting = undefined;
-            queueMicrotask(pump);
-        };
-        const range = ranged ? new RangePreviewFrames(source, finish, () => {
-            if (!cancelled) setRangeFailed(true);
-        }) : undefined;
-        const browser = decoder.current ? new BrowserPreviewFrames(decoder.current, finish, false, !mux, !mux) : undefined;
-        if (browser && !mux && decoder.current) decoder.current.src = source;
-        function pump() {
-            if (cancelled || waiting !== undefined) return;
-            const time = [...visible].find(value => !attempted.has(value));
-            if (time === undefined) return;
-            attempted.add(time);
-            waiting = time;
-            if (native) void native.preview(time).then(src => finish(time, src), () => finish(time, null));
-            else if (range) range.want(time);
-            else if (browser) browser.want(time);
-            else finish(time, null);
-        }
         const observer = typeof IntersectionObserver === "undefined" ? undefined : new IntersectionObserver(entries => {
             for (const entry of entries) {
-                const time = Number((entry.target as HTMLElement).dataset.chapterStart);
+                const time = timeFor(entry.target as HTMLElement);
                 if (entry.isIntersecting) visible.add(time);
                 else visible.delete(time);
             }
-            pump();
+            showFrames([...visible]);
         }, { root: root.parentElement });
         if (observer) rows.forEach(row => observer.observe(row));
-        else {
-            rows.slice(0, 6).forEach(row => visible.add(Number(row.dataset.chapterStart)));
-            pump();
-        }
-        return () => {
-            cancelled = true;
-            observer?.disconnect();
-            if (waiting !== undefined) native?.cancelPreview();
-            range?.dispose();
-            browser?.dispose();
-        };
-    }, [chapters, mux, native, ranged, source]);
+        else showFrames(rows.slice(0, 6).map(timeFor));
+        return () => { observer?.disconnect(); showFrames(emptyTimes); };
+    }, [chapters, showFrames]);
 
     return <div className="@container min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-4 pb-4">
         <ul ref={list} className={selectionListClass}>
@@ -121,10 +203,5 @@ export function PlayerChapterChoices({ chapters, media, source, onSeek }: Chapte
                 </li>;
             })}
         </ul>
-        {!native && !ranged && (mux
-            ? <MuxVideo ref={attachDecoder} src={source} muted playsInline preload="auto" crossOrigin="anonymous"
-                disableTracking aria-hidden="true" tabIndex={-1} className="pointer-events-none absolute size-px opacity-0" />
-            : <video ref={attachDecoder} src={source} muted playsInline preload="auto" crossOrigin="anonymous"
-                aria-hidden="true" tabIndex={-1} className="pointer-events-none absolute size-px opacity-0" />)}
     </div>;
 }

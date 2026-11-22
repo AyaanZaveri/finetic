@@ -72,7 +72,7 @@ export function PlayerEndTime({ duration, mediaRef }: { duration: number; mediaR
     }, [duration, mediaRef]);
     const text = useSyncExternalStore(subscribe, snapshot, emptyEndTime);
     if (!text) return null;
-    return <div data-player-end-time="" className="text-sm text-white/70 ml-4 whitespace-nowrap">
+    return <div data-player-end-time="" className="translate-y-1.5 text-sm text-white/70 ml-4 whitespace-nowrap">
         Ends at {text}
     </div>;
 }

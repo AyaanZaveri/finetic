@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const { load } = require('./test-support/react-hooks.cjs');
+const { load, hooks } = require('./test-support/react-hooks.cjs');
 const constants = { URL, TextDecoder, Uint8Array, Response };
 const { chapterCues, parseMatroskaChapters } = load('lib/media/chapters.ts', {}, constants);
 const bytes = (...parts) => Buffer.concat(parts.map(part => Buffer.from(part)));
@@ -95,6 +95,38 @@ async function main() {
     receive({ type: 'chapters', session: first, chapters: markers });
     assert.equal(controller.chapters.length, 0, 'Previous playback cannot replace current chapters');
     controller.dispose();
+
+    const host = hooks();
+    const timers = new Map(), requestsForFrames = [];
+    let buffered = false;
+    const media = Object.assign(new EventTarget(), { controller: {
+        previewIfIdle: async time => { requestsForFrames.push(['warm', time]); return `frame:${time}`; },
+        preview: async time => { requestsForFrames.push(['visible', time]); return `frame:${time}`; },
+    } });
+    const { useChapterPreviews } = load('components/player-chapter-choices.tsx', {
+        react: host.react, 'react/jsx-runtime': host.jsx,
+        '@mux/mux-video-react': 'mux', 'lucide-react': {}, 'media-chrome/utils/time': {},
+        '@/components/artwork-image': {}, '@/lib/desktop/bridge': { desktopBridge: () => ({ capabilities: { nativePreviews: true } }) },
+        '@/lib/media/preload-next-video': { videoPreloadAllowed: () => buffered },
+        '@/lib/media/preview-frames': {}, '@/lib/media/range-preview-frames': {}, './player-selection-row-styles': {},
+    }, { setTimeout: (callback, delay) => { timers.set(delay, callback); return delay; }, clearTimeout: id => timers.delete(id) });
+    const chapters = Array.from({ length: 6 }, (_, index) => ({ startTime: index * 10 }));
+    let navigation = { source: 'https://fixture.test/first.mkv', media };
+    const renderPreviews = (open = false) => host.render(() => useChapterPreviews(navigation, chapters, open, true));
+    renderPreviews(); host.flush();
+    timers.get(1500)();
+    assert.equal(requestsForFrames.length, 0, 'Warmup waits for a buffered player');
+    buffered = true;
+    media.dispatchEvent(new Event('timeupdate'));
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(requestsForFrames, [['warm', 0], ['warm', 10], ['warm', 20], ['warm', 30]]);
+    renderPreviews(true).showFrames([40]); host.flush();
+    await new Promise(resolve => setImmediate(resolve));
+    renderPreviews().showFrames([]); host.flush();
+    assert.equal(renderPreviews(true).images.get(40), 'frame:40', 'Closing and reopening retains loaded previews');
+    navigation = { ...navigation, source: 'https://fixture.test/second.mkv' };
+    assert.equal(renderPreviews().images.size, 0, 'Previews are isolated to the playback source');
+    host.flush(); host.unmount();
     console.log('PASS: embedded MKV chapters, names/boundaries, invalid markers, ordered editions, SeekHead range reads, full-download rejection, and native session isolation');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

@@ -118,8 +118,11 @@ async function run() {
     assert.equal(optionsPopup.props['data-base-ui-swipe-ignore'], '', 'The portalled options must opt out of drawer pointer capture');
 
     const drawer = hooks();
+    const tanstack = require('@tanstack/react-query');
+    let episodesRead = 0;
     const chapters = [{ startTime: 18, endTime: 40, text: 'Second act' }];
     let trackChapters;
+    let desktopPlatform = 'windows';
     let activeHooks = drawer;
     drawer.react.useReducer = (transition, initial) => {
         const [state, setState] = drawer.react.useState(initial);
@@ -127,11 +130,25 @@ async function run() {
     };
     const { PlayerSelectionControls } = load('components/player-selection-controls.tsx', name => {
         if (name === 'react') return new Proxy({}, { get: (_, key) => activeHooks.react[key] });
+        if (name === '@tanstack/react-query') return { ...tanstack, useQuery(options, client) {
+            const [observer] = activeHooks.react.useState(() => new tanstack.QueryObserver(client, options));
+            const [, render] = activeHooks.react.useState(0);
+            activeHooks.react.useEffect(() => observer.subscribe(() => render(value => value + 1)), [observer]);
+            return observer.getCurrentResult();
+        } };
+        if (name === '@/components/player-chapter-choices') return {
+            PlayerChapterChoices: 'PlayerChapterChoices', useChapterPreviews: () => ({}),
+        };
+        if (name === '@/components/stream-query-provider') return { useStreamQueries: () => null };
+        if (name === '@/lib/desktop/bridge') return { desktopBridge: () => ({ platform: desktopPlatform }) };
         if (name === 'media-chrome/react/media-store') return { useMediaSelector: selector => selector({ mediaChaptersCues: trackChapters }) };
         if (name === './player-selection-row-styles') return load('components/player-selection-row-styles.ts', () => ({ default: {} }));
         if (name === 'react/jsx-runtime') return drawer.jsx;
         if (name.endsWith('.css')) return { default: { surface: 'surface' } };
-        if (name === '@/app/actions/tv-shows') return context.exports;
+        if (name === '@/app/actions/tv-shows') return { ...context.exports, fetchEpisodes: (...args) => {
+            episodesRead++;
+            return context.exports.fetchEpisodes(...args);
+        } };
         if (name === '@/lib/artwork') return artwork;
         if (name === '@/lib/format-runtime') return load('lib/format-runtime.ts');
         if (name === '@/lib/format-release-date') return load('lib/format-release-date.ts');
@@ -152,6 +169,10 @@ async function run() {
     assert.equal(renderDrawer().props.open, false);
     assert.equal(renderDrawer().props.children[3], undefined, 'Hide the chapter control when nothing can be selected');
     openPanel(0);
+    assert.equal(getPanel().props['data-player-native-glass'], undefined, 'Windows drawers use the shared CSS backdrop');
+    desktopPlatform = 'android';
+    assert.equal(getPanel().props['data-player-native-glass'], '', 'Android drawers still request sampled video');
+    desktopPlatform = 'windows';
     assert.equal(renderDrawer().props.modal, true, 'The drawer traps Tab and Shift+Tab');
     assert.equal(getPanel().props.initialFocus, true, 'Move focus to the first control inside the drawer');
     assert.equal(getPanel().props.finalFocus(), button, 'Return focus to the toolbar opener');
@@ -199,12 +220,18 @@ async function run() {
     const renderChoices = () => activeHooks.render(choices.type, choices.props);
     const placeholder = renderChoices().props.children[0].props.children[1];
     assert.equal(placeholder.type, 'LoadingPlaceholder');
-    assert.equal(placeholder.props.children.length, 6);
+    assert.equal(placeholder.props.children.length, 12);
     activeHooks.flush();
     await new Promise(resolve => setImmediate(resolve));
     const episodeRow = renderChoices().props.children[2].props.children[0].props.children;
     assert.equal(episodeRow.props.children[0].props.children.props.src, still, 'IMDb playback loads a TMDB still for an episode without addon artwork');
     assert.equal(episodeRow.props['aria-current'], true);
+    activeHooks.unmount();
+    activeHooks = hooks();
+    assert.equal(renderChoices().props.children[0], false, 'A reopened drawer starts with cached episodes');
+    assert.equal(renderChoices().props.children[2].props.children.length, 1);
+    activeHooks.flush();
+    assert.equal(episodesRead, 1, 'Reopening a fresh season does not fetch it again');
     activeHooks.unmount();
     activeHooks = drawer;
     chapterNavigation = { chapters: [],
@@ -218,6 +245,7 @@ async function run() {
     assert.equal(selections.length, 1, 'A chapter seek also waits for the drawer to close');
     renderDrawer().props.onOpenChangeComplete(false);
     assert.equal(selections[1], 18);
+    picker.props.client.clear();
 
     console.log('PASS: series Play starts S1E1, skips specials, and episode playback uses the show backdrop.');
 }

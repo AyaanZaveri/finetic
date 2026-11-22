@@ -19,6 +19,8 @@ async function main() {
  const waiting = media.preview(30), coalesced = media.preview(30);
  assert.equal(waiting, coalesced, 'Identical pending hovers share a single decode');
  const pending = sent.at(-1);
+ assert.equal(await media.previewIfIdle(90), null, 'A background chapter request must yield to an active scrub');
+ assert.equal(sent.at(-1), pending);
  receive({ type: 'thumbnail', session, request: pending.request, position: 28, range: { start: 0, end: 1000 }, src: 'data:image/jpeg;base64,BB==' });
  assert.equal(await waiting, 'data:image/jpeg;base64,BB==');
  assert.equal(media.cachedPreview(29), undefined, 'Ignore a range whose start does not match the decoded frame');

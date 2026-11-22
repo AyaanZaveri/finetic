@@ -46,6 +46,10 @@ const stores = [];
     }
     assert.deepEqual(Array.from(player.request.snapshot.streams, stream => stream.addonId), ['a', 'a', 'b']);
     player.release(); alias.release(); await tick();
+    const cached = store.peek(target);
+    assert.equal(cached.complete, true, 'The stream drawer can read completed results before subscribing');
+    assert.deepEqual(Array.from(cached.streams, stream => stream.addonId), ['a', 'a', 'b']);
+    assert.equal(store.peek({ ...target, id: 'tt123:1:3' }), undefined, 'Never show the previous episode’s streams');
     const before = calls.length, navigator = store.acquire(target);
     await navigator.request.promise; assert.equal(calls.length, before, 'Fresh Navigator playback reads TanStack data without refetch');
     navigator.release(); await tick();

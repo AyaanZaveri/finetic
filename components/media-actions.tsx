@@ -45,15 +45,17 @@ export function MediaActions({ media, movie, streamSelection }: MediaActionsProp
   const activeId = activeMedia?.id;
   const activeType = activeMedia?.type;
   const switchingStream = Boolean(streamSelection);
+  const [initialStreams] = useState(() => switchingStream && authenticated && activeId && activeType
+    ? queries?.peek({ id: activeId, type: activeType }) : undefined);
   const drawerSearch = useRef<HTMLInputElement>(null);
   const { setIsPlayerVisible, playMedia } = usePlaybackActions();
-  const [streams, setStreams] = useState<StreamWithAddon[]>([]);
+  const [streams, setStreams] = useState<StreamWithAddon[]>(initialStreams?.streams ?? []);
   const [loading, setLoading] = useState(false);
   const [streamError, setStreamError] = useState(false);
   const [streamRetry, setStreamRetry] = useState(0);
-  const [hasCheckedStreams, setHasCheckedStreams] = useState(false);
+  const [hasCheckedStreams, setHasCheckedStreams] = useState(initialStreams?.complete ?? false);
   const [pendingAddons, setPendingAddons] = useState(0);
-  const [totalAddons, setTotalAddons] = useState(0);
+  const [totalAddons, setTotalAddons] = useState(initialStreams?.total ?? 0);
   const [streamSearchQuery, setStreamSearchQuery] = useState("");
   const [selectedResolutions, setSelectedResolutions] = useState<string[]>([]);
   const libraryItemId = activeMedia?.seriesId || activeId;
@@ -94,7 +96,7 @@ export function MediaActions({ media, movie, streamSelection }: MediaActionsProp
       if (firstSnapshot) { setSelectedResolutions([]); firstSnapshot = false; }
       setLoading(!snapshot.complete);
       setHasCheckedStreams(snapshot.complete);
-      setStreams(snapshot.streams);
+      if (!switchingStream || snapshot.complete || snapshot.streams.length) setStreams(snapshot.streams);
       setTotalAddons(snapshot.total);
       setPendingAddons(snapshot.pending);
     });
@@ -104,7 +106,7 @@ export function MediaActions({ media, movie, streamSelection }: MediaActionsProp
       if (!cancelled) { console.error("Failed to fetch streams:", error); setStreamError(true); setLoading(false); setHasCheckedStreams(true); }
     });
     return () => { cancelled = true; unsubscribe(); lease?.release(); };
-  }, [activeId, activeType, queries, authenticated, streamRetry]);
+  }, [activeId, activeType, queries, authenticated, streamRetry, switchingStream]);
 
   if (!activeMedia) return null;
   if (!authenticated) return <SignInForStreams />;
@@ -334,7 +336,7 @@ export function MediaActions({ media, movie, streamSelection }: MediaActionsProp
       {loading && streams.length === 0 && (
         <LoadingPlaceholder className={styles.results}>
           <div className={styles.streamList}>
-            {[1, 2, 3, 4, 5, 6].map((item) => (
+            {Array.from({ length: switchingStream ? 12 : 6 }, (_, item) => (
               <div key={item} className={styles.streamSkeleton}>
                 <div className={`${styles.streamName} ${styles.streamSkeletonLine}`}>
                   <Skeleton className="h-3.5 w-12" />

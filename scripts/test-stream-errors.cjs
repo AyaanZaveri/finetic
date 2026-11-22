@@ -7,16 +7,17 @@ const find = (node, predicate) => !node || typeof node !== 'object' ? [] : [
 const visibleText = node => Array.isArray(node) ? node.map(visibleText).join('')
     : typeof node === 'object' && node ? visibleText(node.props?.children) : String(node ?? '');
 (async () => {
-    const h = hooks();
+    let h = hooks();
     let attempts = 0, invalidations = 0, released = 0;
-    let publishStreams;
+    let publishStreams, cached;
     const queries = {
+        peek: () => cached,
         acquire: () => {
             const failed = attempts++ === 0;
             return { release: () => released++, request: {
                 subscribe: listener => {
                     publishStreams = (streams, pending = 0, total = 2) => listener({ streams, total, pending, complete: pending === 0 });
-                    publishStreams([]);
+                    publishStreams([], cached ? 2 : 0);
                     return () => {};
                 },
                 promise: failed ? Promise.reject(new Error('offline')) : Promise.resolve([]),
@@ -25,7 +26,7 @@ const visibleText = node => Array.isArray(node) ? node.map(visibleText).join('')
         invalidate: target => { assert.equal(target.id, 'tt123:2:2'); invalidations++; },
     };
     const { MediaActions } = load('components/media-actions.tsx', {
-        react: h.react, 'react/jsx-runtime': h.jsx,
+        react: new Proxy({}, { get: (_, key) => h.react[key] }), 'react/jsx-runtime': h.jsx,
         '@/components/stream-query-provider': { useStreamQueries: () => queries },
         '@/contexts/account-context': { useAccountAccess: () => ({ authenticated: true }) },
         '@/contexts/MediaPlayerContext': { usePlaybackActions: () => ({}) },
@@ -48,6 +49,7 @@ const visibleText = node => Array.isArray(node) ? node.map(visibleText).join('')
     const initialDrawer = render(drawer);
     assert.equal(find(initialDrawer, node => node.type === 'InputGroupInput').length, 1, 'Show stream search before the first snapshot');
     assert.match(visibleText(find(initialDrawer, node => node.props.role === 'status')[0]), /Loading streams/);
+    h.unmount(); h = hooks(); attempts = 0; released = 0;
     render(); await tick(); let tree = render();
     assert.equal(find(tree, node => node.type === 'EmptyTitle')[0].props.children, 'Could not load streams');
     find(tree, node => node.type === 'button' && node.props.children === 'Retry')[0].props.onClick();
@@ -69,6 +71,11 @@ const visibleText = node => Array.isArray(node) ? node.map(visibleText).join('')
     assert.equal(find(tree, node => node.type === 'chips').length, 1);
 
     drawer.currentUrl = fileUrl;
+    cached = { streams, total: 2, pending: 0, complete: true };
+    h.unmount(); h = hooks();
+    tree = render(drawer);
+    assert.equal(find(tree, node => node.type === 'summary').length, 3, 'Cached results render immediately on open');
+    assert.equal(find(render(drawer), node => node.type === 'summary').length, 3, 'Keep cached rows while the request starts');
     publishStreams(streams, 1);
     tree = render(drawer);
     assert.equal(find(tree, node => node.type === 'chips').length, 0);

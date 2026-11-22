@@ -43,6 +43,22 @@ export function createStreamQueries(scope: string, client = new QueryClient(), f
     };
     const peekIdentity = (id: string, type: string) => client.getQueryData<string>(["metadata", scope, "identity", type, id.replace(/:\d+:\d+$/, "")]) || (/^tmdb:/.test(id) ? client.getQueryData<string>(identityOptions(id, type).queryKey) : id.replace(/:\d+:\d+$/, ""));
     const keyFor = (target: Target) => `${generation}:${target.type}:${target.id}`;
+    const addonKey = (type: string, revision = generation) => [...root, "addons", revision, type] as const;
+    const providerKey = (revision: string, type: string, id: string, index: number) => [...root, "streams", revision, type, id, index] as const;
+    const peek = (target: Target): PlaybackStreamSnapshot | undefined => {
+        const active = aliases.get(keyFor(target))?.request.snapshot;
+        if (active?.complete || active?.streams.length) return active;
+        const base = target.id.replace(/:\d+:\d+$/, "");
+        const identity = peekIdentity(base, target.type);
+        const addons = client.getQueryData<Addons>(addonKey(target.type));
+        if (!identity || !addons) return;
+        const id = identity + target.id.slice(base.length);
+        const cached = addons.addons.map((_, index) => client.getQueryState<StreamWithAddon[]>(providerKey(addons.revision, target.type, id, index)));
+        const pending = cached.filter(state => state?.data === undefined || state.isInvalidated).length;
+        const streams = cached.flatMap(state => state?.isInvalidated ? [] : state?.data ?? []);
+        if (pending && !streams.length) return;
+        return { streams, pending, total: cached.length, complete: pending === 0 };
+    };
     const read = async <T,>(url: string, signal: AbortSignal): Promise<T> => {
         const response = await fetchFn(url, { signal, cache: "no-store" });
         if (!response.ok) throw new Error("Could not fetch streams. Check your connection and try again.");
@@ -179,7 +195,7 @@ export function createStreamQueries(scope: string, client = new QueryClient(), f
             const base = target.id.replace(/:\d+:\d+$/, "");
             const canonical = resolveIdentity(base, target.type).then(id => id + target.id.slice(base.length));
             const addonsOptions = queryOptions({ ...STREAM_QUERY_DEFAULTS,
-                queryKey: [...root, "addons", entry.generation, target.type],
+                queryKey: addonKey(target.type, entry.generation),
                 queryFn: ({ signal }) => read<Addons>("/api/streams/addons?" + new URLSearchParams({ type: target.type }), AbortSignal.any([signal, AbortSignal.timeout(15_000)])),
             });
             // The metadata operations don't depend on one another.
@@ -209,7 +225,7 @@ export function createStreamQueries(scope: string, client = new QueryClient(), f
                     complete: settled.every(Boolean), settledPrefix });
             };
             const options = targets.addons.map((addon, index) => queryOptions({ ...STREAM_QUERY_DEFAULTS,
-                queryKey: [...root, "streams", targets.revision, target.type, id, index],
+                queryKey: providerKey(targets.revision, target.type, id, index),
                 queryFn: async ({ signal }) => {
                     const data = await read<{ streams: StremioStream[] }>("/api/streams/addon?" + new URLSearchParams({
                         type: target.type, mediaItemId: id, addonId: addon.id,
@@ -267,7 +283,7 @@ export function createStreamQueries(scope: string, client = new QueryClient(), f
         void request.promise.then(release, release);
         return request;
     };
-    return { client, scope, resolveIdentity, peekIdentity, acquire, create, speculate: (id: string, type: string, signal?: AbortSignal) => create(id, type, signal, "speculative"),
+    return { client, scope, resolveIdentity, peekIdentity, peek, acquire, create, speculate: (id: string, type: string, signal?: AbortSignal) => create(id, type, signal, "speculative"),
         invalidate, prune,
         clear() { if (disposed) return; disposed = true; for (const entry of entries) stop(entry); lastUse.clear(); client.clear(); },
     };
