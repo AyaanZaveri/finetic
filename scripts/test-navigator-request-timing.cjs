@@ -18,7 +18,7 @@ const timing = load('lib/navigator-timing.ts', { './navigator-chat': chat });
 const ack = load('lib/navigator-playback-ack.ts', {}, { setTimeout, clearTimeout });
 const react = require('react');
 const slots = [];
-let index, config, messages = [], toolOutput, playbackCalls = 0;
+let index, config, transport, messages = [], toolOutput, playbackCalls = 0;
 const document = new EventTarget();
 const hooks = {
     ...react,
@@ -38,7 +38,7 @@ const { default: AIAsk } = load('components/navigator/ai-ask.tsx', {
         return { messages, sendMessage: async () => {}, status: 'ready', clearError() {},
             addToolOutput(value) { toolOutput = value.output; } };
     } },
-    ai: { DefaultChatTransport: class {}, lastAssistantMessageIsCompleteWithToolCalls: () => false },
+    ai: { DefaultChatTransport: class { constructor(options) { transport = options; } }, lastAssistantMessageIsCompleteWithToolCalls: () => false },
     jotai: { useStore: () => ({ get: () => 0 }), useAtom: () => [true, () => {}] },
     sonner: { toast: { error() {} } },
     'next/navigation': { useRouter: () => ({ push() {} }), usePathname: () => '/' },
@@ -47,8 +47,11 @@ const { default: AIAsk } = load('components/navigator/ai-ask.tsx', {
     '@/lib/navigator-playback-ack': ack,
     '@/lib/navigator-timing': timing,
     '@/lib/atoms': {},
+    '@/lib/artwork': { publicArtworkUrl: value => value },
     '@/components/stream-query-provider': { useStreamQueries: () => null },
-    '@/contexts/settings-context': { useSettings: () => ({}) },
+    '@/contexts/settings-context': { useSettings: () => ({
+        aiProvider: 'openai', openaiAuthMethod: 'chatgpt', chatGPTModel: 'gpt-6.2-sol', openaiApiKey: 'fixture-key',
+    }) },
     '@/contexts/MediaPlayerContext': { useMediaPlayer: () => ({ playMedia() { playbackCalls++; }, isPlayerVisible: true, skipToTimestamp() {} }) },
     '@/lib/preload-tools': { preloadPlayer() {} },
     './focus': { NavigatorFocus: 'focus' },
@@ -64,6 +67,10 @@ const tick = () => new Promise(resolve => setTimeout(resolve, 5));
     render().onInputChange('Go to the confession');
     now = 1000;
     await render().onSubmit({ preventDefault() {} });
+    const requestBody = await transport.body();
+    assert.equal(requestBody.openaiAuthMethod, 'chatgpt');
+    assert.equal(requestBody.chatGPTModel, 'gpt-6.2-sol');
+    assert.equal(requestBody.openaiApiKey, undefined);
     messages = [user, prepared];
     now = 5000;
     config.onFinish({ messages, isAbort: false, isError: false });

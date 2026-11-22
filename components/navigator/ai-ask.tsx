@@ -52,6 +52,8 @@ const AIAsk = ({ userId }: { userId: string }) => {
         aiProvider,
         openaiBaseUrl,
         openaiModel,
+        openaiAuthMethod,
+        chatGPTModel,
         geminiModel,
         ollamaApiKey,
         ollamaBaseUrl,
@@ -367,9 +369,9 @@ const AIAsk = ({ userId }: { userId: string }) => {
                 backdropUrl: publicArtworkUrl(media.backdropUrl),
             } : null,
             currentTimestamp: playbackStore.get(currentTimestampAtom), pathname,
-            aiProvider, openaiBaseUrl, openaiModel, geminiModel, ollamaApiKey, ollamaBaseUrl, ollamaModel,
+            aiProvider, openaiBaseUrl, openaiModel, openaiAuthMethod, chatGPTModel, geminiModel, ollamaApiKey, ollamaBaseUrl, ollamaModel,
             groqModel, openrouterModel, openrouterReasoningEffort, cerebrasModel, cerebrasReasoningEffort,
-            opencodeModel, openaiApiKey, googleApiKey, groqApiKey, openrouterApiKey, cerebrasApiKey,
+            opencodeModel, openaiApiKey: openaiAuthMethod === "chatgpt" ? undefined : openaiApiKey, googleApiKey, groqApiKey, openrouterApiKey, cerebrasApiKey,
             opencodeApiKey, opencodeSessionId,
         };
         taskStartTimeRef.current = Date.now();

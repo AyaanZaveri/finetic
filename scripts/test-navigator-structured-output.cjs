@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const { Output, generateText, NoOutputGeneratedError, NoObjectGeneratedError, APICallError } = require('ai');
+const { Output, generateText, streamText, NoOutputGeneratedError, NoObjectGeneratedError, APICallError } = require('ai');
 const { z } = require('zod');
 const fs = require('node:fs');
 const vm = require('node:vm');
@@ -8,7 +8,7 @@ const ts = require('typescript');
 // Exercise helper against real AI SDK Output/error types and a controlled model boundary.
 let calls = [], behavior;
 const mockAi = {
-  Output, NoOutputGeneratedError, NoObjectGeneratedError,
+  Output, streamText, NoOutputGeneratedError, NoObjectGeneratedError,
   generateText: async opts => {
     calls.push(opts);
     return behavior(opts, calls.length);
@@ -17,7 +17,7 @@ const mockAi = {
 const emitted = ts.transpileModule(fs.readFileSync('lib/navigator-structured-output.ts', 'utf8'), {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, esModuleInterop: true },
 }).outputText;
-const context = { exports: {}, require: n => n === 'ai' ? mockAi : require(n), console: { log() {}, warn() {} }, Date, JSON, Error, SyntaxError, AbortController, setTimeout, clearTimeout };
+const context = { exports: {}, require: n => n === 'ai' ? mockAi : n === '@/lib/chatgpt-provider' ? { CHATGPT_PROVIDER_ID: 'navigator-chatgpt.responses' } : require(n), console: { log() {}, warn() {} }, Date, JSON, Error, SyntaxError, AbortController, setTimeout, clearTimeout };
 vm.runInNewContext(emitted, context);
 const generate = context.exports.generateNavigatorObject;
 const schema = z.object({ name: z.string() });

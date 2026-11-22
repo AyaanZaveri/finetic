@@ -1,6 +1,7 @@
-import { generateText, Output, NoOutputGeneratedError, NoObjectGeneratedError } from "ai";
+import { generateText, streamText, Output, NoOutputGeneratedError, NoObjectGeneratedError } from "ai";
 import type { Instructions, LanguageModel } from "ai";
 import type { z } from "zod";
+import { CHATGPT_PROVIDER_ID } from "@/lib/chatgpt-provider";
 
 type Request = Parameters<typeof generateText>[0];
 export type NavigatorObjectOptions<T> = Omit<Request, "output"> & { schema: z.ZodType<T>; task: string };
@@ -35,6 +36,20 @@ function minimalUsage(usage: unknown) {
     if (!usage || typeof usage !== "object") return undefined;
     const u = usage as Record<string, unknown>;
     return Object.fromEntries(["inputTokens", "outputTokens", "totalTokens"].filter(k => typeof u[k] === "number").map(k => [k, u[k]]));
+}
+
+async function readStreamedResult(options: Request, textMode: boolean) {
+    let streamError: unknown;
+    const stream = streamText({ ...options, maxRetries: 0, onError: ({ error }) => { streamError = error; } });
+    await stream.consumeStream({ onError: error => { streamError ??= error; } });
+    if (streamError) throw streamError;
+    return {
+        text: await stream.text,
+        output: textMode ? undefined : await stream.output,
+        finishReason: await stream.finishReason,
+        usage: await stream.usage,
+        totalUsage: await stream.totalUsage,
+    };
 }
 
 /** One deadline and at most one recovery/fallback attempt; output is always locally Zod-validated. */
@@ -78,7 +93,9 @@ export async function generateNavigatorObject<T>(options: NavigatorObjectOptions
             output: textMode ? undefined : Output.object({ schema }),
         } as Request;
         if (textMode) delete (opts as Record<string, unknown>).output;
-        const result = await generateText(opts);
+        const result = modelInfo.provider === CHATGPT_PROVIDER_ID
+            ? await readStreamedResult(opts, textMode)
+            : await generateText(opts);
         // Log before reading the output getter: parsing can throw even though
         // the provider completed and consumed reasoning/output tokens.
         console.log("[navigator-structured-attempt]", { task, model: `${modelInfo.provider}/${modelInfo.modelId}`,

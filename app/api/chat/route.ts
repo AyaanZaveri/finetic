@@ -25,6 +25,8 @@ import { createOpenCodeGoModel } from "@/lib/opencode-go";
 import { getTMDBPageContext } from "@/lib/tmdb-discovery";
 import { createAllTools, createSystemPrompt } from "@/app/tools";
 import { OPENAI_DEFAULT_BASE_URL } from "@/lib/models-dev";
+import { ChatGPTConnectionError, requireChatGPTOrigin } from "@/lib/server/chatgpt-connection";
+import { createChatGPTModel } from "@/lib/server/chatgpt-model";
 import { getAuthData } from "@/lib/server/auth";
 
 type OpenRouterReasoningEffort =
@@ -58,6 +60,7 @@ const contextSchema = z.object({
 });
 
 function chatError(error: unknown): { status: number; message: string } {
+    if (error instanceof ChatGPTConnectionError) return { status: error.status, message: error.message };
     if (error instanceof OutboundRequestError) return { status: 400, message: error.message };
     if (error instanceof NavigatorStructuredOutputError) return { status: 502, message: error.kind === "timeout"
         ? "The analysis model took too long to finish. Try again or choose a faster model in Settings."
@@ -81,8 +84,9 @@ function chatError(error: unknown): { status: number; message: string } {
 }
 
 export async function POST(req: Request) {
+    let usingChatGPT = false;
     try {
-        await getAuthData();
+        const { user } = await getAuthData();
 
         const requestPayload = await req.json();
         const context = contextSchema.parse(requestPayload);
@@ -92,6 +96,8 @@ export async function POST(req: Request) {
             aiProvider = "openai",
             openaiBaseUrl = "https://api.openai.com/v1",
             openaiModel = "gpt-4o-mini",
+            openaiAuthMethod,
+            chatGPTModel,
             geminiModel = "gemini-flash-lite-latest",
             ollamaBaseUrl = "http://localhost:11434",
             ollamaModel = "phi3",
@@ -111,9 +117,11 @@ export async function POST(req: Request) {
             opencodeSessionId,
         } = requestPayload;
         const { currentMedia, currentTimestamp, pathname } = context;
-        if (aiProvider === "openai") outboundUrl(openaiBaseUrl, { provider: true });
+        usingChatGPT = aiProvider === "openai" && openaiAuthMethod === "chatgpt";
+        if (usingChatGPT) requireChatGPTOrigin(req);
+        if (aiProvider === "openai" && !usingChatGPT) outboundUrl(openaiBaseUrl, { provider: true });
         if (aiProvider === "ollama") outboundUrl(ollamaBaseUrl, { provider: true });
-        if (aiProvider === "openai" && openaiBaseUrl !== OPENAI_DEFAULT_BASE_URL && !openaiApiKey) {
+        if (aiProvider === "openai" && !usingChatGPT && openaiBaseUrl !== OPENAI_DEFAULT_BASE_URL && !openaiApiKey) {
             return new Response("A custom AI endpoint requires its own API key in Settings.", { status: 400 });
         }
 
@@ -282,7 +290,7 @@ export async function POST(req: Request) {
 
             return model;
         };
-        const model = selectModel();
+        const model = usingChatGPT ? await createChatGPTModel(user._id, chatGPTModel) : selectModel();
 
         let tools = createAllTools(currentMedia, currentTimestamp, model, req.signal, undefined, [], context.currentSubtitles);
         let validatedMessages;
@@ -322,7 +330,7 @@ export async function POST(req: Request) {
       providerOptions?: any;
     } = {
         maxOutputTokens: 1400,
-        maxRetries: 2,
+        maxRetries: usingChatGPT ? 0 : 2,
         ...navigatorRoutingSettings(model, "minimal", "tools"),
     };
 
@@ -438,7 +446,8 @@ export async function POST(req: Request) {
                 });
             },
             onError: ({ error }) => {
-                console.error("[chat] stream error", error);
+                if (usingChatGPT) console.error("[chat] ChatGPT stream error", chatError(error).message);
+                else console.error("[chat] stream error", error);
             },
         });
 
@@ -450,7 +459,8 @@ export async function POST(req: Request) {
             },
         }) });
     } catch (error) {
-        console.error("Chat API Error:", error);
+        if (usingChatGPT) console.error("[chat] ChatGPT request error", chatError(error).message);
+        else console.error("Chat API Error:", error);
 
         if (error instanceof Error && error.message === "Not authenticated") {
             return new Response("Unauthorized", { status: 401 });

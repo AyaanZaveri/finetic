@@ -13,7 +13,7 @@
     "test:page-layout": "node scripts/test-page-layout.cjs && node scripts/test-scroll-surface-stability.cjs && node scripts/test-native-page-isolation.cjs",
     "test:logo": "node scripts/test-logo-contrast.cjs && node scripts/test-logo-backdrop.cjs && node scripts/test-logo-palette.cjs && node scripts/test-logo-sampling.cjs",
     "test:episode-skeleton": "node scripts/test-episode-skeleton.cjs",
-    "test:settings": "node scripts/test-settings-shortcut.cjs && node scripts/test-desktop-tmdb-setup.cjs && node scripts/test-settings-navigation.cjs && node scripts/test-artwork-settings.cjs && node scripts/test-episode-discovery.cjs && node scripts/test-browser-connection-credentials.cjs && node scripts/test-openai-models.cjs && node scripts/test-optimistic-web-search.cjs",
+    "test:settings": "node scripts/test-settings-shortcut.cjs && node scripts/test-desktop-tmdb-setup.cjs && node scripts/test-settings-navigation.cjs && node scripts/test-artwork-settings.cjs && node scripts/test-episode-discovery.cjs && node scripts/test-browser-connection-credentials.cjs && node scripts/test-openai-models.cjs && node scripts/test-chatgpt-sign-in.cjs && node scripts/test-optimistic-web-search.cjs",
     "test:openai-models": "node scripts/test-openai-models.cjs",
     "test:artwork-loading": "node scripts/test-motion-endpoints.cjs && node scripts/test-artwork-loading.cjs && node scripts/test-artwork-reveal.cjs && node scripts/test-episode-hero-resolution.cjs",
     "test:carousel-artwork": "node scripts/test-carousel-artwork.cjs",

@@ -1,5 +1,6 @@
 "use client";
 
+import type { OpenAIAuthMethod } from "@/lib/chatgpt-provider";
 import React, { createContext, useContext, useState, useEffect } from "react";
 
 import { SUBTITLE_SIZES, SUBTITLE_OUTLINES, SUBTITLE_WEIGHTS, SUBTITLE_COLORS, type SubtitleSize, type SubtitleOutline, type SubtitleWeight, type SubtitleColor } from "@/lib/subtitle-appearance";
@@ -63,6 +64,10 @@ interface SettingsContextType {
   // model settings
   openaiBaseUrl: string;
   setOpenaiBaseUrl: (url: string) => void;
+  openaiAuthMethod: OpenAIAuthMethod;
+  setOpenaiAuthMethod: (method: OpenAIAuthMethod) => void;
+  chatGPTModel: string;
+  setChatGPTModel: (model: string) => void;
   openaiModel: string;
   setOpenaiModel: (model: string) => void;
   geminiModel: string;
@@ -153,6 +158,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [openaiBaseUrl, setOpenaiBaseUrlState] = useState<string>(
     "https://api.openai.com/v1"
   );
+  const [openaiAuthMethod, setOpenaiAuthMethodState] = useState<OpenAIAuthMethod>("api-key");
+  const [chatGPTModel, setChatGPTModelState] = useState("");
   const [openaiModel, setOpenaiModelState] = useState<string>("gpt-4o-mini");
   const [geminiModel, setGeminiModelState] = useState<string>(
     "gemini-flash-lite-latest"
@@ -226,6 +233,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     if (savedOpenaiBaseUrl) {
       setOpenaiBaseUrlState(savedOpenaiBaseUrl);
     }
+
+    if (localStorage.getItem("navigator-openai-auth-method") === "chatgpt") setOpenaiAuthMethodState("chatgpt");
+    setChatGPTModelState(localStorage.getItem("navigator-chatgpt-model") ?? "");
 
     const savedOpenaiModel = localStorage.getItem("navigator-openai-model");
     if (savedOpenaiModel) {
@@ -340,6 +350,16 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("navigator-openai-base-url", url);
   };
 
+  const setOpenaiAuthMethod = (method: OpenAIAuthMethod) => {
+    setOpenaiAuthMethodState(method);
+    localStorage.setItem("navigator-openai-auth-method", method);
+  };
+
+  const setChatGPTModel = (model: string) => {
+    setChatGPTModelState(model);
+    localStorage.setItem("navigator-chatgpt-model", model);
+  };
+
   const setOpenaiModel = (model: string) => {
     setOpenaiModelState(model);
     localStorage.setItem("navigator-openai-model", model);
@@ -434,6 +454,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         setAiProvider,
         openaiBaseUrl,
         setOpenaiBaseUrl,
+        openaiAuthMethod,
+        setOpenaiAuthMethod,
+        chatGPTModel,
+        setChatGPTModel,
         openaiModel,
         setOpenaiModel,
         geminiModel,

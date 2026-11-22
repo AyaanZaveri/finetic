@@ -9,27 +9,36 @@ export const STREMIO_LINK_COOKIE = "navigator-stremio-link";
 export type SessionUser = Pick<StremioUser, "_id" | "email" | "avatar">;
 export type Session = { authKey: string; user: SessionUser; issuedAt: number };
 
+export function isLocalDesktopServer() {
+    return process.env.NAVIGATOR_DESKTOP === "1" && process.env.HOSTNAME === "127.0.0.1";
+}
+
+export async function localSettingsDirectory(desktop: boolean) {
+    const { homedir } = await import("node:os");
+    const { join } = await import("node:path");
+    const base = process.platform === "win32" ? process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local")
+        : process.platform === "darwin" ? join(homedir(), "Library", "Application Support")
+            : process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
+    return join(base, desktop ? "Navigator Desktop" : "Navigator Development");
+}
+
 let localKey: Promise<Uint8Array> | undefined;
 
 /** Hosted replicas share an explicit secret; local apps keep theirs outside the bundle/repo. */
-async function sessionKey(): Promise<Uint8Array> {
+export async function sessionKey(): Promise<Uint8Array> {
     const configured = process.env.NAVIGATOR_SESSION_SECRET?.trim();
     if (configured) {
         if (!/^[a-f\d]{64}$/i.test(configured)) throw new Error("NAVIGATOR_SESSION_SECRET must contain 64 hexadecimal characters.");
         return Uint8Array.from(configured.match(/../g)!, byte => parseInt(byte, 16));
     }
-    const desktop = process.env.NAVIGATOR_DESKTOP === "1" && process.env.HOSTNAME === "127.0.0.1";
+    const desktop = isLocalDesktopServer();
     if (process.env.NODE_ENV === "production" && !desktop) {
         throw new Error("Set NAVIGATOR_SESSION_SECRET before accepting hosted sign-ins.");
     }
     return localKey ??= (async () => {
         const fs = await import("node:fs/promises");
-        const { homedir } = await import("node:os");
         const { join } = await import("node:path");
-        const base = process.platform === "win32" ? process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local")
-            : process.platform === "darwin" ? join(homedir(), "Library", "Application Support")
-                : process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
-        const directory = join(base, desktop ? "Navigator Desktop" : "Navigator Development");
+        const directory = await localSettingsDirectory(desktop);
         await fs.mkdir(directory, { recursive: true, mode: 0o700 });
         const path = join(directory, "session.key");
         const key = crypto.getRandomValues(new Uint8Array(32));
