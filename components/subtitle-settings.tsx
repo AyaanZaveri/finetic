@@ -22,7 +22,7 @@ export function SubtitleSettings() {
           <Image src="/images/subtitle-preview.jpg" alt="" fill unoptimized
             sizes="(max-width: 680px) 100vw, 680px" className={styles.subtitlePreviewImage} />
           <SubtitleText size={subtitleSize} outline={subtitleOutline} weight={subtitleWeight} color={subtitleColor} style={{ bottom: `${subtitlePosition}%` }} className={styles.subtitlePreviewText}>
-            Every story starts somewhere.
+            {"Every story\nstarts somewhere."}
           </SubtitleText>
         </div>
         <figcaption id="subtitle-preview-title" className="sr-only">Subtitle preview</figcaption>

@@ -15,6 +15,7 @@
 }
 .text[data-subtitle-size="small"] { --subtitle-scale: .8; }
 .text[data-subtitle-size="large"] { --subtitle-scale: 1.2; }
+.text[data-subtitle-size="extra-large"] { --subtitle-scale: 1.5; }
 .text[data-subtitle-outline="strong"] { --subtitle-stroke: 3px; }
 .text[data-subtitle-outline="none"] { --subtitle-stroke: 0px; text-shadow: none; }
 .text[data-subtitle-weight="regular"] { font-weight: 400; }
