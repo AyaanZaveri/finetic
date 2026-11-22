@@ -135,8 +135,10 @@ function StageFrame({ initialState }: { initialState: StateId }) {
     const [mounted, setMounted] = useState(false);
     useEffect(() => {
         setMounted(true);
+        if (window.parent === window) return;
         const receive = (event: MessageEvent) => {
-            if (event.origin === location.origin && event.source === window.parent && event.data?.channel === channel) {
+            if (event.origin === location.origin && event.source === window.parent
+                && event.data?.channel === channel && typeof event.data.state === "string") {
                 setId(readState(event.data.state));
             }
         };
