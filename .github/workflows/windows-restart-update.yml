@@ -1,0 +1,42 @@
+name: Verify Windows restart to update
+
+on:
+  push:
+    branches: [windows-workbench-verification]
+    paths:
+      - .github/workflows/windows-restart-update.yml
+      - scripts/verify-windows-restart-update.ps1
+      - scripts/windows-restart-update-feed.cjs
+
+permissions:
+  contents: read
+
+jobs:
+  restart-update:
+    strategy:
+      fail-fast: false
+      matrix:
+        source: ["0.6.5", "0.6.6"]
+    runs-on: windows-2025
+    timeout-minutes: 18
+    env:
+      AGENT_BROWSER_SESSION: navigator-update
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 26.7.0
+      - name: Install browser driver
+        run: npm install --global agent-browser@0.43.0
+      - name: Click Restart to update and verify the replacement
+        shell: pwsh
+        run: ./scripts/verify-windows-restart-update.ps1 -SourceVersion '${{ matrix.source }}'
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always()
+        with:
+          name: windows-restart-update-${{ matrix.source }}
+          path: update-results/
+          if-no-files-found: error
+          retention-days: 3
