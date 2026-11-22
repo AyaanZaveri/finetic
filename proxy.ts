@@ -5,7 +5,7 @@ import { readSession, SESSION_COOKIE } from "@/lib/server/session";
 export async function proxy(request: NextRequest) {
     const path = request.nextUrl.pathname;
     // The local workbenches supply their own fixture data.
-    if (process.env.NODE_ENV === "development" && (path === "/states/player-selection" || path === "/states/addon-share")
+    if (process.env.NODE_ENV === "development" && (path === "/states/player-selection" || path === "/states/addon-share" || path === "/states/subtitle-timing")
         && ["localhost", "127.0.0.1"].includes(request.nextUrl.hostname)) {
         return NextResponse.next();
     }

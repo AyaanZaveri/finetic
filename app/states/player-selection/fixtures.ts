@@ -1,5 +1,6 @@
 import type { Episode, Season } from "@/app/actions/tv-shows";
 import type { StremioStream } from "@/types/stremio";
+import { timingStates } from "./subtitle-fixtures";
 
 export const groups = [
     { title: "Player", states: [
@@ -13,6 +14,7 @@ export const groups = [
         { id: "fetching-subtitles", label: "Fetching subtitles" },
         { id: "fetching-audio", label: "Fetching audio" },
     ] },
+    { title: "Subtitle timing", states: timingStates },
     { title: "Episodes", states: [
         { id: "episodes", label: "Playing episode" },
         { id: "episode-single", label: "One episode" },

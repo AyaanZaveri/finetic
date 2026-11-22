@@ -19,10 +19,11 @@ import { stepSubtitleSize, type SubtitleSize } from "@/lib/subtitle-appearance";
 import type { Episode } from "@/app/actions/tv-shows";
 import "@/components/player-mobile.css";
 import { fixtures, groups, installFixtureFetch, panelFor, readState, states, type StateId } from "./fixtures";
+import { narratedSample, narrationSubtitleAt, timingStates } from "./subtitle-fixtures";
 import styles from "./states.module.css";
 
 const channel = "navigator-player-selection-workbench";
-const sample = "/images/player-workbench-preview.mp4";
+const silentSample = "/images/player-workbench-preview.mp4";
 const sampleSubtitle = { text: "The mountains are quiet tonight.", positionTop: false };
 const subtitleAt = (time: number) => time >= 4 && time < 30 ? sampleSubtitle : null;
 const sampleChapters = [
@@ -42,6 +43,8 @@ function keyboardCommand(event: KeyboardEvent) {
 }
 
 function Stage({ id }: { id: StateId }) {
+    const timing = timingStates.find(state => state.id === id);
+    const sample = timing ? narratedSample : silentSample;
     const [data] = useState(() => fixtures(id));
     const [episode, setEpisode] = useState({
         seriesId: data.seriesId, season: data.currentSeason, episode: data.currentEpisode,
@@ -49,10 +52,10 @@ function Stage({ id }: { id: StateId }) {
     const [source, setSource] = useState(data.currentStream);
     const [duration, setDuration] = useState(0);
     const [statsOpen, setStatsOpen] = useState(false);
-    const [captions, setCaptions] = useState(false);
+    const [captions, setCaptions] = useState(timing?.available ?? false);
     const [subtitleSize, setSubtitleSize] = useState<SubtitleSize>("standard");
-    const [timingOpen, setTimingOpen] = useState(false);
-    const [delay, setDelay] = useState(0);
+    const [timingOpen, setTimingOpen] = useState(Boolean(timing));
+    const [delay, setDelay] = useState<number>(timing?.seconds ?? 0);
     const [upNextOpen, setUpNextOpen] = useState(id === "up-next");
     const stage = useRef<HTMLDivElement>(null);
     const video = useRef<HTMLVideoElement>(null);
@@ -66,7 +69,7 @@ function Stage({ id }: { id: StateId }) {
     }, [id]);
 
     const episodeTitle = data.episodes(episode.season).find(item => item.episode === episode.episode)?.title ?? "The Golden Child";
-    const title = movie ? "Palm Springs" : episodeTitle;
+    const title = timing ? "Along the Ridge" : movie ? "Palm Springs" : episodeTitle;
     const next = data.episodes(episode.season).find(item => item.episode > episode.episode) ?? null;
     const selectEpisode = (item: Episode) => {
         if (video.current) video.current.currentTime = 0;
@@ -79,11 +82,11 @@ function Stage({ id }: { id: StateId }) {
             onAdjustSubtitleSize={direction => setSubtitleSize(size => stepSubtitleSize(size, direction))}>
             <MediaPlayerVideo ref={video} src={sample} poster="/images/subtitle-preview.jpg"
                 playsInline preload="auto" className="size-full bg-black"
-                autoPlay={id === "playing"} muted={id === "playing"} loop={id === "playing"}
+                autoPlay={id === "playing"} muted={id === "playing"} loop={id === "playing" || Boolean(timing)}
                 onLoadedMetadata={event => {
                     const element = event.currentTarget;
                     setDuration(element.duration);
-                    element.currentTime = Math.min(9, element.duration / 3);
+                    if (!timing) element.currentTime = Math.min(9, element.duration / 3);
                 }} />
             <BrowserPlayerGlass mediaRef={video} sourceKey={sample} ready={duration > 0} />
             {data.trackLoadingLabel && (
@@ -92,15 +95,17 @@ function Stage({ id }: { id: StateId }) {
                     <PlayerLoadingStatus label={data.trackLoadingLabel} />
                 </div>
             )}
-            <PlayerSubtitleLayer mediaRef={video} lookup={subtitleAt} delay={delay} native={false} enabled={captions}
+            <PlayerSubtitleLayer mediaRef={video} lookup={timing ? time => narrationSubtitleAt(time - timing.drift) : subtitleAt}
+                delay={delay} native={false} enabled={captions}
                 size={subtitleSize} position={12} />
             <SubtitleTimingPopover container={video.current?.closest<HTMLElement>('[data-slot="media-player"]')}
-                open={timingOpen} onOpenChange={setTimingOpen} seconds={delay} onChange={setDelay} available={captions} />
+                open={timingOpen && duration > 0} onOpenChange={setTimingOpen} seconds={delay} onChange={setDelay}
+                available={captions && (timing?.available ?? true)} mediaRef={video} sourceKey={sample} />
             <PlayerPlaybackStats open={statsOpen} videoRef={video} onClose={() => setStatsOpen(false)} />
             {upNextOpen && next && <PlayerUpNext next={next} thumbnail={next.thumbnail} seconds={5} timerRunning={false}
                 onPlay={() => selectEpisode(next)} onCancel={() => setUpNextOpen(false)} />}
             <PlayerControlBar title={title} previewSource={sample}
-                episode={movie ? undefined : { showTitle: "Brooklyn Nine-Nine", season: episode.season, episodeNumber: episode.episode }}
+                episode={movie ? undefined : { showTitle: timing ? "Trail Notes" : "Brooklyn Nine-Nine", season: episode.season, episodeNumber: episode.episode }}
                 releaseYear={movie ? 2020 : undefined}
                 endTime={<PlayerEndTime duration={duration} mediaRef={video} />}
                 nextEpisode={!movie && <PlayerNextEpisode next={next} advancing={false} onAdvance={() => { if (next) selectEpisode(next); }} />}>
@@ -161,6 +166,7 @@ function StageFrame({ initialState }: { initialState: StateId }) {
 }
 
 function Switcher({ active }: { active: StateId }) {
+    const [initialState] = useState(active);
     const [hidden, setHidden] = useState(false);
     const nav = useRef<HTMLElement>(null);
     const frame = useRef<HTMLIFrameElement>(null);
@@ -222,7 +228,7 @@ function Switcher({ active }: { active: StateId }) {
                 </select>
                 <ChevronDown aria-hidden="true" size={12} />
             </div>
-            <iframe ref={frame} src="/states/player-selection?__stage=1" className={styles.frame}
+            <iframe ref={frame} src={`/states/player-selection?__stage=1&__state=${initialState}`} className={styles.frame}
                 title="Navigator player workbench" allow="fullscreen; picture-in-picture" allowFullScreen />
         </div>
     </div>;
