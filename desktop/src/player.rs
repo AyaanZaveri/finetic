@@ -449,6 +449,10 @@ impl Player {
 }
 
 #[cfg(test)]
+#[path = "track_switch_probe.rs"]
+mod track_switch_probe;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use std::collections::BTreeMap;
