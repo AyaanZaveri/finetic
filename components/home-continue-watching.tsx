@@ -23,9 +23,14 @@ function ResumeMovieYear({ id, scope }: { id: string; scope: string }) {
 export function ContinueWatchingSection() {
     const queries = useStreamQueries();
     const scope = queries?.scope ?? "anonymous";
-    const [revealArtwork] = useState(() => !queries?.client.getQueryData(continueWatchingKey(scope)));
+    const [hadCachedItems] = useState(() => Boolean(queries?.client.getQueryData(continueWatchingKey(scope))));
     const [mountedAt] = useState(Date.now);
     const { data, dataUpdatedAt, isPending, refetch } = useQuery(continueWatchingOptions(scope, fetchResumeItems));
+    const [firstReveal, setFirstReveal] = useState<boolean>();
+    const revealArtwork = firstReveal ?? (!hadCachedItems && dataUpdatedAt >= mountedAt);
+    // A snapshot can arrive after mount. Its cards must keep their reveal policy
+    // when the live response updates them.
+    if (firstReveal === undefined && data?.length) setFirstReveal(revealArtwork);
     const pendingRemovals = useMutationState({
         filters: { mutationKey: continueWatchingRemovalKey(scope), exact: true, status: "pending" },
         select: mutation => mutation.state.variables,
@@ -46,10 +51,10 @@ export function ContinueWatchingSection() {
         <div className="overflow-hidden" aria-hidden="true">
             <ul className={rowStyles.track}>
                 {Array.from({ length: 8 }, (_, index) => <li key={index} className="w-80 shrink-0">
-                    <Skeleton className="aspect-video w-full rounded-md" />
+                    <Skeleton animated={false} className="aspect-video w-full rounded-md" />
                     <div className="px-1">
-                        <Skeleton className="mt-2.5 h-5 w-3/4" />
-                        <Skeleton className="mt-0.5 h-4 w-2/5" />
+                        <Skeleton animated={false} className="mt-2.5 h-5 w-3/4" />
+                        <Skeleton animated={false} className="mt-0.5 h-4 w-2/5" />
                     </div>
                 </li>)}
             </ul>
@@ -64,7 +69,7 @@ export function ContinueWatchingSection() {
     const artwork = items[0] ? mediaArtwork(items[0]) : null;
     return <>
         {artwork && <HomeInitialPalette primary={artwork.background} fallback={artwork.poster} />}
-        <ContinueWatchingWarmup items={items}><MediaSection sectionName="Continue Watching" mediaItems={items} continueWatching revealArtwork={revealArtwork && dataUpdatedAt >= mountedAt}
+        <ContinueWatchingWarmup items={items}><MediaSection sectionName="Continue Watching" mediaItems={items} continueWatching revealArtwork={revealArtwork}
             cardSubtitles={items.map(item => item.type === "movie" && !item.year && !item.releaseInfo
                 ? <ResumeMovieYear key={item.id} id={item.id} scope={scope} /> : undefined)} />
         </ContinueWatchingWarmup>
