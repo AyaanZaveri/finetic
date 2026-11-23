@@ -12,7 +12,10 @@
     width: 100%;
     height: 100%;
     opacity: 0;
-    transition: opacity var(--duration-standard, 240ms) var(--ease-standard, ease-in-out);
+    /* The isolated variants share the same strokes. Keep their combined
+       coverage steady as one fades out and the next fades in. */
+    mix-blend-mode: plus-lighter;
+    transition: opacity var(--duration-standard, 240ms) ease;
 }
 
 .mark[data-active],

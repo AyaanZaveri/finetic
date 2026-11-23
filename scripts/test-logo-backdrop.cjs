@@ -44,7 +44,9 @@ assert.ok(calls.find(call => call[0] === 'image' && call[1] === 'blur(24px)'), '
 assert.ok(calls.find(call => call[0] === 'image' && call[2][3] > 32), 'Surrounding source pixels participate, not just the unblurred logo crop');
 assert.equal(calls.at(-1)[0], 'fill', 'The header tint paints after the filtered backdrop');
 assert.ok(logoSampleSource('https://image.tmdb.org/t/p/w300/backdrop.jpg', 'https://navigator.test').includes('wsrv.nl'));
-assert.equal(logoSampleSource('https://image.tmdb.org/t/p/w1280/art.jpg', 'https://navigator.test'), 'https://image.tmdb.org/t/p/w1280/art.jpg');
+const fullSizeArtwork = 'https://image.tmdb.org/t/p/w1280/art.jpg';
+assert.equal(new URL(logoSampleSource(fullSizeArtwork, 'https://navigator.test')).searchParams.get('url'), fullSizeArtwork,
+    'Sampling preserves the full-size artwork URL when routing it through the image service');
 
 // A one-pixel software canvas exercises the real painter's compositing at the
 // logo center. The fixed logo stays at y=8 while artwork/fade scroll underneath.
