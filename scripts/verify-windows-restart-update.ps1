@@ -17,9 +17,12 @@ $ready = Join-Path $cache 'ready.json'
 $failure = Join-Path $cache 'last-error.txt'
 $executable = Join-Path $install 'navigator-desktop.exe'
 $startup = Join-Path $data 'startup.jsonl'
-$webViewPolicy = 'HKCU:\Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments'
-$webViewFlags = '--force-renderer-accessibility --remote-debugging-port=9222'
-$testAbout = $true
+$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--force-renderer-accessibility'
+$baselineNodeOptions = $env:NODE_OPTIONS
+$baselineAboutMarker = $env:NAVIGATOR_UPDATE_ABOUT_MARKER
+$env:NAVIGATOR_UPDATE_ABOUT_MARKER = Join-Path $root 'open-about'
+$aboutHook = Join-Path $PSScriptRoot 'windows-update-open-about.cjs'
+$env:NODE_OPTIONS = "$baselineNodeOptions --require `"$aboutHook`"".Trim()
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 $fixture = $Case -ne 'published'
 $expectRecovery = $Case -eq 'recovery'
@@ -73,9 +76,6 @@ function Get-Version {
 Start-Transcript -Path (Join-Path $results 'restart-test.log') | Out-Null
 try {
     if (Test-Path $data) { throw 'Run this check on a fresh Windows runner.' }
-    New-Item -Path $webViewPolicy -Force | Out-Null
-    # Apply the setting to both launches, including the one made by NSIS.
-    Set-ItemProperty -LiteralPath $webViewPolicy -Name 'navigator-desktop.exe' -Value $webViewFlags
     New-Item -ItemType Directory -Force $root | Out-Null
     $file = "Navigator-$SourceVersion-windows-x64-setup.exe"
     $installer = Join-Path $root $file
@@ -135,10 +135,9 @@ try {
     $expectedSelection = if ($Case -eq 'full') { "-setup.exe" } else { "-from-$SourceVersion-delta.exe" }
     if (!$selection.EndsWith($expectedSelection)) { throw "Wrong staged payload: $selection" }
     Write-Output "Staged signed payload: $selection"
-    if ($testAbout) {
-        # A current status after relaunch must come from the manual check.
-        Set-Content (Join-Path $data 'update-checks.json') 'false'
-    }
+    # A current status after relaunch must come from the manual check.
+    Set-Content (Join-Path $data 'update-checks.json') 'false'
+    Set-Content $env:NAVIGATOR_UPDATE_ABOUT_MARKER 'open the public About route'
     if ($expectRecovery) {
         New-Item -ItemType Directory "$install.update-stage" | Out-Null
         Set-Content "$install.update-stage/retained.txt" 'Preserve interrupted stage'
@@ -184,23 +183,20 @@ try {
             throw "Unexpected fallback outcome: $updateLog"
         }
     }
-    if ($testAbout) {
-        $reference = if ($fixture) { Join-Path $TargetDirectory 'desktop-win32-x64/navigator-desktop.exe' }
-        if (!$expectRecovery -and $reference -and (Test-Path $reference) -and (Get-FileHash $reference).Hash -ne (Get-FileHash $executable).Hash) {
-            throw 'The installed executable differs from the candidate package.'
-        }
-        node (Join-Path $PSScriptRoot 'windows-update-open-about.cjs')
-        [void](Wait-For { Find-Control $relaunch "Navigator $expectedVersion" } 30 'the About version after relaunch')
-        if ($expectRecovery) {
-            [void](Wait-For { Find-Control $relaunch "Couldn’t install the update. Try again from Settings." } 30 'the installation error in About')
-        }
-        $check = Wait-For { Find-Control $relaunch 'Check for updates' } 30 'the manual check control'
-        Invoke-Control $check
-        if ($expectRecovery) {
-            [void](Wait-For { Find-UpdateButton $relaunch } 40 'a second successful check after the installation error')
-        } else {
-            [void](Wait-For { Find-Control $relaunch "You’re up to date." } 40 'a successful update check after relaunch')
-        }
+    $reference = if ($fixture) { Join-Path $TargetDirectory 'desktop-win32-x64/navigator-desktop.exe' }
+    if (!$expectRecovery -and $reference -and (Test-Path $reference) -and (Get-FileHash $reference).Hash -ne (Get-FileHash $executable).Hash) {
+        throw 'The installed executable differs from the candidate package.'
+    }
+    [void](Wait-For { Find-Control $relaunch "Navigator $expectedVersion" } 30 'the About version after relaunch')
+    if ($expectRecovery) {
+        [void](Wait-For { Find-Control $relaunch "Couldn’t install the update. Try again from Settings." } 30 'the installation error in About')
+    }
+    $check = Wait-For { Find-Control $relaunch 'Check for updates' } 30 'the manual check control'
+    Invoke-Control $check
+    if ($expectRecovery) {
+        [void](Wait-For { Find-UpdateButton $relaunch } 40 'a second successful check after the installation error')
+    } else {
+        [void](Wait-For { Find-Control $relaunch "You’re up to date." } 40 'a successful update check after relaunch')
     }
     Start-Sleep -Milliseconds 500
     if ($fixture -and (Test-Path (Join-Path $results 'console-windows.txt'))) {
@@ -236,6 +232,7 @@ try {
         [void]$relaunch.CloseMainWindow()
         if (!$relaunch.WaitForExit(15000)) { Stop-Process -Id $relaunch.Id -ErrorAction SilentlyContinue }
     }
-    Remove-ItemProperty -LiteralPath $webViewPolicy -Name 'navigator-desktop.exe' -ErrorAction SilentlyContinue
+    $env:NODE_OPTIONS = $baselineNodeOptions
+    $env:NAVIGATOR_UPDATE_ABOUT_MARKER = $baselineAboutMarker
     Stop-Transcript | Out-Null
 }

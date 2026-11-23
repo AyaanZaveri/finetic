@@ -1,35 +1,19 @@
-// Only the Actions test enables the loopback WebView2 debugging endpoint.
-// Navigate to the public About route in the installed app's own WebView.
-async function main() {
-  let page;
-  let reason;
-  for (let attempt = 0; attempt < 12 && !page; attempt++) {
-    try {
-      const response = await fetch('http://127.0.0.1:9222/json/list', { signal: AbortSignal.timeout(1500) });
-      const targets = await response.json();
-      page = targets.find(item => item.type === 'page' && item.url.startsWith('http://127.0.0.1:37371/'));
-      reason = page ? undefined : 'Navigator WebView was absent from the target list';
-    } catch (error) {
-      reason = error.cause?.message || error.message;
+// Preloaded by the disposable runner's packaged Next server. Direct only the
+// browser's first document request to the public About page after the restart.
+// Health probes, update downloads, and the native IPC bridge are untouched.
+const { existsSync } = require('node:fs');
+const { Server } = require('node:http');
+
+const marker = process.env.NAVIGATOR_UPDATE_ABOUT_MARKER;
+if (marker) {
+  const emit = Server.prototype.emit;
+  Server.prototype.emit = function (event, request, response, ...args) {
+    if (event === 'request' && request.url === '/' &&
+        request.headers['sec-fetch-mode'] === 'navigate' && existsSync(marker)) {
+      response.writeHead(302, { Location: '/settings/about', 'Cache-Control': 'no-store' });
+      response.end();
+      return true;
     }
-    if (!page) await new Promise(resolve => setTimeout(resolve, 500));
-  }
-  if (!page) throw Error(reason);
-  const socket = new WebSocket(page.webSocketDebuggerUrl);
-  const timeout = setTimeout(() => { console.error('WebView did not confirm navigation'); process.exit(1); }, 3000);
-  socket.addEventListener('open', () => socket.send(JSON.stringify({
-    id: 1, method: 'Page.navigate', params: { url: 'http://127.0.0.1:37371/settings/about' },
-  })));
-  socket.addEventListener('message', ({ data }) => {
-    const message = JSON.parse(data);
-    if (message.id !== 1) return;
-    if (message.error || message.result?.errorText) {
-      console.error(message.error || message.result.errorText);
-      process.exitCode = 1;
-    }
-    clearTimeout(timeout);
-    socket.close();
-  });
-  socket.addEventListener('error', () => { throw Error('Could not connect to Navigator WebView'); });
+    return emit.call(this, event, request, response, ...args);
+  };
 }
-main().catch(error => { console.error(error.message); process.exitCode = 1; });
