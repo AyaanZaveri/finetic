@@ -355,10 +355,37 @@ assert.equal(gpuSettings.keyboardSeekForwardSeconds, 10);
 forwardField.props.onValueChange(15);
 assert.equal(gpuSettings.keyboardSeekBackwardSeconds, 5);
 assert.equal(gpuSettings.keyboardSeekForwardSeconds, 15);
+const controlsSource = ts.createSourceFile('media-player.tsx',
+  fs.readFileSync('components/ui/media-player.tsx', 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+function verifySeekControl(direction, label, step, offset, override) {
+  const name = `MediaPlayerSeek${direction}`;
+  const control = controlsSource.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === name);
+  const seeks = [];
+  const render = vm.runInNewContext(ts.transpileModule(`(${control.getText(controlsSource)})`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React },
+  }).outputText, {
+    React: { createElement: (type, props, child) => ({ type, props, child }), useCallback: callback => callback },
+    useMediaPlayerContext: () => ({ ...gpuSettings, isVideo: true }),
+    useMediaDispatch: () => action => seeks.push(action.detail),
+    useMediaSelector: selector => selector({ mediaCurrentTime: 30, mediaSeekable: [0, 120] }),
+    MediaActionTypes: { MEDIA_SEEK_REQUEST: 'seek' },
+    MediaPlayerTooltip: 'Tooltip', Button: 'Button',
+  });
+  const { props, child } = render({ children: 'icon', seconds: override });
+  assert.equal(props.tooltip, `${label} ${step}s`);
+  assert.equal(child.props['aria-label'], `${label} ${step} second${step === 1 ? '' : 's'}`);
+  child.props.onClick({ defaultPrevented: false });
+  assert.deepEqual(seeks, [30 + offset]);
+}
+verifySeekControl('Backward', 'Back', 5, -5);
+verifySeekControl('Forward', 'Forward', 15, 15);
+verifySeekControl('Forward', 'Forward', 1, 1, 1);
 assert.equal(seekReset().props['aria-disabled'], false);
 seekReset().props.onClick();
 assert.deepEqual(plain(patches.at(-1)), { keyboardSeekBackwardSeconds: 10, keyboardSeekForwardSeconds: 10 });
 assert.equal(seekReset().props['aria-disabled'], true);
+verifySeekControl('Backward', 'Back', 10, -10);
+verifySeekControl('Forward', 'Forward', 10, 10);
 assert.equal(gpuSettings.webGpuPlayback, false);
 const peakField = find(renderWebSettings(), node => node.props?.id === 'hdr-peak-nits')[0];
 assert.equal(peakField.props.disabled, true);
