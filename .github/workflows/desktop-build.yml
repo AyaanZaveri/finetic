@@ -20,12 +20,16 @@ on:
         description: Run signed Windows update fixtures after packaging (test assets only)
         type: boolean
         default: false
+      windows_fixture_artifact_run:
+        description: Reuse test installers from an earlier desktop build run
+        type: string
+        default: ""
 
 permissions:
   contents: read
 
 concurrency:
-  group: desktop-installers-${{ github.ref }}-${{ inputs.platform }}-verify-${{ inputs.verify_windows_updates }}
+  group: desktop-installers-${{ github.ref }}-${{ inputs.platform }}-verify-${{ inputs.verify_windows_updates && github.sha || 'package' }}
   cancel-in-progress: true
 
 env:
@@ -101,7 +105,7 @@ jobs:
           compression-level: 0
 
   windows:
-    if: inputs.platform == 'all' || inputs.platform == 'windows'
+    if: (inputs.platform == 'all' || inputs.platform == 'windows') && (inputs.verify_windows_updates || inputs.windows_fixture_artifact_run == '')
     runs-on: windows-2025
     timeout-minutes: 90
     steps:
@@ -117,6 +121,7 @@ jobs:
           toolchain: 1.92.0
           targets: x86_64-pc-windows-msvc
       - name: Ensure NSIS is available
+        if: inputs.windows_fixture_artifact_run == ''
         shell: pwsh
         run: |
           $nsis = Join-Path ${env:ProgramFiles(x86)} 'NSIS'
@@ -126,9 +131,12 @@ jobs:
           }
           $nsis | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Clear generated assets and verify version metadata
+        if: inputs.windows_fixture_artifact_run == ''
         run: node scripts/ci-desktop-artifacts.mjs prepare
       - run: npm ci
+        if: inputs.windows_fixture_artifact_run == ''
       - name: Check desktop and update behavior
+        if: inputs.windows_fixture_artifact_run == ''
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
           node scripts/test-desktop.cjs
@@ -155,13 +163,21 @@ jobs:
           node scripts/test-windows-package.mjs
           cargo test --manifest-path desktop/Cargo.toml --locked
       - name: Download verified playback libraries
+        if: inputs.windows_fixture_artifact_run == ''
         run: node scripts/fetch-desktop-libs.mjs
       - name: Build the fixture source at its published version
         if: inputs.verify_windows_updates
         shell: pwsh
         run: node scripts/build-windows-native.mjs "$env:RUNNER_TEMP/navigator-fixture-source.exe"
-      - name: Set the fixture target version
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: inputs.verify_windows_updates
+        with:
+          name: windows-update-source-${{ github.sha }}
+          path: ${{ runner.temp }}/navigator-fixture-source.exe
+          if-no-files-found: error
+          retention-days: 1
+      - name: Set the fixture target version
+        if: inputs.verify_windows_updates && inputs.windows_fixture_artifact_run == ''
         shell: pwsh
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
@@ -177,35 +193,82 @@ jobs:
           }
           '@ | node
       - name: Prepare verified delta base
+        if: inputs.windows_fixture_artifact_run == ''
         run: node scripts/prepare-update-base.mjs windows
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Build fresh frontend, native runtime and installers
+        if: inputs.windows_fixture_artifact_run == ''
         run: npm run desktop:package
       - name: Verify packaged files and collect checksums
+        if: inputs.windows_fixture_artifact_run == ''
         run: node scripts/ci-desktop-artifacts.mjs collect
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: inputs.windows_fixture_artifact_run == ''
         with:
           name: Navigator-Windows-x64-${{ github.sha }}
           path: dist/artifacts/*
           if-no-files-found: error
           retention-days: 1
           compression-level: 0
-      - name: Exercise Windows updates through the installed app
-        if: inputs.verify_windows_updates
-        shell: pwsh
-        run: |
-          $target = (Resolve-Path dist).Path
-          foreach ($case in 'legacy-delta','delta','fallback','full','recovery') {
-            ./scripts/verify-windows-restart-update.ps1 -SourceVersion '0.6.8' -TargetVersion '0.6.9' -Case $case -TargetDirectory $target -CandidateExecutable "$env:RUNNER_TEMP/navigator-fixture-source.exe"
-            if ($case -ne 'recovery') {
-              Move-Item -LiteralPath "$env:LOCALAPPDATA/Navigator Desktop" -Destination "$env:RUNNER_TEMP/profile-$case"
-            }
-          }
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
-        if: always() && inputs.verify_windows_updates
+
+  windows-verify-update:
+    needs: windows
+    if: inputs.verify_windows_updates
+    runs-on: windows-2025
+    timeout-minutes: 12
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        case: [legacy-delta, delta, fallback, full, recovery]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          name: windows-update-evidence-${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 26.7.0
+      - name: Download the verified target installers and the test source
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FIXTURE_RUN: ${{ inputs.windows_fixture_artifact_run || github.run_id }}
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          if ($env:FIXTURE_RUN -notmatch '^\d+$') { throw 'Invalid fixture run number.' }
+          $run = gh run view $env:FIXTURE_RUN --json workflowName,headSha,jobs | ConvertFrom-Json
+          if ($run.workflowName -ne 'Build desktop installers' -or $run.headSha -notmatch '^[a-f0-9]{40}$') {
+            throw 'Select a build from the desktop installers workflow.'
+          }
+          $verified = $run.jobs | Where-Object Name -eq 'windows' |
+            ForEach-Object Steps | Where-Object { $_.name -eq 'Verify packaged files and collect checksums' -and $_.conclusion -eq 'success' }
+          if (!$verified) { throw 'The selected Windows build did not verify its packages.' }
+          gh run download $env:FIXTURE_RUN --name "Navigator-Windows-x64-$($run.headSha)" --dir update-fixture
+          gh run download $env:GITHUB_RUN_ID --name "windows-update-source-$env:GITHUB_SHA" --dir update-fixture
+          Push-Location update-fixture
+          try {
+            $checksums = @(Get-Content SHA256SUMS)
+            foreach ($file in Get-ChildItem -File -Filter '*.exe' | Where-Object Name -like 'Navigator-*') {
+              $digest = (Get-FileHash -LiteralPath $file.FullName).Hash
+              if ("$digest  $($file.Name)" -notin $checksums) { throw "Fixture checksum mismatch: $($file.Name)" }
+            }
+          } finally {
+            Pop-Location
+          }
+      - name: Exercise the installed updater
+        shell: pwsh
+        env:
+          UPDATE_CASE: ${{ matrix.case }}
+        run: |
+          $target = (Resolve-Path update-fixture).Path
+          ./scripts/verify-windows-restart-update.ps1 -SourceVersion '0.6.8' -TargetVersion '0.6.9' -Case $env:UPDATE_CASE -TargetDirectory $target -CandidateExecutable (Join-Path $target 'navigator-fixture-source.exe')
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always()
+        with:
+          name: windows-update-evidence-${{ matrix.case }}
           path: update-results/
           if-no-files-found: warn
           retention-days: 7
