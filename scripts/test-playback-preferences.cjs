@@ -70,15 +70,17 @@ assert.equal(audio.streamLanguagePreference({ title: 'English audio, French subt
 // resolution order and Off while a previous subtitle request is still pending.
 const source = fs.readFileSync('components/global-media-player.tsx', 'utf8');
 const ast = ts.createSourceFile('player.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-let selection, defaultsEffect, toggle;
+let selection, defaultsEffect, toggle, feedback, loadingLabel;
 function visit(node) {
   if (ts.isVariableDeclaration(node) && node.name.getText(ast) === 'selectSubtitle') selection = node.initializer.arguments[0].getText(ast);
   if (ts.isVariableDeclaration(node) && node.name.getText(ast) === 'toggleCaptions') toggle = node.initializer.arguments[0].getText(ast);
+  if (ts.isVariableDeclaration(node) && node.name.getText(ast) === 'showSubtitleShortcutFeedback') feedback = node.initializer.arguments[0].getText(ast);
+  if (ts.isVariableDeclaration(node) && node.name.getText(ast) === 'trackLoadingLabel') loadingLabel = node.initializer.getText(ast);
   if (ts.isCallExpression(node) && node.expression.getText(ast) === 'useEffect' && node.arguments[0]?.getText(ast).includes('choosePreferredSubtitle.current = choose')) defaultsEffect = node.arguments[0].getText(ast);
   ts.forEachChild(node, visit);
 }
 visit(ast);
-assert.ok(selection && defaultsEffect && toggle);
+assert.ok(selection && defaultsEffect && toggle && feedback && loadingLabel);
 const compile = (text, globals) => vm.runInNewContext(ts.transpileModule(`(${text})`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, globals);
 const browserCaption = { kind: "subtitles", mode: "showing" };
 let activeTracks = tracks.map(track => ({ ...track, active: false })), data = [], fetching = false;
@@ -123,7 +125,8 @@ const selectSubtitle = compile(selection, {
   function automatic({ enabled = true, mode = 'normal', manual = false, downloaded = tracks, native = [], browser, ready = 2, language = 'en', catalogReady = true } = {}) {
     const manualOverride = { current: manual };
     const applied = { current: manual }, chosen = [], listeners = new Map();
-    let waiting = false;
+    let waiting = false, subtitleFeedback = null, timerId = 0;
+    const timers = new Map();
     const element = { readyState: ready, controller: { tracks: native, selectTrack: (...args) => chosen.push(args) },
       addEventListener: (name, callback) => listeners.set(name, callback), removeEventListener: name => listeners.delete(name) };
     if (browser) element.textTracks = Object.assign(new EventTarget(), { ...browser, length: browser.length });
@@ -135,9 +138,15 @@ const selectSubtitle = compile(selection, {
       setWaitingForSubtitles: value => { waiting = value; },
       selectSubtitle: track => { waiting = false; chosen.push(track?.src ?? null); },
     };
+    bindings.showSubtitleShortcutFeedback = compile(feedback, {
+      subtitleFeedbackTimer: { current: undefined }, setSubtitleShortcutFeedback: value => { subtitleFeedback = value; },
+      setTimeout: callback => { timers.set(++timerId, callback); return timerId; }, clearTimeout: id => timers.delete(id),
+    });
     const cleanup = compile(defaultsEffect, bindings)();
     return { cleanup, toggle: compile(toggle, bindings), chosen, listeners, element, applied, manualOverride,
-      get waiting() { return waiting; }, finishCatalog() { bindings.subtitleOptionsReady = true; bindings.choosePreferredSubtitle.current(); } };
+      get waiting() { return waiting; }, finishCatalog() { bindings.subtitleOptionsReady = true; bindings.choosePreferredSubtitle.current(); }, timers,
+      label: (fetchingSubtitles = false) => compile(loadingLabel, { subtitleShortcutFeedback: subtitleFeedback,
+        fetchingSubtitles, waitingForSubtitles: waiting, fetchingNativeTrack: null, fetchingBrowserAudio: false }) };
   }
   assert.deepEqual(automatic().chosen, ['en-normal']);
   assert.deepEqual(automatic({ native: [{ id: 7, type: 'sub', lang: 'eng' }] }).chosen, [['subtitle', '7']], 'Matching embedded captions take priority over external downloads');
@@ -182,6 +191,16 @@ const selectSubtitle = compile(selection, {
   cancelDiscovery.finishCatalog();
   assert.deepEqual(cancelDiscovery.chosen, [null], 'Second press cancels the pending request to enable captions');
   cancelDiscovery.cleanup();
+  const repeating = automatic({ enabled: false, native: [{ id: 7, type: 'sub', lang: 'eng' }] });
+  for (const label of ['Fetching subtitles', 'Turning subtitles off', 'Fetching subtitles', 'Turning subtitles off', 'Fetching subtitles']) {
+    repeating.toggle();
+    assert.equal(repeating.label(), label, 'Every shortcut press displays feedback even for an immediate switch');
+    assert.equal(repeating.timers.size, 1, 'Each press replaces the previous feedback timer');
+  }
+  [...repeating.timers.values()][0]();
+  assert.equal(repeating.label(), null, 'Completed switches stop showing feedback');
+  assert.equal(repeating.label(true), 'Fetching subtitles', 'A slow download keeps its label after the short feedback expires');
+  repeating.cleanup();
   const shortcut = automatic({ enabled: false, language: 'fr', ready: 0 });
   shortcut.toggle();
   assert.deepEqual(shortcut.chosen, [], 'C waits for caption metadata even when startup captions are disabled');
