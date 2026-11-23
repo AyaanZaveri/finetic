@@ -57,7 +57,7 @@ const hooks = {
     useLayoutEffect: noOp,
     useMemo: fn => fn(), useCallback: callback => { callbacks.push(callback); return callback; },
 };
-const context = { exports: {}, AbortController, console, document: { createElement: () => ({ canPlayType: () => "" }) }, require(name) {
+const context = { exports: {}, AbortController, console, clearTimeout, document: { createElement: () => ({ canPlayType: () => "" }) }, require(name) {
     if (name === 'next/navigation') return { useRouter: () => ({ push: noOp }) };
     if (name === 'react') return hooks;
     if (name === 'sonner') return { toast: Object.assign(noOp, { dismiss: noOp, error: noOp }) };
@@ -67,7 +67,10 @@ const context = { exports: {}, AbortController, console, document: { createEleme
         details: (_media, signal) => { assert.ok(signal); requests.push('details'); return details; },
         episodeDetails: async () => { requests.push('episode-http'); return { title: 'Canonical episode title', runtime: '42 min' }; },
     } : undefined, create: (id, type) => { sharedAcquisitions++; return { id, type, canonicalId: Promise.resolve(id), promise: streams }; } } : null };
-    if (name === '@/contexts/settings-context') return { useSettings: () => ({}) };
+    if (name === '@/contexts/settings-context') {
+        const { DEFAULT_PLAYBACK_PREFERENCES } = utility('lib/media/playback-preferences.ts');
+        return { useSettings: () => ({ playbackPreferences: DEFAULT_PLAYBACK_PREFERENCES }) };
+    }
     if (name === '@/lib/media/subtitle-timing') return { useSubtitleTiming: () => ({ key: null, seconds: 0, onChange: noOp }), subtitleTime: time => time };
     if (name === '@/lib/media/playback-preferences') return utility('lib/media/playback-preferences.ts');
     if (name === '@/lib/media/resolve-playback') return utility('lib/media/resolve-playback.ts');

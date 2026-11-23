@@ -108,7 +108,10 @@ function harness({ native = false, automatic = false, autoSelectWebStream = true
                 playMedia(value) { request = value; dirty = true; },
                 setCurrentMediaWithSource: value => published.push(value), setCurrentTimestamp: noOp,
             }) };
-            if (name === '@/contexts/settings-context') return { useSettings: () => ({}) };
+            if (name === '@/contexts/settings-context') {
+                const { DEFAULT_PLAYBACK_PREFERENCES } = utility('lib/media/playback-preferences.ts');
+                return { useSettings: () => ({ playbackPreferences: DEFAULT_PLAYBACK_PREFERENCES }) };
+            }
             if (name === '@/lib/media/subtitle-timing') return { useSubtitleTiming: () => ({ key: null, seconds: 0, onChange: noOp }), subtitleTime: time => time };
             if (name === '@/lib/desktop/bridge') return { desktopBridge: () => native ? {} : null, recordDesktopStage() {} };
             if (name === '@/lib/media/playback-source') return utility('lib/media/playback-source.ts');

@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
 const { hooks, load } = require('./test-support/react-hooks.cjs');
-const { createKeyboardScrubber } = load('lib/media/keyboard-scrubbing.ts', {}, { performance });
+const { createKeyboardScrubber, KEYBOARD_SEEK_STEP } = load('lib/media/keyboard-scrubbing.ts', {}, { performance });
 const { createPlaybackSpeedHold } = load('lib/media/playback-speed-hold.ts');
 
 // Run the actual root, committing refs before effects, as React does.
@@ -23,7 +23,7 @@ function mount(props) {
   const state = { controlsVisible: true, dragging: false, seekMode: null, menuOpen: false };
   const store = { setState(key, value) { state[key] = value; } };
   const context = { exports: {}, document, window: new EventTarget(), HTMLVideoElement: Video, Element: class {},
-    createKeyboardScrubber, createPlaybackSpeedHold, React: { ...host.react, useLayoutEffect: host.react.useEffect, useId: () => 'id' },
+    createKeyboardScrubber, KEYBOARD_SEEK_STEP, createPlaybackSpeedHold, React: { ...host.react, useLayoutEffect: host.react.useEffect, useId: () => 'id' },
     jsx: host.jsx.jsx, jsxs: host.jsx.jsxs,
     useMediaFullscreenRef: () => null,
     useComposedRefs: (...refs) => node => refs.forEach(ref => { if (ref && typeof ref === 'object') ref.current = node; }),
