@@ -24,7 +24,7 @@ use tao::{
     platform::windows::{IconExtWindows, WindowBuilderExtWindows, WindowExtWindows},
     window::{Fullscreen, Icon, Theme, Window, WindowBuilder},
 };
-use wry::{NewWindowResponse, Rect, WebContext, WebView, WebViewBuilder};
+use wry::{NewWindowResponse, WebContext, WebView, WebViewBuilder};
 
 fn startup_document() -> &'static str {
     include_str!("startup.html")
@@ -128,13 +128,6 @@ impl From<&App> for Frontend {
     }
 }
 
-fn bounds(size: PhysicalSize<u32>) -> Rect {
-    Rect {
-        position: PhysicalPosition::new(0, 0).into(),
-        size: size.into(),
-    }
-}
-
 fn placement(window: &Window) -> Option<Placement> {
     let position = window.outer_position().ok()?;
     let size = window.inner_size().to_logical::<f64>(window.scale_factor());
@@ -159,9 +152,8 @@ fn remember_placement(window: &Window, normal: &mut Option<Placement>) {
     }
 }
 
-fn resize_views(
+fn resize_native_views(
     surface: &platform::VideoSurface,
-    view: Option<&WebView>,
     loading: Option<&platform::LoadingView>,
     size: PhysicalSize<u32>,
 ) {
@@ -169,9 +161,6 @@ fn resize_views(
         return;
     }
     surface.resize(size.width, size.height);
-    if let Some(view) = view {
-        let _ = view.set_bounds(bounds(size));
-    }
     if let Some(loading) = loading {
         loading.resize(size.width, size.height);
     }
@@ -190,7 +179,6 @@ fn make_view(
     let page_origin = origin.clone();
     let page = proxy.clone();
     let builder = WebViewBuilder::new_with_web_context(context)
-        .with_bounds(bounds(window.inner_size()))
         .with_transparent(true)
         .with_devtools(app.devtools)
         .with_initialization_script(&app.bridge)
@@ -266,9 +254,9 @@ fn make_view(
     } else {
         builder.with_html(startup_document())
     };
-    builder
-        .build_as_child(window)
-        .map_err(|error| error.to_string())
+    // Wry fits WebView2 to the client area while handling the native WM_SIZE,
+    // before Tao can queue the corresponding resize event.
+    builder.build(window).map_err(|error| error.to_string())
 }
 
 // Frameless maximized windows can retain the work-area inset during the
@@ -739,13 +727,13 @@ pub fn run(app: App) -> Result<(), String> {
                 if let Some((_, player, _)) = &running { player.begin_shutdown(); }
             }
             Event::WindowEvent { event: WindowEvent::Resized(size), .. } => {
-                resize_views(&surface, view.as_ref(), loading.as_ref(), size);
+                resize_native_views(&surface, loading.as_ref(), size);
                 if let Some((_, player, _)) = &running { player.glass_resized(); }
                 if let Some(view) = &view { let _ = view.evaluate_script(&receive(&json!({"type":"window-state","maximized":window.is_maximized()}))); }
                 remember_placement(&window, &mut normal);
             }
             Event::WindowEvent { event: WindowEvent::ScaleFactorChanged { new_inner_size, .. }, .. } => {
-                resize_views(&surface, view.as_ref(), loading.as_ref(), *new_inner_size);
+                resize_native_views(&surface, loading.as_ref(), *new_inner_size);
             }
             Event::WindowEvent { event: WindowEvent::Moved(_), .. } => {
                 // Moving a window doesn't resize either GPU surface.
