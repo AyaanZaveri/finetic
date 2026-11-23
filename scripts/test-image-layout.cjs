@@ -31,8 +31,10 @@ async function run() {
             if (name === '@/components/continue-watching-warmup') return { useContinueWatchingWarmup: () => null };
             if (name === '@/components/home-palette-provider') return { useHomePaletteScene: () => null };
             if (name === '@/lib/media/series-season') return {};
-            if (name === '@/lib/artwork') return { mediaArtwork: () => ({ poster: image, background: image }), episodeThumbnailUrl: value => value, backdropVariantUrl: value => value };
-            if (name === '@/lib/series-route') return { buildEpisodePath: () => '/series/fixture/1/1' };
+            if (name === '@/lib/artwork') return { mediaArtwork: () => ({ poster: image, background: image }), episodeThumbnailUrl: value => value, episodeHeroStillUrl: value => value, backdropVariantUrl: value => value };
+            if (['@/lib/series-route', '@/lib/media/playback-details', '@/lib/media/resume-playback', '@/lib/media/carousel-controls'].includes(name)) {
+                return load(name.slice(2) + '.ts');
+            }
             if (name === './ui/scroll-area') return { ScrollArea: passthrough, ScrollBar: () => null };
             if (name.startsWith('@/app/actions')) return {};
             if (name === '@/components/artwork-image') return load('components/artwork-image.tsx');
