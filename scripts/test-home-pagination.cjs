@@ -55,6 +55,7 @@ function harness(count = 100) {
     retry() { nodes(tree, node => node.type === 'button')[0].props.onClick(); },
     focusRow(index) { nodes(tree, node => node.props?.['data-index'] === index)[0].props.onFocusCapture(); },
     blurRow(index) { nodes(tree, node => node.props?.['data-index'] === index)[0].props.onBlurCapture({ currentTarget: { contains: () => false }, relatedTarget: null }); },
+    rowStyle(index) { return nodes(tree, node => node.props?.['data-index'] === index)[0].props.style; },
     get rowIndexes() { return nodes(tree, node => node.props?.['data-index'] !== undefined).map(node => node.props['data-index']); },
     get rowCount() { return nodes(tree, node => node.props?.['data-index'] !== undefined).length; },
     get height() { return tree.props.style.height; },
@@ -74,6 +75,9 @@ function harness(count = 100) {
   focusPage.h.unmount();
   const page = harness(); await page.settle();
   assert.equal(page.height, 36000, 'All known catalog positions exist before their data loads');
+  assert.equal(page.rowStyle(0).top, 0, 'The first catalog starts below Continue Watching');
+  assert.equal(page.rowStyle(1).top, 360, 'The second catalog retains its nonzero offset in layout');
+  assert.equal(page.rowStyle(1).transform, undefined, 'A lower catalog must not put hover layers inside a translated row');
   assert.ok(page.rowCount <= 7, 'Only viewport rows plus overscan enter the DOM');
   assert.equal(page.requests.length, 1);
   assert.equal(page.buttons.length, 0, 'There is no Load more button');
@@ -87,6 +91,7 @@ function harness(count = 100) {
   assert.equal(page.height, height, 'Empty results do not collapse placeholders or drag the page downward');
 
   page.jump(35); await page.settle();
+  assert.equal(page.rowStyle(35).top, 35 * 360, 'A row keeps its catalog position after a long scroll');
   assert.equal(page.requests.length, 3);
   assert.deepEqual(page.requests[2].entries.map(entry => entry.key), ['35', '36'], 'A flick prioritizes its landing viewport');
   for (let i = 2; i < 5; i++) { page.answer(i); await page.settle(); }
