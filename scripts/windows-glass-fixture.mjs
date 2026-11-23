@@ -25,7 +25,7 @@ body{margin:0}.panel{position:fixed;width:240px;padding:24px;border-radius:14px;
 .panel[aria-hidden=true]{visibility:hidden}
 </style></head><body>
  ${surfacesOnly? `<div class="panel menu popup surface" data-player-native-glass data-player-selection-drawer>Drawer glass</div>
-<div class="panel preview" data-player-glass data-slot="media-player-speed-boost">2× speed</div>` : `<div class="panel preview" data-player-glass>Preview glass</div>
+<div class="panel preview" data-player-glass data-slot="media-player-speed-boost" data-visible>2× speed</div>` : `<div class="panel preview" data-player-glass>Preview glass</div>
 <div class="panel menu" role="menu" data-state="open" data-player-native-glass>Speed<br><br>Subtitles</div>
 <div class="subtitle" data-subtitle-text data-subtitle-size="standard" data-subtitle-outline="thin">Every story starts somewhere.</div>`}
 <script>
