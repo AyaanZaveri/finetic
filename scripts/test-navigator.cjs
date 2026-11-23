@@ -30,6 +30,12 @@ async function main() {
   async function tmdbFetch(input, init) {
     if (subtitleTransportFetch) return subtitleTransportFetch(input, init);
     const url = new URL(input);
+    if (url.hostname === 'v3-cinemeta.strem.io' && url.pathname.includes('/search=')) {
+      const metas = url.pathname.startsWith('/catalog/movie/')
+        ? [{ id: 'tt123', name: 'Example', type: 'movie' }]
+        : [];
+      return Response.json({ metas });
+    }
     assert.equal(url.hostname, 'api.themoviedb.org', 'Discovery must never fetch a Stremio add-on');
     tmdbRequests.push({ url, init });
     const endpoint = url.pathname.replace('/3/', '');
@@ -74,7 +80,10 @@ async function main() {
       fetchMediaDetails: async () => { throw new Error('Add-on metadata is forbidden'); },
       getStreamAddonTargets: async () => { streamLookups++; return []; }, fetchStreamsFromAddon: async () => [],
     },
-    '@/app/actions/tv-shows': { fetchEpisodes: async () => [], fetchSeasons: async () => [], fetchEpisodeDetails: async () => ({ id: 'show:1:2', title: 'Selected episode' }) },
+    './auth': { getInstalledAddons: async () => [] },
+    '@/lib/server/metadata-identity': { metadataIdentity: async () => ({
+      scope: subtitleUserId, revision: episodeMetadataUnavailable ? 'episode-unavailable' : 'tmdb', provider: 'auto',
+    }) },
     '@/app/actions/subtitles': { fetchSubtitleFileContent: async url => { subtitleDownloads.push(url); return brokenSubtitleUrls.has(url) ? { success: false, error: 'Subtitle download failed (404)' } : ({ success: true, content: subtitleContent }); } },
     '@/app/actions/utils': { getSubtitleTracks: async (id, _type, options = {}) => {
       const raw = sourceId => { subtitleTrackLookups++; return subtitleTracksForId ? subtitleTracksForId(sourceId) : subtitleTracks; };
@@ -102,7 +111,7 @@ async function main() {
     vm.runInNewContext(code, {
       module, exports: module.exports, require: localRequire, console: { log() {}, warn() {}, error() {} },
       process: { env: {} }, setTimeout, clearTimeout, AbortController, AbortSignal, Event, CustomEvent, Error, TypeError, SyntaxError,
-      fetch: tmdbFetch, Request, Response, ReadableStream, TextEncoder, TextDecoder, URL, URLSearchParams, crypto: globalThis.crypto,
+      fetch: tmdbFetch, Request, Response, ReadableStream, TextEncoder, TextDecoder, URL, URLSearchParams, Buffer, crypto: globalThis.crypto,
     }, { filename: absolute });
     return module.exports;
   }
@@ -354,8 +363,9 @@ async function main() {
   episodeMetadataUnavailable = false;
   tmdbToken = '';
   const missingToken = await tools.searchMedia.execute({ query: 'Example' }, { toolCallId: 'missing-token', messages: [] });
-  assert.equal(missingToken.success, false);
-  assert.match(missingToken.error, /TMDB read access token/);
+  assert.equal(missingToken.success, true, 'Title search falls back to Cinemeta without a TMDB token');
+  assert.equal(missingToken.results[0].id, 'tt123');
+  assert.equal(missingToken.results[0].source, 'Cinemeta');
   tmdbToken = 'tmdb-test-token';
   tmdbStatus = 429;
   const limitedSearch = await tools.searchMedia.execute({ query: 'Example' }, { toolCallId: 'limited', messages: [] });

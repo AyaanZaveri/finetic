@@ -26,9 +26,11 @@ async function run() {
   const env = {};
   const calls = [];
   let fail = false;
+  let provider = 'auto';
   const globals = {
     require: name => name === '@/lib/cast' ? cast : name === '@/lib/tmdb' ? tmdb
       : name === '@/lib/tmdb-credentials' ? credentials
+      : name === '@/lib/server/metadata-provider' ? { getMetadataProvider: async () => provider }
       : name === 'next/headers' ? { cookies: async () => ({ get: () => undefined }) } : {},
     process: { env }, AbortSignal,
     fetch: async (url, options) => {
@@ -46,6 +48,11 @@ async function run() {
   assert.equal(result.members[0].name, 'Known Actor');
   assert.equal(calls.length, 0, 'No token means no external requests');
   env.TMDB_API_READ_ACCESS_TOKEN = 'test-token';
+  provider = 'cinemeta';
+  result = await getMediaCast('tt0816692', 'movie', ['Known Actor']);
+  assert.equal(result.members[0].name, 'Known Actor');
+  assert.equal(calls.length, 0, 'Cinemeta keeps cast names and does not call TMDB');
+  provider = 'auto';
   result = await getMediaCast('tt0816692', 'movie');
   assert.ok(calls[0].url.includes('external_source=imdb_id'));
   assert.ok(calls[1].url.includes('/movie/157336/credits'));
