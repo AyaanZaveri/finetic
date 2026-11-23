@@ -60,6 +60,11 @@ try {
   assert.equal(requests.filter(u=>u.endsWith('.exe')).length,1,'A verified cached payload is reused after relaunch');
   const installed=[];
   await assert.rejects(runtime.apply(cache,publicKey,fetcher,async()=>{throw Error('Must not run');},()=>{},{installed:'0.5.0'}),/different installation/);
+  const failedSpawnStates = [];
+  await assert.rejects(runtime.apply(cache, publicKey, fetcher, async () => {
+    throw Error('Could not launch installer');
+  }, state => failedSpawnStates.push(state.state)), /Could not launch installer/);
+  assert.deepEqual(failedSpawnStates, [], 'Keep Navigator open if the installer cannot start');
   const helperPath = new URL('../desktop/windows/background-update.cjs', import.meta.url);
   const require = createRequire(helperPath);
   const helper = { exports: {} };
@@ -73,12 +78,17 @@ try {
         assert.ok(windowsHide && windowsVerbatimArguments);
         installed.push(file);
         const child = new EventEmitter();
-        queueMicrotask(() => child.emit('exit', file.includes('-delta.exe') ? 13 : 0));
+        queueMicrotask(() => {
+          child.emit('spawn');
+          child.emit('exit', file.includes('-delta.exe') ? 13 : 0);
+        });
         return child;
       },
     } : require(name),
   });
-  await helper.exports.apply(cache, publicKey, fetcher, undefined, undefined, {parentPid:2345});
+  const applyStates = [];
+  await helper.exports.apply(cache, publicKey, fetcher, undefined, state=>applyStates.push(state.state), {parentPid:2345});
+  assert.deepEqual(applyStates, ['installing'], 'Hand off only after launch, once for the entire update');
   assert.deepEqual(installed.map(file=>file.includes('-delta.exe')), [true,false], 'Base mismatch automatically falls back to the signed full installer');
   assert.equal(requests.filter(u=>u.endsWith('-setup.exe')).length,1);
   await assert.rejects(readFile(join(cache,'ready.json')),/ENOENT/);

@@ -196,9 +196,9 @@ jobs:
         shell: pwsh
         run: |
           $target = (Resolve-Path dist).Path
-          foreach ($case in 'legacy-delta','delta','fallback','full') {
+          foreach ($case in 'legacy-delta','delta','fallback','full','recovery') {
             ./scripts/verify-windows-restart-update.ps1 -SourceVersion '0.6.8' -TargetVersion '0.6.9' -Case $case -TargetDirectory $target -CandidateExecutable "$env:RUNNER_TEMP/navigator-fixture-source.exe"
-            if ($case -ne 'full') {
+            if ($case -ne 'recovery') {
               Move-Item -LiteralPath "$env:LOCALAPPDATA/Navigator Desktop" -Destination "$env:RUNNER_TEMP/profile-$case"
             }
           }

@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory)][ValidateSet('0.6.7','0.6.8')][string]$SourceVersion,
     [Parameter(Mandatory)][string]$TargetVersion,
-    [ValidateSet('published','legacy-delta','delta','fallback','full')][string]$Case = 'published',
+    [ValidateSet('published','legacy-delta','delta','fallback','full','recovery')][string]$Case = 'published',
     [string]$TargetDirectory,
     [string]$CandidateExecutable
 )
@@ -20,6 +20,8 @@ $startup = Join-Path $data 'startup.jsonl'
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--force-renderer-accessibility --remote-debugging-port=9222'
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 $fixture = $Case -ne 'published'
+$expectRecovery = $Case -eq 'recovery'
+$expectedVersion = if ($expectRecovery) { $SourceVersion } else { $TargetVersion }
 $app = $null
 $relaunch = $null
 $recording = $null
@@ -128,6 +130,14 @@ try {
     $expectedSelection = if ($Case -eq 'full') { "-setup.exe" } else { "-from-$SourceVersion-delta.exe" }
     if (!$selection.EndsWith($expectedSelection)) { throw "Wrong staged payload: $selection" }
     Write-Output "Staged signed payload: $selection"
+    if ($fixture) {
+        # A current status after relaunch must come from the manual check.
+        Set-Content (Join-Path $data 'update-checks.json') 'false'
+    }
+    if ($expectRecovery) {
+        New-Item -ItemType Directory "$install.update-stage" | Out-Null
+        Set-Content "$install.update-stage/retained.txt" 'Preserve interrupted stage'
+    }
     $recording = Start-ThreadJob -FilePath (Join-Path $PSScriptRoot 'record-windows-update.ps1') -ArgumentList $results.FullName
     [void](Wait-For { Test-Path (Join-Path $results 'record.ready') } 20 'the screen and console monitor')
     Start-Sleep -Milliseconds 400
@@ -139,17 +149,30 @@ try {
     $shutdownMs = $timer.ElapsedMilliseconds
     Write-Output "Original process exited after ${shutdownMs}ms (exit $($app.ExitCode))"
     $relaunch = Wait-For {
-        if (Test-Path $failure) { throw "Updater reported failure: $(Get-Content -Raw $failure)" }
-        if ((Test-Path $ready) -or (Test-Path $marker)) { return }
-        if ((Get-Version) -notmatch "^$([regex]::Escape($TargetVersion))(\.0)?$") { return }
+        if ($expectRecovery) {
+            if (!(Test-Path $failure) -or !(Test-Path $marker) -or !(Test-Path $ready)) { return }
+        } else {
+            if (Test-Path $failure) { throw "Updater reported failure: $(Get-Content -Raw $failure)" }
+            if ((Test-Path $ready) -or (Test-Path $marker)) { return }
+        }
+        if ((Get-Version) -notmatch "^$([regex]::Escape($expectedVersion))(\.0)?$") { return }
         Get-Process -Name 'navigator-desktop' -ErrorAction SilentlyContinue |
             Where-Object { $_.Id -ne $oldPid -and $_.Path -eq $executable } | Select-Object -First 1
-    } 200 'a successful install and new Navigator process'
-    Write-Output "Replaced installation and relaunched PID $($relaunch.Id) in $($timer.ElapsedMilliseconds)ms"
+    } 200 'Navigator to reopen after the installer exits'
+    Write-Output "Relaunched Navigator $(Get-Version) PID $($relaunch.Id) in $($timer.ElapsedMilliseconds)ms"
     [void](Wait-For { Test-AppReady $relaunch.Id } 90 'the relaunched app to become ready')
     $appReadyMs = $timer.ElapsedMilliseconds
     if ((Get-Content -Raw $profileMarker).Trim() -ne 'Keep the existing profile') { throw 'Profile marker changed.' }
-    if ((Test-Path "$install.update-backup") -or (Test-Path "$install.update-stage")) { throw 'Installer left an update backup or stage.' }
+    if ($expectRecovery) {
+        if ((Get-Content -Raw "$install.update-stage/retained.txt").Trim() -ne 'Preserve interrupted stage') {
+            throw 'The installer changed the interrupted stage.'
+        }
+        if ((Get-Content -Raw $failure) -notmatch 'exited with status 4') {
+            throw "Unexpected recovery error: $(Get-Content -Raw $failure)"
+        }
+    } elseif ((Test-Path "$install.update-backup") -or (Test-Path "$install.update-stage")) {
+        throw 'Installer left an update backup or stage.'
+    }
     if ($Case -notin 'published','legacy-delta') {
         $updateLog = Get-Content -Raw (Join-Path $cache 'update.log')
         if (($updateLog -match 'Full fallback exited with status 0') -ne ($Case -eq 'fallback')) {
@@ -158,14 +181,21 @@ try {
     }
     if ($fixture) {
         $reference = Join-Path $TargetDirectory 'desktop-win32-x64/navigator-desktop.exe'
-        if ((Test-Path $reference) -and (Get-FileHash $reference).Hash -ne (Get-FileHash $executable).Hash) {
+        if (!$expectRecovery -and (Test-Path $reference) -and (Get-FileHash $reference).Hash -ne (Get-FileHash $executable).Hash) {
             throw 'The installed executable differs from the candidate package.'
         }
         node (Join-Path $PSScriptRoot 'windows-update-open-about.cjs')
-        [void](Wait-For { Find-Control $relaunch "Navigator $TargetVersion" } 30 'the updated About version')
+        [void](Wait-For { Find-Control $relaunch "Navigator $expectedVersion" } 30 'the About version after relaunch')
+        if ($expectRecovery) {
+            [void](Wait-For { Find-Control $relaunch "Couldn’t install the update. Try again from Settings." } 30 'the installation error in About')
+        }
         $check = Wait-For { Find-Control $relaunch 'Check for updates' } 30 'the manual check control'
         Invoke-Control $check
-        [void](Wait-For { Find-Control $relaunch "You’re up to date." } 40 'a successful update check after relaunch')
+        if ($expectRecovery) {
+            [void](Wait-For { Find-UpdateButton $relaunch } 40 'a second successful check after the installation error')
+        } else {
+            [void](Wait-For { Find-Control $relaunch "You’re up to date." } 40 'a successful update check after relaunch')
+        }
     }
     Start-Sleep -Milliseconds 500
     if ($fixture -and (Test-Path (Join-Path $results 'console-windows.txt'))) {

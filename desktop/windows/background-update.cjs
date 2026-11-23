@@ -94,8 +94,11 @@ async function getFeed(fetcher = fetch) {
   return Buffer.concat(chunks).toString('utf8');
 }
 async function atomicJson(file, value) { await writeFile(file+'.tmp',JSON.stringify(value),{mode:0o600}); await rename(file+'.tmp',file); }
-function log(cache, message) {
-  return appendFile(join(cache,'update.log'),`${new Date().toISOString()} ${message}\n`).catch(()=>{});
+async function log(cache, message) {
+  try {
+    await mkdir(cache,{recursive:true});
+    await appendFile(join(cache,'update.log'),`${new Date().toISOString()} ${message}\n`);
+  } catch {}
 }
 
 async function prepare(install, installed, cache, publicKey, fetcher = fetch, report = ()=>{}) {
@@ -127,13 +130,14 @@ async function cacheHelper(source, destination) {
   if (await hash(destination).catch(()=>null) === await hash(source)) return;
   await copyFile(source, destination);
 }
-function runInstaller(file, install, parentPid) {
+function runInstaller(file, install, parentPid, onLaunch = ()=>{}) {
   return new Promise((resolve,reject)=>{
     const args = ['/S','/UPDATE'];
     if (parentPid) args.push(`/UPDATEPID=${parentPid}`);
     // NSIS requires the final /D argument to remain unquoted, even with spaces.
     args.push(`/D=${install}`);
     const child=spawn(file,args,{argv0:`"${file}"`,cwd:dirname(file),stdio:'ignore',windowsHide:true,windowsVerbatimArguments:true});
+    child.once('spawn',onLaunch);
     child.once('error',reject);
     child.once('exit',code=>resolve(code));
   });
@@ -149,8 +153,7 @@ async function apply(cache, publicKey, fetcher=fetch, run=runInstaller, report=(
   const file=await download(selected,cache,key,fetcher);
   await rm(join(cache,'last-error.txt'),{force:true});
   await log(cache,`Installing ${selected.filename}`);
-  report({state:'installing'});
-  let code=await run(file,ready.install,expected.parentPid);
+  let code=await run(file,ready.install,expected.parentPid,()=>report({state:'installing'}));
   await log(cache,`Installer exited with status ${code}`);
   if (code===13 && selected!==release.full) {
     // The delta installer discarded its staging tree. Repair from the signed
