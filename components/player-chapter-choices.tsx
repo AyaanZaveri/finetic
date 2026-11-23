@@ -9,7 +9,6 @@ import type { MpvElementHandle } from "@/lib/desktop/mpv-element";
 import { desktopBridge } from "@/lib/desktop/bridge";
 import type { Chapter } from "@/lib/media/chapters";
 import { loadChapterImage } from "@/lib/media/chapter-preview-image";
-import { routePrefetchAllowed } from "@/lib/route-prefetch";
 import { BrowserPreviewFrames } from "@/lib/media/preview-frames";
 import { RangePreviewFrames } from "@/lib/media/range-preview-frames";
 import {
@@ -29,14 +28,15 @@ const clockEvents = ["timeupdate", "seeked", "loadedmetadata"] as const;
 const emptyImages: ReadonlyMap<number, string> = new Map();
 const emptyTimes: readonly number[] = [];
 
-const warmEvents = ["playing", "canplay", "progress", "timeupdate", "seeked"] as const;
+const warmEvents = ["loadeddata", "playing", "canplay", "progress", "timeupdate", "seeked"] as const;
+const maxImageChecks = 2;
 
 function sampleTimes({ startTime, endTime }: Chapter) {
     const span = endTime - startTime;
     return [
-        startTime + Math.min(1, span / 2),
-        startTime + Math.min(3, span * 0.75),
-        startTime + Math.min(5, span * 0.9),
+        startTime + Math.min(2, span / 2),
+        startTime + Math.min(4, span * 0.75),
+        startTime + Math.min(7, span * 0.9),
         startTime,
     ];
 }
@@ -87,25 +87,42 @@ export function useChapterPreviews(navigation: ChapterNavigation | undefined, ch
         const abort = new AbortController();
         const { signal } = abort;
         const offsets = new Map<number, number>();
+        const checking = new Set<number>();
         const failedWarm = new Set<number>();
         const failedVisible = new Set<number>();
         let pending: { start: number; time: number; index: number; last: boolean; foreground: boolean } | undefined;
         let idleRetry: ReturnType<typeof setTimeout> | undefined;
+        let rangeFailed = false;
 
-        async function finish(time: number, src: string | null) {
+        function useFallbackWhenReady() {
+            if (rangeFailed && !checking.size && !signal.aborted) setFailedSource(source);
+        }
+
+        function retryWhenIdle() {
+            idleRetry ??= setTimeout(() => { idleRetry = undefined; pump(); }, 250);
+        }
+
+        async function finish(time: number, src: string | null | undefined) {
             const request = pending;
             if (signal.aborted || !request || request.time !== time) return;
+            pending = undefined;
+            if (src === undefined) { retryWhenIdle(); return; }
+            const { start } = request;
+            checking.add(start);
+            // One decoder can start the next seek while the last JPEG is read
+            // and checked for black frames. Bound that overlap.
+            queueMicrotask(pump);
             const image = src ? await loadChapterImage(src, signal).catch(() => null) : null;
             if (signal.aborted) {
                 if (image) URL.revokeObjectURL(image);
                 return;
             }
-            const { start } = request;
+            checking.delete(start);
             if (image) {
                 frames.set(start, image);
                 setResult({ playback, frames: new Map(frames) });
                 offsets.delete(start);
-            } else if (!native?.previewBusy) {
+            } else {
                 if (!request.last) offsets.set(start, request.index + 1);
                 else {
                     offsets.delete(start);
@@ -113,12 +130,16 @@ export function useChapterPreviews(navigation: ChapterNavigation | undefined, ch
                     if (request.foreground) failedVisible.add(start);
                 }
             }
-            pending = undefined;
-            queueMicrotask(pump);
+            if (rangeFailed) useFallbackWhenReady();
+            else queueMicrotask(pump);
         }
 
-        const range = ranged ? new RangePreviewFrames(source, finish, () => {
-            if (!signal.aborted) setFailedSource(source);
+        const range = ranged ? new RangePreviewFrames(source, (time, src) => {
+            range?.cancel();
+            void finish(time, src);
+        }, () => {
+            rangeFailed = true;
+            useFallbackWhenReady();
         }, true) : undefined;
         const decoder = decoderRef.current;
         const browser = showDecoder && decoderAttached && decoder ? new BrowserPreviewFrames(decoder, (time, src, _videoFrame, unavailable) => {
@@ -131,13 +152,14 @@ export function useChapterPreviews(navigation: ChapterNavigation | undefined, ch
         }
 
         function pump() {
-            if (signal.aborted || pending || (!native && !range && !browser)) return;
+            if (signal.aborted || rangeFailed || pending || idleRetry !== undefined
+                || checking.size >= maxImageChecks || (!native && !range && !browser)) return;
             const { chapters, open, warm } = plan.current;
             const foreground = open ? visible.current : emptyTimes;
             const visibleChapter = foreground.length ? chapters.find(({ startTime }) =>
-                foreground.includes(startTime) && !frames.has(startTime) && !failedVisible.has(startTime)) : undefined;
-            const canWarm = warm && media && !media.paused && !media.seeking && media.readyState >= 3 && routePrefetchAllowed();
-            const needsImage = ({ startTime }: Chapter) => !frames.has(startTime) && !failedWarm.has(startTime);
+                foreground.includes(startTime) && !frames.has(startTime) && !checking.has(startTime) && !failedVisible.has(startTime)) : undefined;
+            const canWarm = warm && media && media.readyState >= 2;
+            const needsImage = ({ startTime }: Chapter) => !frames.has(startTime) && !checking.has(startTime) && !failedWarm.has(startTime);
             // Give every chapter one sample before retrying background misses.
             const chapter = visibleChapter ?? (canWarm
                 ? chapters.find(chapter => !offsets.has(chapter.startTime) && needsImage(chapter)) ?? chapters.find(needsImage)
@@ -147,7 +169,7 @@ export function useChapterPreviews(navigation: ChapterNavigation | undefined, ch
             // The native bridge has one interactive request slot. Let an active
             // scrub finish before borrowing it for another chapter.
             if (native?.previewBusy) {
-                idleRetry ??= setTimeout(() => { idleRetry = undefined; pump(); }, 250);
+                retryWhenIdle();
                 return;
             }
 
@@ -193,6 +215,7 @@ export function PlayerChapterChoices({ chapters, media, onSeek, images, showFram
     showFrames(_times: readonly number[]): void;
 }) {
     const list = useRef<HTMLUListElement>(null);
+    const initialImages = useRef(images);
     const subscribe = useCallback((notify: () => void) => {
         clockEvents.forEach(event => media?.addEventListener(event, notify));
         return () => clockEvents.forEach(event => media?.removeEventListener(event, notify));
@@ -230,7 +253,7 @@ export function PlayerChapterChoices({ chapters, media, onSeek, images, showFram
                         onClick={() => onSeek(chapter.startTime)}
                         className={selectionRowClass}>
                         <span className={selectionThumbnailClass}>
-                            {image && <ArtworkImage src={image} alt="" draggable={false} fallbackText=""
+                            {image && <ArtworkImage src={image} alt="" draggable={false} fallbackText="" reveal={!initialImages.current.has(chapter.startTime)}
                                 className="peer absolute inset-0 size-full object-cover data-[artwork-state=error]:invisible" />}
                             <Clapperboard aria-hidden="true" className="size-4 text-muted-foreground peer-data-[artwork-state=ready]:invisible" />
                         </span>

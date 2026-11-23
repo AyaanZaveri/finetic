@@ -98,7 +98,7 @@ export class MpvController extends EventTarget {
       while (this.decodedPreviews.size > 24) this.decodedPreviews.delete(this.decodedPreviews.keys().next().value!);
     }
   }
-  private previewActive = false;
+  private previewOwner?: "scrub" | "chapter";
   private previewPending?: { id: number; position: number; promise: Promise<string | null>; resolve: (src: string | null) => void; timer: ReturnType<typeof setTimeout> };
 
   constructor(private bridge: DesktopBridge) {
@@ -298,16 +298,30 @@ export class MpvController extends EventTarget {
     }
   }
   get previewBusy() { return this.previewPending !== undefined; }
-  previewIfIdle(position: number): Promise<string | null> {
-    if (this.previewPending && this.previewPending.position !== position) return Promise.resolve(this.cachedPreview(position) ?? null);
-    return this.preview(position);
+  async previewIfIdle(position: number): Promise<string | null | undefined> {
+    const cached = this.cachedPreview(position);
+    if (cached) return cached;
+    if (this.previewPending && this.previewPending.position !== position) return undefined;
+    const preview = this.requestPreview(position, "chapter");
+    const request = this.previewId;
+    const src = await preview;
+    // undefined means the scrubber took the slot. The chapter can retry the
+    // same timestamp. null means this sample could not be decoded.
+    return src ?? (request === this.previewId ? null : undefined);
   }
 
   preview(position: number): Promise<string | null> {
-    if (this.previewPending?.position === position) return this.previewPending.promise;
+    return this.requestPreview(position, "scrub");
+  }
+
+  private requestPreview(position: number, owner: "scrub" | "chapter"): Promise<string | null> {
+    if (this.previewPending?.position === position) {
+      if (owner === "scrub") this.previewOwner = owner;
+      return this.previewPending.promise;
+    }
     const cached = this.cachedPreview(position);
     if (cached && !this.disposed) {
-      if (this.previewPending) this.cancelPreview();
+      if (owner === "scrub") this.cancelScrubPreview();
       return Promise.resolve(cached);
     }
     // Supersede the waiter, without cancelling useful native work between asks.
@@ -318,7 +332,7 @@ export class MpvController extends EventTarget {
     }
     if (this.disposed || !this.session || !Number.isFinite(position) || position < 0) return Promise.resolve(null);
     const id = ++this.previewId;
-    this.previewActive = true;
+    this.previewOwner = owner;
     let resolve!: (src: string | null) => void;
     const promise = new Promise<string | null>(done => { resolve = done; });
     const timer = setTimeout(() => {
@@ -328,14 +342,17 @@ export class MpvController extends EventTarget {
     this.bridge.send({ type: "thumbnail", session: this.session, request: id, position });
     return promise;
   }
+  cancelScrubPreview() {
+    if (this.previewOwner === "scrub") this.cancelPreview();
+  }
   cancelPreview() {
     if (this.previewPending) {
       clearTimeout(this.previewPending.timer);
       this.previewPending.resolve(null);
     }
     this.previewPending = undefined;
-    if (this.previewActive) this.bridge.send({ type: "thumbnail", session: this.session, request: ++this.previewId, position: null });
-    this.previewActive = false;
+    if (this.previewOwner) this.bridge.send({ type: "thumbnail", session: this.session, request: ++this.previewId, position: null });
+    this.previewOwner = undefined;
   }
   dispose() {
     this.cancelPreview();
@@ -386,6 +403,7 @@ export class MpvController extends EventTarget {
         const valid = src && position !== null && Number.isFinite(position) && position >= 0;
         if (valid) this.rememberPreview(position, src, message.range);
         const waiting = this.previewPending;
+        const chapterPreview = this.previewOwner === "chapter";
         // A late result can also answer a newer ask in the same keyframe interval.
         if (waiting && ((message.type === "thumbnail" && waiting.id === message.request)
           || (valid && this.cachedPreview(waiting.position) === src))) {
@@ -393,7 +411,7 @@ export class MpvController extends EventTarget {
           if (!pending) break;
           clearTimeout(pending.timer);
           this.previewPending = undefined;
-          this.previewActive = false;
+          this.previewOwner = undefined;
           if (valid) {
             this.previewAliases.delete(pending.position);
             this.previewAliases.set(pending.position, position);
@@ -403,7 +421,7 @@ export class MpvController extends EventTarget {
         }
         // Local JPEG fetches can finish out of order. Cache every valid image,
         // but never replace a newer completed preview with an older delivery.
-        if (valid && order >= this.previewPresented) {
+        if (valid && !chapterPreview && order >= this.previewPresented) {
           this.previewPresented = order;
           this.dispatchEvent(new CustomEvent("previewframe", { detail: { position, src, range: message.range } }));
         }

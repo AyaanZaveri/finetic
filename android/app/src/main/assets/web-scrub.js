@@ -117,7 +117,10 @@
   };
   const onLeave = event => {
     if (!active && event.target.closest?.(slot('seek')) && !seek?.contains(event.relatedTarget)) {
-      wanted = null; clearLegacy(); media?.controller?.cancelPreview();
+      wanted = null; clearLegacy();
+      const controller = media?.controller;
+      if (controller?.cancelScrubPreview) controller.cancelScrubPreview();
+      else controller?.cancelPreview();
     }
   };
   const onVisibility = () => { if (document.hidden) reset(); };

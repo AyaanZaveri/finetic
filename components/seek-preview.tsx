@@ -100,7 +100,7 @@ function PreviewSource({ media, source, time, displayTime, duration, active: fal
 
     useLayoutEffect(() => {
         const requests = scheduler.current;
-        return () => { requests.cancel(); invalidate(); native?.cancelPreview(); };
+        return () => { requests.cancel(); invalidate(); native?.cancelScrubPreview(); };
     }, [source, native, invalidate]);
 
     useLayoutEffect(() => {
@@ -141,7 +141,7 @@ function PreviewSource({ media, source, time, displayTime, duration, active: fal
         if (!active || bucket === null || !source) {
             scheduler.current.cancel();
             invalidate();
-            native?.cancelPreview();
+            native?.cancelScrubPreview();
             browser.current?.cancel();
             range.current?.cancel();
             return;
@@ -158,7 +158,7 @@ function PreviewSource({ media, source, time, displayTime, duration, active: fal
         const cached = native?.cachedPreview(bucket) || cache.current.get(bucket);
         if (cached) {
             scheduler.current.cancel();
-            native?.cancelPreview();
+            native?.cancelScrubPreview();
             const generation = ++ticket.current;
             Promise.resolve(cached).then((src) => { if (generation === ticket.current) setFrame({ time: bucket, src, video: false, unavailable: false }); });
             return;
