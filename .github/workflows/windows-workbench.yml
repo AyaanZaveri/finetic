@@ -2,7 +2,7 @@ name: Verify Windows player workbench
 
 on:
   push:
-    branches: [windows-workbench-verification]
+    branches: [windows-workbench-verification, windows-player-glass]
 
 permissions:
   contents: read
@@ -29,6 +29,9 @@ jobs:
           node scripts/test-native-track-loading.cjs
           node scripts/test-native-readiness.cjs
           node scripts/test-series-playback.cjs
+          node scripts/test-player-desktop-shortcuts.cjs
+          node scripts/test-windows-glass-buffer.cjs
+          node scripts/test-browser-player-glass.cjs
           node scripts/test-background-updates.mjs
       - name: Install browser
         shell: bash

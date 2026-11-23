@@ -9,10 +9,32 @@ init_script="$(mktemp -t windows-workbench.XXXXXX)"
 trap 'rm -f "$init_script"' EXIT
 cat > "$init_script" <<'JS'
 if (location.pathname === "/states/player-selection") {
+  const listeners = new Set();
   window.navigatorDesktop = {
     protocol: 1, platform: "windows", engine: "mpv", fullscreen: false,
     capabilities: { glass: true, glassPixels: true },
-    send() {}, subscribe() { return () => {}; },
+    send(message) {
+      if (message.type !== "glass" || message.session !== "workbench") return;
+      window.workbenchGlassActive = message.active;
+      if (!message.active) return;
+      // Exercise the real Windows glass consumer with a high-contrast frame.
+      const frame = new ImageData(320, 180);
+      for (let y = 0; y < frame.height; y++) {
+        for (let x = 0; x < frame.width; x++) {
+          const offset = (y * frame.width + x) * 4;
+          frame.data.set(x < 240 ? [210, 90, 55, 255] : [45, 100, 220, 255], offset);
+        }
+      }
+      requestAnimationFrame(() => {
+        if (window.workbenchGlassActive) for (const listener of listeners) {
+          listener({ type: "glass-pixels", session: "workbench", frame });
+        }
+      });
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
   };
   const setPlatform = () => {
     document.documentElement.dataset.nativePlatform = "windows";
@@ -64,16 +86,26 @@ done
 
 check_drawer() {
   local state="$1" heading="$2" expected_width="$3"
-  agent-browser open "$base_url?__stage=1&__state=$state"
+  agent-browser open "$base_url?__stage=1&__state=$state&__windowsGlass=1"
   wait_for "(() => {
     const drawer = document.querySelector('[data-player-selection-drawer]');
     if (!drawer || window.navigatorDesktop?.platform !== 'windows') return false;
     const style = getComputedStyle(drawer);
     const rect = drawer.getBoundingClientRect();
+    const canvas = drawer.querySelector(':scope > [data-browser-glass-frame]');
+    if (!canvas || canvas.width !== 320 || !window.workbenchGlassActive) return false;
+    const pixels = canvas.getContext('2d');
+    const red = pixels.getImageData(160, 90, 1, 1).data;
+    const edge = pixels.getImageData(239, 90, 1, 1).data;
+    const tint = getComputedStyle(drawer, '::after');
     return drawer.querySelector('[data-slot=drawer-title]')?.textContent === '$heading'
-      && !drawer.hasAttribute('data-player-native-glass')
-      && !drawer.querySelector('[data-browser-glass-frame]')
-      && style.backdropFilter === 'blur(12px)'
+      && drawer.hasAttribute('data-player-native-glass')
+      && drawer.hasAttribute('data-browser-glass')
+      && style.backdropFilter === 'none'
+      && red[0] > 190 && edge[0] < 190 && edge[2] > 65
+      && tint.display !== 'none' && tint.width === drawer.clientWidth + 'px'
+      && Math.abs(canvas.getBoundingClientRect().left) < 1
+      && Math.abs(canvas.getBoundingClientRect().top) < 1
       && Math.abs(rect.width - $expected_width) < 1
       && rect.right <= innerWidth - 15
       && rect.left >= 15;
@@ -86,7 +118,45 @@ check_drawer streams Streams 480
 agent-browser screenshot "$capture_dir/streams.png"
 check_drawer chapters Chapters 480
 agent-browser screenshot "$capture_dir/chapters.png"
+agent-browser eval --stdin <<'JS'
+(() => {
+  const drawer = document.querySelector('[data-player-selection-drawer]');
+  const canvas = drawer.querySelector(':scope > [data-browser-glass-frame]');
+  window.workbenchGlassMotion = { samples: 0, maxError: 0 };
+  const originalLeft = drawer.getBoundingClientRect().left;
+  const end = performance.now() + 800;
+  drawer.style.transform = "translateX(100px)";
+  const sample = () => {
+    const movement = drawer.getBoundingClientRect().left - originalLeft;
+    if (movement > 10 && movement < 90) {
+      window.workbenchGlassMotion.samples++;
+      window.workbenchGlassMotion.maxError = Math.max(window.workbenchGlassMotion.maxError, Math.abs(canvas.getBoundingClientRect().left));
+    }
+    if (performance.now() < end) requestAnimationFrame(() => setTimeout(sample, 0));
+  };
+  // Read after the glass rAF has aligned the current transition frame.
+  requestAnimationFrame(() => setTimeout(sample, 0));
+})()
+JS
+wait_for 'window.workbenchGlassMotion?.samples >= 2 && window.workbenchGlassMotion.maxError < 4'
 
 agent-browser set viewport 390 844
 check_drawer streams Streams 358
 agent-browser screenshot "$capture_dir/streams-narrow.png"
+
+agent-browser set viewport 1280 900
+agent-browser open "$base_url?__stage=1&__state=playing&__windowsGlass=1"
+wait_for 'document.querySelector("video")?.paused === false'
+agent-browser eval --stdin <<'JS'
+(() => {
+  const root = document.querySelector('[data-slot="media-player"]');
+  root.focus();
+  root.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', code: 'Space', bubbles: true, cancelable: true }));
+})()
+JS
+wait_for 'document.querySelector("video")?.playbackRate === 2 && Boolean(document.querySelector("[data-slot=media-player-speed-boost][data-browser-glass] canvas"))'
+agent-browser screenshot "$capture_dir/speed-pill.png"
+agent-browser eval --stdin <<'JS'
+document.activeElement.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', code: 'Space', bubbles: true }))
+JS
+wait_for 'document.querySelector("video")?.playbackRate === 1 && !document.querySelector("[data-slot=media-player-speed-boost]")'

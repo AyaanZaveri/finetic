@@ -11,6 +11,14 @@
   --player-selection-row-hover-strength: 4%;
 }
 
+/* The drawer's bleed layer is hidden. Sampled glass reuses it for the tint. */
+.popup:is([data-browser-glass], [data-native-glass])::after {
+  display: block;
+  inset: 0;
+  width: auto;
+  height: auto;
+}
+
 @media (hover: hover) and (pointer: fine) {
   .row:enabled:hover {
     background-color: color-mix(in srgb, var(--foreground) var(--player-selection-row-hover-strength), transparent);

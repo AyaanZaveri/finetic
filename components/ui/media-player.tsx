@@ -61,6 +61,7 @@ import { SeekPreview } from "@/components/seek-preview";
 import { PreviewImage } from "@/components/preview-image";
 import { attachTouchScrubbing } from "@/lib/media/touch-scrubbing";
 import { createKeyboardScrubber, KEYBOARD_SEEK_STEP } from "@/lib/media/keyboard-scrubbing";
+import { createPlaybackSpeedHold } from "@/lib/media/playback-speed-hold";
 import { playerControlSelector, playerControlsActive } from "@/lib/media/control-activity";
 
 const ROOT_NAME = "MediaPlayer";
@@ -173,6 +174,7 @@ function useStoreSelector<U>(selector: (state: StoreState) => U): U {
 
 interface MediaPlayerContextValue {
   keyboardScrubber: ReturnType<typeof createKeyboardScrubber>;
+  cancelSpeedHold: () => void;
   subtitleTiming?: import("@/components/player-settings-menu").SubtitleTimingAction;
   mediaId: string;
   labelId: string;
@@ -347,6 +349,48 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     },
     reducedMotion: () => keyboardMotion?.matches ?? false,
   }));
+  const [speedBoost, setSpeedBoost] = React.useState(false);
+  const [speedHold] = React.useState(() => createPlaybackSpeedHold({
+    currentMedia: () => mediaRef.current,
+    canBoost: () => !store.getState().menuOpen && !store.getState().dragging,
+    onActive: setSpeedBoost,
+    onTap: media => keyboardDispatchRef.current({
+      type: media.paused ? MediaActionTypes.MEDIA_PLAY_REQUEST : MediaActionTypes.MEDIA_PAUSE_REQUEST,
+    }),
+  }));
+
+  React.useEffect(() => {
+    const keyUp = (event: KeyboardEvent) => { if (event.key === " ") speedHold.releaseSpace(); };
+    const keyDown = (event: KeyboardEvent) => {
+      if (event.key !== " " || event.altKey || event.ctrlKey || event.metaKey) speedHold.cancel();
+    };
+    const move = (event: PointerEvent) => speedHold.movePointer(event.pointerId, event.clientX, event.clientY);
+    const release = (event: PointerEvent) => speedHold.releasePointer(event.pointerId, event.type !== "pointerup");
+    const visibility = () => { if (document.hidden) speedHold.cancel(); };
+    document.addEventListener("keyup", keyUp);
+    document.addEventListener("keydown", keyDown, true);
+    document.addEventListener("pointermove", move, true);
+    document.addEventListener("pointerup", release, true);
+    document.addEventListener("pointercancel", release, true);
+    document.addEventListener("lostpointercapture", release, true);
+    document.addEventListener("pointerdown", speedHold.cancelSpace, true);
+    document.addEventListener("focusin", speedHold.cancelSpace);
+    document.addEventListener("visibilitychange", visibility);
+    globalThis.addEventListener?.("blur", speedHold.cancel);
+    return () => {
+      document.removeEventListener("keyup", keyUp);
+      document.removeEventListener("keydown", keyDown, true);
+      document.removeEventListener("pointermove", move, true);
+      document.removeEventListener("pointerup", release, true);
+      document.removeEventListener("pointercancel", release, true);
+      document.removeEventListener("lostpointercapture", release, true);
+      document.removeEventListener("pointerdown", speedHold.cancelSpace, true);
+      document.removeEventListener("focusin", speedHold.cancelSpace);
+      document.removeEventListener("visibilitychange", visibility);
+      globalThis.removeEventListener?.("blur", speedHold.cancel);
+      speedHold.cancel();
+    };
+  }, [speedHold]);
 
   React.useEffect(() => {
     const release = (event: KeyboardEvent) => keyboardScrubber.release(event.key.toLowerCase());
@@ -385,6 +429,9 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
   const dragging = useStoreSelector((state) => state.dragging);
   const seekMode = useStoreSelector((state) => state.seekMode);
   const menuOpen = useStoreSelector((state) => state.menuOpen);
+  React.useEffect(() => {
+    if (disabled || menuOpen || dragging) speedHold.cancel();
+  }, [disabled, menuOpen, dragging, speedHold]);
 
   const hideControlsTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const pointerTypeRef = React.useRef("mouse");
@@ -486,6 +533,15 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
   const onPointerDownCapture = (event: React.PointerEvent<HTMLDivElement>) => {
     rootImplProps.onPointerDownCapture?.(event);
     pointerTypeRef.current = event.pointerType;
+    if (event.pointerType === "mouse" && event.button === 0) {
+      speedHold.resetPointerClick();
+      if (!event.defaultPrevented && !disabled && !menuOpen && !dragging && event.isPrimary
+        && !event.ctrlKey && !event.metaKey && !event.altKey && event.target instanceof Element
+        && mediaRef.current && event.target.closest('[data-slot="media-player-video"]') === mediaRef.current) {
+        speedHold.press({ id: event.pointerId, x: event.clientX, y: event.clientY });
+        if (event.isTrusted) mediaRef.current.setPointerCapture(event.pointerId);
+      }
+    }
     if (event.defaultPrevented || !autoHide) return;
     if ((event.target as Element).closest(playerControlSelector)) {
       controlPointerHeldRef.current = true;
@@ -513,6 +569,11 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
   };
 
   const onClickCapture = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.detail > 0 && pointerTypeRef.current === "mouse" && speedHold.consumePointerClick()) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     rootImplProps.onClickCapture?.(event);
     if (event.defaultPrevented || !autoHide || disabled) return;
     // Keyboard/assistive activation and mouse clicks retain play/pause.
@@ -641,6 +702,12 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
 
       switch (event.key.toLowerCase()) {
         case " ":
+          if (isVideo) {
+            event.preventDefault();
+            if (!event.repeat && !menuOpen && !dragging) speedHold.press("space");
+            break;
+          }
+          // Audio players keep their existing play/pause shortcut.
         case "k":
           event.preventDefault();
           dispatch({
@@ -876,6 +943,9 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
       onPipError,
       disabled,
       isVideo,
+      menuOpen,
+      dragging,
+      speedHold,
       onControlsShow,
       autoHide,
       autoFocus,
@@ -962,6 +1032,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
   const contextValue = React.useMemo<MediaPlayerContextValue>(
     () => ({
       keyboardScrubber,
+      cancelSpeedHold: speedHold.cancel,
       mediaId,
       labelId,
       descriptionId,
@@ -982,6 +1053,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     }),
     [
       keyboardScrubber,
+      speedHold,
       mediaId,
       labelId,
       descriptionId,
@@ -1043,10 +1115,18 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
         </span>
         <span id={descriptionId} className="sr-only">
           {isVideo
-            ? "Video player with custom controls for playback, volume, seeking, and more. Use space bar to play/pause, arrow keys (←/→) to seek, and arrow keys (↑/↓) to adjust volume."
+            ? "Tap Space to play or pause. While playing, hold Space or the primary mouse button on the video for 2× speed. Use left and right arrows to seek and up and down arrows to adjust volume."
             : "Audio player with custom controls for playback, volume, seeking, and more. Use space bar to play/pause, Shift + arrow keys (←/→) to seek, and arrow keys (↑/↓) to adjust volume."}
         </span>
         {children}
+        {speedBoost && (
+          <div className="pointer-events-none absolute inset-x-0 top-[max(1.25rem,env(safe-area-inset-top))] z-50 flex justify-center">
+            <span data-slot="media-player-speed-boost" data-player-glass=""
+              className="relative flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold tabular-nums">
+              <FastForwardIcon aria-hidden="true" className="size-4" />2× speed
+            </span>
+          </div>
+        )}
         <MediaPlayerVolumeIndicator />
       </RootPrimitive>
     </MediaPlayerContext.Provider>
@@ -1064,9 +1144,10 @@ function MediaPlayerVideo(props: MediaPlayerVideoProps) {
   const dispatch = useMediaDispatch();
   const mediaRefCallback = useMediaRef();
   const registerMedia = React.useCallback((element: HTMLVideoElement | null) => {
+    if (context.mediaRef.current && context.mediaRef.current !== element) context.cancelSpeedHold();
     context.mediaRef.current = element;
     mediaRefCallback(element);
-  }, [context.mediaRef, mediaRefCallback]);
+  }, [context.mediaRef, context.cancelSpeedHold, mediaRefCallback]);
   const composedRef = useComposedRefs(ref, registerMedia);
 
   const onPlayToggle = React.useCallback(

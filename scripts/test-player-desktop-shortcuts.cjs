@@ -29,17 +29,25 @@ function mount({ native = true, autoFocus = true, platform = 'windows', scrubClo
   root.focus = () => { document.activeElement = root; };
   root.contains = target => target === root;
   root.querySelector = () => root.framing ?? null;
-  class Video {
-    constructor() { Object.assign(this, { currentTime: 30, duration: 100, volume: .5, paused: false, muted: false }); }
-    addEventListener() {}
-    removeEventListener() {}
+  class Video extends Element {
+    constructor() { super(); Object.assign(this, { currentTime: 30, duration: 100, volume: .5, paused: false, muted: false, playbackRate: 1.25 }); }
+    events = new EventTarget();
+    addEventListener(...args) { this.events.addEventListener(...args); }
+    removeEventListener(...args) { this.events.removeEventListener(...args); }
+    closest(selector) { return selector === '[data-slot="media-player-video"]' ? this : null; }
+    setPointerCapture(id) { this.captured = id; }
   }
   const media = new Video();
+  const timer = {
+    setTimeout(fn, delay) { timers.set(++timerId, { fn, delay }); return timerId; },
+    clearTimeout(id) { timers.delete(id); },
+  };
+  const { createPlaybackSpeedHold } = load('lib/media/playback-speed-hold.ts', {}, timer);
   const state = { controlsVisible: true, dragging: false, seekMode: null, menuOpen: false, seekPreviewTime: null };
   const store = { setState(key, value) { state[key] = value; }, getState: () => state };
   const actions = Object.fromEntries(['SEEK', 'VOLUME', 'MUTE', 'UNMUTE', 'PLAY', 'PAUSE'].map(key => [`MEDIA_${key}_REQUEST`, key]));
   const context = { exports: {}, document, Element, Node: Element, HTMLVideoElement: Video,
-    createKeyboardScrubber: options => createKeyboardScrubber(options, scrubClock), React: { ...host.react, useLayoutEffect: host.react.useEffect, useId: () => 'id' },
+    createKeyboardScrubber: options => createKeyboardScrubber(options, scrubClock), createPlaybackSpeedHold, React: { ...host.react, useLayoutEffect: host.react.useEffect, useId: () => 'id' },
     jsx: host.jsx.jsx, jsxs: host.jsx.jsxs, useMediaFullscreenRef: () => null,
     useComposedRefs: (...refs) => node => refs.forEach(ref => { if (ref && typeof ref === 'object') ref.current = node; }),
     useDirection: () => 'ltr', useMediaDispatch: () => action => {
@@ -50,9 +58,10 @@ function mount({ native = true, autoFocus = true, platform = 'windows', scrubClo
     useStoreContext: () => store, useStoreSelector: selector => selector(state),
     useMediaSelector: selector => selector({ mediaPaused: false }), desktopBridge: () => native ? { platform } : null,
     setMacOSWindowControlsVisible() {}, playerControlsActive: () => false,
-    MediaPlayerContext: { Provider: 'Provider' }, MediaPlayerVolumeIndicator: 'Volume',
+    MediaPlayerContext: { Provider: 'Provider' }, MediaPlayerVolumeIndicator: 'Volume', FastForwardIcon: 'FastForward',
+    playerControlSelector: '[data-player-control]',
     ROOT_NAME: 'MediaPlayer', FLOATING_MENU_SIDE_OFFSET: 10, cn: () => '', SEEK_STEP_SHORT: 5, MediaActionTypes: actions,
-    setTimeout(fn) { timers.set(++timerId, fn); return timerId; }, clearTimeout(id) { timers.delete(id); },
+    ...timer,
   };
   vm.runInNewContext(ts.transpileModule(`${implementation.getText(parsed)}\nexports.Root = MediaPlayerRootImpl;`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, jsxImportSource: 'test' },
@@ -73,6 +82,23 @@ function mount({ native = true, autoFocus = true, platform = 'windows', scrubClo
   }
   function release(key) { for (const listener of listeners.get('keyup') ?? []) listener({ key }); }
   return { key, release, sent, state, root, media, Element, document, listeners, unmount: host.unmount,
+    fireHoldTimer(delay = 350) {
+      const entry = [...timers].find(([, pending]) => pending.delay === delay);
+      if (entry) { timers.delete(entry[0]); entry[1].fn(); }
+      return Boolean(entry);
+    },
+    pointer(type, target = media, extra = {}) {
+      const event = { type, target, pointerId: 1, clientX: 10, clientY: 10, pointerType: 'mouse',
+        button: 0, isPrimary: true, isTrusted: true, defaultPrevented: false, ...extra };
+      for (const listener of listeners.get(type) ?? []) listener(event);
+      if (type === 'pointerdown') tree.props.children.props.onPointerDownCapture(event);
+    },
+    click() {
+      const event = { target: media, detail: 1, defaultPrevented: false,
+        preventDefault() { this.defaultPrevented = true; }, stopPropagation() {} };
+      tree.props.children.props.onClickCapture(event);
+      return event.defaultPrevented;
+    },
     mouseDown(target, extra = {}) {
       const event = { target, button: 0, defaultPrevented: false,
         preventDefault() { this.defaultPrevented = true; }, ...extra };
@@ -83,6 +109,71 @@ function mount({ native = true, autoFocus = true, platform = 'windows', scrubClo
     },
     rerender() { tree = host.render(context.exports.Root, props); host.flush(); return tree.props.value.keyboardScrubber; },
     get scrubber() { return tree.props.value.keyboardScrubber; } };
+}
+if (!process.argv.includes('--baseline')) {
+  const player = mount({ native: false });
+  player.rerender();
+  player.root.focus();
+  const space = extra => player.key(' ', player.root, { hold: true, ...extra });
+  space();
+  assert.equal(player.media.playbackRate, 1.25);
+  space({ repeat: true });
+  assert.equal(player.fireHoldTimer(), true);
+  assert.equal(player.fireHoldTimer(), false, 'Keyboard repeat never arms another boost');
+  assert.equal(player.media.playbackRate, 2);
+  player.release(' ');
+  assert.equal(player.media.playbackRate, 1.25);
+  assert.deepEqual(player.sent, [], 'Releasing a boost never pauses the video');
+
+  player.pointer('pointerdown');
+  player.pointer('pointerup');
+  assert.equal(player.click(), false, 'A short click still reaches the video');
+  player.pointer('pointerdown');
+  assert.equal(player.media.captured, 1);
+  player.pointer('pointermove', player.media, { clientX: 14 });
+  assert.equal(player.fireHoldTimer(), true, 'Small pointer movements keep the hold armed');
+  assert.equal(player.media.playbackRate, 2);
+  player.pointer('pointerup', player.root, { pointerId: 2 });
+  assert.equal(player.media.playbackRate, 2, 'A different pointer does not release the hold');
+  player.pointer('pointerup', player.root);
+  assert.equal(player.media.playbackRate, 1.25);
+  assert.equal(player.click(), true, 'The click after a hold never reaches play/pause');
+
+  player.pointer('pointerdown');
+  player.pointer('pointermove', player.root, { clientX: 35 });
+  assert.equal(player.fireHoldTimer(), false, 'A drag cancels a pending hold');
+  assert.equal(player.click(), true);
+  player.pointer('pointerdown', new player.Element('button'));
+  assert.equal(player.fireHoldTimer(), false, 'A control never starts the video gesture');
+  player.pointer('pointerdown', player.media, { pointerType: 'touch' });
+  assert.equal(player.fireHoldTimer(), false, 'Touch keeps its existing interaction');
+
+  player.pointer('pointerdown');
+  player.fireHoldTimer();
+  player.pointer('pointercancel');
+  assert.equal(player.media.playbackRate, 1.25);
+  player.click();
+  space();
+  player.fireHoldTimer();
+  player.document.hidden = true;
+  for (const listener of player.listeners.get('visibilitychange')) listener();
+  assert.equal(player.media.playbackRate, 1.25);
+  player.document.hidden = false;
+  player.media.paused = true;
+  space();
+  player.fireHoldTimer();
+  player.release(' ');
+  assert.deepEqual(player.sent, [], 'A hold while paused does not start playback');
+  player.media.paused = false;
+  space();
+  player.fireHoldTimer();
+  player.media.events.dispatchEvent(new Event('seeking'));
+  assert.equal(player.media.playbackRate, 1.25);
+  space();
+  player.fireHoldTimer();
+  player.unmount();
+  assert.equal(player.media.playbackRate, 1.25, 'Unmount restores the original speed');
+  console.log('PASS: temporary Space and mouse playback speed, original speed restoration, tap/click parity, and cancellation');
 }
 for (const native of [true, false]) {
   let toggles = 0, framing = 0;

@@ -7,11 +7,15 @@ const callbacks = new Map(), events = new Map(), contexts = [];
 let id = 0;
 const props = new Map(), attrs = new Map(), children = [], skipChildren = [];
 const skipAttrs = new Map([['data-player-skip', '']]);
+let surfaceLeft = 10;
 const surface = {
+  clientLeft: 0, clientTop: 0,
+  matches: selector => selector === '[data-player-selection-drawer]' && attrs.has('data-player-selection-drawer'),
+  getAnimations: () => [],
   style: { setProperty: (k,v) => props.set(k,v), removeProperty: k => props.delete(k) },
   hasAttribute: k => attrs.has(k), getAttribute: k => attrs.get(k),
   setAttribute: (k,v) => attrs.set(k,v), removeAttribute: k => attrs.delete(k),
-  getClientRects: () => [1], getBoundingClientRect: () => { reads++; return { left: 10, top: 20 }; },
+  getClientRects: () => [1], getBoundingClientRect: () => { reads++; return { left: surfaceLeft, top: 20 }; },
   appendChild(canvas) {
     assert.ok(attrs.has('data-browser-glass'), 'Glass positioning must be active before inserting the canvas');
     assert.ok(canvas.getContext('2d', { colorSpace: 'srgb' }).lastDraw, 'The inserted canvas already has pixels');
@@ -137,11 +141,17 @@ assert.equal(callbacks.size, 1, 'Same-file fallback starts a new frame subscript
 cleanup();
 console.log('PASS: GPU canvas glass, preserved framing, and native frame subscription after fallback');
 
-const windows = { ...context, exports: {} };
+const windows = { ...context, exports: {},
+  requestAnimationFrame: callback => { callbacks.set(++id, callback); return id; },
+  cancelAnimationFrame: key => callbacks.delete(key),
+};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/desktop/windows-player-glass.ts', 'utf8'), {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
 }).outputText, windows);
 let receive;
+attrs.set('data-player-selection-drawer', '');
+attrs.set('data-swiping', '');
+surface.clientLeft = 1;
 cleanup = windows.exports.attachWindowsPlayerGlass({
   send() {},
   subscribe(callback) { receive = callback; return () => {}; },
@@ -151,6 +161,12 @@ assert.equal(attrs.has('data-browser-glass'), false);
 receive({ type: 'glass-pixels', session: 'episode', frame: { width: 2, height: 2 } });
 assert.equal(children.length, 1);
 assert.ok(attrs.has('data-browser-glass'));
+surfaceLeft = 23;
+tick(1);
+assert.equal(props.get('--browser-glass-x'), '-24px', 'A moving drawer follows the viewport without a new native video frame');
+attrs.delete('data-swiping');
+tick(2);
+assert.equal(callbacks.size, 0, 'Stop measuring when the drawer stops moving');
 cleanup();
 assert.equal(children.length, 0);
 assert.equal(attrs.has('data-browser-glass'), false);

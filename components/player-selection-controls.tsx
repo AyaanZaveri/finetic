@@ -24,7 +24,6 @@ import {
 import floatingSurface from "@/components/arc/floating-surface.module.css";
 import drawerStyles from "./player-selection-controls.module.css";
 import { episodeThumbnailUrl } from "@/lib/artwork";
-import { desktopBridge } from "@/lib/desktop/bridge";
 import { formatReleaseDate } from "@/lib/format-release-date";
 import { formatRuntime } from "@/lib/format-runtime";
 import { acquireSeriesSeason } from "@/lib/media/series-season";
@@ -163,7 +162,7 @@ export function PlayerSelectionControls({ media, streamUrl, playingEpisode, chap
             </MediaPlayerTooltip>
             {panel && (
                 <DrawerContent ref={setPopup} container={panel.container} data-player-selection-drawer=""
-                    data-player-native-glass={desktopBridge()?.platform === "windows" ? undefined : ""}
+                    data-player-native-glass=""
                     overlayClassName={`${drawerStyles.overlay} bg-black/25`}
                     className={`${drawerStyles.popup} ${floatingSurface.surface} rounded-2xl border border-border shadow-xl [--drawer-inset:1rem] after:hidden`}
                     initialFocus finalFocus={() => restoreFocus(panel.container)}>

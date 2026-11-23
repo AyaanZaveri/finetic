@@ -8,10 +8,35 @@ export function attachWindowsPlayerGlass(bridge: DesktopBridge, session: string)
     type Surface = { node: HTMLElement; canvas: HTMLCanvasElement; context: CanvasRenderingContext2D };
     const surfaces = new Map<HTMLElement, Surface>();
     let visible: Surface[] = [], requested = false, hasFrame = false;
+    let alignmentFrame: number | undefined;
     const raw = document.createElement('canvas'), blurred = document.createElement('canvas');
     const input = raw.getContext('2d', { alpha: false, colorSpace: 'srgb' });
     const output = blurred.getContext('2d', { alpha: false, colorSpace: 'srgb' });
     if (!input || !output) return () => {};
+    const align = (node: HTMLElement) => {
+        const rect = node.getBoundingClientRect();
+        node.style.setProperty('--browser-glass-x', `${-rect.left - node.clientLeft}px`);
+        node.style.setProperty('--browser-glass-y', `${-rect.top - node.clientTop}px`);
+    };
+    const drawerSelector = '[data-player-selection-drawer]';
+    const alignMovingDrawers = () => {
+        alignmentFrame = undefined;
+        let moving = false;
+        for (const { node } of visible) if (node.matches(drawerSelector)) {
+            align(node);
+            moving ||= node.hasAttribute('data-swiping') || node.getAnimations().some(animation =>
+                'transitionProperty' in animation && animation.transitionProperty === 'transform' && animation.playState === 'running');
+        }
+        if (moving) requestAlignment();
+    };
+    const requestAlignment = () => {
+        if (alignmentFrame === undefined) alignmentFrame = requestAnimationFrame(alignMovingDrawers);
+    };
+    const onTransition = (event: TransitionEvent) => {
+        if (event.propertyName === 'transform' && event.target instanceof HTMLElement && event.target.matches(drawerSelector)) {
+            requestAlignment();
+        }
+    };
     const paint = ({ node, canvas, context }: Surface) => {
         if (canvas.width !== blurred.width) canvas.width = blurred.width;
         if (canvas.height !== blurred.height) canvas.height = blurred.height;
@@ -44,13 +69,12 @@ export function attachWindowsPlayerGlass(bridge: DesktopBridge, session: string)
                 surface = { node, canvas, context }; surfaces.set(node, surface); resized?.observe(node);
             }
             if (node.getAttribute('data-slot') !== 'media-player-seek-tooltip') {
-                const rect = node.getBoundingClientRect();
-                node.style.setProperty('--browser-glass-x', `${-rect.left}px`);
-                node.style.setProperty('--browser-glass-y', `${-rect.top}px`);
+                align(node);
             }
             node.style.setProperty('--browser-glass-width', `${window.innerWidth}px`);
             node.style.setProperty('--browser-glass-height', `${window.innerHeight}px`);
             visible.push(surface);
+            if (node.matches(drawerSelector)) requestAlignment();
             if (hasFrame) paint(surface);
         }
         const wanted = visible.length > 0;
@@ -75,12 +99,15 @@ export function attachWindowsPlayerGlass(bridge: DesktopBridge, session: string)
     const observer = new MutationObserver(records => {
         if (records.some(record => (record.type === 'attributes' && (record.attributeName !== 'style' || record.target instanceof Element && record.target.hasAttribute('data-radix-popper-content-wrapper'))) || [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && !(node instanceof Element && node.hasAttribute('data-browser-glass-frame'))))) refresh();
     });
-    observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-controls-visible','aria-hidden','data-state','style'] });
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-controls-visible','aria-hidden','data-state','data-starting-style','data-ending-style','data-swiping','style'] });
     const insets = new MutationObserver(refresh);
     insets.observe(document.documentElement, { attributes: true, attributeFilter: ['style','class'] });
+    document.addEventListener('transitionrun', onTransition);
     document.addEventListener('visibilitychange', refresh); window.addEventListener('resize', refresh); refresh();
     return () => {
         observer.disconnect(); insets.disconnect(); resized?.disconnect(); unsubscribe();
+        document.removeEventListener('transitionrun', onTransition);
+        if (alignmentFrame !== undefined) cancelAnimationFrame(alignmentFrame);
         document.removeEventListener('visibilitychange', refresh); window.removeEventListener('resize', refresh);
         if (requested) bridge.send({ type: 'glass', session, active: false });
         for (const surface of surfaces.values()) remove(surface);

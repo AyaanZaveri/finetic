@@ -4,6 +4,7 @@ const vm = require('node:vm');
 const ts = require('typescript');
 const { hooks, load } = require('./test-support/react-hooks.cjs');
 const { createKeyboardScrubber } = load('lib/media/keyboard-scrubbing.ts', {}, { performance });
+const { createPlaybackSpeedHold } = load('lib/media/playback-speed-hold.ts');
 
 // Run the actual root, committing refs before effects, as React does.
 const source = fs.readFileSync('components/ui/media-player.tsx', 'utf8');
@@ -22,14 +23,14 @@ function mount(props) {
   const state = { controlsVisible: true, dragging: false, seekMode: null, menuOpen: false };
   const store = { setState(key, value) { state[key] = value; } };
   const context = { exports: {}, document, HTMLVideoElement: Video, Element: class {},
-    createKeyboardScrubber, React: { ...host.react, useLayoutEffect: host.react.useEffect, useId: () => 'id' },
+    createKeyboardScrubber, createPlaybackSpeedHold, React: { ...host.react, useLayoutEffect: host.react.useEffect, useId: () => 'id' },
     jsx: host.jsx.jsx, jsxs: host.jsx.jsxs,
     useMediaFullscreenRef: () => null,
     useComposedRefs: (...refs) => node => refs.forEach(ref => { if (ref && typeof ref === 'object') ref.current = node; }),
     useDirection: () => 'ltr', useMediaDispatch: () => action => dispatched.push(action),
     useStoreContext: () => store, useStoreSelector: selector => selector(state),
     useMediaSelector: selector => selector({ mediaPaused: true }), desktopBridge: () => null, setMacOSWindowControlsVisible() {},
-    MediaPlayerContext: { Provider: 'Provider' }, MediaPlayerVolumeIndicator: 'VolumeIndicator',
+    MediaPlayerContext: { Provider: 'Provider' }, MediaPlayerVolumeIndicator: 'VolumeIndicator', FastForwardIcon: 'FastForward',
     ROOT_NAME: 'MediaPlayer', FLOATING_MENU_SIDE_OFFSET: 10, cn: () => '',
     SEEK_STEP_SHORT: 5, MediaActionTypes: { MEDIA_SEEK_REQUEST: 'seek' },
     setTimeout, clearTimeout,

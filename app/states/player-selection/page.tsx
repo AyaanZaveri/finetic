@@ -15,6 +15,8 @@ import { PlayerVideoFit } from "@/components/player-video-fit";
 import { SubtitleTimingPopover } from "@/components/subtitle-timing-popover";
 import { MediaPlayer, MediaPlayerFullscreen, MediaPlayerPiP, MediaPlayerSettings, MediaPlayerVideo } from "@/components/ui/media-player";
 import { AccountContext } from "@/contexts/account-context";
+import { desktopBridge } from "@/lib/desktop/bridge";
+import { attachWindowsPlayerGlass } from "@/lib/desktop/windows-player-glass";
 import { stepSubtitleSize, type SubtitleSize } from "@/lib/subtitle-appearance";
 import type { Episode } from "@/app/actions/tv-shows";
 import "@/components/player-mobile.css";
@@ -60,8 +62,17 @@ function Stage({ id }: { id: StateId }) {
     const stage = useRef<HTMLDivElement>(null);
     const video = useRef<HTMLVideoElement>(null);
     const movie = id === "movie";
+    const [windowsGlassFixture] = useState(() => typeof window !== "undefined"
+        && new URLSearchParams(window.location.search).has("__windowsGlass"));
 
     useEffect(() => installFixtureFetch(id, data), [id, data]);
+    useEffect(() => {
+        if (!windowsGlassFixture) return;
+        const bridge = desktopBridge();
+        if (bridge?.platform === "windows" && bridge.capabilities?.glassPixels) {
+            return attachWindowsPlayerGlass(bridge, "workbench");
+        }
+    }, [windowsGlassFixture]);
 
     useEffect(() => {
         const panel = panelFor(id);
@@ -77,7 +88,7 @@ function Stage({ id }: { id: StateId }) {
         setUpNextOpen(false);
     };
     return <div ref={stage} data-player-shell="" className="h-dvh w-full bg-black">
-        <MediaPlayer autoHide={id === "playing"} className="size-full" chapters={sampleChapters}
+        <MediaPlayer autoFocus={id === "playing"} autoHide={id === "playing"} className="size-full" chapters={sampleChapters}
             onToggleCaptions={() => setCaptions(value => !value)}
             onAdjustSubtitleSize={direction => setSubtitleSize(size => stepSubtitleSize(size, direction))}>
             <MediaPlayerVideo ref={video} src={sample} poster="/images/subtitle-preview.jpg"
@@ -88,7 +99,7 @@ function Stage({ id }: { id: StateId }) {
                     setDuration(element.duration);
                     if (!timing) element.currentTime = Math.min(9, element.duration / 3);
                 }} />
-            <BrowserPlayerGlass mediaRef={video} sourceKey={sample} ready={duration > 0} />
+            {!windowsGlassFixture && <BrowserPlayerGlass mediaRef={video} sourceKey={sample} ready={duration > 0} />}
             {data.trackLoadingLabel && (
                 <div className="pointer-events-none fixed right-4 top-4 z-50 h-9 bg-black/50 backdrop-blur-sm rounded-full px-3 text-white text-sm flex items-center gap-2">
                     <Loader2 aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />
