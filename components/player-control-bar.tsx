@@ -38,7 +38,7 @@ export function PlayerControlBar({ title, episode, releaseYear, endTime, preview
         ? `S${episode.season} E${episode.episodeNumber}` : undefined;
     const metadata = episode
         ? [episode.showTitle, episodeCode].filter(Boolean).join(" · ")
-        : undefined;
+        : releaseYear?.toString();
 
     return <MediaPlayerControls ref={controlsRef} className="flex-col items-start gap-2.5 px-6 pb-4 z-20">
         <MediaPlayerControlsOverlay />
@@ -52,7 +52,6 @@ export function PlayerControlBar({ title, episode, releaseYear, endTime, preview
                 </h2>
                 {endTime}
             </div>
-            {!episode && releaseYear !== undefined && <div data-player-meta="" className="text-sm font-medium text-white/60">{releaseYear}</div>}
         </div>
         <MediaPlayerSeek previewFrames previewSource={previewSource} skipSegments={skipSegments} />
         <div data-player-toolbar="" className="flex w-full items-center gap-2">
