@@ -1120,8 +1120,9 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
         onKeyDown={onKeyDown}
         onKeyUp={onKeyUp}
         className={cn(
-          "dark relative isolate flex touch-none select-none flex-col overflow-hidden bg-background outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/22 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_[data-slot='media-player-video']]:[-webkit-touch-callout:none] [&_video]:relative [&_video]:object-contain",
-          "data-[state=fullscreen]:[&_video]:size-full [:fullscreen_&]:flex [:fullscreen_&]:h-full [:fullscreen_&]:max-h-screen [:fullscreen_&]:flex-col [:fullscreen_&]:justify-between",
+          "dark relative isolate flex touch-none select-none flex-col overflow-hidden bg-background outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/22 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_[data-slot='media-player-video']]:[-webkit-touch-callout:none]",
+          "[&_video[data-slot='media-player-video']]:relative [&_video[data-slot='media-player-video']]:object-contain data-[state=fullscreen]:[&_video[data-slot='media-player-video']]:size-full",
+          "[:fullscreen_&]:flex [:fullscreen_&]:h-full [:fullscreen_&]:max-h-screen [:fullscreen_&]:flex-col [:fullscreen_&]:justify-between",
           "[&_[data-slider]::before]:-top-4 [&_[data-slider]::before]:-bottom-2 [&_[data-slider]::before]:absolute [&_[data-slider]::before]:inset-x-0 [&_[data-slider]::before]:z-10 [&_[data-slider]::before]:h-8 [&_[data-slider]::before]:cursor-pointer [&_[data-slider]::before]:content-[''] [&_[data-slider]]:relative [&_[data-slot='media-player-seek']:not([data-hovering])::before]:cursor-default",
           "[&_video::-webkit-media-text-track-display]:top-auto! [&_video::-webkit-media-text-track-display]:bottom-[4%]! [&_video::-webkit-media-text-track-display]:mb-0! data-[state=fullscreen]:data-[controls-visible]:[&_video::-webkit-media-text-track-display]:bottom-[9%]! data-[controls-visible]:[&_video::-webkit-media-text-track-display]:bottom-[13%]! data-[state=fullscreen]:[&_video::-webkit-media-text-track-display]:bottom-[7%]!",
           className
@@ -1668,8 +1669,9 @@ interface MediaPlayerSeekBackwardProps
 }
 
 function MediaPlayerSeekBackward(props: MediaPlayerSeekBackwardProps) {
+  const context = useMediaPlayerContext("MediaPlayerSeekBackward");
   const {
-    seconds = KEYBOARD_SEEK_STEP,
+    seconds = context.keyboardSeekBackwardSeconds,
     asChild,
     children,
     className,
@@ -1677,7 +1679,6 @@ function MediaPlayerSeekBackward(props: MediaPlayerSeekBackwardProps) {
     ...seekBackwardProps
   } = props;
 
-  const context = useMediaPlayerContext("MediaPlayerSeekBackward");
   const dispatch = useMediaDispatch();
   const mediaCurrentTime = useMediaSelector(
     (state) => state.mediaCurrentTime ?? 0
@@ -1707,7 +1708,7 @@ function MediaPlayerSeekBackward(props: MediaPlayerSeekBackwardProps) {
       <Button
         type="button"
         aria-controls={context.mediaId}
-        aria-label={`Back ${seconds} seconds`}
+        aria-label={`Back ${seconds} second${seconds === 1 ? "" : "s"}`}
         data-disabled={isDisabled ? "" : undefined}
         data-slot="media-player-seek-backward"
         disabled={isDisabled}
@@ -1728,8 +1729,9 @@ interface MediaPlayerSeekForwardProps
 }
 
 function MediaPlayerSeekForward(props: MediaPlayerSeekForwardProps) {
+  const context = useMediaPlayerContext("MediaPlayerSeekForward");
   const {
-    seconds = KEYBOARD_SEEK_STEP,
+    seconds = context.keyboardSeekForwardSeconds,
     asChild,
     children,
     className,
@@ -1737,7 +1739,6 @@ function MediaPlayerSeekForward(props: MediaPlayerSeekForwardProps) {
     ...seekForwardProps
   } = props;
 
-  const context = useMediaPlayerContext("MediaPlayerSeekForward");
   const dispatch = useMediaDispatch();
   const mediaCurrentTime = useMediaSelector(
     (state) => state.mediaCurrentTime ?? 0
@@ -1772,7 +1773,7 @@ function MediaPlayerSeekForward(props: MediaPlayerSeekForwardProps) {
       <Button
         type="button"
         aria-controls={context.mediaId}
-        aria-label={`Forward ${seconds} seconds`}
+        aria-label={`Forward ${seconds} second${seconds === 1 ? "" : "s"}`}
         data-disabled={isDisabled ? "" : undefined}
         data-slot="media-player-seek-forward"
         disabled={isDisabled}
