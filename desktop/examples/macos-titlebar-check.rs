@@ -6,8 +6,13 @@ mod titlebar;
 
 #[cfg(target_os = "macos")]
 fn main() {
-    use objc2_app_kit::{NSWindow, NSWindowStyleMask};
-    use objc2_foundation::{NSUserDefaults, ns_string};
+    use block2::RcBlock;
+    use objc2_app_kit::{NSWindow, NSWindowDidResizeNotification, NSWindowStyleMask};
+    use objc2_foundation::{NSNotificationCenter, NSUserDefaults, ns_string};
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
     use std::time::{Duration, Instant};
     use tao::dpi::{LogicalPosition, LogicalSize};
     use tao::event::{Event, StartCause};
@@ -41,6 +46,31 @@ fn main() {
     assert_ne!(initial, work_area);
     let mut action = TitlebarAction::default();
     let mut restoring = false;
+    let inside_callback = Arc::new(AtomicBool::new(false));
+    let resized = Arc::new(AtomicBool::new(false));
+    let check_resize = RcBlock::new({
+        let inside_callback = inside_callback.clone();
+        let resized = resized.clone();
+        move |_| {
+            // AppKit can redraw during a resize. A resize notification here can
+            // precede a redraw that tries to reenter Tao's locked event handler.
+            if inside_callback.load(Ordering::Relaxed) {
+                eprintln!("AppKit resized the window inside Tao's title-bar callback");
+                std::process::exit(1);
+            }
+            resized.store(true, Ordering::Relaxed);
+        }
+    });
+    // SAFETY: The name is AppKit's resize notification, the object is the live
+    // test window, and the block only shares thread-safe flags.
+    let _observer = unsafe {
+        NSNotificationCenter::defaultCenter().addObserverForName_object_queue_usingBlock(
+            Some(NSWindowDidResizeNotification),
+            Some(native),
+            None,
+            &check_resize,
+        )
+    };
 
     // A timer on the event loop cannot fail the test if AppKit deadlocks it.
     std::thread::spawn(|| {
@@ -55,18 +85,18 @@ fn main() {
             Event::NewEvents(StartCause::Init) => proxy.send_event(()).unwrap(),
             Event::UserEvent(()) => {
                 eprintln!("Running {preference} title-bar action (restoring: {restoring})");
+                resized.store(false, Ordering::Relaxed);
+                inside_callback.store(true, Ordering::Relaxed);
                 action.double_click(&window);
+                inside_callback.store(false, Ordering::Relaxed);
             }
-            Event::MainEventsCleared => {
+            Event::MainEventsCleared if resized.load(Ordering::Relaxed) => {
                 let frame = native.frame();
                 if restoring && frame == initial {
                     println!("PASS: {preference} restored the original window frame");
                     *flow = ControlFlow::Exit;
-                } else if !restoring && frame != initial {
+                } else if !restoring && frame != initial && (preference != "Fill" || frame == work_area) {
                     assert!(!native.styleMask().contains(NSWindowStyleMask::FullScreen));
-                    if preference == "Fill" {
-                        assert_eq!(frame, work_area);
-                    }
                     println!("PASS: {preference} resized the window and the event loop responded");
                     restoring = true;
                     proxy.send_event(()).unwrap();
