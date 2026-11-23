@@ -986,18 +986,6 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     };
   }, []);
 
-  const onKeyUp = React.useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
-      rootImplProps.onKeyUp?.(event);
-
-      const key = event.key.toLowerCase();
-      if (key === "arrowup" || key === "arrowdown") {
-        onVolumeIndicatorTrigger();
-      }
-    },
-    [rootImplProps.onKeyUp, onVolumeIndicatorTrigger]
-  );
-
   React.useEffect(() => {
     const mediaElement = mediaRef.current;
     if (!mediaElement) return;
@@ -1118,7 +1106,6 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
         onMouseLeave={onMouseLeave}
         onMouseMove={onMouseMove}
         onKeyDown={onKeyDown}
-        onKeyUp={onKeyUp}
         className={cn(
           "dark relative isolate flex touch-none select-none flex-col overflow-hidden bg-background outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/22 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_[data-slot='media-player-video']]:[-webkit-touch-callout:none]",
           "[&_video[data-slot='media-player-video']]:relative [&_video[data-slot='media-player-video']]:object-contain data-[state=fullscreen]:[&_video[data-slot='media-player-video']]:size-full",

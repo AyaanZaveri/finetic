@@ -45,7 +45,7 @@ function mount({ native = true, autoFocus = true, platform = 'windows', scrubClo
     clearTimeout(id) { timers.delete(id); },
   };
   const { createPlaybackSpeedHold } = load('lib/media/playback-speed-hold.ts', {}, timer);
-  const state = { controlsVisible: true, dragging: false, seekMode: null, menuOpen: false, seekPreviewTime: null };
+  const state = { controlsVisible: true, dragging: false, seekMode: null, menuOpen: false, seekPreviewTime: null, volumeIndicatorVisible: false };
   const store = { setState(key, value) { state[key] = value; }, getState: () => state };
   const actions = Object.fromEntries(['SEEK', 'VOLUME', 'MUTE', 'UNMUTE', 'PLAY', 'PAUSE'].map(key => [`MEDIA_${key}_REQUEST`, key]));
   const context = { exports: {}, document, window: new EventTarget(), Element, Node: Element, HTMLVideoElement: Video,
@@ -79,10 +79,14 @@ function mount({ native = true, autoFocus = true, platform = 'windows', scrubClo
     const event = { key, target, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, ...extra };
     if (target === root || target.inPlayer) tree.props.children.props.onKeyDown(event);
     for (const listener of listeners.get('keydown') ?? []) listener(event);
-    if (!extra.hold) release(key);
+    if (!extra.hold) release(key, target);
     return event;
   }
-  function release(key) { for (const listener of listeners.get('keyup') ?? []) listener({ key }); }
+  function release(key, target = document.body) {
+    const event = { key, target };
+    if (target === root || target.inPlayer) tree.props.children.props.onKeyUp?.(event);
+    for (const listener of listeners.get('keyup') ?? []) listener(event);
+  }
   return { key, release, sent, state, root, media, Element, document, listeners, unmount: host.unmount,
     fireHoldTimer(delay = 350) {
       const entry = [...timers].find(([, pending]) => pending.delay === delay);
@@ -199,6 +203,61 @@ if (!process.argv.includes('--baseline')) {
   player.unmount();
   assert.equal(player.media.playbackRate, 1.25, 'Unmount restores the original speed');
   console.log('PASS: temporary Space and mouse playback speed, original speed restoration, tap/click parity, and cancellation');
+
+  for (const native of [true, false]) {
+    const player = mount({ native });
+    player.rerender();
+    for (const kind of ['[role="dialog"]', 'button', 'input', '[role="slider"]']) {
+      const target = new player.Element(kind);
+      target.inPlayer = true;
+      player.document.activeElement = target;
+      player.key('ArrowDown', target);
+      assert.equal(player.sent.length, 0, `Arrow keys in ${kind} never dispatch a volume request`);
+      assert.equal(player.state.volumeIndicatorVisible, false, `Releasing an arrow in ${kind} never shows the volume indicator`);
+    }
+    player.unmount();
+  }
+
+  const drawerSource = ts.createSourceFile('drawer.tsx', fs.readFileSync('components/player-selection-controls.tsx', 'utf8'), ts.ScriptTarget.Latest, true);
+  const handler = drawerSource.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'onDrawerKeyDown');
+  let focused, scrollBlock;
+  class DrawerElement {
+    constructor(kind, current = false) { this.kind = kind; this.current = current; }
+    matches(selector) { return selector.includes(this.kind); }
+    getAttribute(name) { return name === 'aria-current' && this.current ? 'true' : null; }
+    focus() { focused = this; }
+    scrollIntoView(options) { scrollBlock = options.block; }
+  }
+  const drawerKeyDown = vm.runInNewContext(ts.transpileModule(`(${handler.getText(drawerSource)})`, {}).outputText, { HTMLElement: DrawerElement });
+  const choices = [new DrawerElement('data-player-selection-choice'), new DrawerElement('data-player-selection-choice', true), new DrawerElement('data-player-selection-choice')];
+  const drawer = new DrawerElement('popup');
+  drawer.querySelectorAll = selector => {
+    assert.equal(selector, 'button[data-player-selection-choice]:not(:disabled)');
+    return choices;
+  };
+  function drawerKey(key, target, extra = {}) {
+    const event = { key, target, currentTarget: drawer, nativeEvent: {}, defaultPrevented: false,
+      preventDefault() { this.defaultPrevented = true; }, ...extra };
+    drawerKeyDown(event);
+    return event.defaultPrevented;
+  }
+  const close = new DrawerElement('drawer-close');
+  assert.equal(drawerKey('ArrowDown', close), true);
+  assert.equal(focused, choices[1], 'Start at the current choice when entering the list from Close');
+  assert.equal(drawerKey('ArrowDown', focused), true);
+  assert.equal(focused, choices[2]);
+  assert.equal(drawerKey('ArrowDown', focused), true);
+  assert.equal(focused, choices[2], 'Stay on the final choice at the bottom');
+  assert.equal(drawerKey('ArrowUp', focused), true);
+  assert.equal(focused, choices[1]);
+  assert.equal(scrollBlock, 'nearest', 'Scroll the focused choice into view');
+  choices[1].current = false;
+  drawerKey('ArrowDown', drawer);
+  assert.equal(focused, choices[0], 'Enter at the first choice when none is current');
+  assert.equal(drawerKey('ArrowDown', new DrawerElement('input')), false, 'Search retains native arrow behavior');
+  assert.equal(drawerKey('ArrowDown', new DrawerElement('combobox')), false, 'Season retains its own arrow behavior');
+  assert.equal(drawerKey('ArrowDown', focused, { ctrlKey: true }), false);
+  console.log('PASS: drawer arrows move and scroll focus without intercepting search, selects or volume controls');
 }
 for (const native of [true, false]) {
   let toggles = 0, framing = 0;

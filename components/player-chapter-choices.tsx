@@ -249,7 +249,7 @@ export function PlayerChapterChoices({ chapters, media, onSeek, images, showFram
                 const image = images.get(chapter.startTime);
                 const selected = current === chapter.startTime;
                 return <li key={chapter.startTime} data-chapter-start={chapter.startTime}>
-                    <button type="button" aria-current={selected || undefined}
+                    <button type="button" aria-current={selected || undefined} data-player-selection-choice=""
                         onClick={() => onSeek(chapter.startTime)}
                         className={selectionRowClass}>
                         <span className={selectionThumbnailClass}>
