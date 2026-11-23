@@ -1,12 +1,10 @@
 # Navigator 0.6.12
 
-Navigator 0.6.12 is a build for macOS and Windows. It adds customizable arrow-key skips, operating system playback controls, and improvements to player controls and desktop windows.
-
-The first list covers changes since the last macOS and Windows build, 0.6.11. The second list covers the additional changes that apply if you update from 0.6.10, the last published release.
+Navigator 0.6.12 is available for macOS and Windows. It adds customizable arrow-key skips, operating system playback controls, and improvements to player controls and desktop windows.
 
 ### New features and improvements
 
-**Since the 0.6.11 build**
+**Since 0.6.11**
 
 - **Custom arrow-key skips.** In Settings → Playback → Seeking, choose a separate amount for the left and right arrows. Each accepts 1 to 60 seconds and defaults to 10 seconds. The reset button restores both defaults. A saved shared skip amount carries over to both directions.
 - **Playback settings layout.** Episodes and Audio come before Seeking. Loading and recovery and Video and HDR follow. The seek fields show their keyboard shortcuts, and the seek and HDR brightness labels match the other settings.
@@ -27,12 +25,12 @@ The first list covers changes since the last macOS and Windows build, 0.6.11. Th
 
 ### Windows installation
 
-Requires Windows 11 on an x64 PC. Run the setup installer to install or update Navigator. Extract the portable ZIP and launch Navigator if you use the portable version. The installer has no Windows publisher signature. These build artifacts are for manual installation. Official installations keep their existing update channel.
+Requires Windows 11 on an x64 PC. Run the setup installer to install or update Navigator. Installed copies can check for updates in **Settings → About**. Portable copies use manual updates. The installer has no Windows publisher signature.
 
 ### macOS installation
 
-Requires Apple silicon and macOS 13.5 or later. Extract the app ZIP and move Navigator to Applications. This build uses an ad hoc signature and lacks notarization, so macOS may ask you to approve it on first open. These build artifacts are for manual installation. Official installations keep their existing update channel.
+Requires Apple silicon and macOS 13.5 or later. Extract the ZIP and move Navigator to Applications. The app has an ad hoc signature and lacks notarization. macOS may ask you to approve it on first launch. Installed copies can check for updates in **Settings → About**.
 
 ### Checks completed
 
-TypeScript checks passed. Automated checks passed for keyboard seeking, hold-to-scrub behavior, playback preference migration and reset, and Settings navigation.
+TypeScript, automated desktop regressions, and package builds passed for both platforms. Package checksums and app version metadata were verified. In-app update signatures were verified.
