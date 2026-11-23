@@ -130,7 +130,7 @@ for (const platform of ['android', 'macos', 'windows']) {
 hooks.length = 0; timers.clear(); effects.length = 0;
 const listeners = new Map();
 const nativeCache = new Map();
-const controller = { cachedPreview(at) { return nativeCache.get(at); }, addEventListener: (type, fn) => listeners.set(type,fn), removeEventListener() {}, cancelPreview() {} };
+const controller = { cachedPreview(at) { return nativeCache.get(at); }, addEventListener: (type, fn) => listeners.set(type,fn), removeEventListener() {}, cancelScrubPreview() {} };
 const nativeMedia = { controller };
 let at = 10, requesting = true;
 function renderSource() {

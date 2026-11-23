@@ -99,16 +99,17 @@ async function main() {
 
     const host = hooks();
     const requestsForFrames = [], released = [];
-    const media = Object.assign(new EventTarget(), { paused: false, readyState: 2, controller: {
+    const media = Object.assign(new EventTarget(), { paused: false, readyState: 1, controller: {
         previewIfIdle: async time => { requestsForFrames.push(time); return `frame:${time}`; },
     } });
     const document = new EventTarget();
+    let finishFirstCheck;
     const { useChapterPreviews } = load('components/player-chapter-choices.tsx', {
         react: host.react, 'react/jsx-runtime': host.jsx,
         '@mux/mux-video-react': 'mux', 'lucide-react': {}, 'media-chrome/utils/time': {},
         '@/components/artwork-image': {}, '@/lib/desktop/bridge': { desktopBridge: () => ({ capabilities: { nativePreviews: true } }) },
-        '@/lib/route-prefetch': { routePrefetchAllowed: () => true },
-        '@/lib/media/chapter-preview-image': { loadChapterImage: async src => src === 'frame:1' ? null : src },
+        '@/lib/media/chapter-preview-image': { loadChapterImage: async src => src === 'frame:2'
+            ? new Promise(resolve => { finishFirstCheck = resolve; }) : src },
         '@/lib/media/preview-frames': {}, '@/lib/media/range-preview-frames': {}, './player-selection-row-styles': {},
     }, { document, URL: { revokeObjectURL: src => released.push(src) } });
     const chapters = Array.from({ length: 52 }, (_, index) => ({ startTime: index * 10, endTime: index * 10 + 10 }));
@@ -116,24 +117,29 @@ async function main() {
     const renderPreviews = (open = false) => host.render(() => useChapterPreviews(navigation, chapters, open, true));
     renderPreviews(); host.flush();
     assert.equal(requestsForFrames.length, 0, 'Warmup waits for a playable frame');
-    media.readyState = 4;
-    media.dispatchEvent(new Event('playing'));
-    assert.deepEqual(requestsForFrames, [1], 'Start immediately on playback');
-    renderPreviews(true).showFrames([500]); host.flush();
+    media.paused = true;
+    media.readyState = 2;
+    media.dispatchEvent(new Event('loadeddata'));
+    assert.deepEqual(requestsForFrames, [2], 'Start at the first decoded frame with the drawer closed');
     await settle();
-    assert.deepEqual(requestsForFrames.slice(0, 3), [1, 501, 11], 'Visible rows take priority, then other rows get their first sample');
-    assert.equal(requestsForFrames.at(-1), 3, 'Retry black images at another timestamp');
-    assert.equal(requestsForFrames.length, 53, 'Preload every chapter and retry the first black frame');
+    assert.equal(requestsForFrames.length, 52, 'Reuse one decoder while checking the previous image');
+    assert.equal(renderPreviews().images.size, 51);
+    finishFirstCheck(null);
+    await settle();
+    assert.equal(requestsForFrames.length, 53, 'Continue warming the full list with the drawer closed after pausing');
+    assert.equal(requestsForFrames.at(-1), 4, 'Retry black images at another timestamp');
+    renderPreviews(true).showFrames([500]); host.flush();
     renderPreviews().showFrames([]); host.flush();
     const loaded = renderPreviews(true).images;
     assert.equal(loaded.size, 52, 'Keep all warmed images, including more than 48 chapters');
-    assert.equal(loaded.get(0), 'frame:3', 'Use the original chapter start as the image key');
-    assert.equal(loaded.get(500), 'frame:501', 'Closing and reopening retains loaded previews');
+    assert.equal(loaded.get(0), 'frame:4', 'Use the original chapter start as the image key');
+    assert.equal(loaded.get(500), 'frame:502', 'Closing and reopening retains loaded previews');
+    assert.equal(requestsForFrames.length, 53, 'Reopening never decodes cached chapter images again');
     navigation = { ...navigation, source: 'https://fixture.test/second.mkv' };
     assert.equal(renderPreviews().images.size, 0, 'Previews are isolated to the playback source');
     host.flush(); host.unmount();
     assert.equal(released.length, 52, 'Release chapter images when playback changes');
-    console.log('PASS: chapter metadata and session isolation, immediate warmup, visible-row priority, black-frame retries and retention');
+    console.log('PASS: chapter metadata and session isolation, immediate warmup, parallel image checks, black-frame retries and retention');
 }
 
 async function testBrowserFallback() {
@@ -144,21 +150,26 @@ async function testBrowserFallback() {
     const chapters = [{ startTime: 0, endTime: 10 }, { startTime: 10, endTime: 10.5 }];
     const media = Object.assign(new EventTarget(), { paused: false, readyState: 4 });
     const navigation = { source: 'https://fixture.test/chapters.mp4', media };
+    let finishRangeCheck;
     const { useChapterPreviews } = load('components/player-chapter-choices.tsx', {
         react: host.react, 'react/jsx-runtime': host.jsx,
         '@mux/mux-video-react': 'mux', 'lucide-react': {}, 'media-chrome/utils/time': {},
         '@/components/artwork-image': {}, '@/lib/desktop/bridge': { desktopBridge: () => undefined },
-        '@/lib/route-prefetch': { routePrefetchAllowed: () => true },
-        '@/lib/media/chapter-preview-image': { loadChapterImage: async src => src },
+        '@/lib/media/chapter-preview-image': { loadChapterImage: async src => src === 'frame:range'
+            ? new Promise(resolve => { finishRangeCheck = resolve; }) : src },
         '@/lib/media/range-preview-frames': { RangePreviewFrames: class {
             constructor(source, ready, unavailable) { this.ready = ready; this.unavailable = unavailable; }
-            want(time) { if (time === 1) this.ready(time, 'frame:range'); else this.unavailable(); }
+            want(time) { if (time === 2) this.ready(time, 'frame:range'); else this.unavailable(); }
+            cancel() {}
             dispose() {}
         } }, './player-selection-row-styles': {},
     }, { document, URL: { revokeObjectURL() {} }, VideoDecoder: {} });
     const render = () => host.render(() => useChapterPreviews(navigation, chapters, false, true));
     assert.equal(render().decoder, false);
     host.flush(); await settle();
+    assert.equal(render().decoder, false, 'Allow the previous JPEG check to complete before replacing the decoder');
+    finishRangeCheck('frame:range');
+    await settle();
     const fallback = render();
     assert.equal(fallback.decoder.type, 'video', 'Range failure mounts the fallback while the drawer is closed');
     assert.equal(fallback.images.get(0), 'frame:range');
