@@ -33,6 +33,8 @@ for (const platform of ['windows', 'macos']) {
   assert.equal(events.at(-1), 'navigatoropensettings');
   window.__navigatorDesktopReceive({ type: 'close-player' });
   assert.equal(events.at(-1), 'navigatorcloseplayer');
+  window.__navigatorDesktopReceive({ type: 'window-active', value: false });
+  assert.equal(document.documentElement.dataset.windowActive, 'false');
   const header = element('header', { 'data-window-drag-region': '' });
   const listbox = element('div', { role: 'listbox' }, header);
   const option = element('div', { role: 'option' }, listbox);
@@ -63,6 +65,8 @@ for (const platform of ['windows', 'macos']) {
   assert.equal(sent.at(-1).type, 'window-drag', 'Blank header space must still drag');
   press(element('div'), { clientY: 10 });
   assert.equal(sent.length, 2, 'Blank top-edge space must still drag');
+  press(element('main', { 'data-page-scroll': '' }), { clientY: 10 });
+  assert.equal(sent.length, 2, 'Content scrolling behind the navbar does not become a drag region');
   assert.equal(press(header, { detail: 2 }).defaultPrevented, true);
   assert.deepEqual(sent.at(-1), { type: 'window-drag', doubleClick: true },
     'A double-click on blank header space must use the native titlebar action');

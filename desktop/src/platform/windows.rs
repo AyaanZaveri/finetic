@@ -258,6 +258,7 @@ thread_local! {
     static CHROME_FULLSCREEN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static CHROME_HOVER: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
     static CHROME_LISTENER: std::cell::RefCell<Option<Box<dyn Fn(u32)>>> = const { std::cell::RefCell::new(None) };
+    static CHROME_ACTIVATION: std::cell::RefCell<Option<Box<dyn Fn(bool)>>> = const { std::cell::RefCell::new(None) };
 }
 pub fn on_display_change(listener: impl Fn() + 'static) {
     DISPLAY_CHANGED.with(|value| *value.borrow_mut() = Some(Box::new(listener)));
@@ -267,6 +268,9 @@ pub fn on_chrome_fullscreen(listener: impl Fn() + 'static) {
 }
 pub fn on_chrome_hover(listener: impl Fn(u32) + 'static) {
     CHROME_LISTENER.with(|value| *value.borrow_mut() = Some(Box::new(listener)));
+}
+pub fn on_chrome_activation(listener: impl Fn(bool) + 'static) {
+    CHROME_ACTIVATION.with(|value| *value.borrow_mut() = Some(Box::new(listener)));
 }
 fn chrome_hover(hit: u32) {
     let hit = if [HTMINBUTTON, HTMAXBUTTON, HTCLOSE].contains(&hit) {
@@ -380,6 +384,11 @@ unsafe extern "system" fn chrome_proc(
             RemoveWindowSubclass(hwnd, Some(chrome_proc), id);
         }
         if hwnd == root as HWND {
+            if msg == WM_NCACTIVATE {
+                CHROME_ACTIVATION.with(|value| {
+                    if let Some(listener) = &*value.borrow() { listener(wparam != 0); }
+                });
+            }
             if matches!(msg, WM_DISPLAYCHANGE | WM_SETTINGCHANGE) {
                 DISPLAY_CHANGED.with(|value| { if let Some(listener) = &*value.borrow() { listener(); } });
             }

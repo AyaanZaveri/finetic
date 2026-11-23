@@ -34,6 +34,10 @@ const css = postcss.parse(fs.readFileSync('components/desktop/window-controls.mo
 const buttons = css.nodes.find(node => node.selector === '.controls button');
 const value = name => parseFloat(buttons.nodes.find(node => node.prop === name).value);
 const native = fs.readFileSync('desktop/src/platform/windows.rs', 'utf8');
+assert.match(native, /msg == WM_NCACTIVATE[\s\S]*?listener\(wparam != 0\)/, 'Caption appearance follows top-level window activation, independent of WebView focus');
+const contrast = css.nodes.find(node => node.type === 'atrule' && node.params === '(forced-colors: active)');
+assert.ok(contrast.nodes.some(rule => rule.nodes?.some(node => node.prop === 'color' && node.value === 'ButtonText')));
+assert.ok(contrast.nodes.some(rule => rule.nodes?.some(node => node.prop === 'color' && node.value === 'HighlightText')));
 assert.equal(value('width'), Number(/CAPTION_BUTTON_WIDTH: f64 = ([\d.]+)/.exec(native)[1]), 'Visible button width must match native hit testing');
 assert.equal(value('height'), Number(/CAPTION_HEIGHT: f64 = ([\d.]+)/.exec(native)[1]), 'Visible button height must match native hit testing');
 console.log('PASS: Windows caption actions, fullscreen controls/exit, platform isolation, and CSS/native hit-region alignment');

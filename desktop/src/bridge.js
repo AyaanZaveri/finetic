@@ -15,6 +15,9 @@
         document.dispatchEvent(new Event("navigatoropensettings"));
       }
       if (message.type === "close-player") document.dispatchEvent(new Event("navigatorcloseplayer"));
+      if (message.type === "window-active" && document.documentElement) {
+        document.documentElement.dataset.windowActive = String(message.value);
+      }
       for (const listener of [...listeners]) {
         try { listener(message); } catch (error) { console.error(error); }
       }
@@ -97,7 +100,8 @@
           event.detail > 2 || (platform === "macos" && event.ctrlKey)) return;
       const target = event.target;
       if (!target?.closest || target.closest('a, button, input, textarea, select, [role="button"], [role="menu"], [role="listbox"], [role="option"], [contenteditable], [data-no-window-drag]')) return;
-      if (!target.closest("[data-window-drag-region]") && event.clientY >= 20) return;
+      if (!target.closest("[data-window-drag-region]") &&
+          !(event.clientY < 20 && !target.closest("[data-page-scroll]"))) return;
       event.preventDefault();
       window.navigatorDesktop.send(event.detail === 2
         ? { type: "window-drag", doubleClick: true }

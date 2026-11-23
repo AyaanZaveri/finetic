@@ -6,8 +6,21 @@
 .controls svg { fill: none; stroke: currentColor; stroke-width: 1.5; }
 
 :global(html[data-native-playing]) .controls { color: white; }
+:global(html[data-window-active="false"]) .controls { color: color-mix(in srgb, var(--foreground) 60%, transparent); }
+:global(html[data-window-active="false"][data-native-playing]) .controls { color: rgb(255 255 255 / 60%); }
 :global(html[data-window-control-hover="minimize"]) .controls button:nth-child(1),
 :global(html[data-window-control-hover="maximize"]) .controls button:nth-child(2) { background: rgb(128 128 128 / .18); }
 :global(html[data-window-control-hover="close"]) .controls .close { background: #c42b1c; color: white; }
 
 .controls[data-visible="false"] { opacity: 0; visibility: hidden; pointer-events: none; }
+
+@media (forced-colors: active) {
+  .controls button { forced-color-adjust: none; background: Canvas; color: ButtonText; }
+  :global(html[data-window-active="false"]) .controls button { color: GrayText; }
+  .controls button:hover,
+  .controls .close:hover,
+  :global(html[data-window-control-hover="minimize"]) .controls button:nth-child(1),
+  :global(html[data-window-control-hover="maximize"]) .controls button:nth-child(2),
+  :global(html[data-window-control-hover="close"]) .controls .close { background: Highlight; color: HighlightText; }
+  .controls button:focus-visible { outline-color: Highlight !important; }
+}

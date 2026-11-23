@@ -99,6 +99,7 @@ enum UserEvent {
     Fullscreen(bool),
     TitlebarPress { double_click: bool },
     ChromeHover(u32),
+    ChromeActivation(bool),
     OpenSettings,
     ToggleFullscreen,
     WindowControl(protocol::WindowAction),
@@ -340,6 +341,10 @@ pub fn run(app: App) -> Result<(), String> {
     let chrome_proxy = proxy.clone();
     platform::on_chrome_hover(move |hit| {
         let _ = chrome_proxy.send_event(UserEvent::ChromeHover(hit));
+    });
+    let activation_proxy = proxy.clone();
+    platform::on_chrome_activation(move |active| {
+        let _ = activation_proxy.send_event(UserEvent::ChromeActivation(active));
     });
     let fullscreen_proxy = proxy.clone();
     platform::on_chrome_fullscreen(move || { let _ = fullscreen_proxy.send_event(UserEvent::ToggleFullscreen); });
@@ -624,6 +629,7 @@ pub fn run(app: App) -> Result<(), String> {
                 }
                 if let Some(view) = &view {
                     let _ = view.evaluate_script(&receive(&json!({"type":"fullscreen","value":fullscreen})));
+                    let _ = view.evaluate_script(&receive(&json!({"type":"window-active","value":window.is_focused()})));
                     if std::mem::take(&mut settings_pending) {
                         let _ = view.evaluate_script(&receive(&json!({"type":"open-settings"})));
                     }
@@ -676,6 +682,9 @@ pub fn run(app: App) -> Result<(), String> {
             Event::UserEvent(UserEvent::ChromeHover(hit)) => {
                 let name = match hit { 8 => "minimize", 9 => "maximize", 20 => "close", _ => "" };
                 if let Some(view) = &view { let _ = view.evaluate_script(&format!("document.documentElement.dataset.windowControlHover={}", json!(name))); }
+            }
+            Event::UserEvent(UserEvent::ChromeActivation(active)) => {
+                if let Some(view) = &view { let _ = view.evaluate_script(&receive(&json!({"type":"window-active","value":active}))); }
             }
             Event::UserEvent(UserEvent::OpenSettings) if !closing => {
                 window.set_minimized(false);
