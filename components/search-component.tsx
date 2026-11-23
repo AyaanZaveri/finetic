@@ -8,6 +8,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { groupSearchSuggestions } from "@/lib/search-suggestion-groups";
 import { fetchSearchSuggestions } from "@/lib/search-catalog-stream";
 import { ExpandingSearch, type ExpandingSearchItem } from "@/components/arc/expanding-search/expanding-search";
+import { useMetadataWarmup } from "@/components/stream-query-provider";
 import { useIsPlayerVisible } from "@/contexts/MediaPlayerContext";
 import type { SearchResult } from "@/types/stremio";
 import { scheduleRoutePrefetch } from "@/lib/route-prefetch";
@@ -26,6 +27,7 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const isPlayerVisible = useIsPlayerVisible();
+    const metadataWarmup = useMetadataWarmup();
     const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
     const searchRequestIdRef = useRef(0);
     const skipNextSuggestSearchRef = useRef(false);
@@ -41,9 +43,13 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
         const target = suggestions.find(result => `${result.type}:${result.id}` === item.id);
         if (target?.type === "movie" || target?.type === "series" || target?.type === "person") {
             const href = `/${target.type}/${target.id}`;
-            cancelPrefetch.current = scheduleRoutePrefetch(href, () => router.prefetch(href));
+            cancelPrefetch.current = scheduleRoutePrefetch(href, () => {
+                router.prefetch(href);
+                const { id, type, name } = target;
+                if (type === "movie" || type === "series") metadataWarmup?.enqueue({ id, type, name }, true);
+            });
         }
-    }, [suggestions, router]);
+    }, [suggestions, router, metadataWarmup]);
     useEffect(() => () => { cancelPrefetch.current?.(); }, []);
 
     useEffect(() => {

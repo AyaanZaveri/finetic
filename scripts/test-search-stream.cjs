@@ -79,11 +79,12 @@ const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream
   await assert.rejects(work);
   assert.equal(upstreamSignal.aborted, true);
 
-  const h = hooks(), timers = new Map(), suggestions = [], warmups = [], prefetched = [];
+  const h = hooks(), timers = new Map(), suggestions = [], warmups = [], prefetched = [], metadata = [];
   let timerId = 0;
   const { SearchBar } = load('components/search-component.tsx', {
     react: h.react, 'react/jsx-runtime': h.jsx,
     '@/components/artwork-image': { ArtworkImage: 'artwork' },
+    '@/components/stream-query-provider': { useMetadataWarmup: () => ({ enqueue: (title, intent) => metadata.push([title.id, title.type, intent]) }) },
     '@/lib/route-prefetch': { scheduleRoutePrefetch(href, warm) { const entry = { href, warm, cancelled: false }; warmups.push(entry); return () => { entry.cancelled = true; }; } },
     'lucide-react': { Film: 'film', Star: 'star', Tv: 'tv' },
     'next/navigation': { useRouter: () => ({ prefetch: href => prefetched.push(href) }), usePathname: () => '/', useSearchParams: () => new URLSearchParams() },
@@ -96,7 +97,7 @@ const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream
         { id: 'tmdb:30957', type: 'series', name: 'Duplicate' },
         { id: 'tmdb:30957', type: 'movie', name: 'Different media type with same ID' },
         { id: 'tmdb:5', type: 'movie', name: 'Fifth' },
-        { id: 'tmdb:6', type: 'series', name: 'Sixth' },
+        { id: '6', type: 'person', name: 'Sixth' },
         { id: 'tmdb:7', type: 'series', name: 'Seventh' },
       ] : [{ id: 'tmdb:911430', type: 'movie', name: 'F1' }] }]);
     } },
@@ -121,16 +122,22 @@ const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream
   for (const [id, run] of timers) { timers.delete(id); await run(); }
   tree = render();
   assert.deepEqual(Array.from(tree.props.items, item => item.id), [
-    'series:tmdb:30957', 'series:tmdb:45665', 'series:tmdb:236182', 'series:tmdb:6',
-    'movie:tmdb:30957', 'movie:tmdb:5',
+    'series:tmdb:30957', 'series:tmdb:45665', 'series:tmdb:236182',
+    'movie:tmdb:30957', 'movie:tmdb:5', 'person:6',
   ], 'Suggestions group the top six provider matches, with the strongest group first and provider rank preserved within each group');
   assert.equal(warmups.length, 0, 'Publishing six suggestions never prefetches six routes');
   tree.props.onItemIntent(tree.props.items[1]);
   assert.equal(warmups[0].href, '/series/tmdb:45665');
   tree.props.onItemIntent(tree.props.items[0]);
   assert.equal(warmups[0].cancelled, true, 'Moving selection cancels the old suggestion dwell');
+  assert.deepEqual(metadata, [], 'Metadata also waits for the selected result to settle');
   warmups[1].warm(); assert.deepEqual(prefetched, ['/series/tmdb:30957']);
   tree.props.onItemIntent(null); assert.equal(warmups[1].cancelled, true);
+  tree.props.onItemIntent(tree.props.items[3]); warmups[2].warm();
+  tree.props.onItemIntent(tree.props.items[5]); warmups[3].warm();
+  assert.equal(prefetched.at(-1), '/person/6');
+  assert.deepEqual(metadata, [['tmdb:30957', 'series', true], ['tmdb:30957', 'movie', true]],
+    'Warm the selected title and its artwork through the shared cache while person suggestions only warm their route');
   tree.props.onValueChange('   ');
   tree = render();
   assert.equal(tree.props.loading, false);
