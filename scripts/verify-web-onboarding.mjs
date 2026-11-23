@@ -14,6 +14,7 @@ for (const type of ["movie", "series"]) {
     const feed = await json(`/api/discovery/home?feed=cinemeta-${type}`);
     assert.equal(feed.status, "ready");
     assert.ok(feed.section.mediaItems.length > 0);
+    assert.ok(feed.section.mediaItems.some(item => item.poster?.startsWith("https://images.metahub.space/poster/")));
     assert.ok(feed.section.mediaItems.every(item => item.type === type && /^tt\d+$/.test(item.id)));
 }
 assert.equal((await response("/api/discovery/home?feed=unlisted")).status, 404);
