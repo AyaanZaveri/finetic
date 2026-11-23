@@ -1874,7 +1874,7 @@ dependencies = [
 
 [[package]]
 name = "navigator-desktop"
-version = "0.6.10"
+version = "0.6.12"
 dependencies = [
  "aiostreams-container",
  "aiostreams-thumbs",
