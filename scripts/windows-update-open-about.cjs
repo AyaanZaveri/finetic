@@ -9,7 +9,7 @@ if (marker) {
   const emit = Server.prototype.emit;
   Server.prototype.emit = function (event, request, response, ...args) {
     if (event === 'request' && request.url === '/' &&
-        request.headers['sec-fetch-mode'] === 'navigate' && existsSync(marker)) {
+        (request.headers.accept || '').includes('text/html') && existsSync(marker)) {
       response.writeHead(302, { Location: '/settings/about', 'Cache-Control': 'no-store' });
       response.end();
       return true;

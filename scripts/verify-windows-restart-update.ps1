@@ -20,9 +20,7 @@ $startup = Join-Path $data 'startup.jsonl'
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--force-renderer-accessibility'
 $baselineNodeOptions = $env:NODE_OPTIONS
 $baselineAboutMarker = $env:NAVIGATOR_UPDATE_ABOUT_MARKER
-$env:NAVIGATOR_UPDATE_ABOUT_MARKER = Join-Path $root 'open-about'
 $aboutHook = (Join-Path $PSScriptRoot 'windows-update-open-about.cjs').Replace('\', '/')
-$env:NODE_OPTIONS = "$baselineNodeOptions --require `"$aboutHook`"".Trim()
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 $fixture = $Case -ne 'published'
 $expectRecovery = $Case -eq 'recovery'
@@ -30,6 +28,7 @@ $expectedVersion = if ($expectRecovery) { $SourceVersion } else { $TargetVersion
 $app = $null
 $relaunch = $null
 $recording = $null
+$aboutApp = $null
 
 function Wait-For([scriptblock]$Condition, [int]$Seconds, [string]$Description) {
     $end = [DateTime]::UtcNow.AddSeconds($Seconds)
@@ -137,7 +136,6 @@ try {
     Write-Output "Staged signed payload: $selection"
     # A current status after relaunch must come from the manual check.
     Set-Content (Join-Path $data 'update-checks.json') 'false'
-    Set-Content $env:NAVIGATOR_UPDATE_ABOUT_MARKER 'open the public About route'
     if ($expectRecovery) {
         New-Item -ItemType Directory "$install.update-stage" | Out-Null
         Set-Content "$install.update-stage/retained.txt" 'Preserve interrupted stage'
@@ -187,16 +185,26 @@ try {
     if (!$expectRecovery -and $reference -and (Test-Path $reference) -and (Get-FileHash $reference).Hash -ne (Get-FileHash $executable).Hash) {
         throw 'The installed executable differs from the candidate package.'
     }
-    [void](Wait-For { Find-Control $relaunch "Navigator $expectedVersion" } 30 'the About version after relaunch')
+    # Installer-launched processes deliberately do not inherit NODE_OPTIONS.
+    # Verify the automatic relaunch first, then open the same installation
+    # directly to test a later manual update check in About.
+    $automaticallyRelaunchedPid = $relaunch.Id
+    [void]$relaunch.CloseMainWindow()
+    if (!$relaunch.WaitForExit(15000)) { throw 'Relaunched Navigator did not close normally.' }
+    $env:NAVIGATOR_UPDATE_ABOUT_MARKER = Join-Path $root 'open-about'
+    Set-Content $env:NAVIGATOR_UPDATE_ABOUT_MARKER 'open the public About route'
+    $env:NODE_OPTIONS = "$baselineNodeOptions --require `"$aboutHook`"".Trim()
+    $aboutApp = Start-Process -FilePath $executable -WorkingDirectory $install -PassThru
+    [void](Wait-For { Find-Control $aboutApp "Navigator $expectedVersion" } 30 'the About version after relaunch')
     if ($expectRecovery) {
-        [void](Wait-For { Find-Control $relaunch "Couldn’t install the update. Try again from Settings." } 30 'the installation error in About')
+        [void](Wait-For { Find-Control $aboutApp "Couldn’t install the update. Try again from Settings." } 30 'the installation error in About')
     }
-    $check = Wait-For { Find-Control $relaunch 'Check for updates' } 30 'the manual check control'
+    $check = Wait-For { Find-Control $aboutApp 'Check for updates' } 30 'the manual check control'
     Invoke-Control $check
     if ($expectRecovery) {
-        [void](Wait-For { Find-UpdateButton $relaunch } 40 'a second successful check after the installation error')
+        [void](Wait-For { Find-UpdateButton $aboutApp } 40 'a second successful check after the installation error')
     } else {
-        [void](Wait-For { Find-Control $relaunch "You’re up to date." } 40 'a successful update check after relaunch')
+        [void](Wait-For { Find-Control $aboutApp "You’re up to date." } 40 'a successful update check after relaunch')
     }
     Start-Sleep -Milliseconds 500
     if ($fixture -and (Test-Path (Join-Path $results 'console-windows.txt'))) {
@@ -204,7 +212,7 @@ try {
     }
     $record = [ordered]@{
         mode = $Case; clicks = 1; sourceVersion = $SourceVersion; installedVersion = Get-Version
-        payload = $selection; oldPid = $oldPid; newPid = $relaunch.Id
+        payload = $selection; oldPid = $oldPid; newPid = $automaticallyRelaunchedPid
         shutdownMs = $shutdownMs; appReadyMs = $appReadyMs
     }
     $record | ConvertTo-Json | Tee-Object -FilePath (Join-Path $results 'result.json')
@@ -228,9 +236,11 @@ try {
         if (Test-Path $file) { Copy-Item $file $results.FullName }
     }
     if ($app -and !$app.HasExited) { Stop-Process -Id $app.Id -ErrorAction SilentlyContinue }
-    if ($relaunch -and !$relaunch.HasExited) {
-        [void]$relaunch.CloseMainWindow()
-        if (!$relaunch.WaitForExit(15000)) { Stop-Process -Id $relaunch.Id -ErrorAction SilentlyContinue }
+    foreach ($process in @($relaunch, $aboutApp)) {
+        if ($process -and !$process.HasExited) {
+            [void]$process.CloseMainWindow()
+            if (!$process.WaitForExit(15000)) { Stop-Process -Id $process.Id -ErrorAction SilentlyContinue }
+        }
     }
     $env:NODE_OPTIONS = $baselineNodeOptions
     $env:NAVIGATOR_UPDATE_ABOUT_MARKER = $baselineAboutMarker
