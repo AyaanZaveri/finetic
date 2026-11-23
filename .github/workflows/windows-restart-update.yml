@@ -1,4 +1,4 @@
-name: Verify Windows restart to update
+name: Verify desktop restart to update
 
 on:
   push:
@@ -9,6 +9,8 @@ on:
       - scripts/windows-restart-update-feed.cjs
       - scripts/record-windows-update.ps1
       - scripts/windows-update-open-about.cjs
+      - scripts/macos-update-ui.m
+      - scripts/verify-macos-restart-update.sh
 
 permissions:
   contents: read
@@ -39,3 +41,20 @@ jobs:
           path: update-results/
           if-no-files-found: error
           retention-days: 3
+
+  macos-restart-update:
+    runs-on: macos-15
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Click Restart to update and verify the Sparkle relaunch
+        run: bash scripts/verify-macos-restart-update.sh
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always()
+        with:
+          name: macos-restart-update-0.6.7
+          path: update-results/
+          if-no-files-found: error
+          retention-days: 7
