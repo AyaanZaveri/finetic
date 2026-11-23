@@ -1,5 +1,5 @@
 use crate::{
-    App, platform, protocol, receive,
+    App, desktop_media, platform, protocol, receive,
     window_state::{Display, Placement},
 };
 use serde_json::{Value, json};
@@ -24,6 +24,9 @@ enum UserEvent {
     TitlebarPress { double_click: bool },
     Close,
     OpenSettings,
+    PlaybackCommand(protocol::Command),
+    SystemMedia(desktop_media::Action),
+    SystemArtwork(String, Vec<u8>),
     SyncFullscreen,
 }
 
@@ -96,6 +99,14 @@ pub fn run(mut app: App) -> Result<(), String> {
     } else { builder };
     let window = Rc::new(builder.build(&event_loop).map_err(|e| e.to_string())?);
     let mut normal = placement(&window);
+    let mut media_session = desktop_media::Session::default();
+    let mut media_controls = (!app.smoke).then(|| desktop_media::Controls::new({
+        let proxy = proxy.clone();
+        move |action| { let _ = proxy.send_event(UserEvent::SystemMedia(action)); }
+    }, {
+        let proxy = proxy.clone();
+        move |url, bytes| { let _ = proxy.send_event(UserEvent::SystemArtwork(url, bytes)); }
+    }));
     let surface = platform::VideoSurface::new(&window)?;
     let mut player = app.start_player(&surface, {
         let proxy = proxy.clone();
@@ -106,7 +117,6 @@ pub fn run(mut app: App) -> Result<(), String> {
     surface.attach(player.mpv.clone());
     let mut context = WebContext::new(Some(app.data.join("webview")));
     let app_origin = app.origin.clone();
-    let requests = player.sender();
     let ipc_proxy = proxy.clone();
     let smoke = app.smoke;
     let smoke_requests = player.sender();
@@ -152,7 +162,7 @@ pub fn run(mut app: App) -> Result<(), String> {
                     let _ = ipc_proxy.send_event(UserEvent::UpdateCommand(command));
                 }
                 Ok(command) => {
-                    let _ = requests.send(command);
+                    let _ = ipc_proxy.send_event(UserEvent::PlaybackCommand(command));
                 }
                 Err(message) => {
                     let session = serde_json::from_str::<Value>(request.body())
@@ -247,6 +257,7 @@ pub fn run(mut app: App) -> Result<(), String> {
         // Stop the owned backend here rather than relying on process-exit drops.
         if matches!(&event, Event::LoopDestroyed) {
             save_window(&normal);
+            media_controls.take();
             if !installing { if let Some(updater) = &updater { updater.cancel_pending_install(); } }
             drop(app._server.take());
             return;
@@ -284,6 +295,7 @@ pub fn run(mut app: App) -> Result<(), String> {
             ControlFlow::Wait
         };
         if closing && !installing && player.finished() && updater.as_ref().is_none_or(|updater| updater.can_close()) {
+            media_controls.take();
             surface.shutdown();
             player.join();
             drop(app._server.take());
@@ -333,7 +345,20 @@ pub fn run(mut app: App) -> Result<(), String> {
                 let _ = webview.evaluate_script(&receive(&json!({"type":"update-status", "version":env!("CARGO_PKG_VERSION"), "available":updater.is_some(), "automatic":automatic_updates, "state":update_state, "message":update_message})));
             }
             Event::UserEvent(UserEvent::Emit(value)) => {
+                media_session.observe_event(&value);
+                if let Some(controls) = &mut media_controls { controls.sync(media_session.now_playing()); }
                 let _ = webview.evaluate_script(&receive(&value));
+            }
+            Event::UserEvent(UserEvent::PlaybackCommand(command)) if !closing => {
+                media_session.observe_command(&command);
+                if let Some(controls) = &mut media_controls { controls.sync(media_session.now_playing()); }
+                if !matches!(command, protocol::Command::MediaMetadata { .. }) { player.send(command); }
+            }
+            Event::UserEvent(UserEvent::SystemMedia(action)) if !closing => {
+                if let Some(command) = media_session.command(action) { player.send(command); }
+            }
+            Event::UserEvent(UserEvent::SystemArtwork(url, bytes)) if !closing => {
+                if let Some(controls) = &mut media_controls { controls.receive_artwork(url, bytes); }
             }
             Event::UserEvent(UserEvent::Fullscreen(value)) => {
                 #[cfg(target_os = "macos")]
@@ -425,6 +450,9 @@ pub fn run(mut app: App) -> Result<(), String> {
                     player.begin_shutdown();
                 } else if !closing {
                     let _ = webview.evaluate_script(&receive(&json!({"type":"close-player"})));
+                    if let Some(command) = media_session.pause_for_close() { player.send(command); }
+                    media_session.clear();
+                    if let Some(controls) = &mut media_controls { controls.sync(None); }
                     if fullscreen || window.fullscreen().is_some() {
                         hide_after_fullscreen = true;
                         defer_window_action(&window, |window| window.set_fullscreen(None));

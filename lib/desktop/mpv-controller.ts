@@ -1,6 +1,6 @@
 import { readPlaybackPreferences } from "@/lib/media/playback-preferences";
 import { preferredAudioTrack } from "@/lib/media/audio-language";
-import type { DesktopBridge, NativeMessage, NativeState, NativeTrack } from "./bridge";
+import type { DesktopBridge, NativeMessage, NativeState, NativeTrack, SystemMediaMetadata } from "./bridge";
 import { nativePreviewUrl, PreviewImages } from "./preview-images";
 
 function ranges(end: number, cached?: { start: number; end: number }[]): TimeRanges {
@@ -256,6 +256,15 @@ export class MpvController extends EventTarget {
     if (!paused) this.fire("pause");
   }
   get supportsSubtitleTiming() { return this.bridge.capabilities?.subtitleTiming === true; }
+  private publishedMetadata?: { session: string; metadata: SystemMediaMetadata };
+  setMediaMetadata(metadata: SystemMediaMetadata) {
+    if (!this.bridge.capabilities?.systemMedia || !this.session || this.disposed) return;
+    const previous = this.publishedMetadata;
+    if (previous?.session === this.session && previous.metadata.title === metadata.title
+      && previous.metadata.subtitle === metadata.subtitle && previous.metadata.artwork === metadata.artwork) return;
+    this.bridge.send({ type: "media-metadata", session: this.session, ...metadata });
+    this.publishedMetadata = { session: this.session, metadata };
+  }
   setSubtitleDelay(seconds: number) {
     if (!this.supportsSubtitleTiming || this.disposed || !this.session) return;
     this.bridge.send({ type: "subtitle-delay", session: this.session, seconds: Number.isFinite(seconds) ? Math.round(Math.max(-30, Math.min(30, seconds)) * 10) / 10 : 0 });

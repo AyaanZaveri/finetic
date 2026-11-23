@@ -30,6 +30,7 @@ global-hotkey = "0.7"
 objc2 = "0.6"
 objc2-foundation = "0.3"
 objc2-app-kit = "0.3"
+objc2-media-player = { version = "0.3", features = ["objc2-app-kit", "objc2-core-foundation", "block2"] }
 objc2-quartz-core = { version = "0.3", features = ["objc2-open-gl", "objc2-core-video"] }
 objc2-open-gl = "0.3"
 objc2-core-video = "0.3"
@@ -42,7 +43,7 @@ libc = "0.2"
 
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.39.1"
-windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_Graphics_Direct3D", "Win32_Graphics_Direct3D_Fxc", "Win32_Graphics_Direct3D11", "Win32_Graphics_Dxgi", "Win32_Graphics_Dxgi_Common", "Win32_System_Com"] }
+windows = { version = "0.62.2", features = ["Foundation", "Media", "Storage_Streams", "Win32_Foundation", "Win32_Graphics_Direct3D", "Win32_Graphics_Direct3D_Fxc", "Win32_Graphics_Direct3D11", "Win32_Graphics_Dxgi", "Win32_Graphics_Dxgi_Common", "Win32_System_Com", "Win32_System_WinRT"] }
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_System_LibraryLoader", "Win32_UI_HiDpi", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 
 [build-dependencies]

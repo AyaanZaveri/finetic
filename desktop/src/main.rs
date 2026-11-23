@@ -12,6 +12,8 @@ mod frame_schedule;
 mod platform;
 #[cfg(any(windows, target_os = "macos"))]
 mod desktop_shortcut;
+#[cfg(any(windows, target_os = "macos", test))]
+mod desktop_media;
 mod player;
 mod protocol;
 mod render;

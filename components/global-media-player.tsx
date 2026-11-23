@@ -999,7 +999,10 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
               ref={videoRef}
               src={streamUrl}
               {...(nativePlayback ? { requestHeaders, startPosition: currentMedia.type === "series" ? 0 : currentMedia.resumePositionTicks ?? 0,
-                onPreloadFallback: () => setVideoReady(false) } : { startPosition: currentMedia.resumePositionTicks })}
+                onPreloadFallback: () => setVideoReady(false),
+                systemMedia: { title: primaryTitle, subtitle: showTitle || undefined,
+                  artwork: mediaDetails?.poster || initialPlaybackDetails(currentMedia).poster || fallbackBackdrop },
+              } : { startPosition: currentMedia.resumePositionTicks })}
               {...(nativePlayback && !playerAttempt && currentMedia?.nativePreload?.source === streamUrl
                 ? { preloadSrc: currentMedia.nativePreload.url, preloadExpires: currentMedia.nativePreload.expires } : {})}
               crossOrigin=""

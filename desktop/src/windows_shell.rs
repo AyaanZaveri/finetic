@@ -1,7 +1,7 @@
 //! Windows has a native first frame and cancellable backend initialization.
 //! The macOS renderer and its render-thread lifecycle remain in tao_shell.
 use crate::{
-    App, platform,
+    App, desktop_media, platform,
     player::Player,
     protocol, receive,
     startup_log::record,
@@ -21,7 +21,7 @@ use tao::{
     dpi::{LogicalSize, PhysicalPosition, PhysicalSize},
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoopBuilder},
-    platform::windows::{IconExtWindows, WindowBuilderExtWindows},
+    platform::windows::{IconExtWindows, WindowBuilderExtWindows, WindowExtWindows},
     window::{Fullscreen, Icon, Theme, Window, WindowBuilder},
 };
 use wry::{NewWindowResponse, Rect, WebContext, WebView, WebViewBuilder};
@@ -101,6 +101,7 @@ enum UserEvent {
     ChromeHover(u32),
     ChromeActivation(bool),
     OpenSettings,
+    SystemMedia(desktop_media::Action),
     ToggleFullscreen,
     WindowControl(protocol::WindowAction),
     Ready(bool),
@@ -338,6 +339,13 @@ pub fn run(app: App) -> Result<(), String> {
         let proxy = proxy.clone();
         move || { let _ = proxy.send_event(UserEvent::OpenSettings); }
     })).flatten();
+    let mut media_session = desktop_media::Session::default();
+    let mut media_controls = if app.smoke { None } else {
+        let proxy = proxy.clone();
+        desktop_media::Controls::new(windows::Win32::Foundation::HWND(window.hwnd() as _), move |action| {
+            let _ = proxy.send_event(UserEvent::SystemMedia(action));
+        }).inspect_err(|error| log::debug!("System media controls unavailable: {error}")).ok()
+    };
     let chrome_proxy = proxy.clone();
     platform::on_chrome_hover(move |hit| {
         let _ = chrome_proxy.send_event(UserEvent::ChromeHover(hit));
@@ -533,6 +541,9 @@ pub fn run(app: App) -> Result<(), String> {
             }
             Event::UserEvent(UserEvent::Command(command, session)) => {
                 if !closing {
+                    media_session.observe_command(&command);
+                    if let Some(controls) = &mut media_controls { controls.sync(media_session.now_playing()); }
+                    if matches!(command, protocol::Command::MediaMetadata { .. }) { return; }
                     if matches!(&command, protocol::Command::UpdateStatus {} | protocol::Command::UpdateCheck {} | protocol::Command::UpdateAutomatic { .. }) {
                         if let Some(updater) = &updater {
                             match command {
@@ -652,6 +663,8 @@ pub fn run(app: App) -> Result<(), String> {
                 }}
             }
             Event::UserEvent(UserEvent::Emit(value)) => {
+                media_session.observe_event(&value);
+                if let Some(controls) = &mut media_controls { controls.sync(media_session.now_playing()); }
                 if !playback_session.is_empty() && value["session"].as_str() == Some(playback_session.as_str()) {
                     match value["type"].as_str() {
                         Some("loading") => record(&log, started, "playback-open-started"),
@@ -693,6 +706,11 @@ pub fn run(app: App) -> Result<(), String> {
                     let _ = view.evaluate_script(&receive(&json!({"type":"open-settings"})));
                 } else { settings_pending = true; }
             }
+            Event::UserEvent(UserEvent::SystemMedia(action)) if !closing => {
+                if let (Some((_, player, _)), Some(command)) = (&running, media_session.command(action)) {
+                    player.send(command);
+                }
+            }
             Event::UserEvent(UserEvent::WindowControl(action)) => match action {
                 protocol::WindowAction::Minimize => window.set_minimized(true),
                 protocol::WindowAction::ToggleMaximize => set_fullscreen(&window, window.fullscreen().is_none(), &mut remaximize),
@@ -716,6 +734,7 @@ pub fn run(app: App) -> Result<(), String> {
                     if window.fullscreen().is_none() { normal.maximized = window.is_maximized(); }
                     normal.save(&state_path);
                 }
+                media_controls.take();
                 closing = true; cancelled.store(true, Ordering::Relaxed); window.set_visible(false);
                 if let Some((_, player, _)) = &running { player.begin_shutdown(); }
             }

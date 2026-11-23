@@ -27,6 +27,7 @@ pub enum Command {
         #[serde(default, rename = "startPosition")]
         start_position: f64,
     },
+    MediaMetadata { session: String, title: String, subtitle: Option<String>, artwork: Option<String> },
     Play {
         session: String,
     },
@@ -164,6 +165,12 @@ pub fn parse(text: &str) -> Result<Command, String> {
         }
         Command::Glass { session, .. } if session.is_empty() || session.len() > 128 => {
             return Err("Invalid playback session".into());
+        }
+        Command::MediaMetadata { session, title, subtitle, artwork }
+            if session.is_empty() || session.len() > 128 || title.trim().is_empty() || title.len() > 1024
+                || subtitle.as_ref().is_some_and(|line| line.len() > 1024)
+                || artwork.as_ref().is_some_and(|url| url.len() > 2048) => {
+            return Err("Invalid system media metadata".into());
         }
         Command::Seek { position, .. } if !position.is_finite() || *position < 0.0 => {
             return Err("Invalid seek position".into());

@@ -56,6 +56,7 @@ export type NativeRequest =
   | { type: "video-fit"; session: string; mode: "fit" | "crop" | "stretch" }
   | { type: "glass"; session: string; active: boolean }
   | { type: "load"; session: string; url: string; headers?: Record<string, string>; startPosition?: number }
+  | ({ type: "media-metadata"; session: string } & SystemMediaMetadata)
   | { type: "play" | "pause" | "stop"; session: string }
   | { type: "seek"; session: string; position: number }
   | { type: "thumbnail"; session: string; request: number; position: number | null }
@@ -72,11 +73,13 @@ export type NativeRequest =
   | { type: "settings" }
   | { type: "seek-feedback"; session: string };
 
+export type SystemMediaMetadata = { title: string; subtitle?: string; artwork?: string };
+
 export interface DesktopBridge {
   readonly protocol: 1;
   readonly platform: "macos" | "windows" | "linux" | "android" | "ios";
   readonly engine?: "mpv" | "exoplayer" | "vlc";
-  readonly capabilities?: { subtitleTiming?: boolean; macHdrPeak?: boolean; nativeHdrPeak?: boolean; updates?: boolean; chapters?: boolean; initialSeek?: boolean; windowControlsVisibility?: boolean; videoFit?: boolean; timings?: boolean; glass?: boolean; glassPixels?: boolean; nativePreviews?: boolean; nativeSurfaceGestures?: boolean; nativeMaterials?: boolean; nativeSystemVolume?: boolean; pip?: boolean; airplay?: boolean; systemVolume?: boolean };
+  readonly capabilities?: { subtitleTiming?: boolean; macHdrPeak?: boolean; nativeHdrPeak?: boolean; updates?: boolean; chapters?: boolean; initialSeek?: boolean; windowControlsVisibility?: boolean; videoFit?: boolean; timings?: boolean; glass?: boolean; glassPixels?: boolean; nativePreviews?: boolean; nativeSurfaceGestures?: boolean; nativeMaterials?: boolean; nativeSystemVolume?: boolean; pip?: boolean; airplay?: boolean; systemVolume?: boolean; systemMedia?: boolean };
   readonly fullscreen: boolean;
   send(request: NativeRequest): void;
   subscribe(listener: (message: NativeMessage) => void): () => void;

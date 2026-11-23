@@ -27,6 +27,23 @@ function load(file, extra = {}) {
   let listener;
   const sent = [];
   const { MpvController } = load("lib/desktop/mpv-controller.ts", { Date: { now: () => clock } });
+  for (const systemMedia of [false, true]) {
+    const commands = [];
+    const client = new MpvController({ platform: 'windows', capabilities: { systemMedia },
+      send: message => commands.push(message), subscribe: () => () => {} });
+    const metadata = { title: 'Episode', subtitle: 'Series' };
+    client.setMediaMetadata(metadata);
+    assert.equal(commands.length, 0, 'Never publish without a session');
+    client.load('https://example.test/one');
+    client.setMediaMetadata(metadata);
+    client.setMediaMetadata({ ...metadata });
+    client.load('https://example.test/two');
+    client.setMediaMetadata(metadata);
+    const loads = commands.filter(command => command.type === 'load');
+    assert.deepEqual(commands.filter(command => command.type === 'media-metadata').map(command => command.session),
+      systemMedia ? loads.map(command => command.session) : [], 'Publish once per source and only to supported Windows hosts');
+    client.dispose();
+  }
   const media = new MpvController({ platform: "windows", send: message => sent.push(message), subscribe(fn) { listener = fn; return () => {}; } });
   media.load("https://example.invalid/video.mkv");
   const session = sent.find(m => m.type === "load").session;
