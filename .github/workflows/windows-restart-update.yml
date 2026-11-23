@@ -7,6 +7,8 @@ on:
       - .github/workflows/windows-restart-update.yml
       - scripts/verify-windows-restart-update.ps1
       - scripts/windows-restart-update-feed.cjs
+      - scripts/record-windows-update.ps1
+      - scripts/windows-update-open-about.cjs
 
 permissions:
   contents: read

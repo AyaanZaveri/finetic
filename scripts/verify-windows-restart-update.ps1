@@ -17,11 +17,12 @@ $ready = Join-Path $cache 'ready.json'
 $failure = Join-Path $cache 'last-error.txt'
 $executable = Join-Path $install 'navigator-desktop.exe'
 $startup = Join-Path $data 'startup.jsonl'
-$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--force-renderer-accessibility'
+$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--force-renderer-accessibility --remote-debugging-port=9222'
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 $fixture = $Case -ne 'published'
 $app = $null
 $relaunch = $null
+$recording = $null
 
 function Wait-For([scriptblock]$Condition, [int]$Seconds, [string]$Description) {
     $end = [DateTime]::UtcNow.AddSeconds($Seconds)
@@ -127,6 +128,9 @@ try {
     $expectedSelection = if ($Case -eq 'full') { "-setup.exe" } else { "-from-$SourceVersion-delta.exe" }
     if (!$selection.EndsWith($expectedSelection)) { throw "Wrong staged payload: $selection" }
     Write-Output "Staged signed payload: $selection"
+    $recording = Start-ThreadJob -FilePath (Join-Path $PSScriptRoot 'record-windows-update.ps1') -ArgumentList $results.FullName
+    [void](Wait-For { Test-Path (Join-Path $results 'record.ready') } 20 'the screen and console monitor')
+    Start-Sleep -Milliseconds 400
     $invoke = $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
     $timer = [Diagnostics.Stopwatch]::StartNew()
     $invoke.Invoke()
@@ -152,12 +156,15 @@ try {
         }
     }
     if ($fixture) {
-        $about = Wait-For { Find-Control $relaunch 'About Navigator' } 30 'the guest About link'
-        Invoke-Control $about
+        node (Join-Path $PSScriptRoot 'windows-update-open-about.cjs')
         [void](Wait-For { Find-Control $relaunch "Navigator $TargetVersion" } 30 'the updated About version')
         $check = Wait-For { Find-Control $relaunch 'Check for updates' } 30 'the manual check control'
         Invoke-Control $check
         [void](Wait-For { Find-Control $relaunch 'You’re up to date.' } 40 'a successful update check after relaunch')
+    }
+    Start-Sleep -Milliseconds 500
+    if ($fixture -and (Test-Path (Join-Path $results 'console-windows.txt'))) {
+        throw "A console appeared during the update: $(Get-Content -Raw (Join-Path $results 'console-windows.txt'))"
     }
     $record = [ordered]@{
         mode = $Case; clicks = 1; sourceVersion = $SourceVersion; installedVersion = Get-Version
@@ -166,6 +173,17 @@ try {
     }
     $record | ConvertTo-Json | Tee-Object -FilePath (Join-Path $results 'result.json')
 } finally {
+    if ($recording) {
+        Set-Content (Join-Path $results 'record.stop') 'stop'
+        Wait-Job $recording -Timeout 10 | Out-Null
+        Receive-Job $recording -ErrorAction Continue | Out-Null
+        Remove-Job $recording -Force
+        $firstFrame = Join-Path $results 'frame-0000.jpg'
+        if ((Test-Path $firstFrame) -and (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+            ffmpeg -nostdin -y -loglevel error -framerate 4 -i (Join-Path $results 'frame-%04d.jpg') -c:v libx264 -pix_fmt yuv420p (Join-Path $results 'restart-to-update.mp4')
+            Get-ChildItem $results -Filter 'frame-*.jpg' | Remove-Item
+        }
+    }
     Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like "$root*" -or $_.ExecutablePath -like "$cache*" } | Select-Object Name, ProcessId, ParentProcessId, CommandLine | ConvertTo-Json | Set-Content (Join-Path $results 'processes.json')
     foreach ($file in @((Join-Path $data 'startup.jsonl'), (Join-Path $data 'installation.jsonl'), (Join-Path $data 'installation.log'), (Join-Path $cache 'update.log'), $failure)) {
         if (Test-Path $file) { Copy-Item $file $results.FullName }

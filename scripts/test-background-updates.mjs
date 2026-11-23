@@ -66,9 +66,11 @@ try {
   runInNewContext(await readFile(helperPath, 'utf8'), {
     module: helper, Buffer, URL, AbortSignal,
     require: name => name === 'node:child_process' ? {
-      spawn(file, args, { cwd }) {
+      spawn(file, args, { cwd, argv0, windowsHide, windowsVerbatimArguments }) {
         assert.equal(cwd, cache, 'The installer must not inherit the running app’s working directory');
         assert.deepEqual(Array.from(args), ['/S', '/UPDATE', '/UPDATEPID=2345', `/D=${install}`]);
+        assert.equal(argv0, `"${file}"`, 'Quote the executable even though NSIS needs an unquoted /D argument');
+        assert.ok(windowsHide && windowsVerbatimArguments);
         installed.push(file);
         const child = new EventEmitter();
         queueMicrotask(() => child.emit('exit', file.includes('-delta.exe') ? 13 : 0));

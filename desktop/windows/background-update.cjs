@@ -133,7 +133,7 @@ function runInstaller(file, install, parentPid) {
     if (parentPid) args.push(`/UPDATEPID=${parentPid}`);
     // NSIS requires the final /D argument to remain unquoted, even with spaces.
     args.push(`/D=${install}`);
-    const child=spawn(file,args,{cwd:dirname(file),stdio:'ignore',windowsHide:true,windowsVerbatimArguments:true});
+    const child=spawn(file,args,{argv0:`"${file}"`,cwd:dirname(file),stdio:'ignore',windowsHide:true,windowsVerbatimArguments:true});
     child.once('error',reject);
     child.once('exit',code=>resolve(code));
   });
