@@ -10,7 +10,8 @@ const routes = [];
 const palettes = [];
 let finePointer = true;
 let resumeWarmup = null;
-let cardArtwork = { poster: '/poster.jpg', background: '/backdrop.jpg' };
+const backdrop = 'https://image.tmdb.org/t/p/original/backdrop.jpg';
+let cardArtwork = { poster: '/poster.jpg', background: backdrop };
 class TestNode {}
 class TestElement extends TestNode { matches(selector) { return selector === ':focus-visible'; } }
 const routeContext = { exports: {} };
@@ -62,7 +63,7 @@ function find(node, predicate) {
 const surface = (resume = false) => find(render(resume), node => node.props?.className?.split(' ').includes('surface'));
 const thumbnail = find(render(true), node => node.type === 'img');
 assert.equal(thumbnail.props.sizes, '320px');
-assert.equal(thumbnail.props.src, '/backdrop.jpg?width=780');
+assert.equal(thumbnail.props.src, `${backdrop}?width=780`);
 assert.equal(thumbnail.props.width, 320);
 assert.equal(thumbnail.props.height, 180);
 assert.ok(thumbnail.props.srcSet.includes('width=1280 1280w'));
@@ -72,7 +73,7 @@ assert.equal(palettes.length, 0, 'Touch and pen cannot create hover palette chan
 finePointer = false; render().props.onPointerEnter({ pointerType: 'mouse' }); assert.equal(palettes.length, 0);
 finePointer = true;
 render(true).props.onPointerEnter({ pointerType: 'mouse' });
-assert.equal(palettes.at(-1)[2].primary, '/backdrop.jpg', 'Resume colors come from the displayed backdrop');
+assert.equal(palettes.at(-1)[2].primary, backdrop, 'Resume colors come from the displayed backdrop');
 render().props.onPointerEnter({ pointerType: 'mouse' });
 assert.equal(palettes.at(-1)[2].primary, '/poster.jpg', 'Catalog colors come from the displayed poster');
 render().props.onFocusCapture({ target: new TestElement(), relatedTarget: null });
@@ -116,10 +117,10 @@ function findButton(node) {
     cardArtwork = { poster: '/poster.jpg' };
     await findButton(render()).props.onClick({ preventDefault() {}, stopPropagation() {} });
     assert.equal(playback.at(-2).backdropUrl, undefined, 'Movie catalog Play never sends a poster as a backdrop');
-    cardArtwork = { poster: '/poster.jpg', background: '/backdrop.jpg' };
+    cardArtwork = { poster: '/poster.jpg', background: backdrop };
     for (const resume of [false, true]) {
         await findButton(render(resume)).props.onClick({ preventDefault() {}, stopPropagation() {} });
-        assert.equal(playback.at(-2).backdropUrl, '/backdrop.jpg', 'Catalog and Continue Watching both pass landscape artwork');
+        assert.equal(playback.at(-2).backdropUrl, backdrop, 'Catalog and Continue Watching both pass landscape artwork');
     }
     let prevented = false, stopped = false;
     await findButton(render()).props.onClick({ preventDefault() { prevented = true; }, stopPropagation() { stopped = true; } });

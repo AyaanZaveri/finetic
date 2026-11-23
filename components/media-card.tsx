@@ -235,7 +235,8 @@ export function MediaCard({
           >
             <Play className="h-6 w-6 text-white fill-white" aria-hidden="true" />
           </button>
-
+        </div>
+        <div className={`${styles.status} pointer-events-none absolute inset-0 z-40`}>
           <WatchedIndicator
             id={historyId}
             type={item.type}
@@ -245,7 +246,6 @@ export function MediaCard({
           />
 
           {progressPercent !== null ? (
-            // Keep playback status above the hover scrim, like the watched indicator.
             <div role="progressbar" aria-label={`${item.name} playback progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPercent} aria-valuetext={item.progressLabel || undefined} className="absolute inset-x-2 bottom-2 z-40 h-1.5 rounded-full bg-white/30 backdrop-blur-sm overflow-hidden pointer-events-none">
               <div
                 className="h-full rounded-full bg-white/80"
