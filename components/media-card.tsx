@@ -81,9 +81,13 @@ export function MediaCard({
   // metadata request per card and preserves posters in the title's own language.
   const suppliedPoster = item.poster?.startsWith("https://image.tmdb.org/t/p/") ? item.poster : undefined;
   const [failedImages, setFailedImages] = useState<string[]>([]);
-  const imageUrl = (continueWatching ? [backdropVariantUrl(artwork.background, 780)] : [suppliedPoster, artwork.poster])
+  const backdrop = backdropVariantUrl(artwork.background, 780);
+  const imageUrl = (continueWatching ? [backdrop, artwork.poster] : [suppliedPoster, artwork.poster])
     .find((source): source is string => !!source && !failedImages.includes(source));
-  const imageSrcSet = continueWatching && artwork.background
+  const failImage = useCallback(() => {
+    if (imageUrl) setFailedImages(previous => previous.includes(imageUrl) ? previous : [...previous, imageUrl]);
+  }, [imageUrl]);
+  const imageSrcSet = continueWatching && imageUrl === backdrop && artwork.background?.startsWith("https://image.tmdb.org/t/p/")
     ? ([300, 780, 1280] as const).map(width => `${backdropVariantUrl(artwork.background, width)} ${width}w`).join(", ") : undefined;
   const [failedLogo, setFailedLogo] = useState<string | null>(null);
   const [loadedLogo, setLoadedLogo] = useState<string | null>(null);
@@ -191,7 +195,7 @@ export function MediaCard({
                 height={continueWatching ? 180 : 216}
                 loading="lazy"
                 data-prefetch-artwork={continueWatching ? "" : undefined}
-                onError={() => setFailedImages(previous => previous.includes(imageUrl) ? previous : [...previous, imageUrl])}
+                onUnavailable={failImage}
                 alt=""
                 className={`${styles.artwork} block w-full h-full object-cover`}
                 draggable={false}

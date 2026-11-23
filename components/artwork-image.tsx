@@ -9,6 +9,7 @@ type Props = Omit<ComponentPropsWithoutRef<"img">, "src"> & {
   src?: string;
   fallbackText?: string;
   reveal?: boolean;
+  onUnavailable?: () => void;
 };
 
 export function ArtworkPlaceholder({ label = "Artwork unavailable", className, ...props }: ComponentPropsWithoutRef<"span"> & { label?: string }) {
@@ -22,7 +23,7 @@ export function ArtworkPlaceholder({ label = "Artwork unavailable", className, .
 /** Keep native image geometry; reveal loaded pixels over the card's surface. */
 export function ArtworkImage({
   src, srcSet, sizes, alt = "", className, style, width, height,
-  onLoad, onError, decoding = "async", fallbackText = "Artwork unavailable", reveal = true, ...props
+  onLoad, onError, onUnavailable, decoding = "async", fallbackText = "Artwork unavailable", reveal = true, ...props
 }: Props) {
   const key = JSON.stringify([src, srcSet, sizes]);
   const [result, setResult] = useState<{ key: string; state: "ready" | "error"; unseen?: boolean } | null>(null);
@@ -33,14 +34,18 @@ export function ArtworkImage({
     const unseen = !!box && box.right > box.left && box.bottom > box.top && (box.bottom <= 0 || box.right <= 0 || box.top >= window.innerHeight || box.left >= window.innerWidth);
     setResult({ key, state: "ready", unseen });
   }, [key]);
+  const fail = useCallback(() => {
+    setResult({ key, state: "error" });
+    onUnavailable?.();
+  }, [key, onUnavailable]);
 
   const attach = useCallback((image: HTMLImageElement | null) => {
     // A cached image can finish before hydration attaches load/error handlers.
     if (image?.complete && src) {
       if (image.naturalWidth > 0) finish(image);
-      else setResult({ key, state: "error" });
+      else fail();
     }
-  }, [key, src, finish]);
+  }, [src, finish, fail]);
 
   if (state === "error") {
     return <ArtworkPlaceholder label={fallbackText} aria-label={alt ? `${alt}: ${fallbackText}` : fallbackText}
@@ -60,7 +65,7 @@ export function ArtworkImage({
       onLoad?.(event);
     }}
     onError={event => {
-      setResult({ key, state: "error" });
+      fail();
       onError?.(event);
     }} />;
 }

@@ -4,7 +4,7 @@ import { releaseYear } from "@/lib/media/release-year";
 import { outboundFetch } from "@/lib/server/outbound-fetch";
 import { readCatalog } from "@/lib/server/catalog-cache";
 
-import { publicArtworkUrl } from "@/lib/artwork";
+import { cinemetaTitleArtwork, publicArtworkUrl } from "@/lib/artwork";
 import { resolveMediaArtwork, resolveArtworkList } from "@/lib/server/media-artwork";
 import { getTMDBArtwork } from "@/lib/tmdb-artwork";
 
@@ -1081,7 +1081,8 @@ export async function fetchResumeItems(): Promise<MediaItem[]> {
         };
       });
 
-    return resolveArtworkList(resumeItems, true);
+    return resolveArtworkList(resumeItems, true, async (id, type, kind) =>
+      await getTMDBArtwork(id, type, kind) ?? cinemetaTitleArtwork(id, kind));
   } catch (error) {
     console.error("Failed to fetch resume items:", error);
     throw new Error("Could not refresh Continue Watching");

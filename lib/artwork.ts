@@ -10,6 +10,13 @@ export function publicArtworkUrl(source?: string): string | undefined {
   return tmdbImageUrl.test(source) || cinemetaArtworkUrl.test(source) || cinemetaStillUrl.test(source) ? source : undefined;
 }
 
+export function cinemetaTitleArtwork(id: string, kind: ArtworkKind): string | undefined {
+  if (!/^tt\d+$/.test(id) || kind === "still") return undefined;
+  const category = kind === "backdrop" ? "background" : kind;
+  const size = kind === "poster" ? "small" : "medium";
+  return `https://images.metahub.space/${category}/${size}/${id}/img`;
+}
+
 export function backdropVariantUrl(source: string | undefined, width: 300 | 780 | 1280): string | undefined {
   return publicArtworkUrl(source) ? source!.replace(/\/t\/p\/[^/]+\//, `/t/p/w${width}/`) : source;
 }

@@ -13,8 +13,14 @@ function load(file, globals = {}) {
 }
 const artwork = load('lib/artwork.ts');
 const description = load('lib/media-description.ts');
-function setup(items, metadata = { id: 'tt0816692', name: 'Interstellar', type: 'movie', year: 2014, description: 'Complete.' }) {
+function setup(items, metadata = { id: 'tt0816692', name: 'Interstellar', type: 'movie', year: 2014, description: 'Complete.' },
+  { tmdbConfigured = true } = {}) {
   const calls = [], pending = [];
+  const tmdb = { getTMDBArtwork: async (_id, _type, kind) =>
+    tmdbConfigured && kind === 'backdrop' ? 'https://image.tmdb.org/t/p/original/backdrop.jpg' : undefined };
+  const artworkResolver = load('lib/server/media-artwork.ts', { require: name => ({
+    '@/lib/artwork': artwork, '@/lib/tmdb-artwork': tmdb, 'server-only': {},
+  })[name] });
   const actions = load('app/actions/media.ts', {
     require(name) {
       if (name === "@/lib/server/outbound-fetch") return { outboundFetch: (...args) => context.fetch(...args) };
@@ -26,7 +32,8 @@ function setup(items, metadata = { id: 'tt0816692', name: 'Interstellar', type: 
         },
       };
       if (name === '@/lib/server/catalog-cache') return {};
-      if (name === '@/lib/server/media-artwork') return { resolveArtworkList: async items => items.map(item => ({ ...item, background: 'https://image.tmdb.org/t/p/original/backdrop.jpg' })) };
+      if (name === '@/lib/server/media-artwork') return artworkResolver;
+      if (name === '@/lib/tmdb-artwork') return tmdb;
       if (name === '@/lib/artwork') return artwork;
             if (name === '@/lib/series-route') return load('lib/series-route.ts');
             if (name === '@/lib/tmdb-discovery') return { resolveTMDBPlaybackId: async id => id === 'tmdb:123' ? 'tt123' : id };
@@ -68,6 +75,25 @@ async function run() {
   assert.equal(items[0].subtitleVideoSize, 123);
   assert.equal(items[0].year, 2014);
   assert.equal(items[0].background, 'https://image.tmdb.org/t/p/original/backdrop.jpg');
+
+  const savedPoster = 'https://image.tmdb.org/t/p/w500/saved.jpg';
+  const savedBackdrop = 'https://image.tmdb.org/t/p/w780/saved.jpg';
+  const history = [
+    { ...raw, _id: 'tt2854926', poster: savedPoster },
+    { ...raw, _id: 'tt9140554:1:3', type: 'series', state: { ...raw.state, video_id: 'tt9140554:1:3' } },
+    { ...raw, _id: 'tt9805674', background: savedBackdrop },
+    { ...raw, _id: 'tmdb:42' },
+  ];
+  const fallback = setup(history, undefined, { tmdbConfigured: false });
+  const results = new Map(Array.from(await fallback.actions.fetchResumeItems(), item => [item.id, item]));
+  assert.equal(results.get('tt2854926').background, 'https://images.metahub.space/background/medium/tt2854926/img');
+  assert.equal(results.get('tt2854926').poster, savedPoster, 'Retain known history artwork');
+  assert.equal(results.get('tt9140554').background, 'https://images.metahub.space/background/medium/tt9140554/img');
+  assert.equal(results.get('tt9140554').mediaSourceId, 'tt9140554:1:3');
+  assert.equal(results.get('tt9140554').resumePositionTicks, 600);
+  assert.equal(results.get('tt9805674').background, savedBackdrop);
+  assert.equal(results.get('tmdb:42').background, undefined);
+  assert.deepEqual(fallback.calls, ['library'], 'No title metadata requests for missing resume artwork');
 
   const short = await setup([{ ...raw, state: { timeOffset: 1500, duration: 8000 } }]).actions.fetchResumeItems();
   assert.equal(short[0].resumePositionTicks, 1.5, 'Stremio offsets are milliseconds even for short media');

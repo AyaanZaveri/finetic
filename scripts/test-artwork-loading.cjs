@@ -53,17 +53,38 @@ const posterProps = { item: { id: 'tmdb:236182', type: 'series', name: 'Amazing 
 let card = cardHooks.render(cardFixture.MediaCard, posterProps);
 let poster = nodes(card).find(node => node.type === 'artwork-image');
 assert.equal(poster.props.src, posterProps.item.poster, 'Search cards keep the same exact poster as suggestions');
-poster.props.onError();
+poster.props.onUnavailable();
 card = cardHooks.render(cardFixture.MediaCard, posterProps);
 poster = nodes(card).find(node => node.type === 'artwork-image');
 assert.equal(poster.props.src, '/poster.jpg', 'A failed supplied poster falls back to the canonical resolver');
-poster.props.onError();
+poster.props.onUnavailable();
 card = cardHooks.render(cardFixture.MediaCard, posterProps);
 assert.ok(!nodes(card).some(node => node.type === 'artwork-image'), 'Exhausted sources stop without a retry loop');
 card = cardHooks.render(cardFixture.MediaCard, { item: { ...posterProps.item, poster: 'https://image.tmdb.org/t/p/w500/new.jpg' } });
 assert.equal(nodes(card).find(node => node.type === 'artwork-image').props.src, 'https://image.tmdb.org/t/p/w500/new.jpg', 'New metadata can recover a failed card');
 cardHooks.unmount();
 console.log('PASS: supplied TMDB posters, canonical fallback, exhausted-source termination, and changed-poster recovery');
+
+const resumeHooks = hooks();
+const resumeCard = load('components/media-card.tsx', {
+  ...dependencies, react: { ...React, ...resumeHooks.react }, 'react/jsx-runtime': resumeHooks.jsx,
+  '@/lib/artwork': load('lib/artwork.ts'),
+  '@/components/artwork-image': { ArtworkImage: 'artwork-image' },
+});
+const resumeProps = { ...posterProps, continueWatching: true, item: {
+  ...posterProps.item, background: 'https://image.tmdb.org/t/p/original/wide.jpg',
+} };
+const findResumeImage = (props) => nodes(resumeHooks.render(resumeCard.MediaCard, props)).find(node => node.type === 'artwork-image');
+assert.match(findResumeImage(resumeProps).props.srcSet, /w780\/wide.jpg 780w/);
+findResumeImage(resumeProps).props.onUnavailable();
+const resumePoster = findResumeImage(resumeProps);
+assert.equal(resumePoster?.props.src, resumeProps.item.poster, 'A broken backdrop falls back to the poster');
+assert.equal(resumePoster.props.srcSet, undefined, 'Do not send the failed backdrop variants with the poster');
+const cinemetaBackdrop = 'https://images.metahub.space/background/medium/tt123/img';
+const cinemetaImage = findResumeImage({ ...resumeProps, item: { ...resumeProps.item, background: cinemetaBackdrop } });
+assert.equal(cinemetaImage.props.src, cinemetaBackdrop);
+assert.equal(cinemetaImage.props.srcSet, undefined, 'Cinemeta backdrops use a single source');
+resumeHooks.unmount();
 
 const h = hooks();
 const { ArtworkImage } = load('components/artwork-image.tsx', {
@@ -109,11 +130,13 @@ image.props.onLoad({ currentTarget: { getBoundingClientRect: () => ({ top: 900, 
 image = h.render(ArtworkImage, { ...props, src: '/offscreen.jpg' });
 assert.equal(image.props['data-artwork-state'], 'ready');
 assert.doesNotMatch(image.props.className, /reveal/, 'Offscreen loads do not spend frames on an unseen fade');
-const cachedFailure = { ...props, src: '/cached-failure.jpg' };
+let cachedFailures = 0;
+const cachedFailure = { ...props, src: '/cached-failure.jpg', onUnavailable: () => cachedFailures++ };
 image = h.render(ArtworkImage, cachedFailure);
 image.props.ref({ complete: true, naturalWidth: 0 });
 image = h.render(ArtworkImage, cachedFailure);
 assert.equal(image.props['data-artwork-state'], 'error', 'A failure before hydration must not leave an endless loading surface');
+assert.equal(cachedFailures, 1, 'A broken cached source also advances its parent to the next image');
 image = h.render(ArtworkImage, { ...cached, srcSet: '/larger.jpg 780w', sizes: '320px' });
 assert.equal(image.props['data-artwork-state'], 'loading', 'Responsive source changes reset the loading treatment too');
 image = h.render(ArtworkImage, { ...props, src: '' });
