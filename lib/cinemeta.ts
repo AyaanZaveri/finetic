@@ -6,11 +6,13 @@ import type { MediaItem, StremioCatalogResponse, StremioMetaPreview, StremioMeta
 
 type TitleType = "movie" | "series";
 const base = "https://v3-cinemeta.strem.io";
+const catalogBase = "https://cinemeta-catalogs.strem.io/top";
 const imdbId = /^tt[0-9]+$/;
 
 async function request<T>(path: string, signal?: AbortSignal): Promise<T | null> {
     const timeout = AbortSignal.timeout(5000);
-    const response = await fetch(`${base}/${path}.json`, {
+    const origin = /^catalog\/(?:movie|series)\/top$/.test(path) ? catalogBase : base;
+    const response = await fetch(`${origin}/${path}.json`, {
         signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
         redirect: "error",
         next: { revalidate: path.includes("/search=") ? 60 : 600 },

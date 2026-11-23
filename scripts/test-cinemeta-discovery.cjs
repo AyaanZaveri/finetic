@@ -29,6 +29,7 @@ async function main() {
     });
     assert.equal(await service.hasTMDBDiscovery(), false);
     const rows = await Promise.all(service.cinemetaHomeRows().map(row => row.result));
+    assert.equal(calls[0], "https://cinemeta-catalogs.strem.io/top/catalog/movie/top.json");
     assert.ok(rows.every(row => row.status === 'ready' && row.section.mediaItems.length === 1));
     assert.equal(await service.discoveryHomeFeed('cinemeta-unknown'), undefined);
     const search = await service.searchDiscovery('Alien / &', undefined, 'movie');

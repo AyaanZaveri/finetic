@@ -38,7 +38,9 @@ jobs:
           agent-browser install --with-deps
       - name: Browse Home, search, and episode details without a TMDB token
         run: |
-          npm start -- --hostname 127.0.0.1 --port 3000 > /tmp/navigator-web.log 2>&1 &
+          cp -R public .next/standalone/public
+          cp -R .next/static .next/standalone/.next/static
+          HOSTNAME=127.0.0.1 PORT=3000 node .next/standalone/server.js > /tmp/navigator-web.log 2>&1 &
           trap 'agent-browser --session onboarding close || true; cat /tmp/navigator-web.log' EXIT
           curl -fsS --retry 15 --retry-connrefused --retry-delay 1 http://127.0.0.1:3000/ > /dev/null
           node scripts/verify-web-onboarding.mjs
