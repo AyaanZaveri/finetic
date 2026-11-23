@@ -5,29 +5,36 @@ import { LayoutGroup, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Select } from "@/components/arc/select/select";
-import { SETTINGS_CATEGORIES, settingsCategoryFromPath } from "@/lib/settings-navigation";
+import { SETTINGS_CATEGORIES, isSettingsCategory, settingsCategoryFromPath, type SettingsCategory } from "@/lib/settings-navigation";
 import { motionTokens } from "@/components/arc/lib/motion-tokens";
 import styles from "@/app/(main)/settings/settings.module.css";
 
-export function SettingsShell({ children }: { children: ReactNode }) {
+type SettingsNavigation = {
+    category: SettingsCategory;
+    href: (category: SettingsCategory) => string;
+    select: (category: SettingsCategory) => void;
+};
+
+export function SettingsShell({ children, navigation }: { children: ReactNode; navigation?: SettingsNavigation }) {
     const pathname = usePathname();
     const router = useRouter();
-    const active = settingsCategoryFromPath(pathname);
+    const active = navigation?.category ?? settingsCategoryFromPath(pathname);
     const category = SETTINGS_CATEGORIES.find(category => category.id === active)!;
     const titleRef = useRef<HTMLHeadingElement>(null);
-    const previousPath = useRef(pathname);
+    const currentLocation = navigation?.category ?? pathname;
+    const previousLocation = useRef(currentLocation);
     const selectionId = useId();
     const reducedMotion = useReducedMotion();
     const [animateSelection, setAnimateSelection] = useState(true);
 
     useEffect(() => {
         document.title = `${category.label} settings · Navigator`;
-        if (previousPath.current !== pathname) {
+        if (previousLocation.current !== currentLocation) {
             document.querySelector<HTMLElement>("[data-page-scroll]")?.scrollTo({ top: 0, behavior: "instant" });
             titleRef.current?.focus({ preventScroll: true });
         }
-        previousPath.current = pathname;
-    }, [pathname, category.label]);
+        previousLocation.current = currentLocation;
+    }, [currentLocation, category.label]);
 
     return <div className={styles.page}>
         <div className={`${styles.content} ${styles.workspace}`}>
@@ -37,7 +44,10 @@ export function SettingsShell({ children }: { children: ReactNode }) {
                     onPointerDownCapture={() => setAnimateSelection(true)}>
                     <LayoutGroup id={selectionId}><ul className={styles.navigationList}>
                         {SETTINGS_CATEGORIES.map(item => <li key={item.id}>
-                            <Link draggable={false} className={styles.navigationLink} href={`/settings/${item.id}`} aria-current={active === item.id ? "page" : undefined}>
+                            <Link draggable={false} className={styles.navigationLink} href={navigation?.href(item.id) ?? `/settings/${item.id}`}
+                                prefetch={navigation ? false : undefined}
+                                onNavigate={navigation ? event => { event.preventDefault(); navigation.select(item.id); } : undefined}
+                                aria-current={active === item.id ? "page" : undefined}>
                                 {active === item.id && <motion.span className={styles.navigationSelection}
                                     layoutId="settings-selection" layoutDependency={active} initial={false}
                                     transition={reducedMotion || !animateSelection ? { duration: 0 } : motionTokens.spring.snappy}
@@ -50,7 +60,12 @@ export function SettingsShell({ children }: { children: ReactNode }) {
             </aside>
             <div className={styles.mobileNavigation}>
                 <Select id="settings-category" label="Settings" value={active}
-                    onValueChange={category => router.push(`/settings/${category}`)}
+                    onValueChange={value => {
+                        if (navigation) {
+                            if (isSettingsCategory(value)) navigation.select(value);
+                        }
+                        else router.push(`/settings/${value}`);
+                    }}
                     options={SETTINGS_CATEGORIES.map(category => ({ value: category.id, label: category.label }))} />
             </div>
             <div className={styles.panel} data-category={active}>
