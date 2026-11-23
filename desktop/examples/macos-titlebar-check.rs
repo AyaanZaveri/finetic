@@ -9,6 +9,7 @@ fn main() {
     use block2::RcBlock;
     use objc2_app_kit::{NSWindow, NSWindowDidResizeNotification, NSWindowStyleMask};
     use objc2_foundation::{NSNotificationCenter, NSUserDefaults, ns_string};
+    use std::rc::Rc;
     use std::sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -38,13 +39,17 @@ fn main() {
         .with_traffic_light_inset(LogicalPosition::new(16.0, 30.0))
         .build(&event_loop)
         .expect("create a visible test window");
+    let window = Rc::new(window);
 
     // Tao holds the NSWindow for the lifetime of the test.
     let native = unsafe { &*window.ns_window().cast::<NSWindow>() };
     let initial = native.frame();
-    let work_area = native.screen().expect("test runner has a screen").visibleFrame();
+    let work_area = native
+        .screen()
+        .expect("test runner has a screen")
+        .visibleFrame();
     assert_ne!(initial, work_area);
-    let mut action = TitlebarAction::default();
+    let action = Rc::new(TitlebarAction::default());
     let mut restoring = false;
     let inside_callback = Arc::new(AtomicBool::new(false));
     let resized = Arc::new(AtomicBool::new(false));
@@ -95,7 +100,10 @@ fn main() {
                 if restoring && frame == initial {
                     println!("PASS: {preference} restored the original window frame");
                     *flow = ControlFlow::Exit;
-                } else if !restoring && frame != initial && (preference != "Fill" || frame == work_area) {
+                } else if !restoring
+                    && frame != initial
+                    && (preference != "Fill" || frame == work_area)
+                {
                     assert!(!native.styleMask().contains(NSWindowStyleMask::FullScreen));
                     println!("PASS: {preference} resized the window and the event loop responded");
                     restoring = true;

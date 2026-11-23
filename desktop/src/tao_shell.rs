@@ -1,5 +1,6 @@
 use crate::{App, platform, protocol, receive};
 use serde_json::{Value, json};
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 use tao::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use tao::event::{Event, WindowEvent};
@@ -52,7 +53,7 @@ pub fn run(mut app: App) -> Result<(), String> {
         .with_fullsize_content_view(true)
         // Eight points higher, matching the player Back button's center.
         .with_traffic_light_inset(LogicalPosition::new(16.0, 30.0));
-    let window = builder.build(&event_loop).map_err(|e| e.to_string())?;
+    let window = Rc::new(builder.build(&event_loop).map_err(|e| e.to_string())?);
     let surface = platform::VideoSurface::new(&window)?;
     let mut player = app.start_player(&surface, {
         let proxy = proxy.clone();
@@ -159,7 +160,7 @@ pub fn run(mut app: App) -> Result<(), String> {
     } else {
         builder.with_url(&app.url)
     };
-    let webview = builder.build_as_child(&window).map_err(|e| e.to_string())?;
+    let webview = builder.build_as_child(window.as_ref()).map_err(|e| e.to_string())?;
     surface.resize(window.inner_size().width, window.inner_size().height);
     let update_settings = app.data.join("update-checks.json");
     let mut automatic_updates = std::fs::read(&update_settings)
@@ -190,7 +191,7 @@ pub fn run(mut app: App) -> Result<(), String> {
     let mut closing = false;
     let mut fullscreen = false;
     let mut window_controls_visible = true;
-    let mut titlebar_action = platform::TitlebarAction::default();
+    let titlebar_action = Rc::new(platform::TitlebarAction::default());
     let mut next_update_probe = Instant::now();
     event_loop.run(move |event, _, flow| {
         // AppKit/Dock quit can destroy the loop without a CloseRequested event.
@@ -296,7 +297,7 @@ pub fn run(mut app: App) -> Result<(), String> {
             }
             #[cfg(target_os = "macos")]
             Event::UserEvent(UserEvent::NativeHdrPeak(nits)) => platform::set_hdr_peak(nits),
-            Event::UserEvent(UserEvent::TitlebarPress { double_click }) => {
+            Event::UserEvent(UserEvent::TitlebarPress { double_click }) if !closing => {
                 if window.fullscreen().is_none() {
                     if double_click {
                         titlebar_action.double_click(&window);
