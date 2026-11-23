@@ -7,9 +7,9 @@ html[data-desktop="mpv"] body {
 }
 html[data-desktop="mpv"] body { isolation: isolate; }
 
-/* The WKWebView viewport can rubber-band over fixed player controls even
-   when the player itself has no scroll range. */
-html[data-native-platform="macos"]:has([data-player-shell]) {
+/* Lock the outer WKWebView viewport. The inner content scroller keeps its
+   own overscroll affordance. */
+html[data-native-platform="macos"]:has([data-player-shell], [data-app-layout]) {
   overflow: clip;
   overscroll-behavior: none;
 }

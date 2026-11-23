@@ -18,11 +18,17 @@ function rules(file) {
   return result;
 }
 const nativeRules = rules('app/globals.css');
-const macPlayerViewport = nativeRules.find(rule => rule.selector === 'html[data-native-platform="macos"]:has([data-player-shell])');
+const macPlayerViewport = nativeRules.find(rule => rule.selector === 'html[data-native-platform="macos"]:has([data-player-shell], [data-app-layout])');
 assert.equal(macPlayerViewport?.nodes.find(node => node.prop === 'overscroll-behavior')?.value, 'none',
-  'Suppress rubber-banding on both axes at the macOS viewport only while the player shell is mounted');
+  'Suppress rubber-banding at the outer macOS viewport during playback and browsing');
 assert.equal(macPlayerViewport?.nodes.find(node => node.prop === 'overflow')?.value, 'clip',
-  'Player contents cannot create a macOS viewport scroll range on either axis');
+  'Only the inner scroller can create a macOS scroll range');
+const layoutSource = fs.readFileSync('components/layout-content.tsx', 'utf8');
+assert.match(layoutSource, /data-page-scroll=""[^\n]*overscroll-contain/, 'The content scroller keeps local bounce without chaining to the outer viewport');
+const shellRules = rules('components/layout-content.module.css');
+const clip = selector => shellRules.find(rule => rule.selector === selector)?.nodes.find(node => node.prop === 'clip-path')?.value;
+assert.equal(clip('.skipLink'), 'inset(50%)', 'The unfocused skip link cannot be pulled into view by viewport movement');
+assert.equal(clip('.skipLink:focus-visible'), 'none', 'Keyboard focus still reveals the skip link');
 function pagePolicy(attributes) {
   const policy = {};
   for (const rule of nativeRules) {

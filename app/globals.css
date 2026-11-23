@@ -344,6 +344,11 @@ html[data-native-platform="macos"]::-webkit-scrollbar-thumb {
   --keyboard-focus-halo-width: 3px;
 }
 
+/* The app shell scrolls its own content viewport. The navbar is outside it. */
+html:has([data-app-layout]) {
+  overscroll-behavior: none;
+}
+
 /* One keyboard focus treatment for native controls, links, and custom widgets.
    Compound fields delegate the indicator to their visible shell below.
    Subtitle panels hold focus while it moves between their controls. Keep their elevation. */

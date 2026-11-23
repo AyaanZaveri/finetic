@@ -45,14 +45,11 @@
     border-radius: 12px;
     background: var(--popover);
     color: var(--popover-foreground);
-    transform: translateY(calc(-100% - 16px));
-}
-
-.skipLink:focus {
-    transform: none;
+    clip-path: inset(50%);
 }
 
 .skipLink:focus-visible {
+    clip-path: none;
     outline: var(--keyboard-focus-width) solid var(--ring);
     outline-offset: 0;
     box-shadow: 0 0 0 var(--keyboard-focus-halo-width) var(--focus-halo);
