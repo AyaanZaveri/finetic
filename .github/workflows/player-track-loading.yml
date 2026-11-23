@@ -11,6 +11,7 @@ on:
       - lib/media/browser-audio-switch.ts
       - scripts/test-native-track-loading.cjs
       - scripts/test-playback-preferences.cjs
+      - scripts/test-player-settings.cjs
       - .github/workflows/player-track-loading.yml
 
 permissions:
@@ -36,3 +37,5 @@ jobs:
       - run: node scripts/test-native-track-loading.cjs
       - run: node scripts/test-playback-preferences.cjs
       - run: node scripts/test-player-subtitles.cjs
+      - run: node scripts/test-player-settings.cjs
+      - run: node scripts/test-webgpu-player.cjs
