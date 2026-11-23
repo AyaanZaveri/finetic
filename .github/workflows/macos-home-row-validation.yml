@@ -1,0 +1,31 @@
+name: Check macOS Home rows
+
+on:
+  push:
+    branches: [macos-home-row-validation]
+
+permissions:
+  contents: read
+
+jobs:
+  home-rows:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 26.7.0
+          cache: npm
+      - run: npm ci
+      - name: Check virtual row positions and card interactions
+        run: |
+          node scripts/test-home-pagination.cjs
+          node scripts/test-home-snapshot.cjs
+          node scripts/test-card-hover.cjs
+          node scripts/test-media-card-interactions.cjs
+          node scripts/test-scroll-surface-stability.cjs
+      - name: Measure image and card geometry in WKWebView
+        run: npm run test:image-layout

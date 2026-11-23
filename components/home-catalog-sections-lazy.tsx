@@ -199,15 +199,18 @@ export function HomeCatalogSectionsLazy({ initialSections, initialRows, remainin
         const state = entry ? catalogs.get(entry.key) : undefined;
         const section = row.index < initialCount ? initialSections[row.index] : state?.status === "ready" ? state.section : undefined;
         const saved = homeCache?.catalogs.find(entry => entry.data.key === row.key)?.data;
+        // Keep the row offset in layout so WebKit can paint card hover effects
+        // without a translated ancestor inside the page scroller.
+        const top = row.start - (scrollMargin ?? 0);
         return (
           <div key={row.key} data-index={row.index} ref={virtualizer.measureElement}
             onFocusCapture={() => setFocusedRow(row.index)}
             onBlurCapture={event => {
               if (!event.currentTarget.contains(event.relatedTarget)) setFocusedRow(null);
             }}
-            className="absolute left-0 top-0 w-full flow-root"
+            className="absolute left-0 z-0 w-full flow-root"
             aria-busy={entry && (!state || state.status === "loading") ? true : undefined}
-            style={{ minHeight: CATALOG_ROW_HEIGHT, transform: `translateY(${row.start - (scrollMargin ?? 0)}px)` }}>
+            style={{ top, minHeight: CATALOG_ROW_HEIGHT }}>
             {initialRows?.[row.index] ? <Suspense fallback={<div data-home-initial-pending>
               {saved ? <CachedCatalogRow section={saved} /> : <HomeCatalogSkeleton />}
             </div>}>
