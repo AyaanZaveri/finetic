@@ -1,28 +1,36 @@
 "use client";
 
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { AudioLines } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuOptions } from "@/components/arc/dropdown-menu/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { trackOptions } from "@/lib/media/track-label";
+import { watchBrowserAudioSwitch } from "@/lib/media/browser-audio-switch";
 import styles from "@/components/player-settings-menu.module.css";
 import type { MpvElementHandle } from "@/lib/desktop/mpv-element";
 import type { NativeTrack } from "@/lib/desktop/bridge";
 
 /** Subtitle choices live in PlayerSubtitles; this button only selects audio. */
-export function DesktopTracks({ mediaRef, sourceKey }: {
+type BrowserAudioTracks = EventTarget & ArrayLike<{ id: string; language: string; label: string; enabled: boolean }>;
+type BrowserAudioMedia = HTMLVideoElement & { audioTracks?: BrowserAudioTracks };
+
+export function DesktopTracks({ mediaRef, sourceKey, onBrowserLoadingChange }: {
   mediaRef: RefObject<HTMLVideoElement | null>;
   sourceKey: string;
+  onBrowserLoadingChange?(_loading: boolean): void;
 }) {
+  const pending = useRef<ReturnType<typeof watchBrowserAudioSwitch> | null>(null);
   const [snapshot, setSnapshot] = useState<{ tracks: NativeTrack[]; container: Element | null }>({ tracks: [], container: null });
   useEffect(() => {
     const node = mediaRef.current as unknown as MpvElementHandle | null;
-    const browser = mediaRef.current as (HTMLVideoElement & { audioTracks?: EventTarget & ArrayLike<{ id: string; language: string; label: string; enabled: boolean }> }) | null;
+    const browser = mediaRef.current as BrowserAudioMedia | null;
     let list = browser?.audioTracks;
     const watch = ["addtrack", "removetrack", "change"];
     const update = () => {
       const next = browser?.audioTracks;
       if (next !== list) {
+        pending.current?.finish();
+        pending.current = null;
         watch.forEach(name => list?.removeEventListener(name, update));
         list = next;
         watch.forEach(name => list?.addEventListener(name, update));
@@ -37,7 +45,8 @@ export function DesktopTracks({ mediaRef, sourceKey }: {
     node?.addEventListener("emptied", update);
     node?.addEventListener("loadedmetadata", update);
     watch.forEach(name => list?.addEventListener(name, update));
-    return () => { node?.removeEventListener("trackschange", update); node?.removeEventListener("emptied", update);
+    return () => { pending.current?.finish(); pending.current = null;
+      node?.removeEventListener("trackschange", update); node?.removeEventListener("emptied", update);
       node?.removeEventListener("loadedmetadata", update);
       watch.forEach(name => list?.removeEventListener(name, update)); };
   }, [mediaRef, sourceKey]);
@@ -55,8 +64,15 @@ export function DesktopTracks({ mediaRef, sourceKey }: {
           const controller = (mediaRef.current as unknown as MpvElementHandle | null)?.controller;
           if (controller) controller.selectTrack("audio", id);
           else {
-            const media = mediaRef.current as (HTMLVideoElement & { audioTracks?: ArrayLike<{ enabled: boolean }> }) | null;
-            Array.from(media?.audioTracks ?? []).forEach((track, index) => { track.enabled = String(index) === id; });
+            const media = mediaRef.current as BrowserAudioMedia | null;
+            const tracks = media?.audioTracks;
+            const target = tracks?.[Number(id)];
+            if (!media || !tracks || !target || target.enabled) return;
+            pending.current?.finish();
+            pending.current = onBrowserLoadingChange
+              ? watchBrowserAudioSwitch(media, tracks, () => Boolean(target.enabled), onBrowserLoadingChange) : null;
+            Array.from(tracks).forEach((track, index) => { track.enabled = String(index) === id; });
+            pending.current?.update();
           }
         }} />
     </DropdownMenuContent>

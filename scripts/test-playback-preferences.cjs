@@ -89,6 +89,7 @@ const selectSubtitle = compile(selection, {
   nativePlayback: false, videoRef: { current: { textTracks: [browserCaption] } }, subtitleSelectionRequest: selectionRequest, loadGenerationRef: generation,
   setSubtitleData: value => { data = value; }, setCurrentSubtitle() {}, setSubtitleTracks: update => { activeTracks = update(activeTracks); },
   setRequestedSubtitleSrc: value => { requested = value; }, toast: { error: message => failures.push(message) },
+  setWaitingForSubtitles() {},
   setFetchingSubtitles: value => { fetching = value; }, subtitleLoaderRef: { current: { file: src => new Promise((resolve, reject) => pending.push({ src, resolve, reject })) } },
   parseSubtitleTextContent: text => [text],
 });
@@ -119,21 +120,24 @@ const selectSubtitle = compile(selection, {
   const failure = selectSubtitle(tracks[2]); pending[5].reject(Error('offline')); await failure;
   assert.equal(fetching, false, 'Network failures release the subtitle loader');
 
-  function automatic({ enabled = true, mode = 'normal', manual = false, downloaded = tracks, native = [], browser, ready = 2, language = 'en' } = {}) {
+  function automatic({ enabled = true, mode = 'normal', manual = false, downloaded = tracks, native = [], browser, ready = 2, language = 'en', catalogReady = true } = {}) {
     const manualOverride = { current: manual };
     const applied = { current: manual }, chosen = [], listeners = new Map();
+    let waiting = false;
     const element = { readyState: ready, controller: { tracks: native, selectTrack: (...args) => chosen.push(args) },
       addEventListener: (name, callback) => listeners.set(name, callback), removeEventListener: name => listeners.delete(name) };
     if (browser) element.textTracks = Object.assign(new EventTarget(), { ...browser, length: browser.length });
     const bindings = {
       playbackPreferencesRef: { current: { ...defaults, subtitlesEnabledByDefault: enabled, subtitleMode: mode, subtitleLanguage: language } },
-      isPlayerVisible: true, streamUrl: 'movie', subtitleOptionsReady: true, videoRef: { current: element },
+      isPlayerVisible: true, streamUrl: 'movie', subtitleOptionsReady: catalogReady, videoRef: { current: element },
       subtitleDefaultApplied: applied, subtitleManualOverride: manualOverride, subtitleDefaultSource: { current: null }, subtitleTracks: downloaded, preferredSubtitleTrack: subtitles.preferredSubtitleTrack,
       subtitleShortcutEnabled: { current: null }, choosePreferredSubtitle: { current: null }, requestedSubtitleSrc: null,
-      selectSubtitle: track => { chosen.push(track?.src ?? null); },
+      setWaitingForSubtitles: value => { waiting = value; },
+      selectSubtitle: track => { waiting = false; chosen.push(track?.src ?? null); },
     };
     const cleanup = compile(defaultsEffect, bindings)();
-    return { cleanup, toggle: compile(toggle, bindings), chosen, listeners, element, applied, manualOverride };
+    return { cleanup, toggle: compile(toggle, bindings), chosen, listeners, element, applied, manualOverride,
+      get waiting() { return waiting; }, finishCatalog() { bindings.subtitleOptionsReady = true; bindings.choosePreferredSubtitle.current(); } };
   }
   assert.deepEqual(automatic().chosen, ['en-normal']);
   assert.deepEqual(automatic({ native: [{ id: 7, type: 'sub', lang: 'eng' }] }).chosen, [['subtitle', '7']], 'Matching embedded captions take priority over external downloads');
@@ -164,6 +168,20 @@ const selectSubtitle = compile(selection, {
 
   assert.deepEqual(automatic({ mode: 'forced' }).chosen, ['en-forced']);
   assert.deepEqual(automatic({ enabled: false }).chosen, []);
+  const firstPress = automatic({ enabled: false, catalogReady: false });
+  firstPress.toggle();
+  assert.equal(firstPress.waiting, true, 'First C press shows fetching while catalog discovery is pending');
+  assert.deepEqual(firstPress.chosen, []);
+  firstPress.finishCatalog();
+  assert.equal(firstPress.waiting, false);
+  assert.deepEqual(firstPress.chosen, ['en-normal'], 'Discovery hands the loader over to the subtitle download');
+  firstPress.cleanup();
+  const cancelDiscovery = automatic({ enabled: false, catalogReady: false });
+  cancelDiscovery.toggle(); cancelDiscovery.toggle();
+  assert.equal(cancelDiscovery.waiting, false);
+  cancelDiscovery.finishCatalog();
+  assert.deepEqual(cancelDiscovery.chosen, [null], 'Second press cancels the pending request to enable captions');
+  cancelDiscovery.cleanup();
   const shortcut = automatic({ enabled: false, language: 'fr', ready: 0 });
   shortcut.toggle();
   assert.deepEqual(shortcut.chosen, [], 'C waits for caption metadata even when startup captions are disabled');

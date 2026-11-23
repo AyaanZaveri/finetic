@@ -29,6 +29,8 @@ type TrackKind = "audio" | "subtitle";
 type TrackSwitch = {
   id: string;
   confirmed: boolean;
+  advances: number;
+  stalled: boolean;
   visible: boolean;
   showTimer: ReturnType<typeof setTimeout>;
   expiryTimer: ReturnType<typeof setTimeout>;
@@ -156,8 +158,8 @@ export class MpvController extends EventTarget {
   private trackSwitches = new Map<TrackKind, TrackSwitch>();
 
   get fetchingTrack(): TrackKind | null {
-    if (this.trackSwitches.get("audio")?.visible) return "audio";
-    return this.trackSwitches.get("subtitle")?.visible ? "subtitle" : null;
+    if (this.trackSwitches.get("subtitle")?.visible) return "subtitle";
+    return this.trackSwitches.get("audio")?.visible ? "audio" : null;
   }
 
   private selectedTrackId(kind: TrackKind) {
@@ -175,10 +177,22 @@ export class MpvController extends EventTarget {
   }
 
   private finishTrackSwitches(advanced = false) {
-    if (this.state.buffering || this.state.seeking || (!this.state.paused && !advanced)) return;
     for (const [kind, change] of this.trackSwitches) {
-      if (change.confirmed) this.clearTrackSwitch(kind);
+      if (this.state.buffering || this.state.seeking) {
+        // A clock sample queued before the switch can arrive before the stall.
+        change.advances = 0;
+        change.stalled = true;
+        if (!this.state.paused) this.showTrackSwitch(change);
+      } else if (change.confirmed && (this.state.paused || (advanced && ++change.advances >= (change.stalled ? 1 : 2)))) {
+        this.clearTrackSwitch(kind);
+      }
     }
+  }
+
+  private showTrackSwitch(change: TrackSwitch) {
+    const previous = this.fetchingTrack;
+    change.visible = true;
+    if (previous !== this.fetchingTrack) this.fire("trackloadingchange");
   }
 
   private clearTrackSwitches() {
@@ -256,19 +270,15 @@ export class MpvController extends EventTarget {
     const current = this.trackSwitches.get(kind);
     if (id === "no") {
       this.clearTrackSwitch(kind);
-    } else if (this.ready && this.bridge.platform !== "android" && this.bridge.platform !== "ios"
+    } else if ((this.loaded || this.ready)
       && current?.id !== id && (current || this.selectedTrackId(kind) !== id)) {
       if (current) {
         clearTimeout(current.showTimer);
         clearTimeout(current.expiryTimer);
       }
       const change: TrackSwitch = {
-        id, confirmed: false, visible: current?.visible ?? false,
-        showTimer: setTimeout(() => {
-          const previous = this.fetchingTrack;
-          change.visible = true;
-          if (previous !== this.fetchingTrack) this.fire("trackloadingchange");
-        }, 250),
+        id, confirmed: false, advances: 0, stalled: false, visible: current?.visible ?? false,
+        showTimer: setTimeout(() => this.showTrackSwitch(change), 400),
         // An unavailable track or a bridge that never confirms must not leave a stuck pill.
         expiryTimer: setTimeout(() => this.clearTrackSwitch(kind), 15000),
       };

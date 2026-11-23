@@ -160,6 +160,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const [loading, setLoading] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
   const [fetchingSubtitles, setFetchingSubtitles] = useState(false);
+  const [waitingForSubtitles, setWaitingForSubtitles] = useState(false);
   const [requestedSubtitleSrc, setRequestedSubtitleSrc] = useState<string | null>(null);
   const [subtitleOptionsReady, setSubtitleOptionsReady] = useState(false);
   const [subtitleData, setSubtitleData] = useState<
@@ -180,6 +181,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [fetchingNativeTrack, setFetchingNativeTrack] = useState<"audio" | "subtitle" | null>(null);
+  const [fetchingBrowserAudio, setFetchingBrowserAudio] = useState(false);
   useEffect(() => {
     const controller = nativePlayback && isPlayerVisible
       ? (videoRef.current as unknown as MpvElementHandle | null)?.controller
@@ -461,6 +463,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     currentTimeRef.current = 0;
     setDuration(0);
     setFetchingSubtitles(false);
+    setWaitingForSubtitles(false);
     setRequestedSubtitleSrc(null);
     setCurrentMediaWithSource(null);
     setVideoReady(false);
@@ -512,6 +515,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     playbackPreferencesRef.current = readPlaybackPreferences();
     setSubtitleOptionsReady(false);
     setFetchingSubtitles(false);
+    setWaitingForSubtitles(false);
     setRequestedSubtitleSrc(null);
     metadataAbortRef.current?.abort();
     const metadataAbort = new AbortController();
@@ -771,6 +775,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     };
     setRequestedSubtitleSrc(track?.src ?? null);
     setFetchingSubtitles(Boolean(track));
+    setWaitingForSubtitles(false);
     if (!track) {
       if (!keepEmbedded) disableEmbedded();
       setSubtitleData([]);
@@ -807,6 +812,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       if (subtitleManualOverride.current || (subtitleDefaultApplied.current && subtitleDefaultSource.current !== "external")) return;
       const embedded = preferredSubtitleTrack(element?.controller?.tracks.filter(track => track.type === "sub") || [], preferences.subtitleLanguage, preferences.subtitleMode);
       if (embedded && element?.controller) {
+        setWaitingForSubtitles(false);
         if (subtitleDefaultSource.current === "external") void selectSubtitle(null, true);
         subtitleDefaultApplied.current = true;
         subtitleDefaultSource.current = "embedded";
@@ -818,6 +824,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       const browserTracks = textTracks ? Array.from(textTracks).filter(track => ["subtitles", "captions"].includes(track.kind)) : [];
       const browserTrack = preferredSubtitleTrack(browserTracks, preferences.subtitleLanguage, preferences.subtitleMode);
       if (browserTrack) {
+        setWaitingForSubtitles(false);
         if (subtitleDefaultSource.current === "external") void selectSubtitle(null, true);
         subtitleDefaultApplied.current = true;
         subtitleDefaultSource.current = "embedded";
@@ -827,6 +834,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       // Native track discovery and browser metadata race the addon response.
       // Wait for metadata before committing to an external fallback.
       if (subtitleDefaultApplied.current || !subtitleOptionsReady || (videoRef.current?.readyState ?? 0) < 1) return;
+      setWaitingForSubtitles(false);
       const downloaded = preferredSubtitleTrack(subtitleTracks, preferences.subtitleLanguage, preferences.subtitleMode);
       if (downloaded) {
         subtitleDefaultApplied.current = true;
@@ -882,7 +890,10 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     subtitleDefaultApplied.current = false;
     subtitleDefaultSource.current = null;
     if (active) void selectSubtitle(null);
-    else choosePreferredSubtitle.current?.();
+    else {
+      setWaitingForSubtitles(true);
+      choosePreferredSubtitle.current?.();
+    }
   }, [requestedSubtitleSrc, selectSubtitle, subtitleTracks]);
   const adjustSubtitleSize = useCallback((direction: -1 | 1) => {
     const size = stepSubtitleSize(subtitleSize, direction);
@@ -891,8 +902,8 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   if (!isPlayerVisible || !currentMedia) return null;
 
-  const trackLoadingLabel = fetchingSubtitles || fetchingNativeTrack === "subtitle" ? "Fetching subtitles"
-    : fetchingNativeTrack === "audio" ? "Fetching audio" : null;
+  const trackLoadingLabel = fetchingSubtitles || waitingForSubtitles || fetchingNativeTrack === "subtitle" ? "Fetching subtitles"
+    : fetchingBrowserAudio || fetchingNativeTrack === "audio" ? "Fetching audio" : null;
 
   const { isEpisode: isEpisodePlayback, showTitle, primaryTitle, season, episodeNumber } = getPlaybackTitles(currentMedia, mediaDetails);
   const playingEpisode = isEpisodePlayback && season !== undefined && episodeNumber !== undefined
@@ -1131,7 +1142,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           </Button>
         )}
 
-        {trackLoadingLabel && (
+        {videoReady && !playbackError && trackLoadingLabel && (
           <div className="pointer-events-none fixed right-4 top-4 z-50 h-9 bg-black/50 backdrop-blur-sm rounded-full px-3 text-white text-sm flex items-center gap-2">
             <Loader2 aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />
             <PlayerLoadingStatus label={trackLoadingLabel} />
@@ -1191,7 +1202,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                 });
               }} />
           )}
-          <DesktopTracks mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} />
+          <DesktopTracks mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} onBrowserLoadingChange={setFetchingBrowserAudio} />
           <PlayerSubtitles mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} native={nativePlayback}
             tracks={subtitleTracks} requestedSrc={requestedSubtitleSrc} onTrackChange={handleCustomSubtitleChange}
             timing={{ seconds: subtitleTiming.seconds, open: Boolean(subtitleTiming.key && timingOpenKey === subtitleTiming.key),
