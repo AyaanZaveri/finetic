@@ -1668,8 +1668,9 @@ interface MediaPlayerSeekBackwardProps
 }
 
 function MediaPlayerSeekBackward(props: MediaPlayerSeekBackwardProps) {
+  const context = useMediaPlayerContext("MediaPlayerSeekBackward");
   const {
-    seconds = KEYBOARD_SEEK_STEP,
+    seconds = context.keyboardSeekBackwardSeconds,
     asChild,
     children,
     className,
@@ -1677,7 +1678,6 @@ function MediaPlayerSeekBackward(props: MediaPlayerSeekBackwardProps) {
     ...seekBackwardProps
   } = props;
 
-  const context = useMediaPlayerContext("MediaPlayerSeekBackward");
   const dispatch = useMediaDispatch();
   const mediaCurrentTime = useMediaSelector(
     (state) => state.mediaCurrentTime ?? 0
@@ -1707,7 +1707,7 @@ function MediaPlayerSeekBackward(props: MediaPlayerSeekBackwardProps) {
       <Button
         type="button"
         aria-controls={context.mediaId}
-        aria-label={`Back ${seconds} seconds`}
+        aria-label={`Back ${seconds} second${seconds === 1 ? "" : "s"}`}
         data-disabled={isDisabled ? "" : undefined}
         data-slot="media-player-seek-backward"
         disabled={isDisabled}
@@ -1728,8 +1728,9 @@ interface MediaPlayerSeekForwardProps
 }
 
 function MediaPlayerSeekForward(props: MediaPlayerSeekForwardProps) {
+  const context = useMediaPlayerContext("MediaPlayerSeekForward");
   const {
-    seconds = KEYBOARD_SEEK_STEP,
+    seconds = context.keyboardSeekForwardSeconds,
     asChild,
     children,
     className,
@@ -1737,7 +1738,6 @@ function MediaPlayerSeekForward(props: MediaPlayerSeekForwardProps) {
     ...seekForwardProps
   } = props;
 
-  const context = useMediaPlayerContext("MediaPlayerSeekForward");
   const dispatch = useMediaDispatch();
   const mediaCurrentTime = useMediaSelector(
     (state) => state.mediaCurrentTime ?? 0
@@ -1772,7 +1772,7 @@ function MediaPlayerSeekForward(props: MediaPlayerSeekForwardProps) {
       <Button
         type="button"
         aria-controls={context.mediaId}
-        aria-label={`Forward ${seconds} seconds`}
+        aria-label={`Forward ${seconds} second${seconds === 1 ? "" : "s"}`}
         data-disabled={isDisabled ? "" : undefined}
         data-slot="media-player-seek-forward"
         disabled={isDisabled}
