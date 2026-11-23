@@ -1,9 +1,10 @@
 // Fetch immutable published inputs for delta generation. Never publish or sign.
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { readFile, appendFile, mkdir, stat, lstat } from 'node:fs/promises';
+import { readFile, appendFile, mkdtemp, stat, lstat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { windowsPowerShellEnvironment } from './package-windows.mjs';
@@ -35,6 +36,9 @@ export function zipPaths(bytes) {
     }
     return names;
 }
+export function hasBundledBuildOutput(paths) {
+    return paths.some(path => /^resources\/server\/(?:dist|build)(?:\/|$)/i.test(path));
+}
 async function prepare(platform) {
     const repository=process.env.GITHUB_REPOSITORY;
     if(!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository||'') || !['macos','windows'].includes(platform)) throw Error('Invalid delta build scope');
@@ -46,7 +50,8 @@ async function prepare(platform) {
     const current=JSON.parse(await readFile('package.json','utf8')).version;
     const asset=previousAsset(release,platform,current);
     if(!asset) { console.log('No older package with a verified digest is available. Building a full package.');return; }
-    const directory=resolve('dist/update-base');await mkdir(directory,{recursive:true});
+    // Next traces files inside the checkout into standalone server output.
+    const directory=await mkdtemp(join(process.env.RUNNER_TEMP || tmpdir(),'navigator-update-base-'));
     await exec('gh',['release','download',release.tag_name,'--repo',repository,'--pattern',asset.name,'--dir',directory]);
     const archive=join(directory,asset.name);
     if((await stat(archive)).size>2*1024*1024*1024) throw Error('Delta base archive is too large');
@@ -59,6 +64,10 @@ async function prepare(platform) {
         environment=`NAVIGATOR_PREVIOUS_MACOS_ARCHIVE=${archive}`;
     } else {
         if(paths.some(path=>path.startsWith('resources/server/.next/cache/') || path.split('/').some(part=>part.startsWith('.env')))) throw Error('Base contains runtime data');
+        if(hasBundledBuildOutput(paths)) {
+            console.log('Previous Windows package contains nested build output. Building a full package.');
+            return;
+        }
         const extracted=join(directory,'windows');
         const script="$ErrorActionPreference='Stop'; Expand-Archive -LiteralPath $env:NAV_BASE_ZIP -DestinationPath $env:NAV_BASE_DIR";
         await exec('powershell.exe',['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(script,'utf16le').toString('base64')],{

@@ -40,6 +40,9 @@ try {
     await mkdir(join(directory, ".next/cache"));
     await assert.rejects(verifyServer(directory, "1.2.3"), /runtime cache/);
     await rm(join(directory, ".next/cache"), { recursive: true });
+    await mkdir(join(directory, "dist/update-base"), { recursive: true });
+    await assert.rejects(verifyServer(directory, "1.2.3"), /nested build output/);
+    await rm(join(directory, "dist"), { recursive: true });
     await rm(join(directory, ".next/static/app.js"));
     await assert.rejects(verifyServer(directory, "1.2.3"), /static assets are missing/);
     console.log("CI package metadata, clean assets and private-file checks passed.");

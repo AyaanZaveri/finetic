@@ -10,7 +10,7 @@ import runtime from '../desktop/windows/background-update.cjs';
 import deltaRuntime from '../desktop/windows/delta.cjs';
 import { makeWindowsBackgroundFeed } from './windows-update-feed.mjs';
 import { releaseManifest, prepareDelta } from './windows-delta.mjs';
-import { previousAsset, zipPaths } from './prepare-update-base.mjs';
+import { hasBundledBuildOutput, previousAsset, zipPaths } from './prepare-update-base.mjs';
 import { deltaArtifacts } from './ci-desktop-artifacts.mjs';
 
 const keys=generateKeyPairSync('ed25519');
@@ -27,6 +27,8 @@ assert.equal(previousAsset(published,'windows','0.6.1').version,'0.6.0');
 assert.equal(previousAsset(published,'windows','0.6.0'),null);
 assert.equal(previousAsset({...published,assets:[{...published.assets[0],digest:null}]},'windows','0.6.1'),null);
 assert.throws(()=>zipPaths(Buffer.from('not a zip')),/archive/);
+assert.equal(hasBundledBuildOutput(['resources/server/dist/update-base/windows/navigator-desktop.exe']),true);
+assert.equal(hasBundledBuildOutput(['resources/server/node_modules/package/dist/index.js']),false);
 assert.equal(release.deltas[0].from,'0.6.0');
 assert.equal(runtime.parseFeed(text,publicKey,'0.6.1'),null);
 assert.equal(runtime.parseFeed(text,publicKey,'0.7.0'),null);

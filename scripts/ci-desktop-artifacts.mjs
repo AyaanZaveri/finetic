@@ -40,6 +40,9 @@ export async function verifyServer(directory, version) {
             if (entry.name.startsWith(".env") || (path === join(directory, ".next") && entry.name === "cache")) {
                 throw Error("Packaged server contains environment files or runtime cache");
             }
+            if (path === directory && /^(dist|build)$/i.test(entry.name)) {
+                throw Error("Packaged server contains nested build output");
+            }
             if (entry.isDirectory()) await inspect(join(path, entry.name));
         }
     }

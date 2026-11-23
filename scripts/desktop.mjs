@@ -53,8 +53,10 @@ try {
         await cp(native, join(bin, nativeName));
         await cp(standalone, join(resources, "server"), {
             recursive: true, dereference: true,
-            // Never distribute local credentials or cached runtime responses.
+            // Keep local credentials, runtime caches, and build output out of the package.
             filter: (source) => !basename(source).startsWith(".env")
+                && source !== join(standalone, "dist")
+                && source !== join(standalone, "build")
                 && source !== join(standalone, ".next", "cache"),
         });
         if (await exists(join(root, "public"))) await cp(join(root, "public"), join(resources, "server", "public"), { recursive: true });
