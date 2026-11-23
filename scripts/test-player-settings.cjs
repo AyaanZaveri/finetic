@@ -321,7 +321,7 @@ nativeHooks.unmount(); assert.equal(events.size, 0);
     subtitleManualOverride: { current: false }, subtitleDefaultApplied: { current: false },
     subtitleShortcutEnabled: { current: null }, subtitleDefaultSource: { current: null },
     subtitleSelectionRequest: { current: 0 }, loadGenerationRef: { current: 1 },
-    setFetchingSubtitles() {}, setRequestedSubtitleSrc() {}, setSubtitleData() {}, setCurrentSubtitle() {}, toast: { error() {} },
+    setFetchingSubtitles() {}, setWaitingForSubtitles() {}, setRequestedSubtitleSrc() {}, setSubtitleData() {}, setCurrentSubtitle() {}, toast: { error() {} },
     subtitleLoaderRef: { current: { file: async src => { fetched = src; return { success: true, content: 'subtitle' }; } } },
     parseSubtitleTextContent: () => [{ timestamp: 0, text: 'subtitle' }], setSubtitleTracks: update => { nextTracks = update(tracks); },
   };
