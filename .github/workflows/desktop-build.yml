@@ -28,6 +28,10 @@ on:
         description: Reuse the compiled fixture source from an earlier test run
         type: string
         default: ""
+      windows_fixture_repack:
+        description: Rebuild the test installers from the earlier build's portable package
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -112,6 +116,9 @@ jobs:
     if: (inputs.platform == 'all' || inputs.platform == 'windows') && (inputs.verify_windows_updates || inputs.windows_fixture_artifact_run == '')
     runs-on: windows-2025
     timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -125,7 +132,7 @@ jobs:
           toolchain: 1.92.0
           targets: x86_64-pc-windows-msvc
       - name: Ensure NSIS is available
-        if: inputs.windows_fixture_artifact_run == ''
+        if: inputs.windows_fixture_artifact_run == '' || inputs.windows_fixture_repack
         shell: pwsh
         run: |
           $nsis = Join-Path ${env:ProgramFiles(x86)} 'NSIS'
@@ -181,7 +188,7 @@ jobs:
           if-no-files-found: error
           retention-days: 1
       - name: Set the fixture target version
-        if: inputs.verify_windows_updates && inputs.windows_fixture_artifact_run == ''
+        if: inputs.verify_windows_updates && (inputs.windows_fixture_artifact_run == '' || inputs.windows_fixture_repack)
         shell: pwsh
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
@@ -197,18 +204,38 @@ jobs:
           }
           '@ | node
       - name: Prepare verified delta base
-        if: inputs.windows_fixture_artifact_run == ''
+        if: inputs.windows_fixture_artifact_run == '' || inputs.windows_fixture_repack
         run: node scripts/prepare-update-base.mjs windows
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Build fresh frontend, native runtime and installers
         if: inputs.windows_fixture_artifact_run == ''
         run: npm run desktop:package
+      - name: Repackage the verified fixture bundle
+        if: inputs.verify_windows_updates && inputs.windows_fixture_repack && inputs.windows_fixture_artifact_run != ''
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FIXTURE_RUN: ${{ inputs.windows_fixture_artifact_run }}
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          if ($env:FIXTURE_RUN -notmatch '^\d+$') { throw 'Invalid fixture run number.' }
+          $run = gh run view $env:FIXTURE_RUN --json workflowName,headSha | ConvertFrom-Json
+          if ($run.workflowName -ne 'Build desktop installers' -or $run.headSha -notmatch '^[a-f0-9]{40}$') {
+            throw 'Select a build from the desktop installers workflow.'
+          }
+          gh run download $env:FIXTURE_RUN --name "Navigator-Windows-x64-$($run.headSha)" --dir previous-update-fixture
+          $name = 'Navigator-0.6.9-windows-x64-portable.zip'
+          $archive = Join-Path previous-update-fixture $name
+          $digest = (Get-FileHash -LiteralPath $archive).Hash
+          if ("$digest  $name" -notin (Get-Content previous-update-fixture/SHA256SUMS)) { throw 'Portable checksum mismatch.' }
+          Expand-Archive -LiteralPath $archive -DestinationPath dist/desktop-win32-x64
+          node --input-type=module -e "import {resolve} from 'node:path'; import {packageWindows} from './scripts/package-windows.mjs'; await packageWindows(resolve('dist/desktop-win32-x64'), '0.6.9');"
       - name: Verify packaged files and collect checksums
-        if: inputs.windows_fixture_artifact_run == ''
+        if: inputs.windows_fixture_artifact_run == '' || inputs.windows_fixture_repack
         run: node scripts/ci-desktop-artifacts.mjs collect
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
-        if: inputs.windows_fixture_artifact_run == ''
+        if: inputs.windows_fixture_artifact_run == '' || inputs.windows_fixture_repack
         with:
           name: Navigator-Windows-x64-${{ github.sha }}
           path: dist/artifacts/*
@@ -239,7 +266,7 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          FIXTURE_RUN: ${{ inputs.windows_fixture_artifact_run || github.run_id }}
+          FIXTURE_RUN: ${{ inputs.windows_fixture_repack && github.run_id || inputs.windows_fixture_artifact_run || github.run_id }}
           SOURCE_RUN: ${{ inputs.windows_fixture_source_run || github.run_id }}
         run: |
           $PSNativeCommandUseErrorActionPreference = $true

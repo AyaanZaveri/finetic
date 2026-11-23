@@ -7,6 +7,7 @@ Var UpdateMode
 Var UpdateWait
 Var HadPrevious
 Var InstallerMutex
+Var InstallFailure
 
 Name "Navigator"
 OutFile "${OUTPUT_FILE}"
@@ -190,13 +191,23 @@ Section "Navigator"
   ${If} $1 != 0
     Goto preparation_failed
   ${EndIf}
-  ClearErrors
-  WriteUninstaller "$INSTDIR.update-stage\Uninstall.exe"
-  IfErrors preparation_failed
+  StrCpy $UpdateWait 50
+  write_uninstaller:
+    ClearErrors
+    WriteUninstaller "$INSTDIR.update-stage\Uninstall.exe"
+    IfErrors 0 stage_prepared
+    IntOp $UpdateWait $UpdateWait - 1
+    ${If} $UpdateWait > 0
+      Sleep 100
+      Goto write_uninstaller
+    ${EndIf}
+    StrCpy $InstallFailure "Could not write the staged uninstaller."
+    Goto preparation_failed
+  stage_prepared:
   ; Release the installer's staging working directory before renaming it.
   SetOutPath "$TEMP"
   StrCpy $HadPrevious 0
-  IfFileExists "$INSTDIR\*" 0 activate_stage
+  IfFileExists "$INSTDIR\*" 0 begin_activation
   StrCpy $UpdateWait 300
   rename_previous:
     ClearErrors
@@ -207,13 +218,23 @@ Section "Navigator"
       Sleep 100
       Goto rename_previous
     ${EndIf}
+    StrCpy $InstallFailure "Could not move the previous installation to its backup."
     Goto preparation_failed
   previous_saved:
     StrCpy $HadPrevious 1
+  begin_activation:
+    StrCpy $UpdateWait 50
   activate_stage:
     ClearErrors
     Rename "$INSTDIR.update-stage" "$INSTDIR"
     IfErrors 0 stage_activated
+    ; A scanner can still hold a staged file after verification exits.
+    IntOp $UpdateWait $UpdateWait - 1
+    ${If} $UpdateWait > 0
+      Sleep 100
+      Goto activate_stage
+    ${EndIf}
+    StrCpy $InstallFailure "Could not activate the verified staging directory."
     ${If} $HadPrevious == 1
       ClearErrors
       Rename "$INSTDIR.update-backup" "$INSTDIR"
@@ -261,6 +282,14 @@ Section "Navigator"
     Abort
 !endif
   preparation_failed:
+    ${If} $InstallFailure != ""
+      ClearErrors
+      FileOpen $0 "$LOCALAPPDATA\Navigator Desktop\installation.log" a
+      ${IfNot} ${Errors}
+        FileWrite $0 "$InstallFailure$\r$\n"
+        FileClose $0
+      ${EndIf}
+    ${EndIf}
     SetOutPath "$TEMP"
     RMDir /r "$INSTDIR.update-stage"
     SetErrorLevel 1
