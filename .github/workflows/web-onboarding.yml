@@ -1,0 +1,68 @@
+name: Verify web onboarding
+
+on:
+  push:
+    branches: [cinemeta-onboarding]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guest-discovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 26.7.0
+          cache: npm
+      - run: npm ci
+      - name: Check discovery, setup prompt, and guest access
+        run: |
+          npm run test:search
+          node scripts/test-desktop-tmdb-setup.cjs
+          node scripts/test-guest-discovery.cjs
+          node scripts/test-cinemeta-discovery.cjs
+          npx tsc --noEmit
+      - run: npm run build
+      - name: Install the browser driver
+        run: |
+          npm install -g agent-browser@0.31.1
+          agent-browser install --with-deps
+      - name: Browse Home, search, and episode details without a TMDB token
+        run: |
+          cp -R public .next/standalone/public
+          cp -R .next/static .next/standalone/.next/static
+          HOSTNAME=127.0.0.1 PORT=3000 node .next/standalone/server.js > /tmp/navigator-web.log 2>&1 &
+          trap 'agent-browser --session onboarding close || true; cat /tmp/navigator-web.log' EXIT
+          curl -fsS --retry 15 --retry-connrefused --retry-delay 1 http://127.0.0.1:3000/ > /dev/null
+          node scripts/verify-web-onboarding.mjs
+          mkdir -p onboarding-screenshots
+          agent-browser --session onboarding open http://127.0.0.1:3000/
+          agent-browser --session onboarding set viewport 1440 1000
+          agent-browser --session onboarding wait --text "Popular Movies"
+          agent-browser --session onboarding wait --text "Popular TV Shows"
+          agent-browser --session onboarding wait --fn 'document.querySelectorAll("a[href^=\"/movie/tt\"]").length > 0 && !document.body.innerText.includes("Could not load this catalog")'
+          agent-browser --session onboarding wait --fn 'Array.from(document.images).some(image => image.src.startsWith("https://images.metahub.space/poster/") && image.complete && image.naturalWidth > 0)'
+          agent-browser --session onboarding screenshot onboarding-screenshots/home.png
+          agent-browser --session onboarding open 'http://127.0.0.1:3000/search?q=Alien'
+          agent-browser --session onboarding wait 'a[href="/movie/tt0078748"]'
+          agent-browser --session onboarding wait --fn 'Array.from(document.images).some(image => image.src.startsWith("https://images.metahub.space/poster/") && image.complete && image.naturalWidth > 0)'
+          agent-browser --session onboarding screenshot onboarding-screenshots/search.png
+          agent-browser --session onboarding open http://127.0.0.1:3000/movie/tt0078748
+          agent-browser --session onboarding wait --text "Alien"
+          agent-browser --session onboarding open http://127.0.0.1:3000/series/tt0903747/1/1
+          agent-browser --session onboarding wait --text "Pilot"
+          agent-browser --session onboarding screenshot onboarding-screenshots/episode.png
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: no-token-onboarding-screenshots
+          path: onboarding-screenshots/
+          if-no-files-found: error

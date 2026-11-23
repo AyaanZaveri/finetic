@@ -83,7 +83,7 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
                 let receivedResults = false;
                 try {
                     const trimmedQuery = searchQuery.trim();
-                    // TMDB already ranks the response. Deduplicate without
+                    // The provider already ranks the response. Deduplicate without
                     // promoting title prefixes, ratings, or artwork availability.
                     const byId = new Map<string, SearchResult>();
 
@@ -104,7 +104,7 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
                     console.error("Search failed:", error);
                     if (requestId === searchRequestIdRef.current && !receivedResults) {
                         setSuggestions([]);
-                        setSearchError(error instanceof Error ? error.message : "TMDB search is unavailable.");
+                        setSearchError(error instanceof Error ? error.message : "Search is unavailable.");
                     }
                 } finally {
                     if (requestId === searchRequestIdRef.current) setIsLoading(false);

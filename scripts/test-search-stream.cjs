@@ -6,7 +6,7 @@ const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream
   let upstream, finish, fail;
   const calls = [];
   const { GET } = load('app/api/search/suggestions/route.ts', {
-    '@/lib/tmdb-discovery': { searchTMDBCatalog: (query, signal) => {
+    '@/lib/discovery': { searchDiscovery: (query, signal) => {
       calls.push(query); upstream = signal;
       return new Promise((resolve, reject) => { finish = resolve; fail = reject;
         signal.addEventListener('abort', () => reject(signal.reason), { once: true }); });
@@ -21,7 +21,7 @@ const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream
     const shortSearch = GET(new Request(`http://app/api/search/suggestions?q=${query}`));
     await tick();
     assert.equal(calls.at(-1), query, 'Short titles must reach TMDB');
-    finish({ results: [{ id: 'tmdb:911430', type: 'movie', name: query }] });
+    finish({ provider: 'TMDB', results: [{ id: 'tmdb:911430', type: 'movie', name: query }] });
     const shortResponse = await shortSearch;
     assert.equal(shortResponse.status, 200);
     assert.equal(JSON.parse(await shortResponse.text()).sections[0].items[0].name, query);
@@ -30,7 +30,7 @@ const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream
   const pending = GET(new Request('http://app/api/search/suggestions?q=Interstellar'));
   await tick();
   assert.deepEqual(calls, ['Interstellar'], 'One TMDB multi-search, with no add-on fan-out or per-result lookups');
-  finish({ results: [{ id: 'tmdb:157336', type: 'movie', name: 'Interstellar' }] });
+  finish({ provider: 'TMDB', results: [{ id: 'tmdb:157336', type: 'movie', name: 'Interstellar' }] });
   const response = await pending;
   assert.equal(response.headers.get('cache-control'), 'private, no-store');
   const message = JSON.parse(await response.text());

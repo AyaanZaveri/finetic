@@ -1,4 +1,4 @@
-import { searchTMDBCatalog } from "@/lib/tmdb-discovery";
+import { searchDiscovery } from "@/lib/discovery";
 import { SearchResultsView } from "@/components/search-results-view";
 import { SearchSectionLoading } from "@/components/search-section-loading";
 import { SearchIcon } from "lucide-react";
@@ -15,15 +15,17 @@ function first(value: string | string[] | undefined) {
 }
 
 async function SearchResults({ query }: { query: string }) {
+    let peopleAvailable = true;
     let initialResults: SearchResultSet | undefined;
-    let failure = "TMDB search is unavailable. Please try again.";
+    let failure = "Search is unavailable. Please try again.";
     try {
         const [movie, series, all, person] = await Promise.all([
-            searchTMDBCatalog(query, undefined, "movie", 1),
-            searchTMDBCatalog(query, undefined, "series", 1),
-            searchTMDBCatalog(query, undefined, undefined, 1),
-            searchTMDBCatalog(query, undefined, "person", 1),
+            searchDiscovery(query, undefined, "movie", 1),
+            searchDiscovery(query, undefined, "series", 1),
+            searchDiscovery(query, undefined, undefined, 1),
+            searchDiscovery(query, undefined, "person", 1),
         ]);
+        peopleAvailable = all.provider === "TMDB";
         initialResults = { page: 1, movie, series, all, person };
     } catch (error) {
         if (error instanceof Error && error.message) failure = error.message;
@@ -32,7 +34,7 @@ async function SearchResults({ query }: { query: string }) {
         <EmptyHeader><EmptyTitle>Search couldn’t load</EmptyTitle><EmptyDescription>{failure}</EmptyDescription></EmptyHeader>
         <div className={styles.emptyActions}><SearchRetryButton /><Button asChild variant="outline"><Link draggable={false} href="/settings/connections">Connection settings</Link></Button></div>
     </Empty>;
-    return <SearchResultsView key={query} query={query} initialResults={initialResults} />;
+    return <SearchResultsView key={query} query={query} initialResults={initialResults} peopleAvailable={peopleAvailable} />;
 }
 
 export default async function Search({ searchParams }: {

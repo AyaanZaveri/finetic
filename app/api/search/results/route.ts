@@ -1,8 +1,8 @@
-import { searchTMDBCatalog } from "@/lib/tmdb-discovery";
+import { searchDiscovery } from "@/lib/discovery";
 
 const headers = { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" };
 
-/** Fetch only the next page of the selected TMDB ranking. Credentials stay on
+/** Fetch only the next page of the selected provider ranking. Credentials stay on
  * the server; public search works for guests just like the initial page. */
 export async function GET(request: Request) {
     const params = new URL(request.url).searchParams;
@@ -14,11 +14,11 @@ export async function GET(request: Request) {
         return Response.json({ error: "Invalid search request." }, { status: 400, headers });
     }
     try {
-        const result = await searchTMDBCatalog(query, request.signal, type === "movie" || type === "series" || type === "person" ? type : undefined, page);
+        const result = await searchDiscovery(query, request.signal, type === "movie" || type === "series" || type === "person" ? type : undefined, page);
         request.signal.throwIfAborted();
         return Response.json(result, { headers });
     } catch (error) {
         if (request.signal.aborted) return new Response(null, { status: 499, headers });
-        return Response.json({ error: error instanceof Error ? error.message : "TMDB search is unavailable." }, { status: 503, headers });
+        return Response.json({ error: error instanceof Error ? error.message : "Search is unavailable." }, { status: 503, headers });
     }
 }

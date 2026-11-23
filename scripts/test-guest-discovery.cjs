@@ -25,7 +25,7 @@ async function main() {
     const requests = [];
     let fail = false, partial = false;
     const discovery = load('lib/tmdb-discovery.ts', {
-        'server-only': {}, '@/lib/tmdb-credentials': { getTMDBToken: async () => sharedToken },
+        'server-only': {}, '@/lib/tmdb-artwork': {}, '@/lib/tmdb-credentials': { getTMDBToken: async () => sharedToken },
     }, { process: { env: { TMDB_WATCH_REGION: 'ca' } }, URLSearchParams, Number, Error,
         fetch: async (input, init) => {
             const url = new URL(input);
@@ -59,7 +59,7 @@ async function main() {
     await assert.rejects(discovery.getTMDBHomeSections(), /unavailable/);
     fail = false; partial = false; requests.length = 0;
     const { GET: retryFeed } = load('app/api/discovery/home/route.ts', {
-        '@/lib/tmdb-discovery': discovery,
+        '@/lib/discovery': { discoveryHomeFeed: async (feed, signal) => discovery.getTMDBHomeRows(new Set([feed]), signal).rows[0] },
     }, { URL, Response });
     assert.equal((await retryFeed(new Request('https://app.test/api/discovery/home?feed=unknown'))).status, 404);
     assert.equal(requests.length, 0, 'Unknown feed IDs never start upstream requests');
@@ -86,6 +86,7 @@ async function main() {
             getInstalledAddons: async () => { addonCalls++; return []; },
         },
         '@/app/actions/media': { fetchResumeItems: async () => { resumeCalls++; return []; } },
+        '@/lib/discovery': { hasTMDBDiscovery: async () => true },
         '@/lib/tmdb-discovery': { getTMDBHomeRows: () => ({ region: result.region, rows: result.sections.map(section => ({ key: section.key, sectionName: section.sectionName, result: Promise.resolve({ status: 'ready', section }) })) }) },
     }, { URLSearchParams });
     const guest = await Home();
@@ -131,6 +132,7 @@ async function main() {
     historyHooks.unmount();
 
     const publicDependencies = {
+        '@/lib/discovery': { searchDiscovery: async () => ({ provider: 'TMDB', results: result.sections[0].mediaItems }) },
         '@/lib/server/auth': { getAuthData: async () => { throw new Error('Not authenticated'); } },
         '@/lib/tmdb-discovery': {
             searchTMDBCatalog: async () => ({ results: result.sections[0].mediaItems }),

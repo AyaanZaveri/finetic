@@ -28,15 +28,15 @@ export function SearchPageHeading({ query }: { query: string }) {
 }
 
 export function SearchTypeFilters({ value, movies, shows, people, onValueChange }: {
-    value: SearchMediaFilter; movies: number; shows: number; people: number; onValueChange: (_value: string) => void;
+    value: SearchMediaFilter; movies: number; shows: number; people?: number; onValueChange: (_value: string) => void;
 }) {
     const badge = (count: number) => <span className={styles.badge}>{count.toLocaleString("en-US")}</span>;
     return <div className={styles.filters}>
         <SegmentedControl label="Result type" value={value} options={[
-            { value: "all", label: "All", accessory: badge(movies + shows + people) },
+            { value: "all", label: "All", accessory: badge(movies + shows + (people ?? 0)) },
             { value: "movie", label: "Movies", accessory: badge(movies) },
             { value: "series", label: "TV shows", accessory: badge(shows) },
-            { value: "person", label: "People", accessory: badge(people) },
+            ...(people === undefined ? [] : [{ value: "person", label: "People", accessory: badge(people) }]),
         ]} onValueChange={onValueChange} />
     </div>;
 }

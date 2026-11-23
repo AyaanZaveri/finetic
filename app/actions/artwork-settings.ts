@@ -11,6 +11,11 @@ export type ArtworkSettingsResult =
   | ({ success: true } & ArtworkSettingsState)
   | { success: false; error: string };
 
+/** Public discovery only exposes whether a provider is configured. */
+export async function getDiscoveryAvailability(): Promise<boolean> {
+    return Boolean(await getTMDBToken());
+}
+
 export async function getArtworkSettings(): Promise<ArtworkSettingsState> {
     if (!await getUser()) throw new Error("Sign in to manage artwork settings.");
     const personal = !!(await cookies()).get(TMDB_TOKEN_COOKIE)?.value;

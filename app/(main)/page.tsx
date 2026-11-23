@@ -1,3 +1,4 @@
+import { cinemetaHomeRows, hasTMDBDiscovery } from "@/lib/discovery";
 import { fetchCatalogItems } from "@/app/actions/media";
 import { getInstalledAddons, getUser } from "@/app/actions/auth";
 import { getTMDBHomeRows } from "@/lib/tmdb-discovery";
@@ -114,7 +115,16 @@ async function CatalogSectionsBootstrap({
   );
 }
 
-function DiscoverySections() {
+async function DiscoverySections() {
+  if (!await hasTMDBDiscovery()) {
+    const rows = cinemetaHomeRows();
+    const results = await Promise.all(rows.map(row => row.result));
+    if (results.every(result => result.status === "error")) return <HomeCatalogsUnavailable />;
+    return <>
+      <HomeCatalogSectionsLazy initialSections={[]} initialRows={rows} remainingEntries={[]} batchSize={CATALOG_BATCH_SIZE} />
+      <p className="relative z-10 py-4 text-xs text-muted-foreground">Movie and TV data by Cinemeta.</p>
+    </>;
+  }
   const { rows, region } = getTMDBHomeRows();
   return <>
     <HomeCatalogSectionsLazy initialSections={[]} initialRows={rows} remainingEntries={[]} batchSize={CATALOG_BATCH_SIZE} />
@@ -139,7 +149,7 @@ export default async function Home() {
           <Suspense fallback={<HomeCatalogsPending />}>
             <CatalogSectionsBootstrap catalogEntriesPromise={catalogEntriesPromise} />
           </Suspense>
-        ) : <DiscoverySections />}
+        ) : <Suspense fallback={<HomeCatalogsPending />}><DiscoverySections /></Suspense>}
       </div>
     </AuthErrorHandler>
   );
