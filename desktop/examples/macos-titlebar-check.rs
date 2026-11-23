@@ -5,6 +5,10 @@
 mod titlebar;
 
 #[cfg(target_os = "macos")]
+#[path = "../src/platform/macos/webview.rs"]
+mod webview;
+
+#[cfg(target_os = "macos")]
 fn main() {
     use block2::RcBlock;
     use objc2_app_kit::{NSWindow, NSWindowDidResizeNotification, NSWindowStyleMask};
@@ -21,6 +25,7 @@ fn main() {
     use tao::platform::macos::{WindowBuilderExtMacOS, WindowExtMacOS};
     use tao::window::WindowBuilder;
     use titlebar::TitlebarAction;
+    use wry::{WebViewBuilder, WebViewExtMacOS};
 
     let preference = NSUserDefaults::standardUserDefaults()
         .stringForKey(ns_string!("AppleActionOnDoubleClick"))
@@ -49,6 +54,10 @@ fn main() {
         .expect("test runner has a screen")
         .visibleFrame();
     assert_ne!(initial, work_area);
+    let webview = webview::build_window_webview(WebViewBuilder::new(), &window)
+        .expect("create a WebKit view in the test window");
+    let view = webview.webview();
+    let content = native.contentView().unwrap();
     let action = Rc::new(TitlebarAction::default());
     let mut restoring = false;
     let inside_callback = Arc::new(AtomicBool::new(false));
@@ -63,11 +72,15 @@ fn main() {
                 eprintln!("AppKit resized the window inside Tao's title-bar callback");
                 std::process::exit(1);
             }
+            if view.frame() != content.bounds() {
+                eprintln!("The WebKit view did not resize with the AppKit content view");
+                std::process::exit(1);
+            }
             resized.store(true, Ordering::Relaxed);
         }
     });
     // SAFETY: The name is AppKit's resize notification, the object is the live
-    // test window, and the block only shares thread-safe flags.
+    // test window, and AppKit posts the notification on the main thread.
     let _observer = unsafe {
         NSNotificationCenter::defaultCenter().addObserverForName_object_queue_usingBlock(
             Some(NSWindowDidResizeNotification),
@@ -85,6 +98,7 @@ fn main() {
     });
 
     event_loop.run(move |event, _, flow| {
+        let _webview = &webview;
         *flow = ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(25));
         match event {
             Event::NewEvents(StartCause::Init) => proxy.send_event(()).unwrap(),

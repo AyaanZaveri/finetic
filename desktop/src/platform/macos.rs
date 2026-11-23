@@ -4,6 +4,7 @@
 #![allow(deprecated)]
 mod hdr;
 mod titlebar;
+pub mod webview;
 use crate::mpv::Mpv;
 use crate::frame_schedule::{Draw, FrameSchedule, UpdateGate};
 use crate::render::RenderContext;
