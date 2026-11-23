@@ -1,14 +1,25 @@
 # Windows in-app updates
 
-Navigator's installed Windows x64 app uses WinSparkle 0.9.4. A header update button is also available before sign-in. Only `/settings/about` is public; connection, playback and other settings pages retain their authentication gate. Settings → About contains the installed native version, an automatic-check preference and a manual check button. WinSparkle presents download progress and requires the user to accept installation. The shutdown callback goes through the normal window/player/backend shutdown path. The preparation probe retains the shipped 0.4.1 guest-entry readiness fix (an intentional `/login` redirect is not a failure). The NSIS update waits for shutdown, prepares an adjacent staging directory, preserves the old installation until replacement and relaunches after success.
+Navigator downloads signed updates in the background. In Settings → About,
+you can turn automatic downloads off or check manually. When Navigator has
+verified the download, Settings and the header show **Restart to update**.
+Closing the app normally does not install a pending update.
 
-Portable ZIPs, development URLs and native compositor smoke fixtures do not initialize the updater. Web/macOS/iOS/Android have no update commands enabled by this feature. The automatic-check preference is local to the Windows profile and defaults to enabled. The native shell silently checks the fixed appcast on launch and hourly. Its bounded, read-only probe recognizes the generated Windows x64 enclosure and compares numeric release versions. It never downloads or executes the installer. WinSparkle's automatic scheduler is disabled because even its `without_ui` check can show an update window. Disabling automatic checks leaves manual checks available.
+The background helper runs outside the installation folder. It tells Navigator
+to close through its normal shutdown path. NSIS waits for the old process,
+builds a staging directory, verifies startup, activates the new files, and
+reopens Navigator. The delta worker runs without a visible console. When the
+delta base cannot be rebuilt, the helper tries the signed full installer.
+The helper reopens the retained installation after an installation failure
+and reports that failure in About. Its log is under
+`%LOCALAPPDATA%\Navigator Desktop\updates\update.log`.
 
-The header shows “Update available” immediately left of the avatar only after a newer release is found. The button opens WinSparkle directly, without visiting Settings. WinSparkle confirms the download, verifies the signature and presents its install controls. A failed background probe shows no button or error dialog. This availability hint does not replace WinSparkle's signature verification.
+Portable ZIPs and development sessions do not initialize the updater.
+WinSparkle 0.9.4 remains available for legacy installations.
 
 ## Trust and distribution
 
-- Feed: `https://raw.githubusercontent.com/AyaanZaveri/navigator/main/updates/windows.xml`.
+- The signed background feed is `updates/windows.json`. The legacy WinSparkle appcast is `updates/windows.xml`. Both are read from the repository’s `main` branch.
 - Packages: public GitHub release assets under `AyaanZaveri/navigator`.
 - Every update installer must have an Ed25519 signature. Its public key is compiled into the native shell from `desktop/windows/update-public-key.txt`. The private key must never be committed, copied into an app package or uploaded to GitHub.
 - The pinned WinSparkle ZIP and extracted x64 DLL both have SHA256 checks in `scripts/fetch-winsparkle.mjs`. Its license notices are packaged alongside the application. The installer manifest also covers the updater DLL.
@@ -29,9 +40,9 @@ The initial bootstrap build must be installed manually. Previously installed ver
 
 4. Upload and publish the **exact signed installer bytes** to that GitHub tag. Verify the uploaded SHA256 and size. Never repackage/re-sign the installer after generating the appcast without regenerating its signature.
 5. The user performs hands-on update tests on their chosen Windows device. Preserve sign-in/settings; verify shutdown, restart, native version, frontend Build ID and removal of obsolete chunks. Do not run interactive tests without a current explicit request.
-6. Only after the asset exists and is validated, replace `updates/windows.xml` on `main` with the generated appcast. Commit/push that feed through the normal release review. No GitHub API token is shipped to users. A GitHub prerelease is offered only if deliberately included in this stable feed; `/releases/latest` is not used, so a macOS-only release cannot accidentally replace the Windows target.
+6. Only after the asset exists and is validated, replace both Windows feeds on `main` with the generated signed files. Commit/push the feeds through the normal release review. No GitHub API token is shipped to users. A GitHub prerelease is offered only if deliberately included in this stable feed; `/releases/latest` is not used, so a macOS-only release cannot accidentally replace the Windows target.
 
-Publish an incremented numeric version; never reuse the installed version for a new advertised build. macOS updater integration and delta packages are separate future work.
+Windows deltas and the full installer must use the same release version. Generate the signed JSON feed with `makeWindowsBackgroundFeed` in `scripts/windows-update-feed.mjs` using the immutable full installer and the matching delta assets. Publish an incremented numeric version.
 
 ## Validation
 

@@ -9,6 +9,7 @@ executable="$app/Contents/MacOS/navigator-desktop"
 plist="$app/Contents/Info.plist"
 profile="$HOME/Library/Application Support/Navigator Desktop"
 recording=
+movie=
 old_pid=
 new_pid=
 
@@ -18,7 +19,10 @@ finish() {
         touch "$temp/record.stop"
         wait "$recording" || true
     fi
-    if [[ -s "$results/frame-0000.jpg" ]] && command -v ffmpeg >/dev/null; then
+    if [[ -n "$movie" ]]; then wait "$movie" || true; fi
+    if [[ -s "$results/restart-to-update.mov" ]]; then
+        rm -f "$results"/frame-*.jpg
+    elif [[ -s "$results/frame-0000.jpg" ]] && command -v ffmpeg >/dev/null; then
         if ffmpeg -nostdin -loglevel error -framerate 4 -i "$results/frame-%04d.jpg" \
             -vf 'scale=trunc(iw/2)*2:trunc(ih/2)*2' -c:v libx264 -pix_fmt yuv420p "$results/restart-to-update.mp4"; then
             rm "$results"/frame-*.jpg
@@ -71,7 +75,9 @@ done
     done
 ) &
 recording=$!
-sleep 0.6
+screencapture -x -v -V 18 "$results/restart-to-update.mov" 2>"$results/movie-error.txt" &
+movie=$!
+sleep 1
 start=$SECONDS
 "$temp/update-ui" "$old_pid" press "${old_names[@]}"
 echo "Clicked Restart to update on PID $old_pid"
