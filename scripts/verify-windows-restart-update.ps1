@@ -51,8 +51,9 @@ function Test-AppReady([int]$ProcessId) {
 
 function Find-Control([Diagnostics.Process]$Process, [string]$Name) {
     $Process.Refresh()
-    if (!$Process.MainWindowHandle) { return }
-    $element = [System.Windows.Automation.AutomationElement]::FromHandle($Process.MainWindowHandle)
+    $handle = $Process.MainWindowHandle
+    if (!$handle -or $Process.HasExited) { return }
+    $element = [System.Windows.Automation.AutomationElement]::FromHandle($handle)
     $condition = [System.Windows.Automation.PropertyCondition]::new(
         [System.Windows.Automation.AutomationElement]::NameProperty, $Name)
     $control = $element.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
@@ -195,6 +196,10 @@ try {
     Set-Content $env:NAVIGATOR_UPDATE_ABOUT_MARKER 'open the public About route'
     $env:NODE_OPTIONS = "$baselineNodeOptions --require `"$aboutHook`"".Trim()
     $aboutApp = Start-Process -FilePath $executable -WorkingDirectory $install -PassThru
+    [void](Wait-For {
+        if ($aboutApp.HasExited) { throw "The later launch exited before app-ready: $($aboutApp.ExitCode)" }
+        Test-AppReady $aboutApp.Id
+    } 75 'the later launch to become interactive')
     [void](Wait-For { Find-Control $aboutApp "Navigator $expectedVersion" } 30 'the About version after relaunch')
     if ($expectRecovery) {
         [void](Wait-For { Find-Control $aboutApp "Couldn’t install the update. Try again from Settings." } 30 'the installation error in About')
