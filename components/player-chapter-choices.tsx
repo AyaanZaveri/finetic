@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import MuxVideo from "@mux/mux-video-react";
 import { Clapperboard } from "lucide-react";
 import { formatTime } from "media-chrome/utils/time";
@@ -8,7 +8,8 @@ import { ArtworkImage } from "@/components/artwork-image";
 import type { MpvElementHandle } from "@/lib/desktop/mpv-element";
 import { desktopBridge } from "@/lib/desktop/bridge";
 import type { Chapter } from "@/lib/media/chapters";
-import { videoPreloadAllowed } from "@/lib/media/preload-next-video";
+import { loadChapterImage } from "@/lib/media/chapter-preview-image";
+import { routePrefetchAllowed } from "@/lib/route-prefetch";
 import { BrowserPreviewFrames } from "@/lib/media/preview-frames";
 import { RangePreviewFrames } from "@/lib/media/range-preview-frames";
 import {
@@ -28,6 +29,18 @@ const clockEvents = ["timeupdate", "seeked", "loadedmetadata"] as const;
 const emptyImages: ReadonlyMap<number, string> = new Map();
 const emptyTimes: readonly number[] = [];
 
+const warmEvents = ["playing", "canplay", "progress", "timeupdate", "seeked"] as const;
+
+function sampleTimes({ startTime, endTime }: Chapter) {
+    const span = endTime - startTime;
+    return [
+        startTime + Math.min(1, span / 2),
+        startTime + Math.min(3, span * 0.75),
+        startTime + Math.min(5, span * 0.9),
+        startTime,
+    ];
+}
+
 export function useChapterPreviews(navigation: ChapterNavigation | undefined, chapters: readonly Chapter[], open: boolean, warm: boolean) {
     const source = navigation?.source;
     const media = navigation?.media;
@@ -39,16 +52,18 @@ export function useChapterPreviews(navigation: ChapterNavigation | undefined, ch
     const [failedSource, setFailedSource] = useState<string>();
     const ranged = !native && !manifest && failedSource !== source && typeof VideoDecoder !== "undefined";
     const enabled = !!source && chapters.length > 0;
-    const [openedSource, setOpenedSource] = useState<string>();
-    useEffect(() => { if (open) setOpenedSource(source); }, [open, source]);
-    // The video-element fallback is demand-only. Keep its decoded images alive
-    // for this source after the first open, but don't seek it when closed.
-    const showDecoder = enabled && !native && !ranged && (open || openedSource === source);
-    const [decoder, setDecoder] = useState<HTMLVideoElement | null>(null);
-    const attachDecoder = useCallback((node: unknown) => setDecoder(node as HTMLVideoElement | null), []);
-    const [result, setResult] = useState<{ source: string; media: typeof media; frames: Map<number, string> }>();
+    const showDecoder = enabled && !native && !ranged && (warm || open);
+    const decoderRef = useRef<HTMLVideoElement | null>(null);
+    const [decoderAttached, setDecoderAttached] = useState(false);
+    const attachDecoder = useCallback((node: unknown) => {
+        decoderRef.current = node as HTMLVideoElement | null;
+        setDecoderAttached(node !== null);
+    }, []);
+    const playback = useMemo(() => ({ source, media }), [source, media]);
+    const [result, setResult] = useState<{ playback: typeof playback; frames: Map<number, string> }>();
+    const cache = useRef(new Map<number, string>());
     const visible = useRef<readonly number[]>(emptyTimes);
-    const speculative = useRef<readonly number[]>(emptyTimes);
+    const plan = useRef({ chapters, open, warm });
     const pumpRef = useRef<(() => void) | null>(null);
     const showFrames = useCallback((times: readonly number[]) => {
         visible.current = times;
@@ -56,90 +71,114 @@ export function useChapterPreviews(navigation: ChapterNavigation | undefined, ch
     }, []);
 
     useEffect(() => {
-        if (!enabled || !source) return;
         const frames = new Map<number, string>();
-        setResult({ source, media, frames });
-        const attempted = new Set<number>();
-        let waiting: number | undefined;
-        let cancelled = false;
-        const finish = (time: number, src: string | null) => {
-            if (cancelled || waiting !== time) return;
-            if (src) {
-                frames.set(time, src);
-                if (frames.size > 48) {
-                    const oldest = frames.keys().next().value!;
-                    frames.delete(oldest);
-                    attempted.delete(oldest);
+        cache.current = frames;
+        return () => frames.forEach(src => URL.revokeObjectURL(src));
+    }, [playback]);
+
+    useEffect(() => {
+        plan.current = { chapters, open, warm };
+        pumpRef.current?.();
+    }, [chapters, open, warm]);
+
+    useEffect(() => {
+        if (!enabled || !source) return;
+        const frames = cache.current;
+        const abort = new AbortController();
+        const { signal } = abort;
+        const offsets = new Map<number, number>();
+        const failedWarm = new Set<number>();
+        const failedVisible = new Set<number>();
+        let pending: { start: number; time: number; index: number; last: boolean; foreground: boolean } | undefined;
+        let idleRetry: ReturnType<typeof setTimeout> | undefined;
+
+        async function finish(time: number, src: string | null) {
+            const request = pending;
+            if (signal.aborted || !request || request.time !== time) return;
+            const image = src ? await loadChapterImage(src, signal).catch(() => null) : null;
+            if (signal.aborted) {
+                if (image) URL.revokeObjectURL(image);
+                return;
+            }
+            const { start } = request;
+            if (image) {
+                frames.set(start, image);
+                setResult({ playback, frames: new Map(frames) });
+                offsets.delete(start);
+            } else if (!native?.previewBusy) {
+                if (!request.last) offsets.set(start, request.index + 1);
+                else {
+                    offsets.delete(start);
+                    failedWarm.add(start);
+                    if (request.foreground) failedVisible.add(start);
                 }
-                setResult({ source, media, frames: new Map(frames) });
             }
-            waiting = undefined;
+            pending = undefined;
             queueMicrotask(pump);
-        };
+        }
+
         const range = ranged ? new RangePreviewFrames(source, finish, () => {
-            if (!cancelled) {
-                setResult(undefined);
-                setFailedSource(source);
-            }
-        }) : undefined;
-        const browser = showDecoder && decoder ? new BrowserPreviewFrames(decoder, finish, false, !mux, !mux) : undefined;
-        if (browser && !mux && decoder) decoder.src = source;
+            if (!signal.aborted) setFailedSource(source);
+        }, true) : undefined;
+        const decoder = decoderRef.current;
+        const browser = showDecoder && decoderAttached && decoder ? new BrowserPreviewFrames(decoder, (time, src, _videoFrame, unavailable) => {
+            browser?.cancel(!!unavailable);
+            void finish(time, src);
+        }, false, !mux, !mux, 8_000) : undefined;
+        if (browser && !mux && decoder) {
+            decoder.crossOrigin = "anonymous";
+            decoder.src = source;
+        }
+
         function pump() {
-            if (cancelled || waiting !== undefined || (!native && !range && !browser)) return;
-            const foreground = visible.current.find(time => !attempted.has(time));
-            const background = foreground === undefined && speculative.current.length && (native || range) && videoPreloadAllowed(media, 5)
-                ? speculative.current.find(time => !attempted.has(time)) : undefined;
-            const time = foreground ?? background;
-            if (time === undefined) return;
-            attempted.add(time);
-            waiting = time;
+            if (signal.aborted || pending || (!native && !range && !browser)) return;
+            const { chapters, open, warm } = plan.current;
+            const foreground = open ? visible.current : emptyTimes;
+            const visibleChapter = foreground.length ? chapters.find(({ startTime }) =>
+                foreground.includes(startTime) && !frames.has(startTime) && !failedVisible.has(startTime)) : undefined;
+            const canWarm = warm && media && !media.paused && !media.seeking && media.readyState >= 3 && routePrefetchAllowed();
+            const needsImage = ({ startTime }: Chapter) => !frames.has(startTime) && !failedWarm.has(startTime);
+            // Give every chapter one sample before retrying background misses.
+            const chapter = visibleChapter ?? (canWarm
+                ? chapters.find(chapter => !offsets.has(chapter.startTime) && needsImage(chapter)) ?? chapters.find(needsImage)
+                : undefined);
+            if (!chapter) return;
+
+            // The native bridge has one interactive request slot. Let an active
+            // scrub finish before borrowing it for another chapter.
+            if (native?.previewBusy) {
+                idleRetry ??= setTimeout(() => { idleRetry = undefined; pump(); }, 250);
+                return;
+            }
+
+            const times = sampleTimes(chapter);
+            const start = chapter.startTime;
+            const index = offsets.get(start) ?? 0;
+            const time = times[index];
+            pending = { start, time, index, last: index === times.length - 1, foreground: !!visibleChapter };
             if (native) {
-                const request = foreground === undefined ? native.previewIfIdle(time) : native.preview(time);
-                void request.then(src => {
-                    if (cancelled) return;
-                    // A scrub request can supersede background work. Allow
-                    // the drawer to retry that frame when the row is visible.
-                    if (!src && foreground === undefined) {
-                        speculative.current = emptyTimes;
-                        attempted.delete(time);
-                    }
-                    finish(time, src);
-                }, () => finish(time, null));
+                void native.previewIfIdle(time).then(src => finish(time, src), () => finish(time, null));
             } else if (range) range.want(time);
             else browser?.want(time);
         }
+
         pumpRef.current = pump;
+        warmEvents.forEach(event => media?.addEventListener(event, pump));
+        document.addEventListener("visibilitychange", pump);
         pump();
         return () => {
-            cancelled = true;
+            abort.abort();
+            clearTimeout(idleRetry);
             pumpRef.current = null;
+            warmEvents.forEach(event => media?.removeEventListener(event, pump));
+            document.removeEventListener("visibilitychange", pump);
             range?.dispose();
             browser?.dispose();
         };
-    }, [decoder, enabled, media, mux, native, ranged, showDecoder, source]);
-
-    useEffect(() => {
-        if (!warm || !media || !enabled || (!native && !ranged)) return;
-        const check = () => pumpRef.current?.();
-        const stop = () => {
-            media.removeEventListener("timeupdate", check);
-            speculative.current = emptyTimes;
-        };
-        const timer = setTimeout(() => {
-            speculative.current = chapters.slice(0, 4).map(chapter => chapter.startTime);
-            media.addEventListener("timeupdate", check);
-            check();
-        }, 1500);
-        const deadline = setTimeout(stop, 20_000);
-        return () => {
-            clearTimeout(timer);
-            clearTimeout(deadline);
-            stop();
-        };
-    }, [chapters, enabled, media, native, ranged, warm]);
+    }, [decoderAttached, enabled, media, mux, native, playback, ranged, showDecoder, source]);
 
     return {
-        images: result && result.source === source && result.media === media ? result.frames : emptyImages,
+        images: result?.playback === playback ? result.frames : emptyImages,
         showFrames,
         decoder: showDecoder && (mux
             ? <MuxVideo ref={attachDecoder} src={source} muted playsInline preload="metadata" crossOrigin="anonymous"

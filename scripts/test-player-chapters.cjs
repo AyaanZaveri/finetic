@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const { load, hooks } = require('./test-support/react-hooks.cjs');
 const constants = { URL, TextDecoder, Uint8Array, Response };
 const { chapterCues, parseMatroskaChapters } = load('lib/media/chapters.ts', {}, constants);
+const settle = () => new Promise(resolve => setImmediate(resolve));
 const bytes = (...parts) => Buffer.concat(parts.map(part => Buffer.from(part)));
 function el(id, data) {
     const tag = Buffer.from(id.toString(16).padStart(id > 255 ? 4 : 2, '0'), 'hex');
@@ -97,36 +98,105 @@ async function main() {
     controller.dispose();
 
     const host = hooks();
-    const timers = new Map(), requestsForFrames = [];
-    let buffered = false;
-    const media = Object.assign(new EventTarget(), { controller: {
-        previewIfIdle: async time => { requestsForFrames.push(['warm', time]); return `frame:${time}`; },
-        preview: async time => { requestsForFrames.push(['visible', time]); return `frame:${time}`; },
+    const requestsForFrames = [], released = [];
+    const media = Object.assign(new EventTarget(), { paused: false, readyState: 2, controller: {
+        previewIfIdle: async time => { requestsForFrames.push(time); return `frame:${time}`; },
     } });
+    const document = new EventTarget();
     const { useChapterPreviews } = load('components/player-chapter-choices.tsx', {
         react: host.react, 'react/jsx-runtime': host.jsx,
         '@mux/mux-video-react': 'mux', 'lucide-react': {}, 'media-chrome/utils/time': {},
         '@/components/artwork-image': {}, '@/lib/desktop/bridge': { desktopBridge: () => ({ capabilities: { nativePreviews: true } }) },
-        '@/lib/media/preload-next-video': { videoPreloadAllowed: () => buffered },
+        '@/lib/route-prefetch': { routePrefetchAllowed: () => true },
+        '@/lib/media/chapter-preview-image': { loadChapterImage: async src => src === 'frame:1' ? null : src },
         '@/lib/media/preview-frames': {}, '@/lib/media/range-preview-frames': {}, './player-selection-row-styles': {},
-    }, { setTimeout: (callback, delay) => { timers.set(delay, callback); return delay; }, clearTimeout: id => timers.delete(id) });
-    const chapters = Array.from({ length: 6 }, (_, index) => ({ startTime: index * 10 }));
+    }, { document, URL: { revokeObjectURL: src => released.push(src) } });
+    const chapters = Array.from({ length: 52 }, (_, index) => ({ startTime: index * 10, endTime: index * 10 + 10 }));
     let navigation = { source: 'https://fixture.test/first.mkv', media };
     const renderPreviews = (open = false) => host.render(() => useChapterPreviews(navigation, chapters, open, true));
     renderPreviews(); host.flush();
-    timers.get(1500)();
-    assert.equal(requestsForFrames.length, 0, 'Warmup waits for a buffered player');
-    buffered = true;
-    media.dispatchEvent(new Event('timeupdate'));
-    await new Promise(resolve => setImmediate(resolve));
-    assert.deepEqual(requestsForFrames, [['warm', 0], ['warm', 10], ['warm', 20], ['warm', 30]]);
-    renderPreviews(true).showFrames([40]); host.flush();
-    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(requestsForFrames.length, 0, 'Warmup waits for a playable frame');
+    media.readyState = 4;
+    media.dispatchEvent(new Event('playing'));
+    assert.deepEqual(requestsForFrames, [1], 'Start immediately on playback');
+    renderPreviews(true).showFrames([500]); host.flush();
+    await settle();
+    assert.deepEqual(requestsForFrames.slice(0, 3), [1, 501, 11], 'Visible rows take priority, then other rows get their first sample');
+    assert.equal(requestsForFrames.at(-1), 3, 'Retry black images at another timestamp');
+    assert.equal(requestsForFrames.length, 53, 'Preload every chapter and retry the first black frame');
     renderPreviews().showFrames([]); host.flush();
-    assert.equal(renderPreviews(true).images.get(40), 'frame:40', 'Closing and reopening retains loaded previews');
+    const loaded = renderPreviews(true).images;
+    assert.equal(loaded.size, 52, 'Keep all warmed images, including more than 48 chapters');
+    assert.equal(loaded.get(0), 'frame:3', 'Use the original chapter start as the image key');
+    assert.equal(loaded.get(500), 'frame:501', 'Closing and reopening retains loaded previews');
     navigation = { ...navigation, source: 'https://fixture.test/second.mkv' };
     assert.equal(renderPreviews().images.size, 0, 'Previews are isolated to the playback source');
     host.flush(); host.unmount();
-    console.log('PASS: embedded MKV chapters, names/boundaries, invalid markers, ordered editions, SeekHead range reads, full-download rejection, and native session isolation');
+    assert.equal(released.length, 52, 'Release chapter images when playback changes');
+    console.log('PASS: chapter metadata and session isolation, immediate warmup, visible-row priority, black-frame retries and retention');
 }
-main().catch(error => { console.error(error); process.exitCode = 1; });
+
+async function testBrowserFallback() {
+    const host = hooks();
+    const document = new EventTarget();
+    document.createElement = () => ({ getContext: () => ({ drawImage() {} }), toDataURL: () => 'frame:browser' });
+    const requests = [];
+    const chapters = [{ startTime: 0, endTime: 10 }, { startTime: 10, endTime: 10.5 }];
+    const media = Object.assign(new EventTarget(), { paused: false, readyState: 4 });
+    const navigation = { source: 'https://fixture.test/chapters.mp4', media };
+    const { useChapterPreviews } = load('components/player-chapter-choices.tsx', {
+        react: host.react, 'react/jsx-runtime': host.jsx,
+        '@mux/mux-video-react': 'mux', 'lucide-react': {}, 'media-chrome/utils/time': {},
+        '@/components/artwork-image': {}, '@/lib/desktop/bridge': { desktopBridge: () => undefined },
+        '@/lib/route-prefetch': { routePrefetchAllowed: () => true },
+        '@/lib/media/chapter-preview-image': { loadChapterImage: async src => src },
+        '@/lib/media/range-preview-frames': { RangePreviewFrames: class {
+            constructor(source, ready, unavailable) { this.ready = ready; this.unavailable = unavailable; }
+            want(time) { if (time === 1) this.ready(time, 'frame:range'); else this.unavailable(); }
+            dispose() {}
+        } }, './player-selection-row-styles': {},
+    }, { document, URL: { revokeObjectURL() {} }, VideoDecoder: {} });
+    const render = () => host.render(() => useChapterPreviews(navigation, chapters, false, true));
+    assert.equal(render().decoder, false);
+    host.flush(); await settle();
+    const fallback = render();
+    assert.equal(fallback.decoder.type, 'video', 'Range failure mounts the fallback while the drawer is closed');
+    assert.equal(fallback.images.get(0), 'frame:range');
+    const video = Object.assign(new EventTarget(), {
+        readyState: 2, currentTime: 0, pause() {}, removeAttribute() {}, load() {},
+    });
+    Object.defineProperty(video, 'currentTime', { get: () => requests.at(-1) ?? 0, set: time => requests.push(time) });
+    fallback.decoder.props.ref(video);
+    host.flush(); render(); host.flush();
+    assert.deepEqual(requests, [10.25], 'Only the missing chapter is sought, within its short span');
+    video.dispatchEvent(new Event('seeked'));
+    await settle();
+    assert.equal(render().images.get(0), 'frame:range');
+    assert.equal(render().images.get(10), 'frame:browser');
+    assert.equal(media.currentTime, undefined, 'Preview generation must never seek the playing video');
+    host.flush(); host.unmount();
+    console.log('PASS: browser fallback warms with the drawer closed, preserves existing images and respects short chapters');
+}
+
+async function testImageSelection() {
+    const pixels = new Uint8ClampedArray(32 * 18 * 4).fill(8);
+    const released = [];
+    let serial = 0;
+    const controller = new AbortController();
+    const { loadChapterImage } = load('lib/media/chapter-preview-image.ts', {}, {
+        fetch: async () => ({ ok: true, blob: async () => ({ size: 1 }) }),
+        URL: { createObjectURL: () => `blob:frame-${++serial}`, revokeObjectURL: url => released.push(url) },
+        Image: class { async decode() {} },
+        document: { createElement: () => ({ getContext: () => ({ drawImage() {}, getImageData: () => ({ data: pixels }) }) }) },
+    });
+    assert.equal(await loadChapterImage('blob:thumbnail', controller.signal), null, 'Reject near-black frames');
+    assert.deepEqual(released, ['blob:frame-1']);
+    pixels.fill(80, 0, 16 * 4);
+    assert.equal(await loadChapterImage('blob:thumbnail', controller.signal), 'blob:frame-2', 'Keep dark scenes with visible detail');
+    controller.abort();
+    assert.equal(await loadChapterImage('blob:thumbnail', controller.signal), null);
+    assert.equal(serial, 2, 'Canceled playback must not create an image URL');
+    console.log('PASS: near-black detection, dark scene retention and URL cleanup');
+}
+
+main().then(testBrowserFallback).then(testImageSelection).catch(error => { console.error(error); process.exitCode = 1; });

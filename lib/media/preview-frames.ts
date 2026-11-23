@@ -53,9 +53,11 @@ export class BrowserPreviewFrames {
     private captureBlocked = false;
     private ownsSource: boolean;
     private encoding = false;
-    constructor(video: PreviewMedia, ready: (_time: number, _src: string | null, _videoFrame?: boolean, _unavailable?: boolean) => void, preserveVideo = false, allowCorsRetry = false, ownsSource = true) {
+    private seekTimeout: number;
+    constructor(video: PreviewMedia, ready: (_time: number, _src: string | null, _videoFrame?: boolean, _unavailable?: boolean) => void, preserveVideo = false, allowCorsRetry = false, ownsSource = true, seekTimeout = 30_000) {
         this.video = video; this.ready = ready; this.preserveVideo = preserveVideo; this.allowCorsRetry = allowCorsRetry;
         this.ownsSource = ownsSource;
+        this.seekTimeout = seekTimeout;
         video.addEventListener('loadeddata', this.loaded);
         video.addEventListener('loadedmetadata', this.pump);
         video.addEventListener('seeked', this.captured);
@@ -67,13 +69,14 @@ export class BrowserPreviewFrames {
         const cached = this.cache.get(time);
         if (cached) { this.ready(time, cached); return; }
         if (this.video.error) { this.failed(); return; }
-        if (this.video.readyState < 1 && !this.timer) this.timer = setTimeout(this.timedOut, 30000);
+        if (this.video.readyState < 1 && !this.timer) this.timer = setTimeout(this.timedOut, this.seekTimeout);
         if (this.decoding !== null) this.prime();
         this.pump();
     }
-    cancel() {
+    cancel(discardSeek = false) {
         this.wanted = null;
         this.video.pause();
+        if (discardSeek) this.decoding = null;
         if (this.decoding === null) { clearTimeout(this.timer); this.timer = undefined; }
     }
     private loaded = () => { if (this.decoding !== null) this.captured(); else this.pump(); };
@@ -84,7 +87,7 @@ export class BrowserPreviewFrames {
         if (cached) { this.ready(target, cached); return; }
         this.decoding = target;
         clearTimeout(this.timer);
-        this.timer = setTimeout(this.timedOut, 30000);
+        this.timer = setTimeout(this.timedOut, this.seekTimeout);
         if (Math.abs(this.video.currentTime - target) < 0.05 && this.video.readyState >= 2) this.captured();
         else {
             try {
@@ -108,8 +111,8 @@ export class BrowserPreviewFrames {
         const cached = this.cache.get(this.wanted);
         if (cached) this.ready(this.wanted, cached);
         else this.ready(this.wanted, null, false, true);
-        // Keep the actual seek in flight. Restarting it on every progress event
-        // can permanently starve a slow remote HDR decoder. Late data recovers.
+        // The scrubber keeps this seek in flight so late HDR frames can recover.
+        // A chapter queue can discard it and advance to the next sample.
     };
     private captured = () => {
         if (this.closed || this.encoding || this.decoding === null || this.video.readyState < 2 || this.video.seeking) return;
@@ -140,7 +143,10 @@ export class BrowserPreviewFrames {
                 // Older embedded engines without async canvas encoding.
                 src = this.context ? this.canvas.toDataURL('image/jpeg', 0.72) : null;
             }
-        } catch { this.captureBlocked = true; /* Display the decoded video when capture is forbidden. */ }
+        } catch {
+            this.encoding = false;
+            this.captureBlocked = true; // The scrubber can still display the decoded video.
+        }
         this.finishCapture(target, src);
     };
     private finishCapture(target: number, src: string | null, bytes?: number) {
@@ -173,7 +179,7 @@ export class BrowserPreviewFrames {
             this.retriedWithoutCors = true;
             this.video.crossOrigin = null;
             this.video.load();
-            this.timer = setTimeout(this.timedOut, 30000);
+            this.timer = setTimeout(this.timedOut, this.seekTimeout);
             return;
         }
         this.ready(this.wanted, null, false, !!this.video.error);

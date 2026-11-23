@@ -2,9 +2,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
-let captureBlocked = false;
 const context = { exports: {}, setTimeout, clearTimeout, document: { createElement() {
-  return { width: 0, height: 0, getContext: () => ({ drawImage() { if (captureBlocked) throw new Error('SecurityError'); } }), toDataURL: () => 'data:image/jpeg;base64,fixture' };
+  return { width: 0, height: 0, getContext: () => ({ drawImage() {} }), toDataURL: () => 'data:image/jpeg;base64,fixture' };
 } } };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/media/preview-frames.ts', 'utf8'), {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
@@ -84,6 +83,8 @@ test('Slow HDR frames can complete after the timeout without restarting their se
 });
 test('Progressive playback can retry without CORS and display a video frame', () => {
   const video = new Video(), results = [];
+  const createElement = context.document.createElement;
+  context.document.createElement = () => ({ ...createElement(), toBlob() { throw new Error('SecurityError'); } });
   const provider = new context.exports.BrowserPreviewFrames(video, (...args) => results.push(args), false, true);
   try {
     provider.want(20); video.error = { code: 4 }; video.dispatchEvent(new Event('error'));
@@ -91,11 +92,34 @@ test('Progressive playback can retry without CORS and display a video frame', ()
     assert.equal(video.loads, 1);
     assert.equal(results.length, 0, 'A recoverable failure is still loading');
     video.readyState = 1; video.dispatchEvent(new Event('loadedmetadata'));
-    video.readyState = 2; captureBlocked = true; video.finish();
+    video.readyState = 2; video.finish();
     assert.equal(results.at(-1)?.[0], 20);
     assert.equal(results.at(-1)?.[2], true, 'Canvas restrictions still allow a displayed video preview');
+    provider.want(30); video.finish();
+    assert.equal(results.at(-1)?.[0], 30, 'A synchronous toBlob failure cannot leave later seeks stuck encoding');
     video.error = { code: 4 }; video.dispatchEvent(new Event('error'));
     assert.equal(video.loads, 1, 'Retry remains bounded');
-  } finally { captureBlocked = false; provider.dispose(); }
+  } finally { context.document.createElement = createElement; provider.dispose(); }
+});
+test('Chapter decoding can advance past a stalled seek', () => {
+  const originalSet = context.setTimeout, originalClear = context.clearTimeout;
+  let timer;
+  context.setTimeout = (fn, delay) => { timer = { fn, delay }; return 1; };
+  context.clearTimeout = () => {};
+  const video = new Video(), results = [];
+  const provider = new context.exports.BrowserPreviewFrames(video, (...args) => {
+    results.push(args);
+    if (args[3]) provider.cancel(true);
+  }, false, false, true, 8_000);
+  try {
+    provider.want(20);
+    assert.equal(timer.delay, 8_000);
+    timer.fn();
+    provider.want(40);
+    assert.equal(video.currentTime, 40);
+    video.finish();
+    assert.equal(results.at(-1)[0], 40);
+    assert.ok(results.at(-1)[1]);
+  } finally { provider.dispose(); context.setTimeout = originalSet; context.clearTimeout = originalClear; }
 });
 process.exitCode = failures ? 1 : 0;

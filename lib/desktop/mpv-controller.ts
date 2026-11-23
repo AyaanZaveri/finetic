@@ -291,6 +291,7 @@ export class MpvController extends EventTarget {
       throw error;
     }
   }
+  get previewBusy() { return this.previewPending !== undefined; }
   previewIfIdle(position: number): Promise<string | null> {
     if (this.previewPending && this.previewPending.position !== position) return Promise.resolve(this.cachedPreview(position) ?? null);
     return this.preview(position);

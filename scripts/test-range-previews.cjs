@@ -72,6 +72,21 @@ const finish = index => requests[index].resolve({ canvas: { width: 448, height: 
   decodable = false;
   const unsupported = new context.exports.RangePreviewFrames('https://fixture.test/unsupported.mkv', () => {}, () => fallback++);
   unsupported.want(10); await settle(); assert.equal(fallback, 1); assert.equal(disposed, 2);
+  decodable = true;
+  const chapterAnswers = [];
+  const exact = new context.exports.RangePreviewFrames('https://fixture.test/chapters.mkv', (...args) => chapterAnswers.push(args), () => fallback++, true);
+  try {
+    exact.want(24); await settle();
+    assert.equal(requests[4].time, 24, 'Chapter samples must decode the requested time instead of an earlier keyframe');
+    requests[4].resolve(null); await settle();
+    assert.deepEqual(chapterAnswers, [[24, null]], 'A missing frame should allow another sample without switching decoders');
+    exact.want(26); await settle();
+    assert.equal(requests[5].time, 26);
+    finish(5); await settle();
+    assert.equal(chapterAnswers.at(-1)[0], 26);
+    assert.match(chapterAnswers.at(-1)[1], /^blob:/);
+    assert.equal(fallback, 1);
+  } finally { exact.dispose(); }
   // Exercise the real demuxer against a sparse 8GB MP4 without a server/browser.
   const { Input, UrlSource, MP4, EncodedPacketSink } = require('mediabunny');
   const fixture = fs.readFileSync('scripts/fixtures/seek-preview.mp4');

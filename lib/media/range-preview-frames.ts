@@ -18,10 +18,12 @@ export class RangePreviewFrames {
     private opening?: Promise<CanvasSink | undefined>;
     private abort = new AbortController();
     private source: string;
-    private ready: (_time: number, _src: string) => void;
+    private ready: (_time: number, _src: string | null) => void;
     private unavailable: () => void;
-    constructor(source: string, ready: (_time: number, _src: string) => void, unavailable: () => void) {
+    private exact: boolean;
+    constructor(source: string, ready: (_time: number, _src: string | null) => void, unavailable: () => void, exact = false) {
         this.source = source; this.ready = ready; this.unavailable = unavailable;
+        this.exact = exact;
     }
     cached(time: number) {
         return this.cache.get(time) ?? this.keyframeAt(time);
@@ -70,7 +72,7 @@ export class RangePreviewFrames {
         if (this.closed) return;
         const width = await track.getDisplayWidth(), height = await track.getDisplayHeight();
         if (this.closed) return;
-        this.packets = new EncodedPacketSink(track);
+        if (!this.exact) this.packets = new EncodedPacketSink(track);
         const scale = Math.min(448 / width, 252 / height, 1);
         this.sink = new CanvasSink(track, { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)),
             fit: 'contain', poolSize: 1, decoderOptions: { optimizeForLatency: true } });
@@ -82,7 +84,7 @@ export class RangePreviewFrames {
 
         // Looking up metadata avoids reading a keyframe's payload just to find
         // out that we already decoded it for a nearby pointer position.
-        const keyframe = await this.packets?.getKeyPacket(time, { metadataOnly: true });
+        const keyframe = this.exact ? undefined : await this.packets?.getKeyPacket(time, { metadataOnly: true });
         if (this.closed) return;
         const start = keyframe?.timestamp ?? time;
         let src = this.cache.get(start);
@@ -95,7 +97,10 @@ export class RangePreviewFrames {
                 frame = await sink.getCanvas(time);
             }
             if (this.closed) return;
-            if (!frame) throw new Error('No frame at the requested time');
+            if (!frame) {
+                if (this.exact) return null;
+                throw new Error('No frame at the requested time');
+            }
             const { canvas } = frame;
             const blob = 'convertToBlob' in canvas
                 ? await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.72 })
@@ -125,7 +130,7 @@ export class RangePreviewFrames {
                 this.timer = setTimeout(() => this.fail(), 6_000);
                 const src = await this.extract(sink, time);
                 const selected = this.wanted;
-                if (this.closed || !src || selected === null) break;
+                if (this.closed || src === undefined || selected === null) break;
                 const latest = this.cached(selected);
                 if (latest) this.ready(selected, latest);
                 else this.ready(time, src);
