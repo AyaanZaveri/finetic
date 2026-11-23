@@ -4,8 +4,8 @@ const base = process.argv[2] ?? "http://127.0.0.1:3000";
 async function response(path, init) {
     return fetch(new URL(path, base), { redirect: "manual", signal: AbortSignal.timeout(20_000), ...init });
 }
-async function json(path) {
-    const result = await response(path);
+async function json(path, init) {
+    const result = await response(path, init);
     assert.equal(result.status, 200, path);
     return result.json();
 }
@@ -25,7 +25,13 @@ const search = await json("/api/search/results?q=breaking%20bad&type=series");
 assert.equal(search.provider, "Cinemeta");
 assert.ok(search.results.some(item => item.id === "tt0903747"));
 assert.equal((await json("/api/search/results?q=alien&type=person")).totalResults, 0);
+for (const provider of ["cinemeta", "tmdb"]) {
+    const preference = { headers: { cookie: `navigator-metadata-provider=${provider}` } };
+    const episodes = await json("/api/series/episodes?id=tt0903747&season=1", preference);
+    assert.equal(episodes.find(item => item.episode === 1)?.title, "Pilot");
+    assert.ok(episodes.some(item => item.thumbnail?.startsWith("https://episodes.metahub.space/")));
+}
 assert.equal((await response("/api/home/catalogs", { method: "POST" })).status, 401);
 assert.equal((await response("/settings/connections")).status, 307);
 assert.equal((await response("/movie/tt0078748.json")).status, 307);
-console.log("PASS: live no-token catalogs, retry allowlist, suggestions, search, and guest access boundaries.");
+console.log("PASS: live no-token catalogs, retry allowlist, suggestions, search, episode metadata, and guest access boundaries.");
