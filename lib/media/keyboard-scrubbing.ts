@@ -1,7 +1,9 @@
+import { KEYBOARD_SEEK_SECONDS } from "./playback-preferences";
+
 /** Tap seeks immediately. Holding previews a continuous target and seeks once
  * on release. Decoder work never follows the display's frame rate. */
 export const KEYBOARD_HOLD_MS = 300;
-export const KEYBOARD_SEEK_STEP = 10;
+export const KEYBOARD_SEEK_STEP: number = KEYBOARD_SEEK_SECONDS.default;
 export const KEYBOARD_SCRUB_INITIAL_RATE = 60;
 export const KEYBOARD_SCRUB_MAX_RATE = 120;
 export const KEYBOARD_SCRUB_RAMP_MS = 2000;

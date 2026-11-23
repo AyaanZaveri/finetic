@@ -1,6 +1,4 @@
-import { KEYBOARD_SEEK_STEP } from "./keyboard-scrubbing";
-
-export const KEYBOARD_SEEK_SECONDS = { min: 1, max: 60, default: KEYBOARD_SEEK_STEP } as const;
+export const KEYBOARD_SEEK_SECONDS = { min: 1, max: 60, default: 10 } as const;
 
 export interface PlaybackPreferences {
   keyboardSeekBackwardSeconds: number;

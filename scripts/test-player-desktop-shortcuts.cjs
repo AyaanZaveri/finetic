@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
 const { hooks, load } = require('./test-support/react-hooks.cjs');
-const { createKeyboardScrubber } = load('lib/media/keyboard-scrubbing.ts', {}, { performance });
+const { createKeyboardScrubber, KEYBOARD_SEEK_STEP } = load('lib/media/keyboard-scrubbing.ts', {}, { performance });
 const source = process.argv.includes('--baseline')
   ? require('node:child_process').execFileSync('git', ['show', 'HEAD:components/ui/media-player.tsx'], { encoding: 'utf8' })
   : fs.readFileSync('components/ui/media-player.tsx', 'utf8');
@@ -49,7 +49,7 @@ function mount({ native = true, autoFocus = true, platform = 'windows', scrubClo
   const store = { setState(key, value) { state[key] = value; }, getState: () => state };
   const actions = Object.fromEntries(['SEEK', 'VOLUME', 'MUTE', 'UNMUTE', 'PLAY', 'PAUSE'].map(key => [`MEDIA_${key}_REQUEST`, key]));
   const context = { exports: {}, document, window: new EventTarget(), Element, Node: Element, HTMLVideoElement: Video,
-    createKeyboardScrubber: options => createKeyboardScrubber(options, scrubClock), createPlaybackSpeedHold, React: { ...host.react, useLayoutEffect: host.react.useEffect, useId: () => 'id' },
+    createKeyboardScrubber: options => createKeyboardScrubber(options, scrubClock), KEYBOARD_SEEK_STEP, createPlaybackSpeedHold, React: { ...host.react, useLayoutEffect: host.react.useEffect, useId: () => 'id' },
     jsx: host.jsx.jsx, jsxs: host.jsx.jsxs, useMediaFullscreenRef: () => null,
     useComposedRefs: (...refs) => node => refs.forEach(ref => { if (ref && typeof ref === 'object') ref.current = node; }),
     useDirection: () => 'ltr', useMediaDispatch: () => action => {
