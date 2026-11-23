@@ -54,6 +54,7 @@ wait_for() {
   url: location.href,
   viewport: [innerWidth, innerHeight],
   platform: window.navigatorDesktop?.platform,
+  motion: window.workbenchGlassMotion,
   statuses: [...document.querySelectorAll("[role=status]")].map(node => ({
     text: node.textContent, width: node.getBoundingClientRect().width,
   })),
@@ -122,23 +123,28 @@ agent-browser eval --stdin <<'JS'
 (() => {
   const drawer = document.querySelector('[data-player-selection-drawer]');
   const canvas = drawer.querySelector(':scope > [data-browser-glass-frame]');
-  window.workbenchGlassMotion = { samples: 0, maxError: 0 };
-  const originalLeft = drawer.getBoundingClientRect().left;
-  const end = performance.now() + 800;
-  drawer.style.transform = "translateX(100px)";
-  const sample = () => {
-    const movement = drawer.getBoundingClientRect().left - originalLeft;
-    if (movement > 10 && movement < 90) {
-      window.workbenchGlassMotion.samples++;
-      window.workbenchGlassMotion.maxError = Math.max(window.workbenchGlassMotion.maxError, Math.abs(canvas.getBoundingClientRect().left));
-    }
-    if (performance.now() < end) requestAnimationFrame(() => setTimeout(sample, 0));
-  };
-  // Read after the glass rAF has aligned the current transition frame.
-  requestAnimationFrame(() => setTimeout(sample, 0));
+  window.workbenchGlassMotion = { samples: 0, maxError: 0, done: false };
+  // Slow this one CSS transition down to get enough intermediate frames on CI.
+  // There is only one video sample, so geometry must update independently.
+  drawer.style.transition = "transform 900ms linear";
+  requestAnimationFrame(() => {
+    const originalLeft = drawer.getBoundingClientRect().left;
+    const end = performance.now() + 1100;
+    drawer.style.transform = "translateX(100px)";
+    const sample = () => {
+      const movement = drawer.getBoundingClientRect().left - originalLeft;
+      if (movement > 15 && movement < 85) {
+        window.workbenchGlassMotion.samples++;
+        window.workbenchGlassMotion.maxError = Math.max(window.workbenchGlassMotion.maxError, Math.abs(canvas.getBoundingClientRect().left));
+      }
+      if (performance.now() < end) requestAnimationFrame(() => setTimeout(sample, 0));
+      else window.workbenchGlassMotion.done = true;
+    };
+    requestAnimationFrame(() => setTimeout(sample, 0));
+  });
 })()
 JS
-wait_for 'window.workbenchGlassMotion?.samples >= 2 && window.workbenchGlassMotion.maxError < 4'
+wait_for 'window.workbenchGlassMotion?.done && window.workbenchGlassMotion.samples >= 2 && window.workbenchGlassMotion.maxError < 4'
 
 agent-browser set viewport 390 844
 check_drawer streams Streams 358
