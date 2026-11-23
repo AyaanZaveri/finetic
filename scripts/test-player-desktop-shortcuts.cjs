@@ -19,7 +19,7 @@ function mount({ native = true, autoFocus = true, platform = 'windows', scrubClo
     hasAttribute() { return false; }
   }
   const document = {
-    activeElement: null, body: new Element(), focused: true, overlay: false,
+    activeElement: null, body: new Element(), documentElement: new EventTarget(), focused: true, overlay: false,
     hasFocus() { return this.focused; },
     querySelector() { return this.overlay ? new Element() : null; },
     addEventListener(type, fn) { if (!listeners.has(type)) listeners.set(type, new Set()); listeners.get(type).add(fn); },
@@ -48,7 +48,7 @@ function mount({ native = true, autoFocus = true, platform = 'windows', scrubClo
   const state = { controlsVisible: true, dragging: false, seekMode: null, menuOpen: false, seekPreviewTime: null };
   const store = { setState(key, value) { state[key] = value; }, getState: () => state };
   const actions = Object.fromEntries(['SEEK', 'VOLUME', 'MUTE', 'UNMUTE', 'PLAY', 'PAUSE'].map(key => [`MEDIA_${key}_REQUEST`, key]));
-  const context = { exports: {}, document, Element, Node: Element, HTMLVideoElement: Video,
+  const context = { exports: {}, document, window: new EventTarget(), Element, Node: Element, HTMLVideoElement: Video,
     createKeyboardScrubber: options => createKeyboardScrubber(options, scrubClock), createPlaybackSpeedHold, React: { ...host.react, useLayoutEffect: host.react.useEffect, useId: () => 'id' },
     jsx: host.jsx.jsx, jsxs: host.jsx.jsxs, useMediaFullscreenRef: () => null,
     useComposedRefs: (...refs) => node => refs.forEach(ref => { if (ref && typeof ref === 'object') ref.current = node; }),

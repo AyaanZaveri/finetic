@@ -436,7 +436,8 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
 
   const hideControlsTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const pointerTypeRef = React.useRef("mouse");
-  const controlPointerHeldRef = React.useRef(false);
+  const mouseOutsidePlayerRef = React.useRef(false);
+  const controlPointerIdRef = React.useRef<number | null>(null);
   const volumeIndicatorTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const keyboardActionThrottleRef = React.useRef<NodeJS.Timeout | null>(null);
   const lastKeyPressTimeRef = React.useRef<number>(0);
@@ -461,6 +462,15 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     mediaRef.current?.tagName?.toLowerCase() === "mux-player" ||
     !!desktopBridge();
 
+  const hideControlsIfIdle = React.useCallback(() => {
+    const { menuOpen, dragging, seekPreviewTime } = store.getState();
+    if (!autoHide || mediaPaused || menuOpen || dragging || seekPreviewTime !== null ||
+        controlPointerIdRef.current !== null ||
+        playerControlsActive(rootRef.current, !mouseOutsidePlayerRef.current)) return false;
+    store.setState("controlsVisible", false);
+    return true;
+  }, [autoHide, mediaPaused, store.getState, store.setState]);
+
   const onControlsShow = React.useCallback(() => {
     store.setState("controlsVisible", true);
 
@@ -470,17 +480,13 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
 
     if (autoHide && !mediaPaused && !menuOpen && !dragging) {
       const hideWhenIdle = () => {
-        const root = rootRef.current;
-        const busy = store.getState().seekPreviewTime !== null || controlPointerHeldRef.current || playerControlsActive(root);
-        if (busy) {
+        if (!hideControlsIfIdle()) {
           hideControlsTimeoutRef.current = setTimeout(hideWhenIdle, 1000);
-          return;
         }
-        store.setState("controlsVisible", false);
       };
       hideControlsTimeoutRef.current = setTimeout(hideWhenIdle, 3000);
     }
-  }, [store.setState, autoHide, mediaPaused, menuOpen, dragging]);
+  }, [store.setState, autoHide, mediaPaused, menuOpen, dragging, hideControlsIfIdle]);
 
   const onVolumeIndicatorTrigger = React.useCallback(() => {
     if (menuOpen) return;
@@ -498,25 +504,17 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     // Keyboard volume feedback is independent of the transport controls.
   }, [store.setState, menuOpen]);
 
-  const onMouseLeave = React.useCallback(
-    (event: React.MouseEvent<HTMLDivElement>) => {
-      rootImplProps.onMouseLeave?.(event);
+  const onPlayerMouseExit = React.useCallback(() => {
+    if (pointerTypeRef.current !== "mouse") return;
+    // A WebView can still report :hover on the last control as the mouse exits.
+    mouseOutsidePlayerRef.current = true;
+    hideControlsIfIdle();
+  }, [hideControlsIfIdle]);
 
-      if (event.defaultPrevented || pointerTypeRef.current !== "mouse" || controlPointerHeldRef.current) return;
-
-      if (autoHide && !mediaPaused && !menuOpen && !dragging && !playerControlsActive(rootRef.current)) {
-        store.setState("controlsVisible", false);
-      }
-    },
-    [
-      store.setState,
-      rootImplProps.onMouseLeave,
-      autoHide,
-      mediaPaused,
-      menuOpen,
-      dragging,
-    ]
-  );
+  const onMouseLeave = React.useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    rootImplProps.onMouseLeave?.(event);
+    if (!event.defaultPrevented) onPlayerMouseExit();
+  }, [rootImplProps.onMouseLeave, onPlayerMouseExit]);
 
   const onMouseMove = React.useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
@@ -524,6 +522,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
 
       if (event.defaultPrevented || pointerTypeRef.current !== "mouse") return;
 
+      mouseOutsidePlayerRef.current = false;
       if (autoHide) {
         onControlsShow();
       }
@@ -546,7 +545,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     }
     if (event.defaultPrevented || !autoHide) return;
     if ((event.target as Element).closest(playerControlSelector)) {
-      controlPointerHeldRef.current = true;
+      controlPointerIdRef.current = event.pointerId;
       onControlsShow();
     }
   };
@@ -578,7 +577,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     }
     rootImplProps.onClickCapture?.(event);
     if (event.defaultPrevented || !autoHide || disabled) return;
-    // Keyboard/assistive activation and mouse clicks retain play/pause.
+    // Taps on the video toggle the controls.
     if (event.detail === 0 || pointerTypeRef.current === "mouse") return;
     if ((event.target as Element).closest(
       '[data-slot="media-player-controls"], [data-slot="drawer-overlay"], [data-slot="drawer-viewport"], [data-player-stats], button, a, input, select, textarea, [role="button"], [contenteditable="true"], [role="slider"], [role="menu"], [role="dialog"], [role="combobox"], [role="listbox"], [role="option"]'
@@ -593,30 +592,30 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     }
   };
 
-  const onPlayerClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    rootImplProps.onClick?.(event);
-    if (event.defaultPrevented || disabled || event.button !== 0 || event.detail === 0 || pointerTypeRef.current !== "mouse") return;
-    const target = event.target;
-    if (!(target instanceof Element) || !event.currentTarget.contains(target) || !target.closest("[data-player-click-to-play]")) return;
-    if (target.closest('button, a, input, textarea, select, [contenteditable], [role="button"], [role="dialog"], [role="menu"], [role="option"], [role="listbox"], [role="slider"], [data-slider], [data-slot="media-player-seek-container"], [data-slot="media-player-volume-container"]')) return;
-    const media = mediaRef.current;
-    if (!media) return;
-    dispatch({ type: media.paused ? MediaActionTypes.MEDIA_PLAY_REQUEST : MediaActionTypes.MEDIA_PAUSE_REQUEST });
-  };
-
   React.useEffect(() => {
-    const release = () => {
-      if (!controlPointerHeldRef.current) return;
-      controlPointerHeldRef.current = false;
-      onControlsShow();
+    const viewport = document.documentElement;
+    const release = (event: PointerEvent) => {
+      if (controlPointerIdRef.current !== event.pointerId) return;
+      controlPointerIdRef.current = null;
+      if (!mouseOutsidePlayerRef.current || !hideControlsIfIdle()) onControlsShow();
+    };
+    const onBlur = () => {
+      controlPointerIdRef.current = null;
+      onPlayerMouseExit();
     };
     document.addEventListener("pointerup", release, true);
     document.addEventListener("pointercancel", release, true);
+    document.addEventListener("lostpointercapture", release, true);
+    viewport.addEventListener("mouseleave", onPlayerMouseExit);
+    window.addEventListener("blur", onBlur);
     return () => {
       document.removeEventListener("pointerup", release, true);
       document.removeEventListener("pointercancel", release, true);
+      document.removeEventListener("lostpointercapture", release, true);
+      viewport.removeEventListener("mouseleave", onPlayerMouseExit);
+      window.removeEventListener("blur", onBlur);
     };
-  }, [onControlsShow]);
+  }, [hideControlsIfIdle, onControlsShow, onPlayerMouseExit]);
 
   React.useEffect(() => {
     if (!autoHide || mediaPaused || menuOpen || dragging) {
@@ -1104,7 +1103,6 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
           pointerTypeRef.current = event.pointerType;
         }}
         onClickCapture={onClickCapture}
-        onClick={onPlayerClick}
         onMouseLeave={onMouseLeave}
         onMouseMove={onMouseMove}
         onKeyDown={onKeyDown}

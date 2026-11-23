@@ -40,7 +40,7 @@ export function PlayerControlBar({ title, episode, releaseYear, endTime, preview
         ? [episode.showTitle, episodeCode].filter(Boolean).join(" · ")
         : undefined;
 
-    return <MediaPlayerControls ref={controlsRef} data-player-click-to-play="" className="flex-col items-start gap-2.5 px-6 pb-4 z-20">
+    return <MediaPlayerControls ref={controlsRef} className="flex-col items-start gap-2.5 px-6 pb-4 z-20">
         <MediaPlayerControlsOverlay />
         <div className="flex flex-col w-full gap-1.5 pb-2">
             {metadata && <div data-player-meta="" className="flex min-w-0 items-center gap-3 text-sm font-medium text-white/60">

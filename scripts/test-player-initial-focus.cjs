@@ -13,7 +13,7 @@ const implementation = parsed.statements.find(node => ts.isFunctionDeclaration(n
 assert.ok(implementation);
 function mount(props) {
   const host = hooks();
-  const document = { activeElement: {}, body: {}, addEventListener() {}, removeEventListener() {} };
+  const document = { activeElement: {}, body: {}, documentElement: new EventTarget(), addEventListener() {}, removeEventListener() {} };
   let focusCount = 0;
   const root = { focus(options) { assert.equal(options.preventScroll, true); document.activeElement = root; focusCount++; },
     closest: () => root };
@@ -22,7 +22,7 @@ function mount(props) {
   const dispatched = [];
   const state = { controlsVisible: true, dragging: false, seekMode: null, menuOpen: false };
   const store = { setState(key, value) { state[key] = value; } };
-  const context = { exports: {}, document, HTMLVideoElement: Video, Element: class {},
+  const context = { exports: {}, document, window: new EventTarget(), HTMLVideoElement: Video, Element: class {},
     createKeyboardScrubber, createPlaybackSpeedHold, React: { ...host.react, useLayoutEffect: host.react.useEffect, useId: () => 'id' },
     jsx: host.jsx.jsx, jsxs: host.jsx.jsxs,
     useMediaFullscreenRef: () => null,
