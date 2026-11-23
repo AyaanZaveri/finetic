@@ -95,6 +95,10 @@
   container: settings-panel / inline-size;
 }
 
+.panel[data-category="playback"] {
+  --number-field-label-size: var(--text-sm);
+}
+
 .pairedFields[data-slot="field-group"] {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -181,6 +185,33 @@
 }
 
 .content [data-slot="field-group"] { gap: 1.25rem; }
+
+.content .episodeOptions[data-slot="field-group"] { gap: .75rem; }
+
+.content .episodeOptions [data-slot="field"][data-orientation="horizontal"] {
+  min-height: 2rem;
+}
+
+.content .seekOptions[data-slot="field-group"] {
+  --number-field-width: 10.25rem;
+  inline-size: min(100%, calc(2 * var(--number-field-width) + var(--space-3)));
+  flex-flow: row wrap;
+  gap: var(--space-4) var(--space-3);
+}
+
+.seekOptions > * {
+  inline-size: min(100%, var(--number-field-width));
+}
+
+/* Two 10.25rem fields, two .75rem gaps, and a 2.25rem reset button. */
+@container settings-panel (min-width: 24.25rem) {
+  .seekReset {
+    inline-size: var(--control-height-sm);
+    padding-inline: 0;
+  }
+
+  .seekReset > span { display: none; }
+}
 
 .content [data-slot="field-content"] { min-width: 0; }
 

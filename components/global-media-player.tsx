@@ -107,7 +107,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     routedRequest.current = playbackRequest;
     router.push(playbackRequest.detailsPath, { scroll: false });
   }, [isPlayerVisible, playbackRequest, router]);
-  const { videoBitrate, subtitleSize, setSubtitleSize, subtitleOutline, subtitleWeight, subtitleColor, subtitlePosition } = useSettings();
+  const { videoBitrate, subtitleSize, setSubtitleSize, subtitleOutline, subtitleWeight, subtitleColor, subtitlePosition, playbackPreferences } = useSettings();
   const [preparedPlayback, setPreparedPlayback] = useState<{ request: MediaToPlay; media: MediaToPlay } | null>(null);
   const currentMedia = preparedPlayback && preparedPlayback.request === playbackRequest
     ? preparedPlayback.media : playbackRequest;
@@ -966,6 +966,8 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       <MediaPlayer
         autoFocus
         autoHide
+        keyboardSeekBackwardSeconds={playbackPreferences.keyboardSeekBackwardSeconds}
+        keyboardSeekForwardSeconds={playbackPreferences.keyboardSeekForwardSeconds}
         className="w-screen"
         customSubtitleTracks={subtitleTracks}
         customSubtitlesEnabled={subtitleTracks.length > 0}

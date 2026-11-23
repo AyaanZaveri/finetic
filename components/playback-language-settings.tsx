@@ -36,7 +36,7 @@ function LanguageSelect({ id, label, value, onChange }: { id: string; label: str
 export function PlaybackLanguageSettings({ kind }: { kind: "audio" | "subtitles" }) {
   const { playbackPreferences: preferences, updatePlaybackPreferences: update } = useSettings();
   return <section aria-labelledby="playback-language-title" className={styles.section}>
-    <h2 id="playback-language-title">{kind === "audio" ? "Languages" : "Defaults"}</h2>
+    <h2 id="playback-language-title">{kind === "audio" ? "Audio" : "Defaults"}</h2>
     <FieldGroup className="min-w-0 gap-6">
       {kind === "audio" ? <LanguageSelect id="preferred-audio-language" label="Audio language" value={preferences.audioLanguage}
         onChange={audioLanguage => update({ audioLanguage })} /> : <>

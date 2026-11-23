@@ -32,6 +32,10 @@ function fixture({ paused = false, reduced = false, start = 8, rangeStart = 0, e
 const tap = fixture();
 tap.scrub.press('arrowright'); tap.run(KEYBOARD_HOLD_MS - 1); tap.scrub.release('arrowright');
 assert.deepEqual(tap.seeks, [18]); assert.equal(tap.pauses, 0); assert.equal(tap.paints.length, 0); assert.equal(tap.pending, 0);
+const custom = fixture({ start: 40 });
+custom.scrub.press('arrowright', false, 15); custom.scrub.release('arrowright');
+custom.scrub.press('arrowleft', false, 5); custom.scrub.release('arrowleft');
+assert.deepEqual(custom.seeks, [55, 50], 'Each tap uses the current setting');
 const reverseTap = fixture(); reverseTap.scrub.press('arrowright'); reverseTap.scrub.press('arrowleft'); reverseTap.scrub.release('arrowleft');
 assert.deepEqual(reverseTap.seeks, [18, 8], 'Opposite taps remain immediate before hold mode starts');
 const vertical = fixture(); vertical.scrub.press('arrowup'); vertical.run(400); vertical.scrub.release('arrowup');

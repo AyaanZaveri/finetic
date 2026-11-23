@@ -13,7 +13,11 @@ const mediaState = { mediaCurrentTime: 8, mediaSeekable: [0, 120] };
 const context = { exports: {}, React: h.react, jsx: h.jsx.jsx, jsxs: h.jsx.jsxs,
     SEEK_NAME: 'Seek', KEYBOARD_SEEK_STEP: 10, SEEK_STEP_LONG: 10,
     SEEK_COLLISION_PADDING: 10, SEEK_TOOLTIP_WIDTH_FALLBACK: 240, SEEK_HOVER_PERCENT: '--hover', SEEK_TOOLTIP_X: '--x', SEEK_TOOLTIP_Y: '--y',
-    useMediaPlayerContext: () => ({ mediaRef: { current: media }, rootRef: { current: null }, chapters: [], keyboardScrubber: context.keyboardInstance }),
+    useMediaPlayerContext: () => ({
+        mediaRef: { current: media }, rootRef: { current: null }, chapters: [], keyboardScrubber: context.keyboardInstance,
+        keyboardSeekBackwardSeconds: context.keyboardSeekBackwardSeconds ?? 10,
+        keyboardSeekForwardSeconds: context.keyboardSeekForwardSeconds ?? 10,
+    }),
     useStoreContext: () => ({ getState: () => state, setState(key, value) { state[key] = value; } }),
     useMediaDispatch: () => action => { sent.push(action); if (action.type === 'seek') media.currentTime = action.detail; },
     useMediaSelector: select => select(mediaState), useStoreSelector: select => select(state),
@@ -49,6 +53,14 @@ assert.equal(sent.length, before, 'Preserve system shortcuts and composition');
 bar = slider({ onKeyDown: event => event.preventDefault() }); key('ArrowRight');
 assert.equal(sent.length, before, 'Respect caller keyboard ownership');
 bar = slider({ disabled: true }); key('ArrowRight'); assert.equal(sent.length, before);
+context.keyboardSeekBackwardSeconds = 5;
+context.keyboardSeekForwardSeconds = 15;
+bar = slider();
+key('ArrowRight'); assert.equal(media.currentTime, 15);
+key('ArrowUp'); assert.equal(media.currentTime, 25, 'The skip preference only affects horizontal arrow keys');
+key('ArrowLeft'); assert.equal(media.currentTime, 20);
+context.keyboardSeekBackwardSeconds = undefined;
+context.keyboardSeekForwardSeconds = undefined;
 
 // Exercise the real timeline subscription without React renders between frames.
 const { createKeyboardScrubber } = load('lib/media/keyboard-scrubbing.ts');

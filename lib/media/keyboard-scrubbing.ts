@@ -86,7 +86,7 @@ export function createKeyboardScrubber(options: Options, clock = browserClock) {
         frame = clock.frame(tick);
     }
     return {
-        press(key: string, repeat = false) {
+        press(key: string, repeat = false, seekSeconds = KEYBOARD_SEEK_STEP) {
             const direction = key === 'arrowright' || key === 'arrowup' ? 1 : key === 'arrowleft' || key === 'arrowdown' ? -1 : 0;
             if (!direction) return;
             if (held && !valid()) stop(false, false);
@@ -106,7 +106,7 @@ export function createKeyboardScrubber(options: Options, clock = browserClock) {
             if (!media || !Number.isFinite(media.currentTime)) return;
             const [start, end] = bounds(media);
             if (!Number.isFinite(end) || end <= start) return;
-            const target = Math.min(end, Math.max(start, media.currentTime + direction * KEYBOARD_SEEK_STEP));
+            const target = Math.min(end, Math.max(start, media.currentTime + direction * seekSeconds));
             options.seek(target);
             const now = clock.now();
             held = { key, direction, media, source: media.currentSrc, session: media.controller?.previewSession, position: target, at: now, rampStarted: now, paused: media.paused, active: false };

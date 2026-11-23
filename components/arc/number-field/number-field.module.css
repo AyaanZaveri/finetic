@@ -6,7 +6,9 @@
 /* The label row matches the control's width, so the limit note sits over the stepper it answers. */
 .head { display: flex; width: min(100%, var(--nf-width)); align-items: baseline; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-2); }
 .label { min-width: 0; color: var(--foreground); font-size: var(--text-sm); font-weight: 500; line-height: var(--leading-body); letter-spacing: var(--tracking-body); }
-.field[data-size="sm"] .label { font-size: var(--text-xs); }
+.field[data-size="sm"] .label { font-size: var(--number-field-label-size, var(--text-xs)); }
+.label[data-adorned] { display: inline-flex; align-items: center; gap: var(--space-2); }
+.head:has(.label[data-adorned]) { flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
 .limit { flex: none; color: var(--nf-limit); font-size: var(--text-xs); font-weight: 500; line-height: var(--leading-body); letter-spacing: var(--tracking-body); font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* A scrubbable label says so with its cursor. Vertical pans still scroll the page on touch. */
 .label[data-scrub] { cursor: ew-resize; touch-action: pan-y; user-select: none; -webkit-user-select: none; }

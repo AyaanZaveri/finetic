@@ -12,6 +12,8 @@ export type NumberFieldAffix = string | ((value: number) => string);
 
 export interface NumberFieldProps {
   label: string;
+  /** A small hint beside the label, such as a keyboard shortcut. */
+  labelAdornment?: ReactNode;
   value?: number;
   defaultValue?: number;
   onValueChange?: (value: number) => void;
@@ -203,7 +205,7 @@ function StepButton({ toward, label, disabled, controls, limit, pressed, iconRef
  * large steps, Home and End jump to the limits, and `scrub` lets the label be dragged. Typing edits a plain draft that
  * applies live while valid; the rolling digits return once it commits on Enter, blur, or the next step.
  */
-export function NumberField({ label, value, defaultValue = 0, onValueChange, min = 0, max = Number.MAX_SAFE_INTEGER, step: stepProp = 1, buttonStep, trailingAction, largeStep, description, disabled, id, prefix, suffix, scrub = false, locale = "en-US", formatOptions, size = "md", limitHint = true }: NumberFieldProps) {
+export function NumberField({ label, labelAdornment, value, defaultValue = 0, onValueChange, min = 0, max = Number.MAX_SAFE_INTEGER, step: stepProp = 1, buttonStep, trailingAction, largeStep, description, disabled, id, prefix, suffix, scrub = false, locale = "en-US", formatOptions, size = "md", limitHint = true }: NumberFieldProps) {
   const reduced = useReducedMotion();
   const generatedId = useId();
   const inputId = id ?? generatedId;
@@ -423,7 +425,11 @@ export function NumberField({ label, value, defaultValue = 0, onValueChange, min
 
   return <div className={styles.field} data-size={size}>
     <div className={styles.head}>
-      <label htmlFor={inputId} className={styles.label} data-scrub={(scrub && !disabled) || undefined} onPointerDown={onScrubStart} onPointerMove={onScrubMove} onPointerUp={onScrubEnd} onPointerCancel={onScrubEnd} onClick={event => { if (suppressClick.current) { event.preventDefault(); suppressClick.current = false; } }}>{label}</label>
+      <label htmlFor={inputId} className={styles.label} data-adorned={labelAdornment ? "" : undefined}
+        data-scrub={(scrub && !disabled) || undefined} onPointerDown={onScrubStart} onPointerMove={onScrubMove}
+        onPointerUp={onScrubEnd} onPointerCancel={onScrubEnd} onClick={event => { if (suppressClick.current) { event.preventDefault(); suppressClick.current = false; } }}>
+        {label}{labelAdornment}
+      </label>
       <LimitNote id={limitId} edge={noteEdge} text={noteText} />
     </div>
     <div className={styles.controlRow}>

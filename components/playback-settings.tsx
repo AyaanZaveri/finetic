@@ -1,8 +1,9 @@
 "use client";
 
-import { RotateCcw } from "lucide-react";
+import { ArrowLeft, ArrowRight, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSettings } from "@/contexts/settings-context";
 import { PlaybackLanguageSettings } from "./playback-language-settings";
@@ -10,7 +11,22 @@ import { NumberField } from "@/components/arc/number-field/number-field";
 import { Switch } from "@/components/arc/switch/switch";
 import { Field, FieldGroup, FieldLabel, FieldContent, FieldDescription } from "@/components/ui/field";
 import { desktopBridge, type DesktopBridge } from "@/lib/desktop/bridge";
+import { KEYBOARD_SEEK_SECONDS } from "@/lib/media/playback-preferences";
 import styles from "@/app/(main)/settings/settings.module.css";
+
+const seekFieldProps = {
+  suffix: (seconds: number) => seconds === 1 ? " second" : " seconds",
+  min: KEYBOARD_SEEK_SECONDS.min,
+  max: KEYBOARD_SEEK_SECONDS.max,
+  step: 1,
+  size: "sm",
+} as const;
+
+const defaultSeek = {
+  keyboardSeekBackwardSeconds: KEYBOARD_SEEK_SECONDS.default,
+  keyboardSeekForwardSeconds: KEYBOARD_SEEK_SECONDS.default,
+};
+const seekResetLabel = `Reset both skips to ${KEYBOARD_SEEK_SECONDS.default} seconds`;
 
 export function PlaybackSettings() {
   const { playbackPreferences, updatePlaybackPreferences } = useSettings();
@@ -18,10 +34,12 @@ export function PlaybackSettings() {
   useEffect(() => setDesktop(desktopBridge()), []);
   const hdrBrightnessDisabled = !playbackPreferences.webGpuPlayback || !playbackPreferences.hdrOutput;
   const automaticNativePeak = playbackPreferences.nativeHdrPeakNits === null;
+  const seekIsDefault = playbackPreferences.keyboardSeekBackwardSeconds === defaultSeek.keyboardSeekBackwardSeconds
+    && playbackPreferences.keyboardSeekForwardSeconds === defaultSeek.keyboardSeekForwardSeconds;
   return <>
     <section aria-labelledby="playback-episodes" className={styles.section}>
       <h2 id="playback-episodes">Episodes</h2>
-      <FieldGroup className="min-w-0 gap-6">
+      <FieldGroup className={styles.episodeOptions}>
         <Field orientation="horizontal">
           <FieldContent>
             <FieldLabel htmlFor="episode-autoplay">Autoplay next episode</FieldLabel>
@@ -39,8 +57,35 @@ export function PlaybackSettings() {
       </FieldGroup>
     </section>
     <PlaybackLanguageSettings kind="audio" />
+    <section aria-labelledby="playback-seeking" className={styles.section}>
+      <h2 id="playback-seeking">Seeking</h2>
+      <div className="flex flex-wrap items-end gap-3">
+        <FieldGroup className={styles.seekOptions}>
+          <NumberField {...seekFieldProps} id="keyboard-seek-backward" label="Skip backward"
+            labelAdornment={<><Kbd aria-hidden="true"><ArrowLeft /></Kbd><span className="sr-only">Left arrow key</span></>}
+            value={playbackPreferences.keyboardSeekBackwardSeconds}
+            onValueChange={keyboardSeekBackwardSeconds => updatePlaybackPreferences({ keyboardSeekBackwardSeconds })} />
+          <NumberField {...seekFieldProps} id="keyboard-seek-forward" label="Skip forward"
+            labelAdornment={<><Kbd aria-hidden="true"><ArrowRight /></Kbd><span className="sr-only">Right arrow key</span></>}
+            value={playbackPreferences.keyboardSeekForwardSeconds}
+            onValueChange={keyboardSeekForwardSeconds => updatePlaybackPreferences({ keyboardSeekForwardSeconds })} />
+        </FieldGroup>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button type="button" variant="outline" size="sm"
+              className={`${styles.seekReset} rounded-(--radius-control) aria-disabled:opacity-50 aria-disabled:hover:bg-(--surface) aria-disabled:hover:shadow-none`}
+              aria-label={seekResetLabel} aria-disabled={seekIsDefault}
+              onClick={() => updatePlaybackPreferences(defaultSeek)}>
+              <RotateCcw aria-hidden="true" />
+              <span>Reset both</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent sideOffset={6}>{seekResetLabel}</TooltipContent>
+        </Tooltip>
+      </div>
+    </section>
     <section aria-labelledby="playback-startup" className={styles.section}>
-      <h2 id="playback-startup">Startup and recovery</h2>
+      <h2 id="playback-startup">Loading and recovery</h2>
       <FieldGroup className="min-w-0 gap-6">
         <Field orientation="horizontal">
           <FieldContent>

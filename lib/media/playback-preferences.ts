@@ -1,4 +1,10 @@
+import { KEYBOARD_SEEK_STEP } from "./keyboard-scrubbing";
+
+export const KEYBOARD_SEEK_SECONDS = { min: 1, max: 60, default: KEYBOARD_SEEK_STEP } as const;
+
 export interface PlaybackPreferences {
+  keyboardSeekBackwardSeconds: number;
+  keyboardSeekForwardSeconds: number;
   continueWatchingPrefetch: boolean;
   metadataPrefetch: boolean;
   episodeAutoplay: boolean;
@@ -15,6 +21,8 @@ export interface PlaybackPreferences {
   subtitlesEnabledByDefault: boolean;
 }
 export const DEFAULT_PLAYBACK_PREFERENCES: PlaybackPreferences = {
+  keyboardSeekBackwardSeconds: KEYBOARD_SEEK_SECONDS.default,
+  keyboardSeekForwardSeconds: KEYBOARD_SEEK_SECONDS.default,
   continueWatchingPrefetch: true, metadataPrefetch: true,
   episodeAutoplay: true, episodePrefetch: true,
   autoSelectWebStream: false, webGpuPlayback: true, nativeWebGpuDecoding: false, hdrOutput: false, hdrPeakNits: 1000, nativeHdrPeakNits: null,
@@ -45,10 +53,20 @@ function language(value: unknown): string {
     return canonical && supportedLanguageCodes.includes(canonical.split("-")[0]) ? canonical : "en";
   } catch { return "en"; }
 }
+function normalizeSeekSeconds(value: unknown) {
+  const { min, max, default: defaultSeconds } = KEYBOARD_SEEK_SECONDS;
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.round(Math.max(min, Math.min(max, value)))
+    : defaultSeconds;
+}
 export function normalizePlaybackPreferences(value: unknown): PlaybackPreferences {
-  const candidate = value && typeof value === "object" ? value as Partial<PlaybackPreferences> & { macHdrPeakNits?: unknown } : {};
+  const candidate = value && typeof value === "object"
+    ? value as Partial<PlaybackPreferences> & { macHdrPeakNits?: unknown; keyboardSeekSeconds?: unknown }
+    : {};
   const nativePeak = candidate.nativeHdrPeakNits === undefined ? candidate.macHdrPeakNits : candidate.nativeHdrPeakNits;
   return {
+    keyboardSeekBackwardSeconds: normalizeSeekSeconds(candidate.keyboardSeekBackwardSeconds ?? candidate.keyboardSeekSeconds),
+    keyboardSeekForwardSeconds: normalizeSeekSeconds(candidate.keyboardSeekForwardSeconds ?? candidate.keyboardSeekSeconds),
     continueWatchingPrefetch: candidate.continueWatchingPrefetch !== false, metadataPrefetch: candidate.metadataPrefetch !== false,
     episodeAutoplay: candidate.episodeAutoplay !== false,
     episodePrefetch: candidate.episodePrefetch !== false,

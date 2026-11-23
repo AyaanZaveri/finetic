@@ -175,6 +175,8 @@ function useStoreSelector<U>(selector: (state: StoreState) => U): U {
 
 interface MediaPlayerContextValue {
   keyboardScrubber: ReturnType<typeof createKeyboardScrubber>;
+  keyboardSeekBackwardSeconds: number;
+  keyboardSeekForwardSeconds: number;
   cancelSpeedHold: () => void;
   subtitleTiming?: import("@/components/player-settings-menu").SubtitleTimingAction;
   mediaId: string;
@@ -229,6 +231,8 @@ interface MediaPlayerRootProps
   onPlay?: () => void;
   subtitleTiming?: import("@/components/player-settings-menu").SubtitleTimingAction;
   onPause?: () => void;
+  keyboardSeekBackwardSeconds?: number;
+  keyboardSeekForwardSeconds?: number;
   onEnded?: () => void;
   onTimeUpdate?: (time: number) => void;
   onVolumeChange?: (volume: number) => void;
@@ -282,6 +286,8 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
   const {
     onPlay,
     onPause,
+    keyboardSeekBackwardSeconds = KEYBOARD_SEEK_STEP,
+    keyboardSeekForwardSeconds = KEYBOARD_SEEK_STEP,
     onEnded,
     onTimeUpdate,
     onFullscreenChange,
@@ -744,7 +750,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
             isVideo ||
             (mediaElement instanceof HTMLAudioElement && event.shiftKey)
           ) {
-            keyboardScrubber.press("arrowright", event.repeat);
+            keyboardScrubber.press("arrowright", event.repeat, keyboardSeekForwardSeconds);
           }
           break;
 
@@ -754,7 +760,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
             isVideo ||
             (mediaElement instanceof HTMLAudioElement && event.shiftKey)
           ) {
-            keyboardScrubber.press("arrowleft", event.repeat);
+            keyboardScrubber.press("arrowleft", event.repeat, keyboardSeekBackwardSeconds);
           }
           break;
 
@@ -937,6 +943,8 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
       throttledDispatch,
       dispatch,
       keyboardScrubber,
+      keyboardSeekBackwardSeconds,
+      keyboardSeekForwardSeconds,
       rootImplProps.onKeyDown,
       onToggleCaptions,
       onAdjustSubtitleSize,
@@ -1033,6 +1041,8 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
   const contextValue = React.useMemo<MediaPlayerContextValue>(
     () => ({
       keyboardScrubber,
+      keyboardSeekBackwardSeconds,
+      keyboardSeekForwardSeconds,
       cancelSpeedHold: speedHold.cancel,
       mediaId,
       labelId,
@@ -1054,6 +1064,8 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
     }),
     [
       keyboardScrubber,
+      keyboardSeekBackwardSeconds,
+      keyboardSeekForwardSeconds,
       speedHold,
       mediaId,
       labelId,
@@ -2521,19 +2533,19 @@ function MediaPlayerSeek(props: MediaPlayerSeekProps) {
           const direction = event.key === "ArrowRight" || event.key === "ArrowUp" ? 1
             : event.key === "ArrowLeft" || event.key === "ArrowDown" ? -1 : 0;
           if (!direction) return;
+          let seekSeconds = KEYBOARD_SEEK_STEP;
           if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
             seekRef.current?.setAttribute("data-arrow-seeking", "");
+            seekSeconds = event.key === "ArrowLeft" ? context.keyboardSeekBackwardSeconds : context.keyboardSeekForwardSeconds;
           }
-          // Pointer precision is 0.01s. Keyboard transport uses ten seconds,
-          // even when the thumb still owns focus after a pointer seek.
           event.preventDefault();
           if (context.keyboardScrubber) {
-            context.keyboardScrubber.press(event.key.toLowerCase(), event.repeat);
+            context.keyboardScrubber.press(event.key.toLowerCase(), event.repeat, seekSeconds);
             return;
           }
           const current = context.mediaRef.current?.currentTime ?? displayValue;
           if (!Number.isFinite(current) || seekableEnd <= seekableStart) return;
-          const time = Math.min(seekableEnd, Math.max(seekableStart, current + direction * KEYBOARD_SEEK_STEP));
+          const time = Math.min(seekableEnd, Math.max(seekableStart, current + direction * seekSeconds));
           onSeekCommit([time]);
         }}
         onBlur={(event) => {

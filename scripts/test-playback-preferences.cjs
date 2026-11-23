@@ -10,8 +10,14 @@ const audio = load('lib/media/audio-language.ts');
 const subtitles = load('lib/media/subtitle-preference.ts', { './audio-language': audio });
 const appearance = load('lib/subtitle-appearance.ts');
 const plain = value => JSON.parse(JSON.stringify(value));
-const defaults = { continueWatchingPrefetch: true, metadataPrefetch: true, episodeAutoplay: true, episodePrefetch: true, autoSelectWebStream: false, webGpuPlayback: true, nativeWebGpuDecoding: false, hdrOutput: false, hdrPeakNits: 1000, nativeHdrPeakNits: null, audioLanguage: 'en', subtitleLanguage: 'en', subtitleMode: 'normal', subtitlesEnabledByDefault: false };
+const defaults = { keyboardSeekBackwardSeconds: 10, keyboardSeekForwardSeconds: 10, continueWatchingPrefetch: true, metadataPrefetch: true, episodeAutoplay: true, episodePrefetch: true, autoSelectWebStream: false, webGpuPlayback: true, nativeWebGpuDecoding: false, hdrOutput: false, hdrPeakNits: 1000, nativeHdrPeakNits: null, audioLanguage: 'en', subtitleLanguage: 'en', subtitleMode: 'normal', subtitlesEnabledByDefault: false };
 assert.deepEqual(plain(preferences.readPlaybackPreferences()), defaults);
+assert.equal(preferences.normalizePlaybackPreferences({ keyboardSeekBackwardSeconds: NaN }).keyboardSeekBackwardSeconds, 10);
+assert.equal(preferences.normalizePlaybackPreferences({ keyboardSeekForwardSeconds: '5' }).keyboardSeekForwardSeconds, 10);
+assert.equal(preferences.normalizePlaybackPreferences({ keyboardSeekBackwardSeconds: 0 }).keyboardSeekBackwardSeconds, 1);
+assert.equal(preferences.normalizePlaybackPreferences({ keyboardSeekForwardSeconds: 120 }).keyboardSeekForwardSeconds, 60);
+assert.equal(preferences.normalizePlaybackPreferences({ keyboardSeekForwardSeconds: 12.6 }).keyboardSeekForwardSeconds, 13);
+assert.equal(preferences.normalizePlaybackPreferences({ keyboardSeekSeconds: 15, keyboardSeekForwardSeconds: 20 }).keyboardSeekForwardSeconds, 20);
 function mount() {
   const host = hooks();
   const context = load('contexts/settings-context.tsx', { react: host.react, 'react/jsx-runtime': host.jsx,
@@ -20,7 +26,14 @@ function mount() {
   render(); host.flush(); render();
   return { get value() { return context.useSettings(); }, render };
 }
+storage.set(preferences.PLAYBACK_PREFERENCES_KEY, '{"keyboardSeekSeconds":15}');
 let settings = mount();
+assert.equal(settings.value.playbackPreferences.keyboardSeekBackwardSeconds, 15);
+assert.equal(settings.value.playbackPreferences.keyboardSeekForwardSeconds, 15);
+settings.value.updatePlaybackPreferences({ keyboardSeekBackwardSeconds: 5 }); settings.render(); settings = mount();
+assert.equal(settings.value.playbackPreferences.keyboardSeekBackwardSeconds, 5);
+assert.equal(settings.value.playbackPreferences.keyboardSeekForwardSeconds, 15);
+settings.value.updatePlaybackPreferences({ keyboardSeekBackwardSeconds: 10, keyboardSeekForwardSeconds: 10 }); settings.render();
 settings.value.updatePlaybackPreferences({ audioLanguage: 'fra', subtitleLanguage: 'bs', subtitleMode: 'forced', subtitlesEnabledByDefault: true });
 settings.render(); settings = mount();
 assert.deepEqual(plain(settings.value.playbackPreferences), { ...defaults, audioLanguage: 'fr', subtitleLanguage: 'bs', subtitleMode: 'forced', subtitlesEnabledByDefault: true });
@@ -331,7 +344,23 @@ assert.equal(hdrSwitch.props.disabled, true);
 assert.equal(hdrSwitch.props.checked, true, 'Disabling WebGPU keeps the saved HDR selection');
 assert.deepEqual(plain(patches), [{ hdrOutput: true }, { webGpuPlayback: false }]);
 
-const peakField = find(renderWebSettings(), node => node.type === 'NumberField')[0];
+const backwardField = find(renderWebSettings(), node => node.props?.id === 'keyboard-seek-backward')[0];
+const forwardField = find(renderWebSettings(), node => node.props?.id === 'keyboard-seek-forward')[0];
+assert.equal(backwardField.props.value, 10);
+assert.equal(forwardField.props.value, 10);
+const seekReset = () => find(renderWebSettings(), node => node.props?.['aria-label'] === 'Reset both skips to 10 seconds')[0];
+assert.equal(seekReset().props['aria-disabled'], true);
+backwardField.props.onValueChange(5);
+assert.equal(gpuSettings.keyboardSeekForwardSeconds, 10);
+forwardField.props.onValueChange(15);
+assert.equal(gpuSettings.keyboardSeekBackwardSeconds, 5);
+assert.equal(gpuSettings.keyboardSeekForwardSeconds, 15);
+assert.equal(seekReset().props['aria-disabled'], false);
+seekReset().props.onClick();
+assert.deepEqual(plain(patches.at(-1)), { keyboardSeekBackwardSeconds: 10, keyboardSeekForwardSeconds: 10 });
+assert.equal(seekReset().props['aria-disabled'], true);
+assert.equal(gpuSettings.webGpuPlayback, false);
+const peakField = find(renderWebSettings(), node => node.props?.id === 'hdr-peak-nits')[0];
 assert.equal(peakField.props.disabled, true);
 peakField.props.onValueChange(600);
 assert.equal(gpuSettings.hdrPeakNits, 600);
@@ -349,7 +378,7 @@ for (const [platform, capabilities] of [
   const nativeAuto = () => find(renderSettings(), node => node.props?.id === 'native-hdr-auto' && node.type === 'Switch')[0];
   assert.equal(nativeAuto().props.checked, true);
   nativeAuto().props.onCheckedChange(false);
-  const nativePeak = find(renderSettings(), node => node.type === 'NumberField')[0];
+  const nativePeak = find(renderSettings(), node => node.props?.id === 'native-hdr-peak-nits')[0];
   assert.equal(nativePeak.props.id, 'native-hdr-peak-nits');
   nativePeak.props.onValueChange(1600);
   assert.equal(gpuSettings.nativeHdrPeakNits, 1600);
