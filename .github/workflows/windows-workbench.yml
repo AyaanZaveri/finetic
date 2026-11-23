@@ -55,3 +55,61 @@ jobs:
             workbench-server.log
             workbench-captures/
           retention-days: 3
+  native-glass:
+    if: github.ref_name == 'windows-player-glass'
+    runs-on: windows-2025
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 26.7.0
+      - run: npm ci --ignore-scripts --omit=optional --no-audit --no-fund
+      - name: Verify sampled glass in the released Windows host
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $name = 'Navigator-0.6.9-windows-x64-portable.zip'
+          $archive = Join-Path $env:RUNNER_TEMP $name
+          $extract = Join-Path $env:RUNNER_TEMP 'navigator-native-glass'
+          curl.exe --fail --silent --show-error --location --retry 3 --output $archive "https://github.com/AyaanZaveri/navigator/releases/download/release-v0.6.9/$name"
+          if ($LASTEXITCODE -ne 0) { throw 'Portable host download failed' }
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne '0213b30032f53d30cd19c95403733d11745c6c2f90c219d7c0e300f96252299b') { throw 'Portable host checksum mismatch' }
+          Expand-Archive -Path $archive -DestinationPath $extract
+          $exe = Get-ChildItem $extract -Recurse -File -Filter navigator-desktop.exe | Select-Object -First 1
+          if (!$exe) { throw 'Missing released Windows host' }
+          New-Item -ItemType Directory -Path native-glass-results -Force | Out-Null
+          $env:NAVIGATOR_GLASS_RESULT = Join-Path (Resolve-Path native-glass-results) 'probe'
+          $env:NAVIGATOR_GLASS_SURFACES_ONLY = '1'
+          $server = Start-Process node.exe -ArgumentList 'scripts/windows-glass-fixture.mjs' -PassThru -RedirectStandardError native-glass-results/server.log
+          $app = $null
+          try {
+            $deadline = [DateTime]::UtcNow.AddSeconds(20)
+            while (!(Test-Path "$env:NAVIGATOR_GLASS_RESULT.ready")) {
+              if ($server.HasExited -or [DateTime]::UtcNow -ge $deadline) { throw 'Native glass fixture failed to start' }
+              Start-Sleep -Milliseconds 150
+            }
+            $profile = Join-Path $env:RUNNER_TEMP 'navigator-glass-test-profile'
+            $app = Start-Process $exe.FullName -ArgumentList "--url http://127.0.0.1:37381 --profile `"$profile`"" -PassThru -RedirectStandardError native-glass-results/native.log
+            $deadline = [DateTime]::UtcNow.AddSeconds(40)
+            while (!(Test-Path "$env:NAVIGATOR_GLASS_RESULT.painted.json")) {
+              if ($app.HasExited -or [DateTime]::UtcNow -ge $deadline) { throw 'No native video samples reached WebView2' }
+              Start-Sleep -Milliseconds 150
+            }
+            $result = Get-Content "$env:NAVIGATOR_GLASS_RESULT.painted.json" -Raw | ConvertFrom-Json
+            if ($result.frames -lt 3 -or $result.width -eq 0 -or $result.height -eq 0 -or $result.material.Count -ne 2 -or @($result.material | Where-Object { !$_.painted -or !$_.aligned -or !$_.tinted }).Count) {
+              throw "Native drawer and pill glass validation failed: $($result | ConvertTo-Json -Compress)"
+            }
+            $result | ConvertTo-Json -Depth 5
+          } finally {
+            if ($app -and !$app.HasExited) { Stop-Process -Id $app.Id }
+            if (!$server.HasExited) { Stop-Process -Id $server.Id }
+          }
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always()
+        with:
+          name: windows-native-glass
+          path: native-glass-results/
+          retention-days: 3

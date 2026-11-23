@@ -169,7 +169,7 @@ async function run() {
     assert.equal(renderDrawer().props.open, false);
     assert.equal(renderDrawer().props.children[3], undefined, 'Hide the chapter control when nothing can be selected');
     openPanel(0);
-    assert.equal(getPanel().props['data-player-native-glass'], undefined, 'Windows drawers use the shared CSS backdrop');
+    assert.equal(getPanel().props['data-player-native-glass'], '', 'Windows drawers receive sampled native video');
     desktopPlatform = 'android';
     assert.equal(getPanel().props['data-player-native-glass'], '', 'Android drawers still request sampled video');
     desktopPlatform = 'windows';

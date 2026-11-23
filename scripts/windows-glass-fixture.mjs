@@ -4,7 +4,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import ts from 'typescript';
 const root=resolve(import.meta.dirname,'..');
-const css=['components/desktop/native-playback.css','components/player-mobile.css','components/subtitle-text.module.css','components/arc/dropdown-menu/dropdown-menu.module.css'].map(p=>readFileSync(resolve(root,p),'utf8').replaceAll(/:global\(([^)]+)\)/g,'$1')).join('\n').replaceAll(/\.text(?=[\s{\[])/g,'[data-subtitle-text]');
+const surfacesOnly=process.env.NAVIGATOR_GLASS_SURFACES_ONLY==='1';
+const css=['components/desktop/native-playback.css','components/player-mobile.css','components/subtitle-text.module.css','components/arc/dropdown-menu/dropdown-menu.module.css', ...surfacesOnly?['components/arc/floating-surface.module.css','components/player-selection-controls.module.css']:[]].map(p=>readFileSync(resolve(root,p),'utf8').replaceAll(/:global\(([^)]+)\)/g,'$1')).join('\n').replaceAll(/\.text(?=[\s{\[])/g,'[data-subtitle-text]');
 const controller=ts.transpileModule(readFileSync(resolve(root,'components/native-player-glass.tsx'),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
 const canvasController=ts.transpileModule(readFileSync(resolve(root,'lib/desktop/windows-player-glass.ts'),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
 // Twelve seconds of local moving color bars keep the decoder active while
@@ -23,9 +24,10 @@ body{margin:0}.panel{position:fixed;width:240px;padding:24px;border-radius:14px;
 .preview{left:10%;top:30%}.menu{position:fixed;right:10%;top:30%;--radix-dropdown-menu-content-available-width:600px;--radix-dropdown-menu-content-available-height:600px}.subtitle{position:fixed;left:50%;bottom:12%;transform:translateX(-50%);max-width:90vw;text-align:center}
 .panel[aria-hidden=true]{visibility:hidden}
 </style></head><body>
-<div class="panel preview" data-player-glass>Preview glass</div>
+ ${surfacesOnly? `<div class="panel menu popup surface" data-player-native-glass data-player-selection-drawer>Drawer glass</div>
+<div class="panel preview" data-player-glass data-slot="media-player-speed-boost">2× speed</div>` : `<div class="panel preview" data-player-glass>Preview glass</div>
 <div class="panel menu" role="menu" data-state="open" data-player-native-glass>Speed<br><br>Subtitles</div>
-<div class="subtitle" data-subtitle-text data-subtitle-size="standard" data-subtitle-outline="thin">Every story starts somewhere.</div>
+<div class="subtitle" data-subtitle-text data-subtitle-size="standard" data-subtitle-outline="thin">Every story starts somewhere.</div>`}
 <script>
 const bridge=window.navigatorDesktop, cleanups=[];
 const subtitlesOnly=${process.env.NAVIGATOR_GLASS_SUBTITLES_ONLY==='1'};
@@ -46,6 +48,18 @@ bridge.subscribe(message=>{
  if(message.type==='ready'&&!attached){attached=true;document.documentElement.dataset.nativePlaying='';NativePlayerGlass({mediaRef:{current:{controller:{previewSession:'glass-fixture'}}},sourceKey:'fixture',ready:true});if(subtitlesOnly){setTimeout(()=>fetch('/painted',{method:'POST',body:JSON.stringify({subtitle:{sampling:document.querySelector('.subtitle').matches('[data-player-glass],[data-player-native-glass]'),stroke:getComputedStyle(document.querySelector('.subtitle')).webkitTextStrokeWidth}})}),1500);setTimeout(()=>fetch('/completed',{method:'POST',body:JSON.stringify({frames,position:state.position})}),6500);}}
  if(message.type==='glass-pixels'){
   frames++;if(measuring){arrivals.push(performance.now());let hash=0;for(let i=0;i<message.frame.data.length;i+=236)hash=(Math.imul(hash,31)+message.frame.data[i])|0;changes.push(hash);}
+  if(${surfacesOnly}){
+   if(frames>=3&&!painted){
+    painted=true;
+    const material=[...document.querySelectorAll('.panel')].map(node=>{
+     const canvas=node.querySelector('canvas');
+     const tint=getComputedStyle(node,'::after');
+     return {painted:node.hasAttribute('data-browser-glass'),aligned:!!canvas&&Math.abs(canvas.getBoundingClientRect().left)<1&&Math.abs(canvas.getBoundingClientRect().top)<1,tinted:tint.display!=='none'&&tint.backgroundColor!=='rgba(0, 0, 0, 0)'};
+    });
+    fetch('/painted',{method:'POST',body:JSON.stringify({frames,material,distinct:new Set(changes).size,width:message.frame.width,height:message.frame.height})});
+   }
+   return;
+  }
   if(frames>=3&&!painted){painted=true;
    setTimeout(async()=>{
     const panels=[...document.querySelectorAll('.panel')];
