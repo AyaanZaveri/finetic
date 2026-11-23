@@ -44,14 +44,25 @@ jobs:
           trap 'agent-browser --session onboarding close || true; cat /tmp/navigator-web.log' EXIT
           curl -fsS --retry 15 --retry-connrefused --retry-delay 1 http://127.0.0.1:3000/ > /dev/null
           node scripts/verify-web-onboarding.mjs
+          mkdir -p onboarding-screenshots
           agent-browser --session onboarding open http://127.0.0.1:3000/
+          agent-browser --session onboarding set viewport 1440 1000
           agent-browser --session onboarding wait --text "Popular Movies"
           agent-browser --session onboarding wait --text "Popular TV Shows"
           agent-browser --session onboarding wait --fn 'document.querySelectorAll("a[href^=\"/movie/tt\"]").length > 0 && !document.body.innerText.includes("Could not load this catalog")'
           agent-browser --session onboarding wait --fn 'Array.from(document.images).some(image => image.src.startsWith("https://images.metahub.space/poster/") && image.complete && image.naturalWidth > 0)'
+          agent-browser --session onboarding screenshot onboarding-screenshots/home.png
           agent-browser --session onboarding open 'http://127.0.0.1:3000/search?q=Alien'
           agent-browser --session onboarding wait 'a[href="/movie/tt0078748"]'
+          agent-browser --session onboarding wait --fn 'Array.from(document.images).some(image => image.src.startsWith("https://images.metahub.space/poster/") && image.complete && image.naturalWidth > 0)'
+          agent-browser --session onboarding screenshot onboarding-screenshots/search.png
           agent-browser --session onboarding open http://127.0.0.1:3000/movie/tt0078748
           agent-browser --session onboarding wait --text "Alien"
           agent-browser --session onboarding open http://127.0.0.1:3000/series/tt0903747/1/1
           agent-browser --session onboarding wait --text "Pilot"
+          agent-browser --session onboarding screenshot onboarding-screenshots/episode.png
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: no-token-onboarding-screenshots
+          path: onboarding-screenshots/
+          if-no-files-found: error
