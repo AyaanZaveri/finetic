@@ -147,6 +147,7 @@ try {
     } 200 'a successful install and new Navigator process'
     Write-Output "Replaced installation and relaunched PID $($relaunch.Id) in $($timer.ElapsedMilliseconds)ms"
     [void](Wait-For { Test-AppReady $relaunch.Id } 90 'the relaunched app to become ready')
+    $appReadyMs = $timer.ElapsedMilliseconds
     if ((Get-Content -Raw $profileMarker).Trim() -ne 'Keep the existing profile') { throw 'Profile marker changed.' }
     if ((Test-Path "$install.update-backup") -or (Test-Path "$install.update-stage")) { throw 'Installer left an update backup or stage.' }
     if ($Case -notin 'published','legacy-delta') {
@@ -156,11 +157,15 @@ try {
         }
     }
     if ($fixture) {
+        $reference = Join-Path $TargetDirectory 'desktop-win32-x64/navigator-desktop.exe'
+        if ((Test-Path $reference) -and (Get-FileHash $reference).Hash -ne (Get-FileHash $executable).Hash) {
+            throw 'The installed executable differs from the candidate package.'
+        }
         node (Join-Path $PSScriptRoot 'windows-update-open-about.cjs')
         [void](Wait-For { Find-Control $relaunch "Navigator $TargetVersion" } 30 'the updated About version')
         $check = Wait-For { Find-Control $relaunch 'Check for updates' } 30 'the manual check control'
         Invoke-Control $check
-        [void](Wait-For { Find-Control $relaunch 'You’re up to date.' } 40 'a successful update check after relaunch')
+        [void](Wait-For { Find-Control $relaunch "You’re up to date." } 40 'a successful update check after relaunch')
     }
     Start-Sleep -Milliseconds 500
     if ($fixture -and (Test-Path (Join-Path $results 'console-windows.txt'))) {
@@ -169,7 +174,7 @@ try {
     $record = [ordered]@{
         mode = $Case; clicks = 1; sourceVersion = $SourceVersion; installedVersion = Get-Version
         payload = $selection; oldPid = $oldPid; newPid = $relaunch.Id
-        shutdownMs = $shutdownMs; appReadyMs = $timer.ElapsedMilliseconds
+        shutdownMs = $shutdownMs; appReadyMs = $appReadyMs
     }
     $record | ConvertTo-Json | Tee-Object -FilePath (Join-Path $results 'result.json')
 } finally {
