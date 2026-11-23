@@ -298,6 +298,7 @@ export function MediaActions({ media, movie, streamSelection }: MediaActionsProp
                   className={styles.streamRow}
                   disabled={!streamUrl}
                   aria-current={current || undefined}
+                  data-player-selection-choice={switchingStream ? "" : undefined}
                   aria-label={`Play ${getSourceLabel(stream)}${stream.title ? `: ${stream.title}` : ""}`}
                   onClick={() => handlePlay(stream)} draggable={false}
                 >

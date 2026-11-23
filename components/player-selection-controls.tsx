@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useReducer, useRef, useState, type FocusEvent, type MouseEvent } from "react";
+import { useEffect, useLayoutEffect, useReducer, useRef, useState, type FocusEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { QueryClient, queryOptions, useQuery } from "@tanstack/react-query";
 import { GalleryThumbnails, Layers, ListVideo, Play, TriangleAlert, X } from "lucide-react";
 import { useMediaSelector } from "media-chrome/react/media-store";
@@ -32,6 +32,28 @@ import type { MediaItem, StremioStream } from "@/types/stremio";
 
 type Panel = "episodes" | "streams" | "chapters";
 const panelTitles: Record<Panel, string> = { episodes: "Episodes", streams: "Streams", chapters: "Chapters" };
+
+function onDrawerKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.defaultPrevented || event.nativeEvent.isComposing || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+
+    const { target, currentTarget: drawer } = event;
+    if (!(target instanceof HTMLElement)) return;
+    const choiceSelector = "button[data-player-selection-choice]:not(:disabled)";
+    const fromHeader = target === drawer || target.matches('[data-slot="drawer-close"]');
+    if (!fromHeader && !target.matches(choiceSelector)) return;
+
+    event.preventDefault();
+    const choices = Array.from(drawer.querySelectorAll<HTMLElement>(choiceSelector));
+    const forward = event.key === "ArrowDown";
+    const next = fromHeader
+        ? forward ? choices.find(choice => choice.getAttribute("aria-current") === "true") ?? choices[0] : choices.at(-1)
+        : choices[choices.indexOf(target) + (forward ? 1 : -1)];
+    if (!next) return;
+    next.focus({ preventScroll: true });
+    next.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+}
+
 type DrawerPanel =
     | { view: "episodes"; container: HTMLElement; season: number }
     | { view: "streams" | "chapters"; container: HTMLElement };
@@ -101,6 +123,7 @@ export function PlayerSelectionControls({ media, streamUrl, playingEpisode, chap
     }, [client, playbackReady, seriesId, playingSeason]);
     const [state, dispatch] = useReducer(drawerTransition, closed);
     const opener = useRef<HTMLButtonElement | null>(null);
+    const closeButton = useRef<HTMLButtonElement | null>(null);
     const returningFocus = useRef<{ button: HTMLButtonElement } | null>(null);
     const afterClose = useRef<(() => void) | null>(null);
     const [popup, setPopup] = useState<HTMLDivElement | null>(null);
@@ -165,10 +188,10 @@ export function PlayerSelectionControls({ media, streamUrl, playingEpisode, chap
                     data-player-native-glass=""
                     overlayClassName={`${drawerStyles.overlay} bg-black/25`}
                     className={`${drawerStyles.popup} ${floatingSurface.surface} rounded-2xl border border-border shadow-xl [--drawer-inset:1rem] after:hidden`}
-                    initialFocus finalFocus={() => restoreFocus(panel.container)}>
+                    initialFocus={closeButton} finalFocus={() => restoreFocus(panel.container)} onKeyDown={onDrawerKeyDown}>
                     <div className="flex shrink-0 items-center justify-between gap-2 px-4 pt-3 pb-2">
                         <DrawerTitle className="text-lg font-semibold">{panelTitles[panel.view]}</DrawerTitle>
-                        <DrawerClose render={<Button type="button" variant="ghost" size="icon-sm" aria-label="Close" />}>
+                        <DrawerClose ref={closeButton} render={<Button type="button" variant="ghost" size="icon-sm" aria-label="Close" />}>
                             <X aria-hidden="true" />
                         </DrawerClose>
                     </div>
@@ -296,7 +319,7 @@ function EpisodeChoices({ client, playing, season, onSelect }: {
                         const thumbnail = episodeThumbnailUrl(episode.thumbnail, playing.seriesId, episode.season, episode.episode);
                         return (
                             <li key={episode.id}>
-                                <button type="button" ref={selected ? current : undefined} aria-current={selected || undefined}
+                                <button type="button" ref={selected ? current : undefined} aria-current={selected || undefined} data-player-selection-choice=""
                                     disabled={upcoming && !selected} onClick={() => onSelect(episode)}
                                     className={selectionRowClass}>
                                     <div className={selectionThumbnailClass}>
