@@ -50,7 +50,12 @@ pub fn set_window_controls_visible(window: &Window, visible: bool) {
 
 /// WKWebView uses AppKit's Edit menu to implement standard clipboard shortcuts.
 pub fn install_menu(on_quit: impl Fn() + Send + Sync + 'static) -> Result<muda::Menu, String> {
-    use muda::{Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
+    use muda::{AboutMetadata, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
+    let about = PredefinedMenuItem::about(Some("About Navigator"), Some(AboutMetadata {
+        name: Some("Navigator".into()),
+        version: Some(env!("CARGO_PKG_VERSION").into()),
+        ..Default::default()
+    }));
     let quit = MenuItem::with_id(
         "navigator-quit",
         "Quit Navigator",
@@ -61,6 +66,10 @@ pub fn install_menu(on_quit: impl Fn() + Send + Sync + 'static) -> Result<muda::
         "Navigator",
         true,
         &[
+            &about,
+            &PredefinedMenuItem::separator(),
+            &PredefinedMenuItem::services(None),
+            &PredefinedMenuItem::separator(),
             &PredefinedMenuItem::hide(None),
             &PredefinedMenuItem::hide_others(None),
             &PredefinedMenuItem::show_all(None),
@@ -83,8 +92,17 @@ pub fn install_menu(on_quit: impl Fn() + Send + Sync + 'static) -> Result<muda::
         ],
     )
     .map_err(|e| e.to_string())?;
-    let menu = Menu::with_items(&[&app, &edit]).map_err(|e| e.to_string())?;
+    let file = Submenu::with_items("File", true, &[&PredefinedMenuItem::close_window(Some("Close Window"))]).map_err(|e| e.to_string())?;
+    let view = Submenu::with_items("View", true, &[&PredefinedMenuItem::fullscreen(Some("Enter Full Screen"))]).map_err(|e| e.to_string())?;
+    let window = Submenu::with_items("Window", true, &[
+        &PredefinedMenuItem::minimize(None),
+        &PredefinedMenuItem::maximize(Some("Zoom")),
+        &PredefinedMenuItem::separator(),
+        &PredefinedMenuItem::bring_all_to_front(None),
+    ]).map_err(|e| e.to_string())?;
+    let menu = Menu::with_items(&[&app, &file, &edit, &view, &window]).map_err(|e| e.to_string())?;
     menu.init_for_nsapp();
+    window.set_as_windows_menu_for_nsapp();
     MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
         if event.id == "navigator-quit" {
             on_quit();
