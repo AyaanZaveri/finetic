@@ -21,7 +21,7 @@ $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--force-renderer-accessibility'
 $baselineNodeOptions = $env:NODE_OPTIONS
 $baselineAboutMarker = $env:NAVIGATOR_UPDATE_ABOUT_MARKER
 $env:NAVIGATOR_UPDATE_ABOUT_MARKER = Join-Path $root 'open-about'
-$aboutHook = Join-Path $PSScriptRoot 'windows-update-open-about.cjs'
+$aboutHook = (Join-Path $PSScriptRoot 'windows-update-open-about.cjs').Replace('\', '/')
 $env:NODE_OPTIONS = "$baselineNodeOptions --require `"$aboutHook`"".Trim()
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 $fixture = $Case -ne 'published'
