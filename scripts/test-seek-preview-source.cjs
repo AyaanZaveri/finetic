@@ -68,3 +68,25 @@ const hover = {
 };
 vm.runInNewContext(ts.transpileModule(`(${enter.getText(timeline)})({ pointerType: "mouse", clientX: 150 })`, {}).outputText, hover);
 assert.deepEqual(hoverEvents, [['preview', 30], ['position', 150], ['visible', true]], 'First hover activates the preview without a timer or another pointer move');
+
+async function verifyFullscreenPreviewStyles() {
+  const { compile } = require('tailwindcss');
+  const { parse } = require('postcss');
+  delete context.VideoDecoder;
+  const fallback = context.exports.SeekPreview({ media, source: 'https://stream.test/movie.mp4', time: 20, duration: 120, active: true });
+  const decoder = fallback.type(fallback.props).props.children[0];
+  const playerClasses = timeline.text.split(/[\s"]+/).filter(candidate => candidate.includes('[&_video'));
+  const utilities = await compile('@tailwind utilities;');
+  const css = parse(utilities.build([...playerClasses, ...decoder.props.className.split(' ')]));
+  const rules = css.nodes.filter(node => node.type === 'rule');
+  const sets = (rule, prop, value) => rule.nodes.some(node => node.prop === prop && node.value === value);
+  assert.ok(rules.some(rule => rule.selector === '.absolute' && sets(rule, 'position', 'absolute')));
+  assert.ok(!rules.some(rule => rule.selector.endsWith(' video') && sets(rule, 'position', 'relative')),
+    'The fullscreen portal puts the preview inside the player, where a descendant video rule would override .absolute');
+  const playbackVideo = rules.filter(rule => rule.selector.endsWith(" video[data-slot='media-player-video']"));
+  assert.ok(playbackVideo.some(rule => sets(rule, 'position', 'relative')));
+  assert.ok(playbackVideo.some(rule => sets(rule, 'object-fit', 'contain')));
+  assert.ok(playbackVideo.some(rule => sets(rule, 'height', '100%') && rule.selector.includes('[data-state="fullscreen"]')));
+  console.log('PASS: fullscreen playback styles keep the preview decoder out of the thumbnail layout');
+}
+verifyFullscreenPreviewStyles().catch(error => { console.error(error); process.exitCode = 1; });
