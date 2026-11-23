@@ -5,13 +5,13 @@ use crate::{
 use serde_json::{Value, json};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
-use tao::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
+use tao::dpi::{LogicalSize, PhysicalPosition};
 use tao::event::{Event, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoopBuilder};
 use tao::window::{Fullscreen, Window, WindowBuilder};
 #[cfg(target_os = "macos")]
 use tao::{dpi::LogicalPosition, platform::macos::WindowBuilderExtMacOS};
-use wry::{NewWindowResponse, Rect, WebContext, WebViewBuilder};
+use wry::{NewWindowResponse, WebContext, WebViewBuilder};
 
 enum UserEvent {
     Emit(Value),
@@ -30,13 +30,6 @@ enum UserEvent {
     SyncFullscreen,
 }
 
-fn bounds(size: PhysicalSize<u32>) -> Rect {
-    Rect {
-        position: PhysicalPosition::new(0, 0).into(),
-        size: size.into(),
-    }
-}
-
 fn placement(window: &Window) -> Option<Placement> {
     let position = window.outer_position().ok()?;
     let size = window.inner_size().to_logical::<f64>(window.scale_factor());
@@ -53,6 +46,15 @@ fn defer_window_action(window: &Rc<Window>, action: impl FnOnce(&Window) + Send 
         let mtm = MainThreadMarker::new().expect("the main queue runs on the AppKit thread");
         if let Some(window) = window.into_inner(mtm).upgrade() { action(&window); }
     });
+}
+
+fn reveal_window(window: &Window) {
+    window.set_minimized(false);
+    // Tao's set_focus does nothing after AppKit has ordered the window out.
+    if !window.is_visible() {
+        window.set_visible(true);
+    }
+    window.set_focus();
 }
 
 pub fn run(mut app: App) -> Result<(), String> {
@@ -127,7 +129,6 @@ pub fn run(mut app: App) -> Result<(), String> {
     };
     let load_path = smoke_path.clone();
     let builder = WebViewBuilder::new_with_web_context(&mut context)
-        .with_bounds(bounds(window.inner_size()))
         .with_transparent(true)
         .with_devtools(app.devtools)
         .with_initialization_script(&app.bridge)
@@ -212,7 +213,8 @@ pub fn run(mut app: App) -> Result<(), String> {
     } else {
         builder.with_url(&app.url)
     };
-    let webview = builder.build_as_child(window.as_ref()).map_err(|e| e.to_string())?;
+    let webview = platform::webview::build_window_webview(builder, &window)
+        .map_err(|error| error.to_string())?;
     surface.resize(window.inner_size().width, window.inner_size().height);
     let update_settings = app.data.join("update-checks.json");
     let mut automatic_updates = std::fs::read(&update_settings)
@@ -402,13 +404,20 @@ pub fn run(mut app: App) -> Result<(), String> {
             }
             Event::UserEvent(UserEvent::OpenSettings) if !closing => {
                 hide_after_fullscreen = false;
-                defer_window_action(&window, |window| { window.set_minimized(false); window.set_focus(); });
+                defer_window_action(&window, reveal_window);
                 if loaded { let _ = webview.evaluate_script(&receive(&json!({"type":"open-settings"}))); }
                 else { settings_pending = true; }
             }
-            Event::Reopen { has_visible_windows: false, .. } if !closing => {
+            // AppKit can count another window, such as About, as visible.
+            Event::Reopen { has_visible_windows, .. }
+                if !closing
+                    && (!has_visible_windows
+                        || hide_after_fullscreen
+                        || !window.is_visible()
+                        || window.is_minimized()) =>
+            {
                 hide_after_fullscreen = false;
-                defer_window_action(&window, |window| { window.set_minimized(false); window.set_focus(); });
+                defer_window_action(&window, reveal_window);
             }
             Event::WindowEvent {
                 event: WindowEvent::Resized(size),
@@ -417,7 +426,6 @@ pub fn run(mut app: App) -> Result<(), String> {
                 surface.resize(size.width, size.height);
                 #[cfg(target_os = "macos")]
                 surface.refresh_hdr();
-                let _ = webview.set_bounds(bounds(size));
                 if !fullscreen && window.fullscreen().is_none() && window.is_visible() { normal = placement(&window); }
             }
             Event::WindowEvent {
@@ -428,7 +436,6 @@ pub fn run(mut app: App) -> Result<(), String> {
                 #[cfg(target_os = "macos")]
                 surface.refresh_hdr();
                 if !fullscreen && window.fullscreen().is_none() && window.is_visible() { normal = placement(&window); }
-                let _ = webview.set_bounds(bounds(*new_inner_size));
             }
             Event::WindowEvent {
                 event: WindowEvent::Moved(_) | WindowEvent::Focused(true),
