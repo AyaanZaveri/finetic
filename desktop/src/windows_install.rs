@@ -1,7 +1,14 @@
 //! Installation-only preparation. No window, profile lock, cookies or user data
 //! is needed; ordinary launches never enter this path.
 use crate::{mpv::Mpv, platform, startup_log, windows_process::Process};
-use std::{io::Write, time::{Duration, Instant}};
+use std::{
+    io::Write,
+    os::windows::process::CommandExt,
+    path::PathBuf,
+    process::{Command, Stdio},
+    time::{Duration, Instant},
+};
+use windows_sys::Win32::System::Threading::CREATE_NO_WINDOW;
 
 pub fn prepare() -> Result<(), String> {
     let started = Instant::now();
@@ -43,4 +50,46 @@ pub fn prepare() -> Result<(), String> {
         }
     }
     result
+}
+
+
+pub fn materialize_delta() -> Result<(), String> {
+    let mut args = std::env::args_os().skip(2);
+    let base = PathBuf::from(args.next().ok_or("Missing delta base")?);
+    let payload = PathBuf::from(args.next().ok_or("Missing delta payload")?);
+    if args.next().is_some() { return Err("Unexpected delta arguments".into()); }
+    let executable = std::env::current_exe().map_err(|error| error.to_string())?;
+    let stage = executable.parent().ok_or("Missing delta staging directory")?;
+    let log = dirs::data_local_dir()
+        .and_then(|path| std::fs::OpenOptions::new().create(true).append(true)
+            .open(path.join("Navigator Desktop/installation.log")).ok())
+        .map(Stdio::from)
+        .unwrap_or_else(Stdio::null);
+    let mut child = Command::new(base.join("resources/runtime/node.exe"))
+        .arg(payload.join("delta.cjs"))
+        .arg(&base)
+        .arg(stage)
+        .arg(payload.join("delta-manifest.json"))
+        .current_dir(&payload)
+        .env_remove("NODE_OPTIONS")
+        .env_remove("NODE_PATH")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(log)
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn()
+        .map_err(|error| format!("Could not start delta worker: {error}"))?;
+    let deadline = Instant::now() + Duration::from_secs(120);
+    loop {
+        match child.try_wait().map_err(|error| error.to_string())? {
+            Some(status) if status.success() => return Ok(()),
+            Some(status) => return Err(format!("Delta worker failed: {status}")),
+            None if Instant::now() >= deadline => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err("Delta worker timed out".into());
+            }
+            None => std::thread::sleep(Duration::from_millis(50)),
+        }
+    }
 }

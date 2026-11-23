@@ -169,10 +169,11 @@ Section "Navigator"
   SetOutPath "$PLUGINSDIR"
   File /oname=delta.cjs "${DELTA_SCRIPT}"
   File /oname=delta-manifest.json "${DELTA_DIR}\manifest.json"
-  ; ExecWait starts console-subsystem programs with a visible console.
-  ; nsExec hides the console and still returns the worker's exit status.
-  nsExec::ExecToLog '"$INSTDIR\resources\runtime\node.exe" "$PLUGINSDIR\delta.cjs" "$INSTDIR" "$INSTDIR.update-stage" "$PLUGINSDIR\delta-manifest.json"'
-  Pop $1
+  ; The staged Navigator executable is a GUI program. It starts Node with
+  ; CREATE_NO_WINDOW so Windows Terminal does not get a console to host.
+  ClearErrors
+  ExecWait '"$INSTDIR.update-stage\navigator-desktop.exe" --materialize-update "$INSTDIR" "$PLUGINSDIR"' $1
+  IfErrors delta_failed
   ${If} $1 != "0"
     Goto delta_failed
   ${EndIf}

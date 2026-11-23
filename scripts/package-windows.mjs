@@ -65,6 +65,9 @@ if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notm
   if (process.env.NAVIGATOR_PREVIOUS_WINDOWS_DIR) {
     const deltaDir = `${stem}-delta-work`;
     const manifest = await prepareDelta(resolve(process.env.NAVIGATOR_PREVIOUS_WINDOWS_DIR), output, deltaDir, version);
+    if (!manifest.files.some(file => file.path === 'navigator-desktop.exe' && file.changed)) {
+      throw new Error('The delta must include the new native executable to run the hidden delta worker.');
+    }
     const filename = `Navigator-${version}-windows-x64-from-${manifest.from}-delta.exe`;
     const path = join(dirname(output), filename);
     await run(process.env.NAVIGATOR_MAKENSIS || 'makensis.exe', [

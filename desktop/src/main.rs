@@ -329,6 +329,14 @@ fn main() {
         }
         return;
     }
+    #[cfg(windows)]
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--materialize-update")) {
+        if let Err(message) = windows_install::materialize_delta() {
+            eprintln!("Navigator delta preparation: {message}");
+            std::process::exit(13);
+        }
+        return;
+    }
     let result = App::load().and_then(|app| {
         #[cfg(target_os = "macos")]
         {
