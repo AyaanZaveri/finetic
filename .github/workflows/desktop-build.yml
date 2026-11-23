@@ -257,11 +257,11 @@ jobs:
           if ($source.workflowName -ne 'Build desktop installers' -or $source.headSha -notmatch '^[a-f0-9]{40}$') {
             throw 'Select a source from the desktop installers workflow.'
           }
-          gh run download $env:SOURCE_RUN --name "windows-update-source-$($source.headSha)" --dir update-fixture
+          gh run download $env:SOURCE_RUN --name "windows-update-source-$($source.headSha)" --dir update-source
           Push-Location update-fixture
           try {
             $checksums = @(Get-Content SHA256SUMS)
-            foreach ($file in Get-ChildItem -File -Filter '*.exe' | Where-Object Name -like 'Navigator-*') {
+            foreach ($file in Get-ChildItem -File -Filter '*.exe') {
               $digest = (Get-FileHash -LiteralPath $file.FullName).Hash
               if ("$digest  $($file.Name)" -notin $checksums) { throw "Fixture checksum mismatch: $($file.Name)" }
             }
@@ -274,7 +274,7 @@ jobs:
           UPDATE_CASE: ${{ matrix.case }}
         run: |
           $target = (Resolve-Path update-fixture).Path
-          ./scripts/verify-windows-restart-update.ps1 -SourceVersion '0.6.8' -TargetVersion '0.6.9' -Case $env:UPDATE_CASE -TargetDirectory $target -CandidateExecutable (Join-Path $target 'navigator-fixture-source.exe')
+          ./scripts/verify-windows-restart-update.ps1 -SourceVersion '0.6.8' -TargetVersion '0.6.9' -Case $env:UPDATE_CASE -TargetDirectory $target -CandidateExecutable (Resolve-Path 'update-source/navigator-fixture-source.exe').Path
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         if: always()
         with:
