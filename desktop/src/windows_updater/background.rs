@@ -49,6 +49,7 @@ impl Background {
                 let mut command = Command::new(node);
                 command.arg(script).arg(if apply { "apply" } else { "prepare" })
                     .arg(&this.directory).arg(env!("CARGO_PKG_VERSION")).arg(&this.cache)
+                    .arg(std::process::id().to_string())
                     .env_remove("NODE_OPTIONS").env_remove("NODE_PATH")
                     // No console and no parent-owned job: installation must
                     // continue after the app and its server have stopped.
@@ -73,7 +74,7 @@ impl Background {
                 Err(error) => {
                     log::warn!("{error}");
                     this.ready.store(false, Ordering::Release);
-                    Event::Error
+                    if apply { Event::InstallError } else { Event::Error }
                 }
             };
             this.busy.store(false, Ordering::Release);

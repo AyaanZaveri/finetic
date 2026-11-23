@@ -34,6 +34,7 @@ VIAddVersionKey "LegalCopyright" "See bundled THIRD-PARTY.md and licenses"
 
 Function .onInit
   ${IfNot} ${RunningX64}
+    IfSilent +2
     MessageBox MB_OK|MB_ICONSTOP "This private build requires 64-bit Windows 11 on an Intel or AMD PC."
     Abort
   ${EndIf}
@@ -60,8 +61,27 @@ Function .onInit
   ${EndIf}
   ReadRegStr $0 HKLM "Software\Microsoft\Windows NT\CurrentVersion" "CurrentBuildNumber"
   ${If} $0 < 22000
+    IfSilent +2
     MessageBox MB_OK|MB_ICONSTOP "This private build requires Windows 11."
     Abort
+  ${EndIf}
+  ${If} $UpdateMode == 1
+    ${GetParameters} $0
+    ClearErrors
+    ${GetOptions} $0 "/UPDATEPID=" $1
+    ${IfNot} ${Errors}
+      ; Wait on the process itself, including cleanup after the window closes.
+      ; Older updaters pass only /UPDATE and use the window check below.
+      System::Call 'kernel32::OpenProcess(i 0x00100000, i 0, i r1) p .r2'
+      ${If} $2 != 0
+        System::Call 'kernel32::WaitForSingleObject(p r2, i 30000) i .r1'
+        System::Call 'kernel32::CloseHandle(p r2)'
+        ${If} $1 != 0
+          SetErrorLevel 3
+          Abort
+        ${EndIf}
+      ${EndIf}
+    ${EndIf}
   ${EndIf}
   StrCpy $UpdateWait 300
   retry:
@@ -77,6 +97,7 @@ Function .onInit
         Goto retry
       ${EndIf}
       SetErrorLevel 3
+      IfSilent +2
       MessageBox MB_OK|MB_ICONSTOP "Navigator did not finish closing. No update was installed. Close it and try again."
       Abort
     ${EndIf}
@@ -130,6 +151,8 @@ Section "Navigator"
     Call DetectWebView2
     ${If} $0 == ""
     ${OrIf} $0 == "0.0.0.0"
+      SetErrorLevel 6
+      IfSilent +2
       MessageBox MB_OK|MB_ICONSTOP "WebView2 could not be installed (exit code $1). Install Microsoft Edge WebView2 Evergreen Runtime, then run this installer again."
       Abort
     ${EndIf}
@@ -146,11 +169,12 @@ Section "Navigator"
   SetOutPath "$PLUGINSDIR"
   File /oname=delta.cjs "${DELTA_SCRIPT}"
   File /oname=delta-manifest.json "${DELTA_DIR}\manifest.json"
-  ClearErrors
-  ExecWait '"$INSTDIR\resources\runtime\node.exe" "$PLUGINSDIR\delta.cjs" "$INSTDIR" "$INSTDIR.update-stage" "$PLUGINSDIR\delta-manifest.json"' $1
-  IfErrors preparation_failed
-  ${If} $1 != 0
-    Goto preparation_failed
+  ; ExecWait starts console-subsystem programs with a visible console.
+  ; nsExec hides the console and still returns the worker's exit status.
+  nsExec::ExecToLog '"$INSTDIR\resources\runtime\node.exe" "$PLUGINSDIR\delta.cjs" "$INSTDIR" "$INSTDIR.update-stage" "$PLUGINSDIR\delta-manifest.json"'
+  Pop $1
+  ${If} $1 != "0"
+    Goto delta_failed
   ${EndIf}
 !else
   File /r "${PACKAGE_DIR}\*"
@@ -213,46 +237,32 @@ Section "Navigator"
   Goto installation_done
   unsafe_directory:
     SetErrorLevel 5
-    ${If} $UpdateMode == 1
-      MessageBox MB_OK|MB_ICONSTOP "This folder is not a recognized Navigator installation. No files were changed. Choose an empty folder or reinstall Navigator."
-      Abort
-    ${EndIf}
     IfSilent +2
     MessageBox MB_OK|MB_ICONSTOP "Choose an empty folder or an existing Navigator installation. This folder's files were left untouched."
     Abort
   staging_recovery_needed:
     SetErrorLevel 4
-    ${If} $UpdateMode == 1
-      MessageBox MB_OK|MB_ICONSTOP "A prior staging folder needs recovery: $INSTDIR.update-stage. Its files were left untouched."
-      Abort
-    ${EndIf}
     IfSilent +2
     MessageBox MB_OK|MB_ICONSTOP "A prior staging folder needs recovery: $INSTDIR.update-stage. Its files were left untouched."
     Abort
   recovery_needed:
     SetErrorLevel 4
-    ${If} $UpdateMode == 1
-      MessageBox MB_OK|MB_ICONSTOP "The update needs recovery. Your previous files are in $INSTDIR.update-backup. They were left untouched."
-      Abort
-    ${EndIf}
     IfSilent +2
-    MessageBox MB_OK|MB_ICONSTOP "A previous update backup needs recovery. Your files are in $INSTDIR.update-backup. The installer has left them untouched."
+    MessageBox MB_OK|MB_ICONSTOP "The update needs recovery. Your previous files are in $INSTDIR.update-backup. They were left untouched."
     Abort
+!ifdef DELTA_DIR
+  delta_failed:
+    SetOutPath "$TEMP"
+    ClearErrors
+    RMDir /r "$INSTDIR.update-stage"
+    IfErrors staging_recovery_needed
+    SetErrorLevel 13
+    Abort
+!endif
   preparation_failed:
     SetOutPath "$TEMP"
     RMDir /r "$INSTDIR.update-stage"
     SetErrorLevel 1
-!ifdef DELTA_DIR
-    ; The background helper retries with the verified full installer. Do not
-    ; reopen the old app while that repair is starting.
-    Abort
-!endif
-    ${If} $UpdateMode == 1
-      MessageBox MB_OK|MB_ICONSTOP "Navigator could not finish the update. The previous installation was retained and will reopen. See %LOCALAPPDATA%\Navigator Desktop\installation.log."
-      IfFileExists "$INSTDIR\navigator-desktop.exe" 0 +2
-      Exec '"$INSTDIR\navigator-desktop.exe"'
-      Abort
-    ${EndIf}
     IfSilent +2
     MessageBox MB_OK|MB_ICONSTOP "Navigator could not finish the update. The previous installation was retained. See %LOCALAPPDATA%\Navigator Desktop\installation.log."
     Abort

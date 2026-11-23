@@ -1,7 +1,7 @@
 // Runs only in the bundled Node runtime. No server or third-party modules.
 const { createHash, createPublicKey, verify } = require('node:crypto');
 const { createReadStream, createWriteStream } = require('node:fs');
-const { readFile, writeFile, mkdir, rename, rm, copyFile, lstat } = require('node:fs/promises');
+const { readFile, writeFile, mkdir, rename, rm, copyFile, lstat, appendFile } = require('node:fs/promises');
 const { dirname, join, resolve } = require('node:path');
 const { spawn } = require('node:child_process');
 const { pipeline } = require('node:stream/promises');
@@ -94,6 +94,10 @@ async function getFeed(fetcher = fetch) {
   return Buffer.concat(chunks).toString('utf8');
 }
 async function atomicJson(file, value) { await writeFile(file+'.tmp',JSON.stringify(value),{mode:0o600}); await rename(file+'.tmp',file); }
+function log(cache, message) {
+  return appendFile(join(cache,'update.log'),`${new Date().toISOString()} ${message}\n`).catch(()=>{});
+}
+
 async function prepare(install, installed, cache, publicKey, fetcher = fetch, report = ()=>{}) {
   const text = await getFeed(fetcher), release = parseFeed(text,publicKey,installed);
   if (!release) return {state:'current'};
@@ -104,8 +108,8 @@ async function prepare(install, installed, cache, publicKey, fetcher = fetch, re
   try { await download(selected,cache,key,fetcher); }
   catch(error) { if (!delta) throw error; selected=release.full; await download(selected,cache,key,fetcher); }
   // The apply helper must outlive replacement of the installed directory.
-  await copyFile(join(install,'resources/runtime/node.exe'),join(cache,'update-node.exe'));
-  await copyFile(join(install,'resources/background-update.cjs'),join(cache,'background-update.cjs'));
+  await cacheHelper(join(install,'resources/runtime/node.exe'),join(cache,'update-node.exe'));
+  await cacheHelper(join(install,'resources/background-update.cjs'),join(cache,'background-update.cjs'));
   await writeFile(join(cache,'update-public-key.txt'),publicKey,{mode:0o600});
   // Persist the original signed envelope, not an unsigned list of executable URLs.
   await atomicJson(join(cache,'ready.json'),{text,installed,install:resolve(install),selected:selected.filename});
@@ -117,9 +121,19 @@ async function prepare(install, installed, cache, publicKey, fetcher = fetch, re
   }
   return {state:'ready'};
 }
-function runInstaller(file) {
+// A manually reopened app can see the same helper binary still mapped by
+// Windows. Reuse an identical copy without opening it for writing.
+async function cacheHelper(source, destination) {
+  if (await hash(destination).catch(()=>null) === await hash(source)) return;
+  await copyFile(source, destination);
+}
+function runInstaller(file, install, parentPid) {
   return new Promise((resolve,reject)=>{
-    const child=spawn(file,['/S','/UPDATE'],{cwd:dirname(file),stdio:'ignore',windowsHide:true});
+    const args = ['/S','/UPDATE'];
+    if (parentPid) args.push(`/UPDATEPID=${parentPid}`);
+    // NSIS requires the final /D argument to remain unquoted, even with spaces.
+    args.push(`/D=${install}`);
+    const child=spawn(file,args,{cwd:dirname(file),stdio:'ignore',windowsHide:true,windowsVerbatimArguments:true});
     child.once('error',reject);
     child.once('exit',code=>resolve(code));
   });
@@ -133,15 +147,20 @@ async function apply(cache, publicKey, fetcher=fetch, run=runInstaller, report=(
   const selected=[release.full,...release.deltas.filter(item=>item.from===ready.installed)].find(item=>item.filename===ready.selected);
   if (!selected) throw Error('Invalid staged update');
   const file=await download(selected,cache,key,fetcher);
+  await rm(join(cache,'last-error.txt'),{force:true});
+  await log(cache,`Installing ${selected.filename}`);
   report({state:'installing'});
-  let code=await run(file);
-  if (code!==0 && selected!==release.full) {
-    // A missing/modified base never produces a partial installation.
-    // Only the full installer can repair it. Both payloads must pass Ed25519.
+  let code=await run(file,ready.install,expected.parentPid);
+  await log(cache,`Installer exited with status ${code}`);
+  if (code===13 && selected!==release.full) {
+    // The delta installer discarded its staging tree. Repair from the signed
+    // full package. Other exit codes need a retry or installation recovery.
     const full=await download(release.full,cache,key,fetcher);
-    code=await run(full);
+    await log(cache,`Installing full fallback ${release.full.filename}`);
+    code=await run(full,ready.install,expected.parentPid);
+    await log(cache,`Full fallback exited with status ${code}`);
   }
-  if (code!==0) throw Error('Update installation failed. The previous app was retained.');
+  if (code!==0) throw Error(`Update installer exited with status ${code}.`);
   const current = await readFile(join(cache,'ready.json'),'utf8').then(JSON.parse).catch(()=>null);
   if (current?.text === ready.text && current?.selected === ready.selected) await rm(join(cache,'ready.json'),{force:true});
 }
@@ -149,19 +168,28 @@ module.exports={version,newer,keyFrom,parseFeed,verified,download,prepare,apply}
 if (require.main===module) {
   // The app closes its read pipe after the installation handoff.
   process.stdout.on('error', error=>{ if(error.code!=='EPIPE') process.exitCode=1; });
-  const [command,install,installed,cache]=process.argv.slice(2);
-  const report=value=>process.stdout.write(JSON.stringify(value)+'\n');
+  const [command,install,installed,cache,parentPid]=process.argv.slice(2);
+  let handedOff=false;
+  const report=value=>{
+    if (value.state==='installing') handedOff=true;
+    process.stdout.write(JSON.stringify(value)+'\n');
+  };
   (async()=>{
     const publicKey=await readFile(join(__dirname,'update-public-key.txt'),'utf8');
     if (command==='prepare') report(await prepare(install,installed,cache,publicKey,fetch,report));
-    else if (command==='apply') await apply(resolve(__dirname),publicKey,fetch,runInstaller,report,{install,installed});
+    else if (command==='apply') await apply(resolve(__dirname),publicKey,fetch,runInstaller,report,{install,installed,parentPid: /^\d+$/.test(parentPid) ? Number(parentPid) : undefined});
     else throw Error('Unknown updater command');
   })().catch(async error=>{
+    await log(cache,`${command}: ${error.message}`);
     report({state:'error'});
-    if (command==='apply') {
-      await writeFile(join(__dirname,'last-error.txt'),String(error.message)).catch(()=>{});
-      // If a delta or full installer failed, reopen the retained installation.
-      try { spawn(join(resolve(install),'navigator-desktop.exe'),[],{detached:true,stdio:'ignore'}).unref(); } catch {}
+    if (command==='apply' && handedOff) {
+      await writeFile(join(cache,'last-error.txt'),`${installed}\n${error.message}\n`).catch(()=>{});
+      // The installer relaunches only on success. Reopen the old app once on
+      // failure, provided it still has an executable at the original path.
+      const directory=resolve(install);
+      const app=spawn(join(directory,'navigator-desktop.exe'),[],{cwd:directory,detached:true,stdio:'ignore',windowsHide:true});
+      app.on('error', error=>{ void log(cache,`Could not reopen Navigator: ${error.message}`); });
+      app.unref();
     }
     process.exitCode=1;
   });

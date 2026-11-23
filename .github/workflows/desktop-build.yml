@@ -16,6 +16,10 @@ on:
         type: string
         default: ""
         required: false
+      verify_windows_updates:
+        description: Run signed Windows update fixtures after packaging (test assets only)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -152,6 +156,26 @@ jobs:
           cargo test --manifest-path desktop/Cargo.toml --locked
       - name: Download verified playback libraries
         run: node scripts/fetch-desktop-libs.mjs
+      - name: Build the fixture source at its published version
+        if: inputs.verify_windows_updates
+        shell: pwsh
+        run: node scripts/build-windows-native.mjs "$env:RUNNER_TEMP/navigator-fixture-source.exe"
+      - name: Set the fixture target version
+        if: inputs.verify_windows_updates
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          npm version 0.6.9 --no-git-tag-version --ignore-scripts
+          @'
+          const fs = require('node:fs');
+          for (const name of ['Cargo.toml', 'Cargo.lock']) {
+            const file = 'desktop/' + name;
+            const version = /(name = "navigator-desktop"\r?\nversion = ")0\.6\.8(")/;
+            const text = fs.readFileSync(file, 'utf8');
+            if (!version.test(text)) throw Error('Unexpected fixture source version');
+            fs.writeFileSync(file, text.replace(version, (_, start, end) => start + '0.6.9' + end));
+          }
+          '@ | node
       - name: Prepare verified delta base
         run: node scripts/prepare-update-base.mjs windows
         env:
@@ -167,3 +191,21 @@ jobs:
           if-no-files-found: error
           retention-days: 1
           compression-level: 0
+      - name: Exercise Windows updates through the installed app
+        if: inputs.verify_windows_updates
+        shell: pwsh
+        run: |
+          $target = (Resolve-Path dist).Path
+          foreach ($case in 'legacy-delta','delta','fallback','full') {
+            ./scripts/verify-windows-restart-update.ps1 -SourceVersion '0.6.8' -TargetVersion '0.6.9' -Case $case -TargetDirectory $target -CandidateExecutable "$env:RUNNER_TEMP/navigator-fixture-source.exe"
+            if ($case -ne 'full') {
+              Move-Item -LiteralPath "$env:LOCALAPPDATA/Navigator Desktop" -Destination "$env:RUNNER_TEMP/profile-$case"
+            }
+          }
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always() && inputs.verify_windows_updates
+        with:
+          name: windows-update-evidence-${{ github.sha }}
+          path: update-results/
+          if-no-files-found: warn
+          retention-days: 7

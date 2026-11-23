@@ -461,7 +461,19 @@ pub fn run(app: App) -> Result<(), String> {
             }
         }
     }
+    let last_update_error = update_settings.with_file_name("updates").join("last-error.txt");
+    let failed_update = updater.is_some()
+        && std::fs::read_to_string(&last_update_error).ok()
+            .is_some_and(|error| error.lines().next() == Some(env!("CARGO_PKG_VERSION")));
+    let install_error = "Couldn’t install the update. Try again from Settings.";
+    if failed_update {
+        update_state = "error";
+        update_message = Some(install_error.into());
+    }
     let mut next_update_probe = Instant::now();
+    if failed_update {
+        next_update_probe += crate::update_feed::next_probe_delay(true);
+    }
     event_loop.run(move |event, _, flow| {
         if !closing && automatic_updates && updater.is_some() && Instant::now() >= next_update_probe {
             let started = update_state != "checking" && updater.as_ref().unwrap().probe();
@@ -488,6 +500,7 @@ pub fn run(app: App) -> Result<(), String> {
                     UpdateEvent::Ready => { update_state = "ready"; update_message = None; }
                     UpdateEvent::Current => { update_state = "current"; update_message = None; }
                     UpdateEvent::Error => { update_state = "error"; update_message = Some("Couldn’t check or download the update. Try again later.".into()); }
+                    UpdateEvent::InstallError => { update_state = "error"; update_message = Some(install_error.into()); }
                     UpdateEvent::Dismissed => { if update_state == "checking" { update_state = "idle"; } }
                 }
                 if let Some(view) = &view { let _ = view.evaluate_script(&receive(&json!({"type":"update-status", "version":env!("CARGO_PKG_VERSION"), "available":updater.is_some(), "automatic":automatic_updates, "state":update_state, "message":update_message}))); }

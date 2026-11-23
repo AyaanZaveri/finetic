@@ -12,6 +12,7 @@ pub enum Event {
     Available,
     Current,
     Error,
+    InstallError,
     Dismissed,
     Shutdown,
     ProbeAvailable,

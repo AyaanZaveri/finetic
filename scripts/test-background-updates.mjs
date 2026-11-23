@@ -68,7 +68,7 @@ try {
     require: name => name === 'node:child_process' ? {
       spawn(file, args, { cwd }) {
         assert.equal(cwd, cache, 'The installer must not inherit the running app’s working directory');
-        assert.deepEqual(Array.from(args), ['/S', '/UPDATE']);
+        assert.deepEqual(Array.from(args), ['/S', '/UPDATE', '/UPDATEPID=2345', `/D=${install}`]);
         installed.push(file);
         const child = new EventEmitter();
         queueMicrotask(() => child.emit('exit', file.includes('-delta.exe') ? 13 : 0));
@@ -76,7 +76,7 @@ try {
       },
     } : require(name),
   });
-  await helper.exports.apply(cache, publicKey, fetcher);
+  await helper.exports.apply(cache, publicKey, fetcher, undefined, undefined, {parentPid:2345});
   assert.deepEqual(installed.map(file=>file.includes('-delta.exe')), [true,false], 'Base mismatch automatically falls back to the signed full installer');
   assert.equal(requests.filter(u=>u.endsWith('-setup.exe')).length,1);
   await assert.rejects(readFile(join(cache,'ready.json')),/ENOENT/);

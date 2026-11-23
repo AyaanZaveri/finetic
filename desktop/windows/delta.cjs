@@ -44,20 +44,29 @@ async function materialize(base, stage, manifest) {
   if(old.schema!==1 || old.version!==manifest.from) throw Error('Delta base version does not match');
   // Reuse only files named by the signed target manifest. Deleted files and
   // local runtime caches are never copied to the new installation.
-  for (const entry of manifest.files) {
-    const source=await regular(entry.changed?stage:base,entry.path);
-    if(source.info.size!==entry.size || await digest(source.file)!==entry.sha256) throw Error(`Delta base or payload mismatch: ${entry.path}`);
-    if(!entry.changed) {
-      const destination=join(stage,entry.path);
-      await mkdir(dirname(destination),{recursive:true});
-      // Check existing parent paths too, so a junction cannot redirect writes.
-      let parent=stage;
-      for(const part of entry.path.split('/').slice(0,-1)) { parent=join(parent,part);if((await lstat(parent)).isSymbolicLink()) throw Error('Invalid staging link'); }
-      await copyFile(source.file,destination,require('node:fs').constants.COPYFILE_EXCL);
+  let next = 0;
+  async function worker() {
+    while (next < manifest.files.length) {
+      const entry = manifest.files[next++];
+      if (!entry.changed) {
+        const source=await regular(base,entry.path);
+        if(source.info.size!==entry.size) throw Error(`Delta base mismatch: ${entry.path}`);
+        const destination=join(stage,entry.path);
+        await mkdir(dirname(destination),{recursive:true});
+        // Check existing parent paths too, so a junction cannot redirect writes.
+        let parent=stage;
+        for(const part of entry.path.split('/').slice(0,-1)) { parent=join(parent,part);if((await lstat(parent)).isSymbolicLink()) throw Error('Invalid staging link'); }
+        await copyFile(source.file,destination,require('node:fs').constants.COPYFILE_EXCL);
+      }
+      // Verify the staged bytes once, including unchanged files we just copied.
+      const target=await regular(stage,entry.path);
+      if(target.info.size!==entry.size || await digest(target.file)!==entry.sha256) throw Error(`Delta base or payload mismatch: ${entry.path}`);
     }
-    const target=await regular(stage,entry.path);
-    if(target.info.size!==entry.size || await digest(target.file)!==entry.sha256) throw Error('Delta reconstruction failed');
   }
+  // Drain all workers on failure before the installer removes the stage.
+  const results = await Promise.allSettled(Array.from({length: Math.min(8, manifest.files.length)}, worker));
+  const failure = results.find(result=>result.status==='rejected');
+  if (failure) throw failure.reason;
   return manifest.files.length;
 }
 module.exports={safePath,validate,digest,materialize};

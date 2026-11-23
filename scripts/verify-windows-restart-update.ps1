@@ -1,13 +1,16 @@
 param(
-    [Parameter(Mandatory)][ValidateSet('0.6.5','0.6.6','0.6.7')][string]$SourceVersion,
-    [Parameter(Mandatory)][string]$TargetVersion
+    [Parameter(Mandatory)][ValidateSet('0.6.7','0.6.8')][string]$SourceVersion,
+    [Parameter(Mandatory)][string]$TargetVersion,
+    [ValidateSet('published','legacy-delta','delta','fallback','full')][string]$Case = 'published',
+    [string]$TargetDirectory,
+    [string]$CandidateExecutable
 )
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $PSNativeCommandUseErrorActionPreference = $true
-$results = New-Item -ItemType Directory -Force 'update-results'
-$root = Join-Path $env:RUNNER_TEMP 'navigator-restart-test'
-$install = Join-Path $root 'installed'
+$results = New-Item -ItemType Directory -Force "update-results/$Case"
+$root = Join-Path $env:RUNNER_TEMP "navigator-update-$Case"
+$install = Join-Path $root 'installed Navigator'
 $data = Join-Path $env:LOCALAPPDATA 'Navigator Desktop'
 $cache = Join-Path $data 'updates'
 $ready = Join-Path $cache 'ready.json'
@@ -16,9 +19,9 @@ $executable = Join-Path $install 'navigator-desktop.exe'
 $startup = Join-Path $data 'startup.jsonl'
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--force-renderer-accessibility'
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
-$fixture = $SourceVersion -eq $TargetVersion
+$fixture = $Case -ne 'published'
 $app = $null
-$mode = if ($fixture) { 'released 0.6.6 with CI-signed reinstall fixture' } else { "public $SourceVersion to $TargetVersion" }
+$relaunch = $null
 
 function Wait-For([scriptblock]$Condition, [int]$Seconds, [string]$Description) {
     $end = [DateTime]::UtcNow.AddSeconds($Seconds)
@@ -39,16 +42,23 @@ function Test-AppReady([int]$ProcessId) {
     return $false
 }
 
-function Find-UpdateButton([Diagnostics.Process]$Process) {
+function Find-Control([Diagnostics.Process]$Process, [string]$Name) {
     $Process.Refresh()
     if (!$Process.MainWindowHandle) { return }
     $element = [System.Windows.Automation.AutomationElement]::FromHandle($Process.MainWindowHandle)
+    $condition = [System.Windows.Automation.PropertyCondition]::new(
+        [System.Windows.Automation.AutomationElement]::NameProperty, $Name)
+    $control = $element.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
+    if ($control -and $control.Current.IsEnabled) { return $control }
+}
+function Find-UpdateButton([Diagnostics.Process]$Process) {
     foreach ($name in 'Update ready. Restart to update.', 'Restart to update') {
-        $condition = [System.Windows.Automation.PropertyCondition]::new(
-            [System.Windows.Automation.AutomationElement]::NameProperty, $name)
-        $button = $element.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
-        if ($button -and $button.Current.IsEnabled) { return $button }
+        $button = Find-Control $Process $name
+        if ($button) { return $button }
     }
+}
+function Invoke-Control($Control) {
+    $Control.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
 }
 
 function Get-Version {
@@ -62,9 +72,8 @@ try {
     $file = "Navigator-$SourceVersion-windows-x64-setup.exe"
     $installer = Join-Path $root $file
     $digest = @{
-        '0.6.5' = 'a87acae479770f99851055edfde37182d256e635948a3ecc0b94308aa9466e9c'
-        '0.6.6' = '14ebba555af3224a6d967e6c9bf938590315a99eb4f9e55238109aaafa220cfc'
         '0.6.7' = '7e6ce2d3cea576da6f8e4d6b917e7bf42936f01be7e5b916741997ea40589682'
+        '0.6.8' = 'a0b55c014b35aba7e994895d02750e6c23f9dfa84170f751c083b0b78765782b'
     }[$SourceVersion]
     curl.exe --fail --silent --show-error --location --retry 3 --output $installer "https://github.com/AyaanZaveri/navigator/releases/download/release-v$SourceVersion/$file"
     if ((Get-FileHash $installer).Hash -ne $digest) { throw 'Released installer checksum mismatch.' }
@@ -74,18 +83,37 @@ try {
     if ((Get-Version) -notmatch "^$([regex]::Escape($SourceVersion))(\b|\.0$)") { throw "Unexpected base version: $(Get-Version)" }
 
     $marker = Join-Path $install 'resources\restart-test-marker.txt'
+    Set-Content -LiteralPath $marker -Value 'Present only before the test update'
+    $profileMarker = Join-Path $data 'update-profile-marker.txt'
+    Set-Content -LiteralPath $profileMarker -Value 'Keep the existing profile'
     if ($fixture) {
-        $env:NAVIGATOR_UPDATE_FIXTURE_INSTALLER = $installer
+        $env:NAVIGATOR_UPDATE_FIXTURE_VERSION = $TargetVersion
+        $env:NAVIGATOR_UPDATE_FIXTURE_FULL = Join-Path $TargetDirectory "Navigator-$TargetVersion-windows-x64-setup.exe"
+        if ($Case -ne 'full') {
+            $env:NAVIGATOR_UPDATE_FIXTURE_DELTA = Join-Path $TargetDirectory "Navigator-$TargetVersion-windows-x64-from-$SourceVersion-delta.exe"
+        }
+        if ($Case -ne 'legacy-delta') {
+            Copy-Item $CandidateExecutable $executable -Force
+            Copy-Item (Join-Path $PSScriptRoot '../desktop/windows/background-update.cjs') (Join-Path $install 'resources\background-update.cjs') -Force
+            # Make the installer use the app path, independent of its registry default.
+            Set-ItemProperty -LiteralPath 'HKCU:\Software\Navigator Desktop' -Name InstallDir -Value (Join-Path $root 'wrong registry destination')
+        }
+        if ($Case -eq 'fallback') {
+            # Same-length corruption in a reused file must reject the delta.
+            $manifest = Join-Path $install 'release-manifest.json'
+            $old = Get-Content -Raw $manifest
+            Set-Content -NoNewline $manifest $old.Replace('"version":"0.6.8"', '"version":"0.6.0"')
+            if ((Get-Content -Raw $manifest | ConvertFrom-Json).version -ne '0.6.0') { throw 'Fixture did not corrupt delta base metadata.' }
+        }
         $helper = Join-Path $install 'resources\background-update.cjs'
         Copy-Item $helper (Join-Path $install 'resources\background-update-original.cjs')
         Copy-Item (Join-Path $PSScriptRoot 'windows-restart-update-feed.cjs') $helper -Force
-        Set-Content -LiteralPath $marker -Value 'Present only before the test update'
     }
 
     # The Start menu shortcut launches from the installed directory.
     $app = Start-Process -FilePath $executable -WorkingDirectory $install -PassThru
     $oldPid = $app.Id
-    Write-Output "Started installed Navigator $SourceVersion (PID $oldPid), case: $mode"
+    Write-Output "Started installed Navigator $SourceVersion (PID $oldPid), case: $Case"
     [void](Wait-For {
         if ($app.HasExited) { throw "Navigator exited before app-ready: $($app.ExitCode)" }
         Test-AppReady $oldPid
@@ -96,6 +124,8 @@ try {
     } 90 'the Restart to update button'
     if (!(Test-Path $ready)) { throw 'The UI reported ready without staging an update.' }
     $selection = (Get-Content -Raw $ready | ConvertFrom-Json).selected
+    $expectedSelection = if ($Case -eq 'full') { "-setup.exe" } else { "-from-$SourceVersion-delta.exe" }
+    if (!$selection.EndsWith($expectedSelection)) { throw "Wrong staged payload: $selection" }
     Write-Output "Staged signed payload: $selection"
     $invoke = $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
     $timer = [Diagnostics.Stopwatch]::StartNew()
@@ -113,17 +143,37 @@ try {
     } 200 'a successful install and new Navigator process'
     Write-Output "Replaced installation and relaunched PID $($relaunch.Id) in $($timer.ElapsedMilliseconds)ms"
     [void](Wait-For { Test-AppReady $relaunch.Id } 90 'the relaunched app to become ready')
+    if ((Get-Content -Raw $profileMarker).Trim() -ne 'Keep the existing profile') { throw 'Profile marker changed.' }
+    if ((Test-Path "$install.update-backup") -or (Test-Path "$install.update-stage")) { throw 'Installer left an update backup or stage.' }
+    if ($Case -notin 'published','legacy-delta') {
+        $updateLog = Get-Content -Raw (Join-Path $cache 'update.log')
+        if (($updateLog -match 'Full fallback exited with status 0') -ne ($Case -eq 'fallback')) {
+            throw "Unexpected fallback outcome: $updateLog"
+        }
+    }
+    if ($fixture) {
+        $about = Wait-For { Find-Control $relaunch 'About Navigator' } 30 'the guest About link'
+        Invoke-Control $about
+        [void](Wait-For { Find-Control $relaunch "Navigator $TargetVersion" } 30 'the updated About version')
+        $check = Wait-For { Find-Control $relaunch 'Check for updates' } 30 'the manual check control'
+        Invoke-Control $check
+        [void](Wait-For { Find-Control $relaunch 'You’re up to date.' } 40 'a successful update check after relaunch')
+    }
     $record = [ordered]@{
-        mode = $mode; clicks = 1; sourceVersion = $SourceVersion; installedVersion = Get-Version
+        mode = $Case; clicks = 1; sourceVersion = $SourceVersion; installedVersion = Get-Version
         payload = $selection; oldPid = $oldPid; newPid = $relaunch.Id
         shutdownMs = $shutdownMs; appReadyMs = $timer.ElapsedMilliseconds
     }
     $record | ConvertTo-Json | Tee-Object -FilePath (Join-Path $results 'result.json')
 } finally {
     Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like "$root*" -or $_.ExecutablePath -like "$cache*" } | Select-Object Name, ProcessId, ParentProcessId, CommandLine | ConvertTo-Json | Set-Content (Join-Path $results 'processes.json')
-    foreach ($file in @((Join-Path $data 'startup.jsonl'), (Join-Path $data 'installation.jsonl'), (Join-Path $data 'installation.log'), $failure)) {
+    foreach ($file in @((Join-Path $data 'startup.jsonl'), (Join-Path $data 'installation.jsonl'), (Join-Path $data 'installation.log'), (Join-Path $cache 'update.log'), $failure)) {
         if (Test-Path $file) { Copy-Item $file $results.FullName }
     }
     if ($app -and !$app.HasExited) { Stop-Process -Id $app.Id -ErrorAction SilentlyContinue }
+    if ($relaunch -and !$relaunch.HasExited) {
+        [void]$relaunch.CloseMainWindow()
+        if (!$relaunch.WaitForExit(15000)) { Stop-Process -Id $relaunch.Id -ErrorAction SilentlyContinue }
+    }
     Stop-Transcript | Out-Null
 }
