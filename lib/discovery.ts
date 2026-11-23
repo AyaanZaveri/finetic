@@ -29,12 +29,18 @@ export async function searchDiscovery(query: string, signal?: AbortSignal, type?
     if (await hasTMDBDiscovery()) {
         return { ...await searchTMDBCatalog(query, signal, type, page), provider: "TMDB" as const };
     }
-    const types = type ? [type] : ["movie", "series"] as const;
-    const batches = query.trim() && type !== "person" && page === 1
-        ? await Promise.all(types.map(kind => kind === "person" ? [] : signal
-            ? cinemetaCatalog(kind, query.trim(), signal)
-            : cinemetaSearch(kind, query.trim())))
-        : [];
-    const results = batches.flat();
+    const trimmed = query.trim();
+    const types: ("movie" | "series")[] = type === "person" || page !== 1 || !trimmed ? []
+        : type ? [type] : ["movie", "series"];
+    const [primary = [], secondary = []] = await Promise.all(types.map(kind => signal
+        ? cinemetaCatalog(kind, trimmed, signal)
+        : cinemetaSearch(kind, trimmed)));
+    // Cinemeta ranks each catalog independently. Keep the top match from
+    // both catalogs in the shortlist so movie hits don't crowd out TV shows.
+    const results = [];
+    for (let index = 0; index < Math.max(primary.length, secondary.length); index++) {
+        if (primary[index]) results.push(primary[index]);
+        if (secondary[index]) results.push(secondary[index]);
+    }
     return { results, page, totalPages: results.length ? 1 : 0, totalResults: results.length, provider: "Cinemeta" as const };
 }

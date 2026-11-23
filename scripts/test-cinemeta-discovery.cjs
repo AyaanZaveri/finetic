@@ -35,6 +35,7 @@ async function main() {
     assert.equal(search.results[0].year, 1979);
     assert.equal(search.results[0].poster, poster);
     assert.equal(calls.at(-1), 'https://v3-cinemeta.strem.io/catalog/movie/top/search=Alien%20%2F%20%26.json');
+    assert.equal(Array.from((await service.searchDiscovery('Example')).results, item => item.type).join(','), 'movie,series');
     assert.equal((await service.searchDiscovery('Alien', undefined, 'person')).totalResults, 0);
     assert.equal(await cinemeta.cinemetaMetadata('movie', '../../private'), null);
     assert.equal(await cinemeta.cinemetaMetadata('movie', 'tt1111111'), null, 'Ignore mismatched metadata IDs');
