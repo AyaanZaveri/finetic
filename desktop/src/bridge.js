@@ -14,6 +14,7 @@
         document.documentElement?.setAttribute("data-desktop-settings-pending", "");
         document.dispatchEvent(new Event("navigatoropensettings"));
       }
+      if (message.type === "close-player") document.dispatchEvent(new Event("navigatorcloseplayer"));
       for (const listener of [...listeners]) {
         try { listener(message); } catch (error) { console.error(error); }
       }

@@ -1,6 +1,7 @@
 //! Serializable placement is independent of the window toolkit so disconnected
 //! displays and DPI changes can be regression-tested on every host.
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Placement {
@@ -20,6 +21,13 @@ pub struct Display {
 }
 
 impl Placement {
+    pub fn save(&self, path: &Path) {
+        if let Ok(bytes) = serde_json::to_vec(self) {
+            let temporary = path.with_extension("tmp");
+            if std::fs::write(&temporary, bytes).is_ok() { let _ = std::fs::rename(temporary, path); }
+        }
+    }
+
     pub fn restore(&self, displays: &[Display]) -> Option<Self> {
         if !self.width.is_finite()
             || !self.height.is_finite()

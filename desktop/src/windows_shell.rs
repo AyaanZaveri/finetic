@@ -705,10 +705,7 @@ pub fn run(app: App) -> Result<(), String> {
             Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
                 if let Some(normal) = &mut normal {
                     if window.fullscreen().is_none() { normal.maximized = window.is_maximized(); }
-                    if let Ok(bytes) = serde_json::to_vec(normal) {
-                        let temp = state_path.with_extension("tmp");
-                        if std::fs::write(&temp, bytes).is_ok() { let _ = std::fs::rename(temp, &state_path); }
-                    }
+                    normal.save(&state_path);
                 }
                 closing = true; cancelled.store(true, Ordering::Relaxed); window.set_visible(false);
                 if let Some((_, player, _)) = &running { player.begin_shutdown(); }

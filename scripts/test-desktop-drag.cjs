@@ -31,6 +31,8 @@ for (const platform of ['windows', 'macos']) {
   window.__navigatorDesktopReceive({ type: 'open-settings' });
   assert.equal(attributes.get('data-desktop-settings-pending'), '');
   assert.equal(events.at(-1), 'navigatoropensettings');
+  window.__navigatorDesktopReceive({ type: 'close-player' });
+  assert.equal(events.at(-1), 'navigatorcloseplayer');
   const header = element('header', { 'data-window-drag-region': '' });
   const listbox = element('div', { role: 'listbox' }, header);
   const option = element('div', { role: 'option' }, listbox);

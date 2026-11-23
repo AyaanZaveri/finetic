@@ -25,7 +25,7 @@ mod macos_updater;
 mod thumbnails;
 mod thumbnail_images;
 mod wake_lock;
-#[cfg(any(windows, test))]
+#[cfg(any(windows, target_os = "macos", test))]
 mod window_state;
 #[cfg(windows)]
 mod windows_install;

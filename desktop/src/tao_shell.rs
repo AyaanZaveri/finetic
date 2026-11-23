@@ -1,4 +1,7 @@
-use crate::{App, platform, protocol, receive};
+use crate::{
+    App, platform, protocol, receive,
+    window_state::{Display, Placement},
+};
 use serde_json::{Value, json};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -31,6 +34,12 @@ fn bounds(size: PhysicalSize<u32>) -> Rect {
     }
 }
 
+fn placement(window: &Window) -> Option<Placement> {
+    let position = window.outer_position().ok()?;
+    let size = window.inner_size().to_logical::<f64>(window.scale_factor());
+    Some(Placement { x: position.x, y: position.y, width: size.width, height: size.height, maximized: false })
+}
+
 fn defer_window_action(window: &Rc<Window>, action: impl FnOnce(&Window) + Send + 'static) {
     use dispatch2::{DispatchQueue, MainThreadBound};
     use objc2::MainThreadMarker;
@@ -60,6 +69,14 @@ pub fn run(mut app: App) -> Result<(), String> {
         let proxy = proxy.clone();
         move || { let _ = proxy.send_event(UserEvent::OpenSettings); }
     })).flatten();
+    let state_path = app.data.join("window.json");
+    let displays: Vec<_> = event_loop.available_monitors().map(|monitor| Display {
+        x: monitor.position().x, y: monitor.position().y,
+        width: monitor.size().width, height: monitor.size().height, scale: monitor.scale_factor(),
+    }).collect();
+    let saved = (!app.smoke).then(|| std::fs::read(&state_path).ok())
+        .flatten().and_then(|bytes| serde_json::from_slice::<Placement>(&bytes).ok())
+        .and_then(|placement| placement.restore(&displays));
     let builder = WindowBuilder::new()
         .with_title("Navigator")
         .with_inner_size(LogicalSize::new(1280.0, 800.0))
@@ -73,7 +90,12 @@ pub fn run(mut app: App) -> Result<(), String> {
         .with_fullsize_content_view(true)
         // Eight points higher, matching the player Back button's center.
         .with_traffic_light_inset(LogicalPosition::new(16.0, 30.0));
+    let builder = if let Some(saved) = saved {
+        builder.with_position(PhysicalPosition::new(saved.x, saved.y))
+            .with_inner_size(LogicalSize::new(saved.width.max(720.0), saved.height.max(480.0)))
+    } else { builder };
     let window = Rc::new(builder.build(&event_loop).map_err(|e| e.to_string())?);
+    let mut normal = placement(&window);
     let surface = platform::VideoSurface::new(&window)?;
     let mut player = app.start_player(&surface, {
         let proxy = proxy.clone();
@@ -210,6 +232,7 @@ pub fn run(mut app: App) -> Result<(), String> {
     let mut installing = false;
     let mut closing = false;
     let mut fullscreen = false;
+    let mut hide_after_fullscreen = false;
     let mut loaded = false;
     let mut settings_pending = false;
     let mut window_controls_visible = true;
@@ -217,9 +240,13 @@ pub fn run(mut app: App) -> Result<(), String> {
     let mut next_update_probe = Instant::now();
     event_loop.run(move |event, _, flow| {
         let _settings_shortcut = &settings_shortcut;
+        let save_window = |normal: &Option<Placement>| {
+            if !app.smoke && let Some(normal) = normal { normal.save(&state_path); }
+        };
         // AppKit/Dock quit can destroy the loop without a CloseRequested event.
         // Stop the owned backend here rather than relying on process-exit drops.
         if matches!(&event, Event::LoopDestroyed) {
+            save_window(&normal);
             if !installing { if let Some(updater) = &updater { updater.cancel_pending_install(); } }
             drop(app._server.take());
             return;
@@ -343,14 +370,20 @@ pub fn run(mut app: App) -> Result<(), String> {
                 ));
             }
             Event::UserEvent(UserEvent::Close) => {
+                save_window(&normal);
                 if let Some(updater) = &updater { updater.cancel_pending_install(); }
                 closing = true;
                 player.begin_shutdown();
             }
             Event::UserEvent(UserEvent::OpenSettings) if !closing => {
+                hide_after_fullscreen = false;
                 defer_window_action(&window, |window| { window.set_minimized(false); window.set_focus(); });
                 if loaded { let _ = webview.evaluate_script(&receive(&json!({"type":"open-settings"}))); }
                 else { settings_pending = true; }
+            }
+            Event::Reopen { has_visible_windows: false, .. } if !closing => {
+                hide_after_fullscreen = false;
+                defer_window_action(&window, |window| { window.set_minimized(false); window.set_focus(); });
             }
             Event::WindowEvent {
                 event: WindowEvent::Resized(size),
@@ -360,6 +393,7 @@ pub fn run(mut app: App) -> Result<(), String> {
                 #[cfg(target_os = "macos")]
                 surface.refresh_hdr();
                 let _ = webview.set_bounds(bounds(size));
+                if !fullscreen && window.fullscreen().is_none() && window.is_visible() { normal = placement(&window); }
             }
             Event::WindowEvent {
                 event: WindowEvent::ScaleFactorChanged { new_inner_size, .. },
@@ -368,6 +402,7 @@ pub fn run(mut app: App) -> Result<(), String> {
                 surface.resize(new_inner_size.width, new_inner_size.height);
                 #[cfg(target_os = "macos")]
                 surface.refresh_hdr();
+                if !fullscreen && window.fullscreen().is_none() && window.is_visible() { normal = placement(&window); }
                 let _ = webview.set_bounds(bounds(*new_inner_size));
             }
             Event::WindowEvent {
@@ -376,20 +411,36 @@ pub fn run(mut app: App) -> Result<(), String> {
             } => {
                 #[cfg(target_os = "macos")]
                 surface.refresh_hdr();
+                if !fullscreen && window.fullscreen().is_none() && window.is_visible() && !window.is_minimized() {
+                    normal = placement(&window);
+                }
             }
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
             } => {
-                if let Some(updater) = &updater { updater.cancel_pending_install(); }
-                closing = true;
-                player.begin_shutdown();
+                save_window(&normal);
+                if app.smoke {
+                    closing = true;
+                    player.begin_shutdown();
+                } else if !closing {
+                    let _ = webview.evaluate_script(&receive(&json!({"type":"close-player"})));
+                    if fullscreen || window.fullscreen().is_some() {
+                        hide_after_fullscreen = true;
+                        defer_window_action(&window, |window| window.set_fullscreen(None));
+                    } else {
+                        defer_window_action(&window, |window| window.set_visible(false));
+                    }
+                }
             }
             _ => {}
         }
         let actual = window.fullscreen().is_some();
         if fullscreen != actual {
             fullscreen = actual;
+            if !actual && std::mem::take(&mut hide_after_fullscreen) {
+                defer_window_action(&window, |window| window.set_visible(false));
+            }
             #[cfg(target_os = "macos")]
             platform::set_window_controls_visible(&window, actual || window_controls_visible);
             #[cfg(target_os = "macos")]
