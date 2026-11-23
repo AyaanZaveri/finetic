@@ -17,11 +17,12 @@ import styles from "./search-page.module.css";
 
 const identity = (item: { type: string; id: string }) => `${item.type}:${item.id}`;
 
-export function SearchResultsView({ query, initialResults }: {
-    query: string; initialResults: SearchResultSet;
+export function SearchResultsView({ query, initialResults, peopleAvailable = true }: {
+    query: string; initialResults: SearchResultSet; peopleAvailable?: boolean;
 }) {
     const params = useSearchParams();
-    const filter = searchMediaFilter(params.get("type") ?? undefined);
+    const selectedFilter = searchMediaFilter(params.get("type") ?? undefined);
+    const filter = selectedFilter === "person" && !peopleAvailable ? "all" : selectedFilter;
     const [store] = useState(() => createSearchResultsStore(initialResults, async (type, page, signal) => {
         const params = new URLSearchParams({ q: query, type, page: String(page) });
         const response = await fetch(`/api/search/results?${params}`, { signal });
@@ -80,7 +81,7 @@ export function SearchResultsView({ query, initialResults }: {
             resetInteraction
         />
         <div className={styles.toolbar}>
-            <SearchTypeFilters value={filter} movies={snapshot.movie.totalResults} shows={snapshot.series.totalResults} people={snapshot.person.totalResults} onValueChange={changeType} />
+            <SearchTypeFilters value={filter} movies={snapshot.movie.totalResults} shows={snapshot.series.totalResults} people={peopleAvailable ? snapshot.person.totalResults : undefined} onValueChange={changeType} />
         </div>
         <ul aria-label="Search results" aria-busy={source.loading} className={styles.grid} hidden={!source.results.length}>
             {ordered.map(key => {

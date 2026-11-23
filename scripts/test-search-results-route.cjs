@@ -4,7 +4,7 @@ const calls = [];
 let fail = false;
 const result = { results: [{ id: 'tmdb:1', type: 'movie' }], totalPages: 3, totalResults: 51 };
 const { GET } = load('app/api/search/results/route.ts', {
-    '@/lib/tmdb-discovery': { searchTMDBCatalog: async (query, signal, type, page) => {
+    '@/lib/discovery': { searchDiscovery: async (query, signal, type, page) => {
         calls.push({ query, signal, type, page });
         if (fail) throw Error('TMDB is unavailable');
         return result;

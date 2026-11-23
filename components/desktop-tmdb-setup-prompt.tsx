@@ -3,52 +3,54 @@
 import { useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { getArtworkSettings } from "@/app/actions/artwork-settings";
+import { getDiscoveryAvailability } from "@/app/actions/artwork-settings";
+import { useAccountAccess } from "@/contexts/account-context";
 import { desktopBridge } from "@/lib/desktop/bridge";
 import { CONNECTION_CREDENTIALS_EVENT, readConnectionCredential } from "@/lib/browser-connection-credentials";
 
-export function DesktopTmdbSetupPrompt({ userId }: { userId?: string }) {
+const storageKey = "navigator-tmdb-intro-v1";
+
+export function DesktopTmdbSetupPrompt() {
     const pathname = usePathname();
     const router = useRouter();
-    const shown = useRef<string | undefined>(undefined);
+    const { authenticated, requestSignIn } = useAccountAccess();
+    const shown = useRef(false);
 
     useEffect(() => {
         const platform = desktopBridge()?.platform;
-        if (!userId || !platform || !["macos", "windows", "linux"].includes(platform)) return;
-        const id = `tmdb-setup:${userId}`;
-        const storageKey = `navigator-${id}`;
+        if (!platform || !["macos", "windows", "linux"].includes(platform)) return;
         const savedLocally = () => {
-            try { return !!readConnectionCredential("tmdb")?.trim(); }
+            try { return Boolean(readConnectionCredential("tmdb")?.trim()); }
             catch { return false; }
         };
-        const onCredentials = () => { if (savedLocally()) toast.dismiss(id); };
+        const onCredentials = () => { if (savedLocally()) toast.dismiss(storageKey); };
         window.addEventListener(CONNECTION_CREDENTIALS_EVENT, onCredentials);
         let active = true;
+
         async function check() {
-            if (pathname.startsWith("/settings/connections") || shown.current === userId || savedLocally()) return;
-            try { if (sessionStorage.getItem(storageKey)) return; } catch { /* The ref still prevents repeats. */ }
+            if (pathname !== "/" || shown.current || savedLocally()) return;
+            try { if (localStorage.getItem(storageKey)) return; } catch { /* Use the mounted ref when storage is unavailable. */ }
             try {
-                const settings = await getArtworkSettings();
-                // Browser credential restoration can finish while this request runs.
-                if (!active || settings.configured || savedLocally()) return;
-                shown.current = userId;
-                try { sessionStorage.setItem(storageKey, "1"); } catch { /* Storage can be unavailable. */ }
-                toast("Set up TMDB metadata", {
-                    id,
-                    description: "Add your TMDB read access token for movie and TV details, artwork, and search.",
-                    duration: Infinity,
+                if (await getDiscoveryAvailability() || !active || savedLocally()) return;
+                shown.current = true;
+                try { localStorage.setItem(storageKey, "1"); } catch { /* The ref still prevents repeats. */ }
+                toast("Add TMDB for more discovery options", {
+                    id: storageKey,
+                    description: "Browse and search with Cinemeta. Connect TMDB for people search and streaming availability.",
                     closeButton: true,
-                    action: { label: "Configure TMDB", onClick: () => router.push("/settings/connections#tmdb") },
+                    action: authenticated
+                        ? { label: "Configure TMDB", onClick: () => router.push("/settings/connections#tmdb") }
+                        : { label: "Sign in to configure", onClick: requestSignIn },
                 });
-            } catch { /* A failed settings request is not evidence of a missing key. */ }
+            } catch { /* A failed check must not interrupt Home. */ }
         }
+
         void check();
         return () => {
             active = false;
             window.removeEventListener(CONNECTION_CREDENTIALS_EVENT, onCredentials);
-            toast.dismiss(id);
         };
-    }, [userId, pathname, router]);
+    }, [authenticated, pathname, requestSignIn, router]);
 
     return null;
 }

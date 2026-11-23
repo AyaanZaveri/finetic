@@ -94,7 +94,7 @@ export function LayoutContent({ children, email, userId }: LayoutContentProps) {
 
     return (
         <HomePaletteProvider><AuroraProvider>
-            <DesktopTmdbSetupPrompt userId={authenticated ? userId || email : undefined} />
+            <DesktopTmdbSetupPrompt />
             <div data-app-layout className="relative flex h-dvh flex-col overflow-hidden">
                 <ScrollAreaRoot type="scroll" scrollHideDelay={900} asChild>
                     <div data-desktop-app-content data-playback-hidden={isPlayerVisible ? "" : undefined} inert={isPlayerVisible} className="relative grid min-h-0 min-w-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)]">

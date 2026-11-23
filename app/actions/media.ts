@@ -267,6 +267,13 @@ async function fetchMediaDetailsUncached(
       }
       return await tmdbMediaItem(mediaItemId, type, signal);
     }
+    const builtInDetails = async () => {
+      if ((type !== "movie" && type !== "series") || !/^tt\d+$/.test(mediaItemId)) return null;
+      if (options?.playback) await getAuthData();
+      const { cinemetaMetadata } = await import("@/lib/cinemeta");
+      const meta = await cinemetaMetadata(type, mediaItemId, signal);
+      return meta ? fullMetaToMediaItem(meta) : null;
+    };
     const addons = await getInstalledAddons();
 
     // Try addons that support meta for this type  
@@ -305,6 +312,8 @@ async function fetchMediaDetailsUncached(
       const settled = Promise.allSettled(arrivals).then(() => merged);
       const result = await Promise.race([complete.then(async item => item || await settled), settled]);
       if (result || (type !== "movie" && type !== "series")) return result;
+      const builtIn = await builtInDetails().catch(() => { signal?.throwIfAborted(); return null; });
+      if (builtIn) return builtIn;
       const { tmdbMediaItem } = await import("@/lib/tmdb-discovery");
       return await tmdbMediaItem(mediaItemId, type, signal);
     }
@@ -331,7 +340,7 @@ async function fetchMediaDetailsUncached(
 
     if (type !== "movie") {
       const item = await Promise.any(metaRequests).catch(() => null);
-      return item ? await withCompleteDescription(item) : null;
+      return item ? await withCompleteDescription(item) : await builtInDetails();
     }
 
     const usableMetaResult = await Promise.any(
@@ -353,7 +362,7 @@ async function fetchMediaDetailsUncached(
         result.status === "fulfilled" && hasText(result.value.name)
     );
 
-    return fallbackMeta ? await withCompleteDescription(fallbackMeta.value) : null;
+    return fallbackMeta ? await withCompleteDescription(fallbackMeta.value) : await builtInDetails();
   } catch (error) {
     signal?.throwIfAborted();
     console.error("Failed to fetch media details:", error);
