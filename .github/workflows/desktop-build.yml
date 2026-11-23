@@ -24,6 +24,10 @@ on:
         description: Reuse test installers from an earlier desktop build run
         type: string
         default: ""
+      windows_fixture_source_run:
+        description: Reuse the compiled fixture source from an earlier test run
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -166,11 +170,11 @@ jobs:
         if: inputs.windows_fixture_artifact_run == ''
         run: node scripts/fetch-desktop-libs.mjs
       - name: Build the fixture source at its published version
-        if: inputs.verify_windows_updates
+        if: inputs.verify_windows_updates && inputs.windows_fixture_source_run == ''
         shell: pwsh
         run: node scripts/build-windows-native.mjs "$env:RUNNER_TEMP/navigator-fixture-source.exe"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
-        if: inputs.verify_windows_updates
+        if: inputs.verify_windows_updates && inputs.windows_fixture_source_run == ''
         with:
           name: windows-update-source-${{ github.sha }}
           path: ${{ runner.temp }}/navigator-fixture-source.exe
@@ -236,6 +240,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           FIXTURE_RUN: ${{ inputs.windows_fixture_artifact_run || github.run_id }}
+          SOURCE_RUN: ${{ inputs.windows_fixture_source_run || github.run_id }}
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
           if ($env:FIXTURE_RUN -notmatch '^\d+$') { throw 'Invalid fixture run number.' }
@@ -247,7 +252,12 @@ jobs:
             ForEach-Object Steps | Where-Object { $_.name -eq 'Verify packaged files and collect checksums' -and $_.conclusion -eq 'success' }
           if (!$verified) { throw 'The selected Windows build did not verify its packages.' }
           gh run download $env:FIXTURE_RUN --name "Navigator-Windows-x64-$($run.headSha)" --dir update-fixture
-          gh run download $env:GITHUB_RUN_ID --name "windows-update-source-$env:GITHUB_SHA" --dir update-fixture
+          if ($env:SOURCE_RUN -notmatch '^\d+$') { throw 'Invalid fixture source run number.' }
+          $source = gh run view $env:SOURCE_RUN --json workflowName,headSha | ConvertFrom-Json
+          if ($source.workflowName -ne 'Build desktop installers' -or $source.headSha -notmatch '^[a-f0-9]{40}$') {
+            throw 'Select a source from the desktop installers workflow.'
+          }
+          gh run download $env:SOURCE_RUN --name "windows-update-source-$($source.headSha)" --dir update-fixture
           Push-Location update-fixture
           try {
             $checksums = @(Get-Content SHA256SUMS)
