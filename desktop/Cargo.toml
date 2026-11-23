@@ -1,6 +1,6 @@
 [package]
 name = "navigator-desktop"
-version = "0.6.8"
+version = "0.6.9"
 edition = "2024"
 rust-version = "1.92"
 license = "AGPL-3.0-only"
