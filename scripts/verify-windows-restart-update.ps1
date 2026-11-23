@@ -17,7 +17,9 @@ $ready = Join-Path $cache 'ready.json'
 $failure = Join-Path $cache 'last-error.txt'
 $executable = Join-Path $install 'navigator-desktop.exe'
 $startup = Join-Path $data 'startup.jsonl'
-$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--force-renderer-accessibility --remote-debugging-port=9222'
+$webViewPolicy = 'HKCU:\Software\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments'
+$webViewFlags = '--force-renderer-accessibility --remote-debugging-port=9222'
+$testAbout = $true
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 $fixture = $Case -ne 'published'
 $expectRecovery = $Case -eq 'recovery'
@@ -71,6 +73,9 @@ function Get-Version {
 Start-Transcript -Path (Join-Path $results 'restart-test.log') | Out-Null
 try {
     if (Test-Path $data) { throw 'Run this check on a fresh Windows runner.' }
+    New-Item -Path $webViewPolicy -Force | Out-Null
+    # Apply the setting to both launches, including the one made by NSIS.
+    Set-ItemProperty -LiteralPath $webViewPolicy -Name 'navigator-desktop.exe' -Value $webViewFlags
     New-Item -ItemType Directory -Force $root | Out-Null
     $file = "Navigator-$SourceVersion-windows-x64-setup.exe"
     $installer = Join-Path $root $file
@@ -130,7 +135,7 @@ try {
     $expectedSelection = if ($Case -eq 'full') { "-setup.exe" } else { "-from-$SourceVersion-delta.exe" }
     if (!$selection.EndsWith($expectedSelection)) { throw "Wrong staged payload: $selection" }
     Write-Output "Staged signed payload: $selection"
-    if ($fixture) {
+    if ($testAbout) {
         # A current status after relaunch must come from the manual check.
         Set-Content (Join-Path $data 'update-checks.json') 'false'
     }
@@ -179,9 +184,9 @@ try {
             throw "Unexpected fallback outcome: $updateLog"
         }
     }
-    if ($fixture) {
-        $reference = Join-Path $TargetDirectory 'desktop-win32-x64/navigator-desktop.exe'
-        if (!$expectRecovery -and (Test-Path $reference) -and (Get-FileHash $reference).Hash -ne (Get-FileHash $executable).Hash) {
+    if ($testAbout) {
+        $reference = if ($fixture) { Join-Path $TargetDirectory 'desktop-win32-x64/navigator-desktop.exe' }
+        if (!$expectRecovery -and $reference -and (Test-Path $reference) -and (Get-FileHash $reference).Hash -ne (Get-FileHash $executable).Hash) {
             throw 'The installed executable differs from the candidate package.'
         }
         node (Join-Path $PSScriptRoot 'windows-update-open-about.cjs')
@@ -219,7 +224,10 @@ try {
             Get-ChildItem $results -Filter 'frame-*.jpg' | Remove-Item
         }
     }
-    Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like "$root*" -or $_.ExecutablePath -like "$cache*" } | Select-Object Name, ProcessId, ParentProcessId, CommandLine | ConvertTo-Json | Set-Content (Join-Path $results 'processes.json')
+    Get-CimInstance Win32_Process | Where-Object {
+        $_.ExecutablePath -like "$root*" -or $_.ExecutablePath -like "$cache*" -or
+        ($_.Name -eq 'msedgewebview2.exe' -and $_.CommandLine -like '*navigator-desktop.exe*')
+    } | Select-Object Name, ProcessId, ParentProcessId, CommandLine | ConvertTo-Json | Set-Content (Join-Path $results 'processes.json')
     foreach ($file in @((Join-Path $data 'startup.jsonl'), (Join-Path $data 'installation.jsonl'), (Join-Path $data 'installation.log'), (Join-Path $cache 'update.log'), $failure)) {
         if (Test-Path $file) { Copy-Item $file $results.FullName }
     }
@@ -228,5 +236,6 @@ try {
         [void]$relaunch.CloseMainWindow()
         if (!$relaunch.WaitForExit(15000)) { Stop-Process -Id $relaunch.Id -ErrorAction SilentlyContinue }
     }
+    Remove-ItemProperty -LiteralPath $webViewPolicy -Name 'navigator-desktop.exe' -ErrorAction SilentlyContinue
     Stop-Transcript | Out-Null
 }
