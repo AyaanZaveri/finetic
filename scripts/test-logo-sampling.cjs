@@ -12,7 +12,7 @@ assert.equal(stable('light', 288), 'light', 'A stable new background is accepted
 assert.equal(stable('deep', 320), 'light');
 assert.equal(stable('deep', 448), 'light', 'A second switch cannot interrupt the crossfade');
 assert.equal(stable('deep', 544), 'deep');
-const backdrop = load('lib/logo-backdrop.ts', { '@/lib/logo-contrast': contrast }, { URL });
+const backdrop = load('lib/logo-backdrop.ts', { '@/lib/logo-contrast': contrast }, { URL, URLSearchParams });
 const surfaces = load('lib/logo-surfaces.ts', { './logo-canvas': load('lib/logo-canvas.ts') });
 const h = hooks();
 const raf = new Map(), listeners = new Map();
@@ -102,7 +102,8 @@ async function settle(time) { now = time; listeners.get('scroll')?.(); tick(time
   hero.bounds.top = -500; poster.bounds.top = 0;
   await settle(500);
   assert.equal(render().props['data-logo-tone'], 'light', 'A poster scrolled behind the logo is sampled after the hero leaves, even without another scroll event');
-  assert.ok(requestedImages.some(source => source.includes('kind=poster') && source.includes('sample=1')), 'Posters also use readable same-origin bytes');
+  assert.ok(requestedImages.some(source => /^https:\/\/wsrv\.nl\//.test(source) && new URL(source).searchParams.get('url') === poster.src),
+    'Poster sampling uses the canvas-readable image service');
   assert.equal(raf.size, 0, 'The sampler sleeps after scroll settlement');
   poster.bounds.top = 600; now = 1000; listeners.get('scroll')(); tick(1000);
   assert.equal(render().props['data-logo-tone'], 'light', 'A transient bright patch cannot reverse the current fade');
@@ -130,7 +131,10 @@ async function settle(time) { now = time; listeners.get('scroll')?.(); tick(time
   assert.ok(tree.props.children.every(image => image.props.className === 'mark'), 'Every tone, including neutral, shares the same mounted transition layer');
   h.unmount(); assert.equal(raf.size, 0); assert.equal(listeners.size, 0); assert.equal(canvasWake, null);
   const css = require('postcss').parse(fs.readFileSync('components/adaptive-header-logo.module.css', 'utf8'));
-  assert.ok(css.nodes.find(node => node.selector === '.mark').nodes.some(node => node.prop === 'transition' && node.value.includes('240ms')));
+  const property = (selector, name) => css.nodes.find(node => node.selector === selector).nodes.find(node => node.prop === name)?.value;
+  assert.equal(property('.frame', 'isolation'), 'isolate', 'Blend only the overlapping logo variants');
+  assert.equal(property('.mark', 'mix-blend-mode'), 'plus-lighter', 'The overlapping marks keep their coverage midway through the fade');
+  assert.equal(property('.mark', 'transition'), 'opacity var(--duration-standard, 240ms) ease', 'Spread the color change across the fade');
   assert.ok(css.nodes.find(node => node.params === '(prefers-reduced-motion: reduce)').nodes[0].nodes.some(node => node.prop === 'transition' && node.value.includes('opacity')));
   console.log('PASS: actual sampler follows hero → scrolled poster → page, sleeps idle, recovers from image failures, pauses hidden, cleans up, and crossfades all four variants.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
