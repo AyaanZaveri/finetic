@@ -3,16 +3,20 @@ const fs = require('node:fs');
 const ts = require('typescript');
 const { load, hooks } = require('./test-support/react-hooks.cjs');
 
-function mount({ pathname = '/', fullscreen = false, exitFails = false } = {}) {
+function mount({ pathname = '/', fullscreen = false, exitFails = false, nativePending = false } = {}) {
   const host = hooks(), listeners = new Map(), actions = [];
   const document = {
+    documentElement: {
+      hasAttribute: name => name === 'data-desktop-settings-pending' && nativePending,
+      removeAttribute: name => { assert.equal(name, 'data-desktop-settings-pending'); nativePending = false; },
+    },
     fullscreenElement: fullscreen ? {} : null,
     exitFullscreen: () => { actions.push('exit fullscreen'); return exitFails ? Promise.reject(new Error('denied')) : Promise.resolve(); },
     dispatchEvent: event => { actions.push(event.type); },
     addEventListener(type, handler, options) { listeners.set(type, { handler, options }); },
     removeEventListener(type, handler, capture) {
       assert.equal(listeners.get(type).handler, handler);
-      assert.equal(capture, true);
+      assert.equal(capture, type === 'keydown' ? true : undefined);
       listeners.delete(type);
     },
   };
@@ -26,6 +30,7 @@ function mount({ pathname = '/', fullscreen = false, exitFails = false } = {}) {
   assert.equal(listeners.get('keydown').options.capture, true);
   assert.equal(listeners.get('keydown').options.passive, false, 'Browser default action must be cancelable');
   return { actions, unmount: () => { host.unmount(); assert.equal(listeners.size, 0); },
+    native() { nativePending = true; listeners.get('navigatoropensettings').handler(); },
     fire(overrides = {}) {
       const event = { key: ',', ctrlKey: false, metaKey: true, shiftKey: false, altKey: false,
         defaultPrevented: false, cancelable: true,
@@ -37,6 +42,12 @@ function mount({ pathname = '/', fullscreen = false, exitFails = false } = {}) {
   };
 }
 (async () => {
+  for (const nativePending of [false, true]) {
+    const app = mount({ nativePending });
+    if (!nativePending) app.native();
+    assert.deepEqual(app.actions, [['ask', false], 'navigatorcloseplayer', '/settings'], 'Native menu and system shortcuts use the same settings path, including before hydration');
+    app.unmount();
+  }
   for (const modifier of [{ metaKey: true }, { metaKey: false, ctrlKey: true }]) {
     const app = mount();
     const event = app.fire(modifier);

@@ -18,12 +18,19 @@ function element(tag, attributes = {}, parent = null) {
 
 const source = fs.readFileSync('desktop/src/bridge.js', 'utf8');
 for (const platform of ['windows', 'macos']) {
-  const sent = [], handlers = new Map();
+  const sent = [], handlers = new Map(), attributes = new Map(), events = [];
   const window = { ipc: { postMessage: message => sent.push(JSON.parse(message)) }, addEventListener() {} };
   window.top = window;
-  const document = { documentElement: { dataset: {}, style: { setProperty() {} } }, addEventListener: (type, callback) => handlers.set(type, callback) };
+  const document = {
+    documentElement: { dataset: {}, style: { setProperty() {} }, setAttribute: (name, value) => attributes.set(name, value) },
+    addEventListener: (type, callback) => handlers.set(type, callback),
+    dispatchEvent: event => events.push(event.type),
+  };
   vm.runInNewContext(source.replace('__PROTOCOL__', '1').replace('__ORIGIN__', JSON.stringify('http://localhost:3000')).replace('__PLATFORM__', JSON.stringify(platform)),
-    { window, document, location: { origin: 'http://localhost:3000' }, console });
+    { window, document, location: { origin: 'http://localhost:3000' }, console, Event });
+  window.__navigatorDesktopReceive({ type: 'open-settings' });
+  assert.equal(attributes.get('data-desktop-settings-pending'), '');
+  assert.equal(events.at(-1), 'navigatoropensettings');
   const header = element('header', { 'data-window-drag-region': '' });
   const listbox = element('div', { role: 'listbox' }, header);
   const option = element('div', { role: 'option' }, listbox);

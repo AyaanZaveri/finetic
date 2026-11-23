@@ -48,14 +48,17 @@ pub fn set_window_controls_visible(window: &Window, visible: bool) {
     }
 }
 
+pub enum MenuAction { Settings, Quit }
+
 /// WKWebView uses AppKit's Edit menu to implement standard clipboard shortcuts.
-pub fn install_menu(on_quit: impl Fn() + Send + Sync + 'static) -> Result<muda::Menu, String> {
+pub fn install_menu(on_action: impl Fn(MenuAction) + Send + Sync + 'static) -> Result<muda::Menu, String> {
     use muda::{AboutMetadata, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
     let about = PredefinedMenuItem::about(Some("About Navigator"), Some(AboutMetadata {
         name: Some("Navigator".into()),
         version: Some(env!("CARGO_PKG_VERSION").into()),
         ..Default::default()
     }));
+    let settings = MenuItem::with_id("navigator-settings", "Settings…", true, "CmdOrCtrl+Comma".parse().ok());
     let quit = MenuItem::with_id(
         "navigator-quit",
         "Quit Navigator",
@@ -67,6 +70,8 @@ pub fn install_menu(on_quit: impl Fn() + Send + Sync + 'static) -> Result<muda::
         true,
         &[
             &about,
+            &PredefinedMenuItem::separator(),
+            &settings,
             &PredefinedMenuItem::separator(),
             &PredefinedMenuItem::services(None),
             &PredefinedMenuItem::separator(),
@@ -104,8 +109,10 @@ pub fn install_menu(on_quit: impl Fn() + Send + Sync + 'static) -> Result<muda::
     menu.init_for_nsapp();
     window.set_as_windows_menu_for_nsapp();
     MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
-        if event.id == "navigator-quit" {
-            on_quit();
+        match event.id.as_ref() {
+            "navigator-quit" => on_action(MenuAction::Quit),
+            "navigator-settings" => on_action(MenuAction::Settings),
+            _ => {}
         }
     }));
     Ok(menu)

@@ -99,6 +99,7 @@ enum UserEvent {
     Fullscreen(bool),
     TitlebarPress { double_click: bool },
     ChromeHover(u32),
+    OpenSettings,
     ToggleFullscreen,
     WindowControl(protocol::WindowAction),
     Ready(bool),
@@ -332,6 +333,10 @@ pub fn run(app: App) -> Result<(), String> {
     }
     let window = builder.build(&event_loop).map_err(|e| e.to_string())?;
     let mut normal = restored.or_else(|| placement(&window));
+    let settings_shortcut = (!app.smoke).then(|| crate::desktop_shortcut::settings({
+        let proxy = proxy.clone();
+        move || { let _ = proxy.send_event(UserEvent::OpenSettings); }
+    })).flatten();
     let chrome_proxy = proxy.clone();
     platform::on_chrome_hover(move |hit| {
         let _ = chrome_proxy.send_event(UserEvent::ChromeHover(hit));
@@ -435,6 +440,7 @@ pub fn run(app: App) -> Result<(), String> {
     let mut remaximize = false;
     let mut ready = false;
     let mut loaded = false;
+    let mut settings_pending = false;
     let mut ready_deadline = None;
     let mut navigating = false;
     let mut exit_code = 0;
@@ -475,6 +481,7 @@ pub fn run(app: App) -> Result<(), String> {
         next_update_probe += crate::update_feed::next_probe_delay(true);
     }
     event_loop.run(move |event, _, flow| {
+        let _settings_shortcut = &settings_shortcut;
         if !closing && automatic_updates && updater.is_some() && Instant::now() >= next_update_probe {
             let started = update_state != "checking" && updater.as_ref().unwrap().probe();
             next_update_probe = Instant::now() + crate::update_feed::next_probe_delay(started);
@@ -615,7 +622,12 @@ pub fn run(app: App) -> Result<(), String> {
                         if let Some(path) = smoke { player.send(protocol::Command::Load { session:"native-smoke".into(), url:path.to_string_lossy().into_owned(), headers:Default::default(), start_position: 0.0 }); }
                     }
                 }
-                if let Some(view) = &view { let _ = view.evaluate_script(&receive(&json!({"type":"fullscreen","value":fullscreen}))); }
+                if let Some(view) = &view {
+                    let _ = view.evaluate_script(&receive(&json!({"type":"fullscreen","value":fullscreen})));
+                    if std::mem::take(&mut settings_pending) {
+                        let _ = view.evaluate_script(&receive(&json!({"type":"open-settings"})));
+                    }
+                }
             }
             Event::UserEvent(UserEvent::GlassConsumed(slot, sequence)) => {
                 glass_shared.consumed(slot, sequence);
@@ -664,6 +676,13 @@ pub fn run(app: App) -> Result<(), String> {
             Event::UserEvent(UserEvent::ChromeHover(hit)) => {
                 let name = match hit { 8 => "minimize", 9 => "maximize", 20 => "close", _ => "" };
                 if let Some(view) = &view { let _ = view.evaluate_script(&format!("document.documentElement.dataset.windowControlHover={}", json!(name))); }
+            }
+            Event::UserEvent(UserEvent::OpenSettings) if !closing => {
+                window.set_minimized(false);
+                window.set_focus();
+                if let Some(view) = view.as_ref().filter(|_| loaded) {
+                    let _ = view.evaluate_script(&receive(&json!({"type":"open-settings"})));
+                } else { settings_pending = true; }
             }
             Event::UserEvent(UserEvent::WindowControl(action)) => match action {
                 protocol::WindowAction::Minimize => window.set_minimized(true),

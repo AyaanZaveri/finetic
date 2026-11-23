@@ -12,13 +12,7 @@ export function SettingsShortcut() {
   const setAskOpen = useSetAtom(isAIAskOpenAtom);
 
   useEffect(() => {
-    const openSettings = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
-      if (event.key !== "," || event.altKey || event.shiftKey || event.metaKey === event.ctrlKey) return;
-      // Cancel synchronously, including repeats, before any asynchronous work.
-      event.preventDefault();
-      event.stopPropagation();
-      if (event.repeat) return;
+    const openSettings = () => {
       setAskOpen(false);
       // Use the player's normal close path so progress is saved and media stops.
       document.dispatchEvent(new Event("navigatorcloseplayer"));
@@ -33,8 +27,27 @@ export function SettingsShortcut() {
         navigate();
       }
     };
-    document.addEventListener("keydown", openSettings, { capture: true, passive: false });
-    return () => document.removeEventListener("keydown", openSettings, true);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
+      if (event.key !== "," || event.altKey || event.shiftKey || event.metaKey === event.ctrlKey) return;
+      // Cancel synchronously, including repeats, before any asynchronous work.
+      event.preventDefault();
+      event.stopPropagation();
+      if (!event.repeat) openSettings();
+    };
+    const onNative = () => {
+      const root = document.documentElement;
+      if (!root?.hasAttribute("data-desktop-settings-pending")) return;
+      root.removeAttribute("data-desktop-settings-pending");
+      openSettings();
+    };
+    document.addEventListener("keydown", onKey, { capture: true, passive: false });
+    document.addEventListener("navigatoropensettings", onNative);
+    onNative();
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("navigatoropensettings", onNative);
+    };
   }, [pathname, router, setAskOpen]);
 
   return null;

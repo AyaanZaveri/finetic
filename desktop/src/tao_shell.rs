@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use tao::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use tao::event::{Event, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoopBuilder};
-use tao::window::{Fullscreen, WindowBuilder};
+use tao::window::{Fullscreen, Window, WindowBuilder};
 #[cfg(target_os = "macos")]
 use tao::{dpi::LogicalPosition, platform::macos::WindowBuilderExtMacOS};
 use wry::{NewWindowResponse, Rect, WebContext, WebViewBuilder};
@@ -20,6 +20,7 @@ enum UserEvent {
     NativeHdrPeak(Option<u32>),
     TitlebarPress { double_click: bool },
     Close,
+    OpenSettings,
     SyncFullscreen,
 }
 
@@ -30,16 +31,35 @@ fn bounds(size: PhysicalSize<u32>) -> Rect {
     }
 }
 
+fn defer_window_action(window: &Rc<Window>, action: impl FnOnce(&Window) + Send + 'static) {
+    use dispatch2::{DispatchQueue, MainThreadBound};
+    use objc2::MainThreadMarker;
+    let mtm = MainThreadMarker::new().expect("window events run on the AppKit thread");
+    let window = MainThreadBound::new(Rc::downgrade(window), mtm);
+    // Showing or hiding a window can synchronously redraw while Tao holds its callback lock.
+    DispatchQueue::main().exec_async(move || {
+        let mtm = MainThreadMarker::new().expect("the main queue runs on the AppKit thread");
+        if let Some(window) = window.into_inner(mtm).upgrade() { action(&window); }
+    });
+}
+
 pub fn run(mut app: App) -> Result<(), String> {
     let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
     let proxy = event_loop.create_proxy();
     #[cfg(target_os = "macos")]
     let menu = platform::install_menu({
         let proxy = proxy.clone();
-        move || {
-            let _ = proxy.send_event(UserEvent::Close);
+        move |action| {
+            let _ = proxy.send_event(match action {
+                platform::MenuAction::Settings => UserEvent::OpenSettings,
+                platform::MenuAction::Quit => UserEvent::Close,
+            });
         }
     })?;
+    let settings_shortcut = (!app.smoke).then(|| crate::desktop_shortcut::settings({
+        let proxy = proxy.clone();
+        move || { let _ = proxy.send_event(UserEvent::OpenSettings); }
+    })).flatten();
     let builder = WindowBuilder::new()
         .with_title("Navigator")
         .with_inner_size(LogicalSize::new(1280.0, 800.0))
@@ -190,10 +210,13 @@ pub fn run(mut app: App) -> Result<(), String> {
     let mut installing = false;
     let mut closing = false;
     let mut fullscreen = false;
+    let mut loaded = false;
+    let mut settings_pending = false;
     let mut window_controls_visible = true;
     let titlebar_action = Rc::new(platform::TitlebarAction::default());
     let mut next_update_probe = Instant::now();
     event_loop.run(move |event, _, flow| {
+        let _settings_shortcut = &settings_shortcut;
         // AppKit/Dock quit can destroy the loop without a CloseRequested event.
         // Stop the owned backend here rather than relying on process-exit drops.
         if matches!(&event, Event::LoopDestroyed) {
@@ -307,6 +330,10 @@ pub fn run(mut app: App) -> Result<(), String> {
                 }
             }
             Event::UserEvent(UserEvent::SyncFullscreen) => {
+                loaded = true;
+                if std::mem::take(&mut settings_pending) {
+                    let _ = webview.evaluate_script(&receive(&json!({"type":"open-settings"})));
+                }
                 // A document reload must not leave playback-only chrome hidden.
                 window_controls_visible = true;
                 #[cfg(target_os = "macos")]
@@ -319,6 +346,11 @@ pub fn run(mut app: App) -> Result<(), String> {
                 if let Some(updater) = &updater { updater.cancel_pending_install(); }
                 closing = true;
                 player.begin_shutdown();
+            }
+            Event::UserEvent(UserEvent::OpenSettings) if !closing => {
+                defer_window_action(&window, |window| { window.set_minimized(false); window.set_focus(); });
+                if loaded { let _ = webview.evaluate_script(&receive(&json!({"type":"open-settings"}))); }
+                else { settings_pending = true; }
             }
             Event::WindowEvent {
                 event: WindowEvent::Resized(size),

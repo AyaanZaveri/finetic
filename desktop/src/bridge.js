@@ -10,6 +10,10 @@
         fullscreen = message.value;
         mark();
       }
+      if (message.type === "open-settings") {
+        document.documentElement?.setAttribute("data-desktop-settings-pending", "");
+        document.dispatchEvent(new Event("navigatoropensettings"));
+      }
       for (const listener of [...listeners]) {
         try { listener(message); } catch (error) { console.error(error); }
       }

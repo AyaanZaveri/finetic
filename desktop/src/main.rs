@@ -10,6 +10,8 @@ mod media_cache;
 #[cfg(any(target_os = "macos", test))]
 mod frame_schedule;
 mod platform;
+#[cfg(any(windows, target_os = "macos"))]
+mod desktop_shortcut;
 mod player;
 mod protocol;
 mod render;
