@@ -1,4 +1,7 @@
-param([Parameter(Mandatory)][ValidateSet('0.6.5','0.6.6')][string]$SourceVersion)
+param(
+    [Parameter(Mandatory)][ValidateSet('0.6.5','0.6.6','0.6.7')][string]$SourceVersion,
+    [Parameter(Mandatory)][string]$TargetVersion
+)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $PSNativeCommandUseErrorActionPreference = $true
@@ -13,9 +16,9 @@ $executable = Join-Path $install 'navigator-desktop.exe'
 $startup = Join-Path $data 'startup.jsonl'
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--force-renderer-accessibility'
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
-$fixture = $SourceVersion -eq '0.6.6'
+$fixture = $SourceVersion -eq $TargetVersion
 $app = $null
-$mode = if ($fixture) { 'released 0.6.6 with CI-signed reinstall fixture' } else { 'public 0.6.5 to 0.6.6' }
+$mode = if ($fixture) { 'released 0.6.6 with CI-signed reinstall fixture' } else { "public $SourceVersion to $TargetVersion" }
 
 function Wait-For([scriptblock]$Condition, [int]$Seconds, [string]$Description) {
     $end = [DateTime]::UtcNow.AddSeconds($Seconds)
@@ -58,8 +61,11 @@ try {
     New-Item -ItemType Directory -Force $root | Out-Null
     $file = "Navigator-$SourceVersion-windows-x64-setup.exe"
     $installer = Join-Path $root $file
-    $digest = if ($fixture) { '14ebba555af3224a6d967e6c9bf938590315a99eb4f9e55238109aaafa220cfc' }
-        else { 'a87acae479770f99851055edfde37182d256e635948a3ecc0b94308aa9466e9c' }
+    $digest = @{
+        '0.6.5' = 'a87acae479770f99851055edfde37182d256e635948a3ecc0b94308aa9466e9c'
+        '0.6.6' = '14ebba555af3224a6d967e6c9bf938590315a99eb4f9e55238109aaafa220cfc'
+        '0.6.7' = '7e6ce2d3cea576da6f8e4d6b917e7bf42936f01be7e5b916741997ea40589682'
+    }[$SourceVersion]
     curl.exe --fail --silent --show-error --location --retry 3 --output $installer "https://github.com/AyaanZaveri/navigator/releases/download/release-v$SourceVersion/$file"
     if ((Get-FileHash $installer).Hash -ne $digest) { throw 'Released installer checksum mismatch.' }
     $setup = Start-Process -FilePath $installer -ArgumentList '/S', "/D=$install" -PassThru
@@ -101,7 +107,7 @@ try {
     $relaunch = Wait-For {
         if (Test-Path $failure) { throw "Updater reported failure: $(Get-Content -Raw $failure)" }
         if ((Test-Path $ready) -or (Test-Path $marker)) { return }
-        if ((Get-Version) -notmatch '^0\.6\.6(\b|\.0$)') { return }
+        if ((Get-Version) -notmatch "^$([regex]::Escape($TargetVersion))(\.0)?$") { return }
         Get-Process -Name 'navigator-desktop' -ErrorAction SilentlyContinue |
             Where-Object { $_.Id -ne $oldPid -and $_.Path -eq $executable } | Select-Object -First 1
     } 200 'a successful install and new Navigator process'
@@ -114,7 +120,8 @@ try {
     }
     $record | ConvertTo-Json | Tee-Object -FilePath (Join-Path $results 'result.json')
 } finally {
-    foreach ($file in @((Join-Path $data 'startup.jsonl'), $failure)) {
+    Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like "$root*" -or $_.ExecutablePath -like "$cache*" } | Select-Object Name, ProcessId, ParentProcessId, CommandLine | ConvertTo-Json | Set-Content (Join-Path $results 'processes.json')
+    foreach ($file in @((Join-Path $data 'startup.jsonl'), (Join-Path $data 'installation.jsonl'), (Join-Path $data 'installation.log'), $failure)) {
         if (Test-Path $file) { Copy-Item $file $results.FullName }
     }
     if ($app -and !$app.HasExited) { Stop-Process -Id $app.Id -ErrorAction SilentlyContinue }
