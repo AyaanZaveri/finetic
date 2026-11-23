@@ -110,7 +110,7 @@ try {
             # Same-length corruption in a reused file must reject the delta.
             $manifest = Join-Path $install 'release-manifest.json'
             $old = Get-Content -Raw $manifest
-            Set-Content -NoNewline $manifest $old.Replace('"version":"0.6.8"', '"version":"0.6.0"')
+            [IO.File]::WriteAllText($manifest, $old.Replace('"version":"0.6.8"', '"version":"0.6.0"'))
             if ((Get-Content -Raw $manifest | ConvertFrom-Json).version -ne '0.6.0') { throw 'Fixture did not corrupt delta base metadata.' }
         }
         $helper = Join-Path $install 'resources\background-update.cjs'
