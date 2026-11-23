@@ -14,7 +14,7 @@ function load(file, globals = {}) {
 const artwork = load('lib/artwork.ts');
 const description = load('lib/media-description.ts');
 function setup(items, metadata = { id: 'tt0816692', name: 'Interstellar', type: 'movie', year: 2014, description: 'Complete.' },
-  { tmdbConfigured = true } = {}) {
+  { tmdbConfigured = true, provider = 'auto' } = {}) {
   const calls = [], pending = [];
   const tmdb = { getTMDBArtwork: async (_id, _type, kind) =>
     tmdbConfigured && kind === 'backdrop' ? 'https://image.tmdb.org/t/p/original/backdrop.jpg' : undefined };
@@ -33,6 +33,7 @@ function setup(items, metadata = { id: 'tt0816692', name: 'Interstellar', type: 
       };
       if (name === '@/lib/server/catalog-cache') return {};
       if (name === '@/lib/server/media-artwork') return artworkResolver;
+      if (name === '@/lib/server/metadata-provider') return { getMetadataProvider: async () => provider };
       if (name === '@/lib/tmdb-artwork') return tmdb;
       if (name === '@/lib/artwork') return artwork;
             if (name === '@/lib/series-route') return load('lib/series-route.ts');
@@ -84,16 +85,18 @@ async function run() {
     { ...raw, _id: 'tt9805674', background: savedBackdrop },
     { ...raw, _id: 'tmdb:42' },
   ];
-  const fallback = setup(history, undefined, { tmdbConfigured: false });
-  const results = new Map(Array.from(await fallback.actions.fetchResumeItems(), item => [item.id, item]));
-  assert.equal(results.get('tt2854926').background, 'https://images.metahub.space/background/medium/tt2854926/img');
-  assert.equal(results.get('tt2854926').poster, savedPoster, 'Retain known history artwork');
-  assert.equal(results.get('tt9140554').background, 'https://images.metahub.space/background/medium/tt9140554/img');
-  assert.equal(results.get('tt9140554').mediaSourceId, 'tt9140554:1:3');
-  assert.equal(results.get('tt9140554').resumePositionTicks, 600);
-  assert.equal(results.get('tt9805674').background, savedBackdrop);
-  assert.equal(results.get('tmdb:42').background, undefined);
-  assert.deepEqual(fallback.calls, ['library'], 'No title metadata requests for missing resume artwork');
+  for (const choice of [{ tmdbConfigured: false }, { provider: 'cinemeta' }]) {
+    const fallback = setup(history, undefined, choice);
+    const results = new Map(Array.from(await fallback.actions.fetchResumeItems(), item => [item.id, item]));
+    assert.equal(results.get('tt2854926').background, 'https://images.metahub.space/background/medium/tt2854926/img');
+    assert.equal(results.get('tt2854926').poster, savedPoster, 'Retain known history artwork');
+    assert.equal(results.get('tt9140554').background, 'https://images.metahub.space/background/medium/tt9140554/img');
+    assert.equal(results.get('tt9140554').mediaSourceId, 'tt9140554:1:3');
+    assert.equal(results.get('tt9140554').resumePositionTicks, 600);
+    assert.equal(results.get('tt9805674').background, savedBackdrop);
+    if (!choice.tmdbConfigured && !choice.provider) assert.equal(results.get('tmdb:42').background, undefined);
+    assert.deepEqual(fallback.calls, ['library'], 'No title metadata requests for missing resume artwork');
+  }
 
   const short = await setup([{ ...raw, state: { timeOffset: 1500, duration: 8000 } }]).actions.fetchResumeItems();
   assert.equal(short[0].resumePositionTicks, 1.5, 'Stremio offsets are milliseconds even for short media');

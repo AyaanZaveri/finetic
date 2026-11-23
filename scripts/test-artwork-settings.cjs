@@ -35,6 +35,7 @@ async function run() {
             if (name === "next/cache") return { revalidatePath: (...args) => invalidated.push(args) };
             if (name === '@/app/actions/auth' || name === '@/lib/server/auth') return { getUser: async () => signedIn ? { _id: "fixture" } : null };
             if (name === "@/lib/tmdb-credentials") return credentials;
+            if (name === "@/lib/server/metadata-provider") return provider;
             if (name === "@/lib/cookie-policy") return policy;
             throw new Error(`Unexpected import: ${name}`);
         },
@@ -46,9 +47,13 @@ async function run() {
     };
     const policy = load("lib/cookie-policy.ts", globals);
     const credentials = load("lib/tmdb-credentials.ts", globals);
+    const provider = load("lib/server/metadata-provider.ts", globals);
     const settings = load("app/actions/artwork-settings.ts", globals);
     assert.equal(await credentials.getTMDBToken(), undefined, "Desktop artwork must not depend on .env");
     assert.equal((await settings.getArtworkSettings()).configured, false);
+    assert.equal((await settings.getArtworkSettings()).provider, "auto");
+    assert.equal((await settings.saveMetadataProvider("tmdb")).success, false);
+    assert.equal((await settings.saveMetadataProvider("invalid")).success, false);
     for (const bad of ["", " \n ", "bad\r\nheader", "x".repeat(2049)]) {
         assert.equal((await settings.saveArtworkToken(bad)).success, false);
     }
@@ -64,6 +69,10 @@ async function run() {
     assert.equal(writes[0].options.path, "/");
     assert.ok(writes[0].options.maxAge >= 365 * 24 * 60 * 60);
     assert.equal(await credentials.getTMDBToken(), "fixture-read-token");
+    assert.equal((await settings.saveMetadataProvider("cinemeta")).success, true);
+    assert.equal((await settings.getArtworkSettings()).provider, "cinemeta");
+    assert.equal(await credentials.getTMDBToken(), "fixture-read-token", "Changing the preferred provider keeps the connection");
+    assert.equal((await settings.saveMetadataProvider("tmdb")).success, true);
     assert.equal((await settings.getArtworkSettings()).personal, true);
     assert.ok(!JSON.stringify(await settings.getArtworkSettings()).includes("fixture-read-token"), "Saved credentials are never returned to the client");
     responseStatus = 401;
@@ -88,6 +97,7 @@ async function run() {
     await assert.rejects(settings.getArtworkSettings(), /Sign in/);
     assert.equal((await settings.saveArtworkToken("unauthenticated")).success, false);
     assert.equal((await settings.removeArtworkToken()).success, false);
+    assert.equal((await settings.saveMetadataProvider("auto")).success, false);
     assert.equal(requests.length, requestCount);
     assert.equal(writes.length, writeCount);
     assert.equal(await credentials.getTMDBToken(), "hosted-fallback", "Guests use the hosted key even when a previous account's token remains saved");

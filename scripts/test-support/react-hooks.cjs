@@ -15,6 +15,7 @@ function load(file, dependencies = {}, globals = {}) {
         return dependency;
       }
       if (name === '@/components/metadata-hydration') return { MetadataHydration: 'metadata-hydration', MetadataPage: 'metadata-page' };
+      if (name === '@/lib/server/metadata-provider' || name === './metadata-provider') return { getMetadataProvider: async () => 'auto' };
       // Legacy fixtures isolate external provider boundaries. Shared query
       // behavior is exercised with a real QueryClient in test-stream-queries.
       if (name === '@/components/stream-query-provider') return { useStreamQueries: () => null, useMetadataQueries: () => undefined, useMetadataWarmup: () => undefined, StreamQueryProvider: 'stream-queries' };

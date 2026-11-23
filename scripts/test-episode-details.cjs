@@ -12,6 +12,7 @@ const context = { exports: {}, console, AbortSignal,
     require(name) {
         if (name === '@/lib/server/metadata-cache') return serverCache;
         if (name === '@/lib/server/metadata-identity') return { metadataIdentity: async () => ({ scope: 'fixture', revision: unavailable ? 'fallback' : 'healthy' }) };
+        if (name === '@/lib/server/metadata-provider') return { getMetadataProvider: async () => 'auto' };
         if (name === '@/lib/media/metadata') return projections;
         if (name === '@/lib/series-route') return require('./test-support/react-hooks.cjs').load('lib/series-route.ts');
         if (name === "@/lib/server/outbound-fetch") return { outboundFetch: (...args) => context.fetch(...args) };

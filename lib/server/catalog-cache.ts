@@ -4,6 +4,8 @@ import { unstable_cache } from "next/cache";
 import { cache } from "react";
 import { getTMDBArtworkWithToken } from "@/lib/tmdb-artwork";
 import { getTMDBToken } from "@/lib/tmdb-credentials";
+import { getMetadataProvider } from "@/lib/server/metadata-provider";
+import { cinemetaTitleArtwork } from "@/lib/artwork";
 import { getAuthData } from "@/lib/server/auth";
 import { opaqueMetadataIdentity } from "@/lib/server/metadata-cache";
 import { outboundFetch } from "@/lib/server/outbound-fetch";
@@ -20,10 +22,10 @@ export async function readCatalog(
 ): Promise<MediaItem[]> {
     signal?.throwIfAborted();
     // Read cookies before entering the data cache and share the token across rows.
-    const [session, token] = await Promise.all([getAuthData(), readArtworkToken()]);
+    const [session, token, provider] = await Promise.all([getAuthData(), readArtworkToken(), getMetadataProvider()]);
     signal?.throwIfAborted();
     const identity = opaqueMetadataIdentity([
-        session.user._id, session.issuedAt, session.authKey, transportUrl, type, catalogId, token, maxItems,
+        session.user._id, session.issuedAt, session.authKey, transportUrl, type, catalogId, token, provider, maxItems,
     ]);
     const read = unstable_cache(async () => {
         // A caller leaving must not cancel a cache fill used by another caller.
@@ -35,8 +37,11 @@ export async function readCatalog(
         const data = await response.json() as StremioCatalogResponse;
         if (!Array.isArray(data.metas)) throw new Error("Invalid catalog response");
         const items = data.metas.slice(0, maxItems).map(normalize);
-        return resolveArtworkList(items, false, (id, mediaType, kind) =>
-            getTMDBArtworkWithToken(token, id, mediaType, kind));
+        return resolveArtworkList(items, false, async (id, mediaType, kind) => {
+            const fallback = cinemetaTitleArtwork(id, kind);
+            if (provider === "cinemeta" && fallback) return fallback;
+            return await getTMDBArtworkWithToken(token, id, mediaType, kind) ?? fallback;
+        });
     }, ["catalog-items-v2", identity], { revalidate: 60 });
     const items = await read();
     signal?.throwIfAborted();

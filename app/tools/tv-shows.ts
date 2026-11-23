@@ -1,6 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { getTMDBSeasons as fetchSeasons, getTMDBEpisodes as fetchEpisodes } from "@/lib/tmdb-discovery";
+import { fetchSeasons, fetchEpisodes } from "@/app/actions/tv-shows";
 
 function parseSeasonId(seasonId: string): { seriesId: string; seasonNumber?: number } {
     const trimmed = seasonId.trim();
@@ -36,7 +36,7 @@ function formatReleaseDate(released?: string): string | null {
 
 export const getSeasons = tool({
     description:
-    "List seasons from TMDB when the user wants to browse a show's seasons. Not needed for playback with known episode coordinates or 'first episode' (season 1, episode 1).",
+    "List seasons when the user wants to browse a show's seasons. Not needed for playback with known episode coordinates or 'first episode' (season 1, episode 1).",
     inputSchema: z.object({
         tvShowId: z.string().describe("The unique ID of the TV show"),
     }),
@@ -47,7 +47,6 @@ export const getSeasons = tool({
             const seasons = await fetchSeasons(tvShowId, abortSignal);
             return {
                 success: true,
-                source: "TMDB",
                 seasons: seasons.map((season) => ({
                     id: `${tvShowId}:${season.number}`,
                     name: season.name,
@@ -62,7 +61,7 @@ export const getSeasons = tool({
             abortSignal?.throwIfAborted();
             return {
                 success: false,
-                error: error instanceof Error ? error.message : "TMDB season lookup failed.",
+                error: error instanceof Error ? error.message : "Season lookup failed.",
                 seasons: [],
             };
         }
@@ -71,7 +70,7 @@ export const getSeasons = tool({
 
 export const getEpisodes = tool({
     description:
-    "List episodes from TMDB when the user wants to browse a season. seasonId is '<seriesId>:<seasonNumber>', e.g. 'tmdb:114294:1'. Not needed to play a known episode number or the first episode; call playMedia directly with coordinates.",
+    "List episodes when the user wants to browse a season. seasonId is '<seriesId>:<seasonNumber>', e.g. 'tmdb:114294:1'. Not needed to play a known episode number or the first episode; call playMedia directly with coordinates.",
     inputSchema: z.object({
         seasonId: z.string().describe("The unique ID of the season"),
         page: z.number().int().min(1).optional(),
@@ -103,7 +102,6 @@ export const getEpisodes = tool({
 
             return {
                 success: true,
-                source: "TMDB",
                 episodes: trimmedEpisodes.map((episode) => ({
                     id: episode.id,
                     type: "Episode",

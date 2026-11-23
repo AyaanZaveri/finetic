@@ -6,6 +6,7 @@ import { readCatalog } from "@/lib/server/catalog-cache";
 
 import { cinemetaTitleArtwork, publicArtworkUrl } from "@/lib/artwork";
 import { resolveMediaArtwork, resolveArtworkList } from "@/lib/server/media-artwork";
+import { getMetadataProvider, type MetadataProvider } from "@/lib/server/metadata-provider";
 import { getTMDBArtwork } from "@/lib/tmdb-artwork";
 
 import type {
@@ -235,9 +236,11 @@ export async function fetchMediaDetails(mediaItemId: string, type: string = "mov
   const { metadataIdentity } = await import("@/lib/server/metadata-identity");
   const { serverMetadataCache, opaqueMetadataIdentity } = await import("@/lib/server/metadata-cache");
   const { titleEnvelope } = await import("@/lib/media/metadata");
-  const { scope, revision } = await metadataIdentity();
+  const { scope, revision, provider, tmdbConfigured } = await metadataIdentity();
+  const preferConfiguredProvider = provider === "tmdb" || (provider === "auto" && !options?.playback);
+  const preferredProvider = preferConfiguredProvider ? (tmdbConfigured ? "tmdb" : "cinemeta") : provider;
   return serverMetadataCache.read(opaqueMetadataIdentity([scope, revision, "title", mediaItemId, type, Boolean(options?.playback)]), async sharedSignal => {
-    const item = await fetchMediaDetailsUncached(mediaItemId, type, sharedSignal, options);
+    const item = await fetchMediaDetailsUncached(mediaItemId, type, sharedSignal, preferredProvider, options);
     if (item) titleEnvelope(item, Date.now());
     return item;
   }, signal);
@@ -245,35 +248,49 @@ export async function fetchMediaDetails(mediaItemId: string, type: string = "mov
 
 async function fetchMediaDetailsUncached(
   mediaItemId: string,
-  type: string = "movie",
-  signal?: AbortSignal,
+  type: string,
+  signal: AbortSignal,
+  provider: MetadataProvider,
   options?: { playback?: boolean },
 ): Promise<MediaItem | null> {
   try {
     // Next's route params can retain percent-encoded separators. Normalize
     // before choosing the public TMDB path versus account-owned add-ons.
     try { mediaItemId = decodeURIComponent(mediaItemId); } catch { /* Keep invalid encodings bounded by the existing ID checks. */ }
+    const builtInDetails = async (id = mediaItemId) => {
+      if ((type !== "movie" && type !== "series") || !/^tt\d+$/.test(id)) return null;
+      if (options?.playback) await getAuthData();
+      const { cinemetaMetadata } = await import("@/lib/cinemeta");
+      const meta = await cinemetaMetadata(type, id, signal);
+      return meta ? fullMetaToMediaItem(meta) : null;
+    };
     if (/^tmdb:[1-9]\d*$/.test(mediaItemId) && (type === "movie" || type === "series")) {
       if (options?.playback) await getAuthData();
       const { tmdbMediaItem, resolveTMDBPlaybackId } = await import("@/lib/tmdb-discovery");
-      if (options?.playback) {
+      if (provider === "cinemeta" || (options?.playback && provider !== "tmdb")) {
         try {
           const resolved = await resolveTMDBPlaybackId(mediaItemId, type, signal);
           if (resolved !== mediaItemId) {
-            const addonDetails = await fetchMediaDetails(resolved, type, signal, options);
-            if (addonDetails) return addonDetails;
+            const details = options?.playback && provider !== "cinemeta"
+              ? await fetchMediaDetails(resolved, type, signal, options)
+              : await builtInDetails(resolved);
+            if (details) return provider === "cinemeta" ? { ...details, tmdbId: Number(mediaItemId.slice(5)), imdbId: resolved } : details;
           }
         } catch { signal?.throwIfAborted(); }
       }
       return await tmdbMediaItem(mediaItemId, type, signal);
     }
-    const builtInDetails = async () => {
-      if ((type !== "movie" && type !== "series") || !/^tt\d+$/.test(mediaItemId)) return null;
-      if (options?.playback) await getAuthData();
-      const { cinemetaMetadata } = await import("@/lib/cinemeta");
-      const meta = await cinemetaMetadata(type, mediaItemId, signal);
-      return meta ? fullMetaToMediaItem(meta) : null;
-    };
+    if (/^tt\d+$/.test(mediaItemId) && (type === "movie" || type === "series")) {
+      if (provider === "cinemeta") {
+        const details = await builtInDetails().catch(() => { signal.throwIfAborted(); return null; });
+        if (details) return details;
+      } else if (provider === "tmdb") {
+        if (options?.playback) await getAuthData();
+        const { tmdbMediaItem } = await import("@/lib/tmdb-discovery");
+        const details = await tmdbMediaItem(mediaItemId, type, signal).catch(() => { signal.throwIfAborted(); return null; });
+        if (details) return options?.playback ? { ...details, id: mediaItemId } : details;
+      }
+    }
     const addons = await getInstalledAddons();
 
     // Try addons that support meta for this type  
@@ -458,10 +475,17 @@ export async function fetchSimilarItems(
   type: string = "movie",
   limit: number = 12
 ): Promise<MediaItem[]> {
-  // Stremio doesn't have a direct "similar items" endpoint.
-  // We can try fetching from the same catalog or use IMDB relations.
-  // For now, return items from the same catalog type
-  const items = await fetchCatalogItems(type, "top", undefined, undefined, limit + 1);
+  if (type !== "movie" && type !== "series") return [];
+  const { hasTMDBDiscovery } = await import("@/lib/discovery");
+  if (await hasTMDBDiscovery()) {
+    const { getTMDBRecommendations } = await import("@/lib/tmdb-discovery");
+    const recommendations = await getTMDBRecommendations(itemId, type).catch(() => []);
+    if (recommendations.length) return recommendations.slice(0, limit);
+  }
+  // Cinemeta does not expose a recommendations feed.
+  const { cinemetaCatalog } = await import("@/lib/cinemeta");
+  const items = await cinemetaCatalog(type).catch(() =>
+    fetchCatalogItems(type, "top", undefined, undefined, limit + 1));
   return items.filter((item) => item.id !== itemId).slice(0, limit);
 }
 
@@ -755,9 +779,12 @@ async function upsertPlaybackState(
 
     const poster = firstString(existingItem?.poster, input.poster);
     // Stremio sync needs a public image URL, not our app-relative redirect.
-    const libraryPoster = !publicArtworkUrl(poster)
-      ? await getTMDBArtwork(input.libraryItemId, input.mediaType, "poster")
-      : poster;
+    let libraryPoster = publicArtworkUrl(poster);
+    if (!libraryPoster) {
+      const fallback = cinemetaTitleArtwork(input.libraryItemId, "poster");
+      libraryPoster = ((await getMetadataProvider() === "cinemeta" && fallback) ||
+        await getTMDBArtwork(input.libraryItemId, input.mediaType, "poster")) ?? fallback;
+    }
 
     const payload: LibraryItemPayload = {
       ...existingItem,
@@ -898,8 +925,23 @@ function normalizeYear(value: unknown): number | undefined {
  * episode lists, or synopsis repair. The caller streams this behind Suspense. */
 export async function fetchResumeMovieYear(mediaItemId: string): Promise<number | null> {
   try {
+    const cinemetaYear = async () => {
+      const { cinemetaMetadata } = await import("@/lib/cinemeta");
+      const meta = await cinemetaMetadata("movie", mediaItemId);
+      return releaseYear(meta?.year, meta?.releaseInfo) ?? null;
+    };
+    const provider = await getMetadataProvider();
+    if (provider !== "cinemeta" && (provider === "tmdb" || /^tmdb:[1-9]\d*$/.test(mediaItemId))) {
+      const { getTMDBTitle } = await import("@/lib/tmdb-discovery");
+      const year = await getTMDBTitle(mediaItemId, "movie").then(item => item.year).catch(() => undefined);
+      if (year) return year;
+    }
+    if (provider === "cinemeta") {
+      const year = await cinemetaYear().catch(() => null);
+      if (year) return year;
+    }
     const addons = await getInstalledAddons();
-    return await Promise.any(addons
+    const year = await Promise.any(addons
       .filter((addon) => addonSupportsResource(addon, "meta", "movie"))
       .map(async (addon) => {
         const data = await fetchAddonResource<StremioMetaResponse>(
@@ -910,6 +952,7 @@ export async function fetchResumeMovieYear(mediaItemId: string): Promise<number 
         if (year === undefined) throw new Error("No movie year");
         return year;
       })).catch(() => null);
+    return year ?? (provider === "cinemeta" ? null : await cinemetaYear());
   } catch {
     return null;
   }
@@ -1081,8 +1124,12 @@ export async function fetchResumeItems(): Promise<MediaItem[]> {
         };
       });
 
-    return resolveArtworkList(resumeItems, true, async (id, type, kind) =>
-      await getTMDBArtwork(id, type, kind) ?? cinemetaTitleArtwork(id, kind));
+    const provider = await getMetadataProvider();
+    return resolveArtworkList(resumeItems, true, async (id, type, kind) => {
+      const fallback = cinemetaTitleArtwork(id, kind);
+      if (provider === "cinemeta" && fallback) return fallback;
+      return await getTMDBArtwork(id, type, kind) ?? fallback;
+    });
   } catch (error) {
     console.error("Failed to fetch resume items:", error);
     throw new Error("Could not refresh Continue Watching");

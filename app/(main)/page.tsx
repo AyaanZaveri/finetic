@@ -1,4 +1,5 @@
 import { cinemetaHomeRows, hasTMDBDiscovery } from "@/lib/discovery";
+import { getMetadataProvider } from "@/lib/server/metadata-provider";
 import { fetchCatalogItems } from "@/app/actions/media";
 import { getInstalledAddons, getUser } from "@/app/actions/auth";
 import { getTMDBHomeRows } from "@/lib/tmdb-discovery";
@@ -93,8 +94,8 @@ async function CatalogSectionsBootstrap({
   catalogEntriesPromise: Promise<HomeCatalogEntry[] | null>;
 }) {
   const catalogEntries = await catalogEntriesPromise;
-  if (!catalogEntries) return <HomeCatalogsUnavailable />;
-  if (catalogEntries.length === 0) return <DiscoverySections />;
+  if (!catalogEntries?.length) return <DiscoverySections />;
+  const preferredProvider = await getMetadataProvider();
 
   const initialEntries = catalogEntries.slice(0, INITIAL_CATALOG_COUNT);
   const remainingEntries = catalogEntries.slice(INITIAL_CATALOG_COUNT);
@@ -105,14 +106,15 @@ async function CatalogSectionsBootstrap({
       .catch(() => ({ status: "error" as const })),
   }));
 
-  return (
+  return <>
+    {preferredProvider !== "auto" && <DiscoverySections />}
     <HomeCatalogSectionsLazy
       initialSections={[]}
       initialRows={initialRows}
       remainingEntries={remainingEntries}
       batchSize={CATALOG_BATCH_SIZE}
     />
-  );
+  </>;
 }
 
 async function DiscoverySections() {

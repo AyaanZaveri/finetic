@@ -38,6 +38,7 @@ async function run() {
     const globals = {
         require: name => {
             if (name === './auth' || name === '@/lib/server/auth') return { getAuthData: async () => ({ authKey: 'test-only' }) };
+            if (name === '@/lib/server/metadata-provider') return { getMetadataProvider: async () => 'auto' };
             if (name === '@/lib/tmdb-artwork') return { getTMDBArtwork: async () => undefined };
             if (name === './tv-shows') return { fetchEpisodes: async (id, _season, _signal, includeArtwork) => {
                 assert.equal(includeArtwork, false, 'History reads and writes must not resolve episode thumbnails');

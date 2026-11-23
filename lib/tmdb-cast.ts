@@ -3,9 +3,11 @@ import "server-only";
 import { normalizeCast, type CastMember, type TMDBCastCredit } from "@/lib/cast";
 import { fetchTMDB, resolveTMDBId } from "@/lib/tmdb";
 import { getTMDBToken } from "@/lib/tmdb-credentials";
+import { getMetadataProvider } from "@/lib/server/metadata-provider";
 
 export async function getMediaCast(id: string, type: "movie" | "series", names: string[] = []): Promise<{ members: CastMember[]; sourceUrl?: string }> {
     const fallback = { members: [...new Set(names)].slice(0, 30).map((name) => ({ id: name, name })) };
+    if (await getMetadataProvider() === "cinemeta") return fallback;
     const token = await getTMDBToken();
     if (!token) return fallback;
 

@@ -5,7 +5,7 @@ import { getTinyfishConfig } from "@/lib/tinyfish-credentials";
 import { researchMediaWeb } from "@/lib/tinyfish";
 import { createEpisodeResearch } from "@/lib/episode-research";
 import { navigateToEpisode, navigateToMedia, playMedia, playMediaInputSchema } from "./media";
-import { getTMDBEpisode } from "@/lib/tmdb-discovery";
+import { fetchEpisodeDetails } from "@/app/actions/tv-shows";
 import { record } from "@/lib/navigator-chat";
 
 const queryFields = {
@@ -26,14 +26,14 @@ export function createEpisodeTools(model?: LanguageModel, originalRequest = "") 
             research: config.enabled && config.apiKey ? (query, purpose, signal) => researchMediaWeb(query, purpose, config.apiKey!, signal, results => onProgress?.({ stage: "search", state: "completed", detail: query, sources: results.map(({ url, title }) => ({ url, title })) })) : undefined });
     };
     const findEpisode = tool({
-        description: "Resolve an exact episode title against TMDB, with an optional user-specified season. For remembered scenes/events use getEpisodeCatalog, searchMediaWeb, readMediaWebSources and verifyEpisode so you control the research. Never guess coordinates from memory.",
+        description: "Resolve an exact episode title with an optional user-specified season. For remembered scenes/events use getEpisodeCatalog, searchMediaWeb, readMediaWebSources and verifyEpisode so you control the research. Never guess coordinates from memory.",
         inputSchema: z.object(queryFields),
         execute: resolve,
     });
     return {
         findEpisode,
         getEpisodeCatalog: tool({
-            description: "Inspect a show's TMDB episode catalog across all seasons without plot matching or web research. Use the returned real IDs to identify candidates, and page through the catalog when needed. Can run alongside an independent web search.",
+            description: "Inspect a show's episode catalog across all seasons without plot matching or web research. Use the returned real IDs to identify candidates, and page through the catalog when needed. Can run alongside an independent web search.",
             inputSchema: z.object({ seriesId: z.string(), page: z.number().int().min(1).optional(),
                 seasonNumber: z.number().int().min(0).optional().describe("Only to inspect a known season; never infer a user restriction") }),
             execute: async ({ seriesId, page = 1, seasonNumber }, { abortSignal, context }) => {
@@ -41,7 +41,7 @@ export function createEpisodeTools(model?: LanguageModel, originalRequest = "") 
                     const data = await research.catalog(seriesId, abortSignal, progress(context));
                     const episodes = seasonNumber === undefined ? data.episodes : data.episodes.filter(episode => episode.seasonNumber === seasonNumber);
                     const limit = 40;
-                    return { success: true, source: "TMDB", seriesId: data.seriesId, seriesName: data.seriesName,
+                    return { success: true, source: data.source, seriesId: data.seriesId, seriesName: data.seriesName,
                         episodes: episodes.slice((page - 1) * limit, page * limit), page,
                         count: episodes.length, totalResults: episodes.length, totalPages: Math.ceil(episodes.length / limit) };
                 } catch (error) {
@@ -106,9 +106,10 @@ export function createEpisodeTools(model?: LanguageModel, originalRequest = "") 
                 }
                 if (input.seasonNumber === undefined || input.episodeNumber === undefined) return { success: false, error: "Provide an episode description, or explicit season and episode numbers." };
                 if (input.seriesId) {
-                    const episode = await getTMDBEpisode(input.seriesId, input.seasonNumber, input.episodeNumber, options.abortSignal);
+                    const episode = await fetchEpisodeDetails(input.seriesId, input.seasonNumber, input.episodeNumber, options.abortSignal);
+                    if (!episode) return { success: false, error: "Episode not found." };
                     const action = await navigateToMedia.execute!({ mediaId: episode.id, mediaType: "Episode" }, options);
-                    return { ...action, mediaName: episode.name, mediaType: "Episode", thumbnail: episode.thumbnail,
+                    return { ...action, mediaName: episode.title, mediaType: "Episode", thumbnail: episode.thumbnail,
                         seasonNumber: input.seasonNumber, episodeNumber: input.episodeNumber };
                 }
                 if (!input.seriesQuery) return { success: false, error: "Provide the show title or its known series ID." };

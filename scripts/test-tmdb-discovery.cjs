@@ -82,7 +82,7 @@ async function main() {
     };
     const streamCalls = [];
     const load = loader(globals, {
-        ai: await import('ai'), zod: await import('zod'),
+        ai: await import('ai'), zod: await import('zod'), react: require('react'),
         'next/cache': { unstable_cache: fn => fn },
         'node:fs': { promises: { readFile: async () => { throw new Error('No test cache'); }, writeFile: async () => {} } },
         '@/app/actions/media': {
@@ -92,6 +92,11 @@ async function main() {
         },
         '@/app/actions/search': { searchItems: async () => { throw new Error('Add-on search is forbidden'); } },
         '@/lib/tmdb-credentials': { getTMDBToken: async () => token },
+        '@/lib/server/metadata-provider': { getMetadataProvider: async () => 'auto' },
+        '@/lib/server/metadata-identity': { metadataIdentity: async () => ({ scope: 'fixture', revision: 'tmdb' }) },
+        '@/lib/server/auth': { getAuthData: async () => ({ authKey: 'fixture' }) },
+        '@/lib/server/outbound-fetch': { outboundFetch: async () => { throw new Error('Unexpected add-on metadata request'); } },
+        './auth': { getInstalledAddons: async () => [] },
         '@/app/actions/auth': { getUser: () => getUser() },
     });
     const tmdb = load('lib/tmdb-discovery.ts');

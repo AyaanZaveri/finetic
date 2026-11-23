@@ -17,7 +17,11 @@ function trimSettled() {
     }
 }
 
-/** Public TMDB metadata only: share one read between episode cards and streams.
+export function invalidateSeriesSeasons() {
+    seasons.clear();
+}
+
+/** Share one metadata read between episode cards and streams.
  * Progress/watched state never enters this cache. Last-consumer cleanup aborts
  * pending reads; failed reads and Strict Mode replay remain retryable. */
 export function acquireSeriesSeason(id: string, season: number) {

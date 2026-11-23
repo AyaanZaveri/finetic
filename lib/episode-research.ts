@@ -1,6 +1,7 @@
 import "server-only";
 import type { LanguageModel } from "ai";
-import { getTMDBTitle, getTMDBSeasons, getTMDBEpisodes, mapTMDBSeasons } from "@/lib/tmdb-discovery";
+import { hasTMDBDiscovery } from "@/lib/discovery";
+import { readEpisodeCatalog, readEpisodeCatalogTitle } from "@/lib/server/episode-catalog";
 import { getTinyfishConfig } from "@/lib/tinyfish-credentials";
 import { searchTinyfish, fetchMediaWebSources, type WebEvidence } from "@/lib/tinyfish";
 import { verifyEpisodeSources, type EpisodeCandidate, type EpisodeProgress, type EpisodeResolution } from "@/lib/episode-discovery";
@@ -10,6 +11,7 @@ export interface EpisodeCatalog {
     seriesName: string;
     episodes: EpisodeCandidate[];
     seasonCount: number;
+    source: EpisodeCandidate["source"];
 }
 
 /** Request-local research tools: the agent plans retrieval; only fetched evidence can authorize a selection. */
@@ -31,17 +33,17 @@ export function createEpisodeResearch(model?: LanguageModel, originalRequest = "
         if (!pending) {
             pending = (async () => {
                 onProgress?.({ stage: "episodes", state: "running" });
-                const series = await getTMDBTitle(seriesId, "series", signal);
-                const seasons = series.seasons?.length ? series.seasons : await getTMDBSeasons(series.id, signal);
-                const numbers = seasons.filter(season => season.number > 0).map(season => season.number);
-                const raw = (await mapTMDBSeasons(numbers, season => getTMDBEpisodes(series.id, season, signal), signal)).flat();
+                const useTMDB = await hasTMDBDiscovery();
+                const series = await readEpisodeCatalogTitle(seriesId, useTMDB, signal);
+                const { numbers, episodes: raw } = await readEpisodeCatalog(series, useTMDB, undefined, signal);
+                const source = useTMDB || series.id.startsWith("tmdb:") ? "TMDB" : "Cinemeta";
                 const episodes: EpisodeCandidate[] = raw.map(item => ({ id: item.id, seriesId: series.id, seriesName: series.name,
                     title: item.title, name: item.title, seasonNumber: item.season, episodeNumber: item.episode,
-                    overview: item.overview, thumbnail: item.thumbnail, source: "TMDB", type: "Episode" }));
+                    overview: item.overview, thumbnail: item.thumbnail, source, type: "Episode" }));
                 onProgress?.({ stage: "episodes", state: "completed", catalog: { seriesId: series.id, seriesName: series.name,
                     episodeCount: episodes.length, seasonCount: numbers.length, poster: series.poster, year: series.year,
                     communityRating: series.communityRating, genres: series.genres, overview: series.overview } });
-                return { seriesId: series.id, seriesName: series.name, episodes, seasonCount: numbers.length };
+                return { seriesId: series.id, seriesName: series.name, episodes, seasonCount: numbers.length, source };
             })();
             catalogs.set(seriesId, pending);
             pending.catch(() => { catalogs.delete(seriesId); });
@@ -78,7 +80,7 @@ export function createEpisodeResearch(model?: LanguageModel, originalRequest = "
         const sources = [...new Set(input.sourceIds)].map(id => [...pages.values()].find(page => page.id === id));
         if (!sources.length || sources.some(source => !source)) return failure("Read the supporting source pages first. Only source IDs fetched during this request can verify an episode.");
         const data = await catalog(input.seriesId, signal, onProgress);
-        if (!data.episodes.some(episode => episode.id === input.episodeId)) return failure("Select an episode ID from the supplied TMDB catalog.");
+        if (!data.episodes.some(episode => episode.id === input.episodeId)) return failure("Select an episode ID from the supplied catalog.");
         const result = await verifyEpisodeSources(data.episodes, sources as WebEvidence[], originalRequest || input.episodeQuery,
             { model, signal, onProgress });
         if (result.success && result.episodes[0].id !== input.episodeId) return failure("The sources verify a different episode. Inspect the catalog and correct the selected ID.");

@@ -1,11 +1,13 @@
 import "server-only";
 import { cache } from "react";
 import { cinemetaCatalog, cinemetaSearch } from "@/lib/cinemeta";
-import { getTMDBHomeRows, searchTMDBCatalog } from "@/lib/tmdb-discovery";
+import { getTMDBHomeRows, searchTMDBCatalog, searchTMDBMedia } from "@/lib/tmdb-discovery";
 import { getTMDBToken } from "@/lib/tmdb-credentials";
+import { getMetadataProvider } from "@/lib/server/metadata-provider";
 import type { HomeCatalogResult, InitialHomeCatalog } from "@/lib/home-catalogs";
 
-export const hasTMDBDiscovery = cache(async () => Boolean(await getTMDBToken()));
+export const hasTMDBDiscovery = cache(async () =>
+    await getMetadataProvider() !== "cinemeta" && Boolean(await getTMDBToken()));
 
 export function cinemetaHomeRows(only?: ReadonlySet<string>, signal?: AbortSignal): InitialHomeCatalog[] {
     return (["movie", "series"] as const).flatMap(type => {
@@ -29,8 +31,20 @@ export async function searchDiscovery(query: string, signal?: AbortSignal, type?
     if (await hasTMDBDiscovery()) {
         return { ...await searchTMDBCatalog(query, signal, type, page), provider: "TMDB" as const };
     }
+    if (type === "person") return { results: [], page, totalPages: 0, totalResults: 0, provider: "Cinemeta" as const };
+    return searchCinemetaTitles(query, signal, type, page);
+}
+
+export async function searchDiscoveryTitles(query: string, signal?: AbortSignal, type?: "movie" | "series", page = 1) {
+    if (await hasTMDBDiscovery()) {
+        return { ...await searchTMDBMedia(query, signal, type, page), provider: "TMDB" as const };
+    }
+    return searchCinemetaTitles(query, signal, type, page);
+}
+
+async function searchCinemetaTitles(query: string, signal: AbortSignal | undefined, type: "movie" | "series" | undefined, page: number) {
     const trimmed = query.trim();
-    const types: ("movie" | "series")[] = type === "person" || page !== 1 || !trimmed ? []
+    const types: ("movie" | "series")[] = page !== 1 || !trimmed ? []
         : type ? [type] : ["movie", "series"];
     const [primary = [], secondary = []] = await Promise.all(types.map(kind => signal
         ? cinemetaCatalog(kind, trimmed, signal)
@@ -42,5 +56,6 @@ export async function searchDiscovery(query: string, signal?: AbortSignal, type?
         if (primary[index]) results.push(primary[index]);
         if (secondary[index]) results.push(secondary[index]);
     }
-    return { results, page, totalPages: results.length ? 1 : 0, totalResults: results.length, provider: "Cinemeta" as const };
+    return { results: results.map(item => ({ ...item, overview: item.description, source: "Cinemeta" as const })),
+        page, totalPages: results.length ? 1 : 0, totalResults: results.length, provider: "Cinemeta" as const };
 }

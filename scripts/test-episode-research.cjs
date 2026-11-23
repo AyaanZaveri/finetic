@@ -16,6 +16,9 @@ async function main() {
   ];
   const overrides = {
     'server-only': {}, zod,
+    '@/lib/discovery': { hasTMDBDiscovery: async () => true },
+    '@/app/actions/tv-shows': { fetchEpisodeDetails: async (_id, season, episode) =>
+      episodes.find(item => item.season === season && item.episode === episode) },
     ai: { ...ai, generateText: async options => {
       assessments++;
       const sources = JSON.parse(options.prompt.split('Evidence sources: ')[1]);

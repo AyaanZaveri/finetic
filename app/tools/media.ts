@@ -4,14 +4,14 @@ import { z } from "zod";
 import os from "node:os";
 import path from "node:path";
 import { promises as fs } from "node:fs";
-import {
-    searchTMDBMedia, getTMDBTitle, getTMDBEpisodes as fetchEpisodes,
-    resolveTMDBPlaybackId, getTMDBEpisode,
-} from "@/lib/tmdb-discovery";
+import { getTMDBTitle, resolveTMDBPlaybackId } from "@/lib/tmdb-discovery";
+import { hasTMDBDiscovery, searchDiscoveryTitles } from "@/lib/discovery";
+import { fetchEpisodeDetails, fetchEpisodes } from "@/app/actions/tv-shows";
 
 import {
     getStreamAddonTargets,
     fetchStreamsFromAddon,
+    fetchMediaDetails,
 } from "@/app/actions/media";
 import {
     buildEpisodePath,
@@ -19,14 +19,14 @@ import {
 } from "@/lib/series-route";
 
 async function searchTitlePage(query: string, signal?: AbortSignal, type?: "movie" | "series", page = 1) {
-    const found = await searchTMDBMedia(query, signal, type, page);
+    const found = await searchDiscoveryTitles(query, signal, type, page);
     if (found.results.length) return found;
     // Some models append the release year to the title. Repair an empty search
     // within the same tool call, while retaining the year as a hard constraint.
     // Never strip a number from a title that already has real search results.
     const dated = /^(.+?)\s+\(?((?:19|20)\d{2})\)?$/.exec(query.trim());
     if (!dated || Number(dated[2]) > new Date().getFullYear() + 1) return found;
-    const fallback = await searchTMDBMedia(dated[1], signal, type, page);
+    const fallback = await searchDiscoveryTitles(dated[1], signal, type, page);
     return { ...fallback, results: fallback.results.filter(item => String(item.year) === dated[2]) };
 }
 
@@ -297,7 +297,7 @@ async function resolveStreamId(streamId: string): Promise<StreamRegistryEntry | 
 }
 
 export interface EpisodeLookupTool {
-  source?: "TMDB";
+  source?: "TMDB" | "Cinemeta";
   success: boolean;
   seriesId?: string;
   seriesName?: string;
@@ -319,10 +319,10 @@ export interface EpisodeLookupTool {
 
 export const searchMedia = tool({
     description:
-    "Search TMDB for movies or TV shows by title. Returns TMDB IDs without extra per-result lookups. Use this to discover IDs before ordinary navigation/playback. For scene requests, call skipToSubtitleContent with mediaQuery directly; it searches internally. Do not use this when navigateToMediaByQuery or navigateToEpisode can directly resolve the request.",
+    "Search for movies or TV shows by title. Returns title IDs for navigation and playback. For scene requests, call skipToSubtitleContent with mediaQuery directly; it searches internally. Do not use this when navigateToMediaByQuery or navigateToEpisode can directly resolve the request.",
     inputSchema: z.object({
         mediaType: z.enum(["Movie", "Series"]).optional().describe("Restrict to movies or TV shows when known"),
-        page: z.number().int().min(1).max(500).optional().describe("TMDB result page, starting at 1"),
+        page: z.number().int().min(1).max(500).optional().describe("Result page, starting at 1"),
         query: z.string().describe("The search term or media title to look for"),
         limit: z
             .number()
@@ -349,7 +349,7 @@ export const searchMedia = tool({
                 .map((entry) => entry.item);
             return {
                 success: true,
-                source: "TMDB",
+                source: found.provider,
                 results: ranked.map(item => ({ ...item, overview: item.description })),
                 page: found.page, totalPages: found.totalPages, totalResults: found.totalResults,
                 count: ranked.length,
@@ -358,7 +358,7 @@ export const searchMedia = tool({
             abortSignal?.throwIfAborted();
             return {
                 success: false,
-                error: error instanceof Error ? error.message : "TMDB search failed.",
+                error: error instanceof Error ? error.message : "Title search failed.",
                 results: [],
             };
         }
@@ -497,7 +497,7 @@ export const navigateToEpisode = tool({
                 (episode) => episode.episode === episodeNumber
             );
 
-            if (!matchedEpisode) return { success: false, action: "navigate", message: "Episode not found.", error: "TMDB has no episode at those coordinates." };
+            if (!matchedEpisode) return { success: false, action: "navigate", message: "Episode not found.", error: "No episode was found at those coordinates." };
             const selectedId = await resolveTMDBPlaybackId(bestSeries.id, "series", abortSignal);
             const url = buildEpisodePath(selectedId, seasonNumber, episodeNumber);
             return {
@@ -728,12 +728,12 @@ export const playMedia = tool({
         const [resolvedMediaId, episodeDetails] = await Promise.all([
             playbackId(mediaId, mediaType, abortSignal),
             episodeTarget?.season !== undefined && episodeTarget.episode !== undefined && !episodeTitle
-                ? getTMDBEpisode(episodeTarget.seriesId, episodeTarget.season, episodeTarget.episode, abortSignal)
+                ? fetchEpisodeDetails(episodeTarget.seriesId, episodeTarget.season, episodeTarget.episode, abortSignal)
                     .catch(() => { abortSignal?.throwIfAborted(); return undefined; })
                 : undefined,
         ]);
         mediaId = resolvedMediaId;
-        episodeTitle ||= episodeDetails?.name;
+        episodeTitle ||= episodeDetails?.title;
         if (mediaType === "Episode") {
             const episode = parseSeriesRouteId(mediaId);
             seriesId = episode.seriesId;
@@ -1089,7 +1089,7 @@ export const getMediaStreams = tool({
 });
 
 export const getMediaDetails = tool({
-    description: "Get movie, TV show, or episode metadata directly from TMDB, including genres, cast, crew, ratings, and synopsis. Always provide mediaType when known; TMDB numeric IDs are scoped to movies or TV.",
+    description: "Get movie, TV show, or episode metadata, including available genres, cast, crew, ratings, and synopsis. Always provide mediaType when known. TMDB numeric IDs are scoped to movies or TV.",
     inputSchema: z.object({
         mediaId: z.string().describe("TMDB or IMDb ID returned by search; episodes use '<seriesId>:<season>:<episode>'"),
         mediaType: z.enum(["Movie", "Series", "Episode"]).optional(),
@@ -1099,27 +1099,27 @@ export const getMediaDetails = tool({
             if (mediaType === "Episode") {
                 const parsed = parseSeriesRouteId(mediaId);
                 if (!parsed.isEpisodeTarget || parsed.season === undefined || parsed.episode === undefined) throw new Error("Choose an episode returned by episode search.");
-                const episodes = await fetchEpisodes(parsed.seriesId, parsed.season, abortSignal);
-                const episode = episodes.find(item => item.episode === parsed.episode);
-                if (!episode) throw new Error("Episode not found on TMDB.");
-                return { success: true, source: "TMDB", details: { ...episode, type: "episode", overview: episode.overview, ratingSource: "TMDB" } };
+                const episode = await fetchEpisodeDetails(parsed.seriesId, parsed.season, parsed.episode, abortSignal);
+                if (!episode) throw new Error("Episode not found.");
+                return { success: true, details: { ...episode, name: episode.title, type: "episode" } };
             }
             const types = mediaType === "Movie" ? ["movie" as const] : mediaType === "Series" ? ["series" as const] : ["movie" as const, "series" as const];
-            let lastError: unknown;
+            const useTMDB = await hasTMDBDiscovery();
             for (const type of types) {
                 try {
-                    const details = await getTMDBTitle(mediaId, type, abortSignal);
-                    return { success: true, source: "TMDB", details: { ...details, rating: details.communityRating?.toFixed(1) } };
+                    const details = useTMDB ? await getTMDBTitle(mediaId, type, abortSignal)
+                        : await fetchMediaDetails(mediaId, type, abortSignal);
+                    if (details) return { success: true, details: { ...details,
+                        rating: details.communityRating?.toFixed(1) || ("imdbRating" in details ? details.imdbRating : undefined) } };
                 } catch (error) {
                     abortSignal?.throwIfAborted();
                     if (!(error instanceof Error) || !error.message.includes("not found")) throw error;
-                    lastError = error;
                 }
             }
-            throw lastError;
+            throw new Error("Title not found.");
         } catch (error) {
             abortSignal?.throwIfAborted();
-            return { success: false, error: error instanceof Error ? error.message : "TMDB metadata lookup failed." };
+            return { success: false, error: error instanceof Error ? error.message : "Metadata lookup failed." };
         }
     },
 });

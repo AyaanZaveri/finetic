@@ -27,7 +27,7 @@ function validTitle(item: StremioMetaPreview | undefined, type: TitleType): item
         && typeof item.name === "string" && !!item.name.trim();
 }
 
-export async function cinemetaCatalog(type: TitleType, query?: string, signal?: AbortSignal): Promise<MediaItem[]> {
+export async function cinemetaCatalog(type: TitleType, query?: string, signal?: AbortSignal): Promise<(MediaItem & { type: TitleType })[]> {
     const extra = query ? `/search=${encodeURIComponent(query)}` : "";
     const response = await request<StremioCatalogResponse>(`catalog/${type}/top${extra}`, signal);
     if (!Array.isArray(response?.metas)) throw new Error("Cinemeta returned an invalid catalog.");

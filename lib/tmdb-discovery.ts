@@ -121,6 +121,13 @@ function titleResult(item: TMDBTitleRecord, type: TMDBMediaType) {
     };
 }
 
+export async function getTMDBRecommendations(id: string, type: TMDBMediaType): Promise<MediaItem[]> {
+    const tmdbId = await tmdbIdForTitle(id, type);
+    const data = await request<TMDBPage<TMDBTitleRecord>>(`${type === "movie" ? "movie" : "tv"}/${tmdbId}/recommendations`);
+    return data.results.filter(item => !item.adult && Number.isSafeInteger(item.id) && item.id > 0)
+        .map(item => titleResult(item, type));
+}
+
 /** Maintained TMDB feeds need no Stremio account or user-owned list IDs.
  * Provider discovery is TMDB popularity within a regional catalog, not the
  * provider's own viewing chart. Keep that distinction in the section labels.

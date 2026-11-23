@@ -23,6 +23,9 @@ import type { SceneProgress } from "@/lib/navigator-scene-progress";
 import type { EpisodeProgress } from "@/lib/episode-discovery";
 import { createOpenCodeGoModel } from "@/lib/opencode-go";
 import { getTMDBPageContext } from "@/lib/tmdb-discovery";
+import { hasTMDBDiscovery } from "@/lib/discovery";
+import { fetchMediaDetails } from "@/app/actions/media";
+import { fetchEpisodeDetails } from "@/app/actions/tv-shows";
 import { createAllTools, createSystemPrompt } from "@/app/tools";
 import { OPENAI_DEFAULT_BASE_URL } from "@/lib/models-dev";
 import { ChatGPTConnectionError, requireChatGPTOrigin } from "@/lib/server/chatgpt-connection";
@@ -312,10 +315,22 @@ export async function POST(req: Request) {
         let pageContext = null;
         if (pageTarget) {
             try {
-                pageContext = await getTMDBPageContext(pageTarget, req.signal);
+                if (pageTarget.type === "person" || await hasTMDBDiscovery()) {
+                    pageContext = await getTMDBPageContext(pageTarget, req.signal);
+                } else {
+                    const { id, type, season, episode } = pageTarget;
+                    const [title, selectedEpisode] = await Promise.all([
+                        fetchMediaDetails(id, type, req.signal),
+                        season !== undefined && episode !== undefined ? fetchEpisodeDetails(id, season, episode, req.signal) : null,
+                    ]);
+                    if (!title) throw new Error("Title metadata unavailable.");
+                    pageContext = { id: title.id, name: title.name, type,
+                        ...(selectedEpisode && { episodeId: selectedEpisode.id, episodeTitle: selectedEpisode.title,
+                            seasonNumber: season, episodeNumber: episode }) };
+                }
             } catch (error) {
                 req.signal.throwIfAborted();
-                pageContext = { ...pageTarget, metadataUnavailable: error instanceof Error ? error.message : "TMDB metadata unavailable." };
+                pageContext = { ...pageTarget, metadataUnavailable: error instanceof Error ? error.message : "Metadata unavailable." };
             }
         }
         req.signal.throwIfAborted();

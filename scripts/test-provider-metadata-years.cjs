@@ -4,11 +4,13 @@ const cache = load('lib/server/metadata-cache.ts', { 'server-only': {} }, { Buff
 const artwork = load('lib/artwork.ts', {}, { URLSearchParams });
 let response;
 const actions = load('app/actions/media.ts', {
+    'server-only': {},
     '@/lib/server/auth': { getAuthData: async () => ({ authKey: 'fixture' }) },
     '@/lib/server/metadata-cache': cache,
     '@/lib/server/metadata-identity': { metadataIdentity: async () => ({ scope: 'fixture', revision: 'year-regression' }) },
     '@/lib/server/outbound-fetch': { outboundFetch: async () => Response.json({ meta: response }) },
-    '@/lib/artwork': artwork, '@/lib/tmdb-artwork': {}, '@/lib/stremio-watched': {}, './tv-shows': {},
+    '@/lib/artwork': artwork, '@/lib/tmdb-artwork': { getTMDBArtwork: async () => undefined }, '@/lib/stremio-watched': {}, './tv-shows': {},
+    '@/lib/tmdb-discovery': {},
     '@/lib/media-description': { completeMediaDescription: async item => item },
     './auth': { getInstalledAddons: async () => [{ transportUrl: 'https://provider.test/manifest.json', manifest: { resources: ['meta'] } }] },
 }, { URLSearchParams, console: { error() {}, warn() {} } });

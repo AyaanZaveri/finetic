@@ -1,5 +1,5 @@
 "use client";
-import { useMetadataQueries } from "@/components/stream-query-provider";
+import { useStreamQueries } from "@/components/stream-query-provider";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Cerebras, Gemini, Groq, Ollama, OpenAI, OpenRouter } from "@lobehub/icons";
@@ -34,7 +34,9 @@ import {
 } from "@/contexts/settings-context";
 import { OPENAI_DEFAULT_BASE_URL, type ModelsDevModel } from "@/lib/models-dev";
 import { Button } from "@/components/ui/button";
-import { getArtworkSettings, saveArtworkToken, removeArtworkToken, type ArtworkSettingsState } from "@/app/actions/artwork-settings";
+import { getArtworkSettings, saveArtworkToken, removeArtworkToken, saveMetadataProvider, type ArtworkSettingsState } from "@/app/actions/artwork-settings";
+import { continueWatchingKey } from "@/lib/media/continue-watching-query";
+import { invalidateSeriesSeasons } from "@/lib/media/series-season";
 import { AppUpdates } from "./app-updates";
 import { PlaybackSettings } from "@/components/playback-settings";
 import { PlaybackLanguageSettings } from "@/components/playback-language-settings";
@@ -277,12 +279,13 @@ function WebSearchSettings({ variant }: { variant: "preference" | "connection" }
 }
 
 function ArtworkSettings() {
-    const metadata = useMetadataQueries();
-    const [state, setState] = useState<ArtworkSettingsState>({ configured: false, personal: false });
+    const queries = useStreamQueries();
+    const [state, setState] = useState<ArtworkSettingsState>({ configured: false, personal: false, provider: "auto" });
     const { value: token, setValue: setToken, persist: persistToken } = useConnectionCredential("tmdb");
     const [loading, setLoading] = useState(true);
-    const [pending, setPending] = useState<"save" | "remove" | null>(null);
+    const [pending, setPending] = useState<"save" | "remove" | "provider" | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [providerError, setProviderError] = useState<string | null>(null);
     const [status, setStatus] = useState("");
     useEffect(() => {
         let active = true;
@@ -296,25 +299,48 @@ function ArtworkSettings() {
         return () => { active = false; window.removeEventListener(CONNECTION_CREDENTIALS_EVENT, load); };
     }, []);
 
-    async function update(operation: "save" | "remove") {
-        setPending(operation);
+    async function update(operation: "save" | "remove" | ArtworkSettingsState["provider"]) {
+        const changingProvider = operation !== "save" && operation !== "remove";
+        const showError = changingProvider ? setProviderError : setError;
+        setPending(changingProvider ? "provider" : operation);
         setError(null);
+        setProviderError(null);
         setStatus("");
         try {
-            const result = operation === "save" ? await saveArtworkToken(token) : await removeArtworkToken();
-            if (!result.success) { setError(result.error); return; }
-            metadata?.invalidate();
-            setState({ configured: result.configured, personal: result.personal });
-            persistToken(operation === "save" ? token.trim() : "");
-            setStatus(operation === "save" ? "Token saved." : "Token removed.");
+            const result = operation === "save" ? await saveArtworkToken(token)
+                : operation === "remove" ? await removeArtworkToken() : await saveMetadataProvider(operation);
+            if (!result.success) { showError(result.error); return; }
+            queries?.metadata.invalidate();
+            invalidateSeriesSeasons();
+            if (queries) {
+                void queries.client.invalidateQueries({ queryKey: continueWatchingKey(queries.scope) });
+                void queries.client.invalidateQueries({ queryKey: ["player-drawer"] });
+            }
+            setState(result);
+            if (operation === "save" || operation === "remove") persistToken(operation === "save" ? token.trim() : "");
+            setStatus(operation === "save" ? "Token saved." : operation === "remove" ? "Token removed." : "Metadata provider saved.");
         } catch {
-            setError("Couldn’t update artwork settings. Check your connection and try again.");
+            showError("Couldn’t save the setting. Check your connection and try again.");
         } finally { setPending(null); }
     }
 
     return (
         <section id="tmdb" aria-labelledby="artwork-settings-title" className={styles.section}>
-            <h2 id="artwork-settings-title">Artwork</h2>
+            <h2 id="artwork-settings-title">Metadata and artwork</h2>
+            <Select id="metadata-provider" label="Metadata provider" value={state.provider}
+                disabled={loading || !!pending}
+                aria-describedby={providerError ? "metadata-provider-error" : undefined}
+                description={state.configured ? "Choose the source for browsing, search, and title details."
+                    : "Connect a TMDB token to use TMDB. Cinemeta works without a token."}
+                options={[
+                    { value: "auto", label: "Automatic" },
+                    { value: "tmdb", label: "TMDB", disabled: !state.configured },
+                    { value: "cinemeta", label: "Cinemeta" },
+                ]}
+                onValueChange={value => {
+                    if (value === "auto" || value === "tmdb" || value === "cinemeta") void update(value);
+                }} />
+            {providerError && <p id="metadata-provider-error" role="alert" className="text-sm text-destructive">{providerError}</p>}
             <form autoComplete="off" data-form-type="other" className="min-w-0" aria-busy={loading || !!pending} onSubmit={(event) => { event.preventDefault(); if (!pending && token.trim()) void update("save"); }}>
                 <FieldGroup className="gap-4">
                     <ApiKeyInput

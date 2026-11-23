@@ -52,6 +52,7 @@ async function main() {
         'next/headers': { cookies: async () => ({ get: key => jar.get(key), set: (key, value, options) => jar.set(key, { value, options }), delete: key => jar.delete(key) }) },
         '@/app/actions/auth': { getUser: async () => signedIn ? { _id: 'test' } : null },
         '@/lib/server/auth': { getAuthData: async () => { if (!signedIn) throw new Error('Sign in'); return { user: { _id: 'test' } }; } },
+        '@/lib/tmdb-credentials': { getTMDBToken: async () => 'fixture-token' },
         '@/lib/tmdb-discovery': {
             getTMDBTitle: async () => ({ id: 'tmdb:58957', name: catalogName, poster: 'https://image.tmdb.org/t/p/w500/show.jpg', year: 2013, genres: ['Comedy'], communityRating: 8.1 }),
             searchTMDBMedia: async query => { titleSearches.push(query); return { results: query === 'Late Bloomers' ? [] : showCandidates }; },
