@@ -1119,14 +1119,13 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
             : "Audio player with custom controls for playback, volume, seeking, and more. Use space bar to play/pause, Shift + arrow keys (←/→) to seek, and arrow keys (↑/↓) to adjust volume."}
         </span>
         {children}
-        {speedBoost && (
-          <div className="pointer-events-none absolute inset-x-0 top-[max(1.25rem,env(safe-area-inset-top))] z-50 flex justify-center">
-            <span data-slot="media-player-speed-boost" data-player-glass=""
-              className="relative flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold tabular-nums">
-              <FastForwardIcon aria-hidden="true" className="size-4" />2× speed
-            </span>
-          </div>
-        )}
+        <div className="pointer-events-none absolute inset-x-0 top-[max(1.25rem,env(safe-area-inset-top))] z-50 flex justify-center">
+          <span data-slot="media-player-speed-boost" data-player-glass=""
+            data-visible={speedBoost ? "" : undefined} aria-hidden={!speedBoost}
+            className="relative flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold tabular-nums">
+            <FastForwardIcon aria-hidden="true" className="size-4 fill-current" />2× speed
+          </span>
+        </div>
         <MediaPlayerVolumeIndicator />
       </RootPrimitive>
     </MediaPlayerContext.Provider>

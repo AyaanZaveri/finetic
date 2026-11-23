@@ -131,6 +131,22 @@ html[data-native-engine="exoplayer"] [data-native-player-shell] [data-slot="medi
 [data-player-skip] {
   bottom: max(calc(var(--player-controls-height, 12rem) + 1rem), env(safe-area-inset-bottom));
 }
+[data-slot="media-player-speed-boost"] {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 100ms var(--ease-out), visibility 0s 100ms;
+}
+[data-slot="media-player-speed-boost"][data-visible] {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--duration-instant, 120ms) var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="media-player-speed-boost"],
+  [data-slot="media-player-speed-boost"][data-visible] {
+    transition: none;
+  }
+}
 [data-player-up-next][data-player-hdr-glass] {
   position: absolute;
   bottom: max(calc(var(--player-controls-height, 12rem) + .5rem), env(safe-area-inset-bottom));

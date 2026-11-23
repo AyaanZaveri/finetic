@@ -184,9 +184,15 @@ agent-browser eval --stdin <<'JS'
   root.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', code: 'Space', bubbles: true, cancelable: true }));
 })()
 JS
-wait_for 'document.querySelector("video")?.playbackRate === 2 && Boolean(document.querySelector("[data-slot=media-player-speed-boost][data-browser-glass] canvas"))'
+wait_for '(() => {
+  const pill = document.querySelector("[data-slot=media-player-speed-boost][data-visible][data-browser-glass]");
+  return document.querySelector("video")?.playbackRate === 2 && pill?.querySelector("canvas") && getComputedStyle(pill).opacity === "1";
+})()'
 agent-browser screenshot "$capture_dir/speed-pill.png"
 agent-browser eval --stdin <<'JS'
 document.activeElement.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', code: 'Space', bubbles: true }))
 JS
-wait_for 'document.querySelector("video")?.playbackRate === 1 && !document.querySelector("[data-slot=media-player-speed-boost]")'
+wait_for '(() => {
+  const pill = document.querySelector("[data-slot=media-player-speed-boost][aria-hidden=true]");
+  return document.querySelector("video")?.playbackRate === 1 && pill && getComputedStyle(pill).visibility === "hidden";
+})()'
