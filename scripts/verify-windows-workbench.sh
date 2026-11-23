@@ -10,6 +10,27 @@ trap 'rm -f "$init_script"' EXIT
 cat > "$init_script" <<'JS'
 if (location.pathname === "/states/player-selection") {
   const listeners = new Set();
+  const publish = frame => {
+    if (window.workbenchGlassActive) for (const listener of listeners) {
+      listener({ type: "glass-pixels", session: "workbench", frame });
+    }
+  };
+  window.workbenchCaptureVideoGlass = () => {
+    const video = document.querySelector("video");
+    const bounds = video.getBoundingClientRect();
+    const canvas = document.createElement("canvas");
+    const scale = Math.min(640 / innerWidth, 360 / innerHeight, 1);
+    canvas.width = Math.round(innerWidth * scale);
+    canvas.height = Math.round(innerHeight * scale);
+    const context = canvas.getContext("2d", { alpha: false });
+    context.fillStyle = "#000";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    const fit = Math.min(bounds.width / video.videoWidth, bounds.height / video.videoHeight);
+    const width = video.videoWidth * fit, height = video.videoHeight * fit;
+    context.drawImage(video, (bounds.left + (bounds.width - width) / 2) * scale,
+      (bounds.top + (bounds.height - height) / 2) * scale, width * scale, height * scale);
+    publish(context.getImageData(0, 0, canvas.width, canvas.height));
+  };
   window.navigatorDesktop = {
     protocol: 1, platform: "windows", engine: "mpv", fullscreen: false,
     capabilities: { glass: true, glassPixels: true },
@@ -25,11 +46,7 @@ if (location.pathname === "/states/player-selection") {
           frame.data.set(x < 240 ? [210, 90, 55, 255] : [45, 100, 220, 255], offset);
         }
       }
-      requestAnimationFrame(() => {
-        if (window.workbenchGlassActive) for (const listener of listeners) {
-          listener({ type: "glass-pixels", session: "workbench", frame });
-        }
-      });
+      requestAnimationFrame(() => publish(frame));
     },
     subscribe(listener) {
       listeners.add(listener);
@@ -102,6 +119,7 @@ check_drawer() {
     return drawer.querySelector('[data-slot=drawer-title]')?.textContent === '$heading'
       && drawer.hasAttribute('data-player-native-glass')
       && drawer.hasAttribute('data-browser-glass')
+      && style.getPropertyValue('--dropdown-opacity').trim() === '90%'
       && style.backdropFilter === 'none'
       && red[0] > 190 && edge[0] < 190 && edge[2] > 65
       && tint.display !== 'none' && tint.width === drawer.clientWidth + 'px'
@@ -113,12 +131,18 @@ check_drawer() {
   })()"
 }
 
+capture_drawer() {
+  wait_for '(() => { const v = document.querySelector("video"); return v?.readyState >= 2 && !v.seeking && Math.abs(v.currentTime - 9) < 0.2; })()'
+  agent-browser eval 'window.workbenchCaptureVideoGlass()'
+  agent-browser screenshot "$capture_dir/$1.png"
+}
+
 check_drawer episodes Episodes 480
-agent-browser screenshot "$capture_dir/episodes.png"
+capture_drawer episodes
 check_drawer streams Streams 480
-agent-browser screenshot "$capture_dir/streams.png"
+capture_drawer streams
 check_drawer chapters Chapters 480
-agent-browser screenshot "$capture_dir/chapters.png"
+capture_drawer chapters
 agent-browser eval --stdin <<'JS'
 (() => {
   const drawer = document.querySelector('[data-player-selection-drawer]');
@@ -148,7 +172,7 @@ wait_for 'window.workbenchGlassMotion?.done && window.workbenchGlassMotion.sampl
 
 agent-browser set viewport 390 844
 check_drawer streams Streams 358
-agent-browser screenshot "$capture_dir/streams-narrow.png"
+capture_drawer streams-narrow
 
 agent-browser set viewport 1280 900
 agent-browser open "$base_url?__stage=1&__state=playing&__windowsGlass=1"

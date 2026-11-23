@@ -12,12 +12,12 @@
   backdrop-filter: var(--floating-blur);
 }
 :global(html:not(.dark)) .surface { --dropdown-opacity: 98%; }
-:global(html[data-native-platform="windows"][data-native-playing]) .surface[data-player-native-glass] {
+:global(html[data-native-platform="windows"][data-native-playing]) .surface[data-player-native-glass]:not([data-player-selection-drawer]) {
   --dropdown-opacity: 68%;
 }
 @media (prefers-reduced-transparency: reduce) {
   .surface, :global(html:not(.dark)) .surface,
-  :global(html[data-native-platform="windows"][data-native-playing]) .surface[data-player-native-glass] {
+  :global(html[data-native-platform="windows"][data-native-playing]) .surface[data-player-native-glass]:not([data-player-selection-drawer]) {
     --dropdown-opacity: 100%;
     --floating-blur: none;
   }
