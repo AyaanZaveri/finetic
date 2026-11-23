@@ -113,7 +113,7 @@ function Wheel({ digit, direction }: { digit: number; direction: number }) {
 }
 
 /** A formatted value whose digits roll in the direction it moved and whose width follows new columns on a spring. */
-function RollingNumber({ value, text }: { value: number; text: string }) {
+export function RollingNumber({ value, text }: { value: number; text: string }) {
   const reduced = useReducedMotion();
   const [trail, setTrail] = useState({ value, direction: 1 });
   if (trail.value !== value) setTrail({ value, direction: value > trail.value ? 1 : -1 });

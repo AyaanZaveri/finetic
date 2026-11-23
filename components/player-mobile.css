@@ -237,9 +237,15 @@ html[data-native-engine="exoplayer"] [data-slot="media-player-volume-container"]
 [data-slot="media-player-seek-buffered"],
 [data-slot="media-player-seek-range"],
 [data-slot="media-player-keyboard-range"],
-[data-slot="media-player-seek-hover-range"] {
+[data-slot="media-player-seek-hover-range"],
+[data-slot="media-player-volume-track"],
+[data-slot="media-player-volume-range"] {
   clip-path: inset(1.5px var(--keyboard-seek-inset, 0%) 1.5px 0 round 9999px);
   transition: clip-path 100ms var(--ease-out);
+}
+[data-slot="media-player-volume-track"],
+[data-slot="media-player-volume-range"] {
+  transition-duration: var(--duration-fast);
 }
 [data-scrub-mode="keyboard"] [data-slot="media-player-seek-track"],
 [data-scrub-mode="keyboard"] [data-slot="media-player-seek-buffered"],
@@ -250,15 +256,24 @@ html[data-native-engine="exoplayer"] [data-slot="media-player-volume-container"]
 [data-scrub-mode="bar"] [data-slot="media-player-seek-buffered"],
 [data-scrub-mode="bar"] [data-slot="media-player-seek-range"],
 [data-scrub-mode="bar"] [data-slot="media-player-keyboard-range"],
-[data-scrub-mode="bar"] [data-slot="media-player-seek-hover-range"] {
+[data-scrub-mode="bar"] [data-slot="media-player-seek-hover-range"],
+[data-slot="media-player-volume"][data-adjusting] [data-slot="media-player-volume-track"],
+[data-slot="media-player-volume"][data-adjusting] [data-slot="media-player-volume-range"] {
   clip-path: inset(0 var(--keyboard-seek-inset, 0%) 0 0 round 9999px);
 }
 [data-slot="media-player-keyboard-range"] { transition: none; }
 @media (prefers-reduced-motion: reduce) {
   [data-slot="media-player-seek-track"],
-  [data-slot="media-player-seek-track"] > * { transition: none; }
+  [data-slot="media-player-seek-track"] > *,
+  [data-slot="media-player-volume-track"],
+  [data-slot="media-player-volume-range"] { transition: none; }
 }
 
+[data-slot="media-player-volume"]:has([data-slot="media-player-volume-thumb"]:focus-visible) {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 9999px;
+}
 /* Surface seeking reveals only the existing timeline when chrome is hidden. */
 [data-scrub-mode="surface"]:not([data-controls-visible]) [data-slot="media-player-controls"] {
   opacity: 1 !important; visibility: hidden !important; pointer-events: none !important;

@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
+import { RollingNumber } from "@/components/arc/slider/slider";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuTrigger,
   DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuOptions,
@@ -2689,6 +2690,8 @@ function MediaPlayerVolume(props: MediaPlayerVolumeProps) {
 
   const sliderId = React.useId();
   const volumeTriggerId = React.useId();
+  const [adjusting, setAdjusting] = React.useState(false);
+  const [keyboardFocused, setKeyboardFocused] = React.useState(false);
 
   const isDisabled = disabled || context.disabled;
 
@@ -2702,46 +2705,26 @@ function MediaPlayerVolume(props: MediaPlayerVolumeProps) {
 
   const onVolumeChange = React.useCallback(
     (value: number[]) => {
-      const volume = value[0] ?? 0;
-
-      if (!store.getState().dragging) {
-        store.setState("dragging", true);
-      }
-
       dispatch({
         type: MediaActionTypes.MEDIA_VOLUME_REQUEST,
-        detail: volume,
+        detail: value[0] ?? 0,
       });
     },
-    [dispatch, store.getState, store.setState]
-  );
-
-  const onVolumeCommit = React.useCallback(
-    (value: number[]) => {
-      const volume = value[0] ?? 0;
-
-      if (store.getState().dragging) {
-        store.setState("dragging", false);
-      }
-
-      dispatch({
-        type: MediaActionTypes.MEDIA_VOLUME_REQUEST,
-        detail: volume,
-      });
-    },
-    [dispatch, store]
+    [dispatch]
   );
 
   const effectiveVolume = mediaMuted ? 0 : mediaVolume;
+  const volumePercent = Math.round(effectiveVolume * 100);
+  const volumePercentage = `${volumePercent}%`;
 
   return (
     <div
       data-disabled={isDisabled ? "" : undefined}
       data-slot="media-player-volume-container"
       className={cn(
-        "group flex items-center",
+        "group/volume flex items-center",
         expandable
-          ? "gap-0 group-focus-within:gap-2 group-hover:gap-1.5"
+          ? "gap-0 focus-within:gap-1.5 hover:gap-1.5 has-[[data-adjusting]]:gap-1.5"
           : "gap-1.5",
         className
       )}
@@ -2768,33 +2751,64 @@ function MediaPlayerVolume(props: MediaPlayerVolumeProps) {
           )}
         </Button>
       </MediaPlayerTooltip>
-      <SliderPrimitive.Root
-        id={sliderId}
-        aria-controls={context.mediaId}
-        aria-valuetext={`${Math.round(effectiveVolume * 100)}% volume`}
-        data-slider=""
-        data-slot="media-player-volume"
-        {...volumeProps}
-        min={0}
-        max={1}
-        step={0.1}
-        className={cn(
-          "relative flex touch-none select-none items-center",
-          expandable
-            ? "w-0 opacity-0 transition-[width,opacity] duration-200 ease-in-out group-focus-within:w-16 group-focus-within:opacity-100 group-hover:w-16 group-hover:opacity-100"
-            : "w-16",
-          className
-        )}
-        disabled={isDisabled}
-        value={[effectiveVolume]}
-        onValueChange={onVolumeChange}
-        onValueCommit={onVolumeCommit}
-      >
-        <SliderPrimitive.Track className="relative h-1 w-full grow overflow-hidden rounded-full bg-zinc-500">
-          <SliderPrimitive.Range className="absolute h-full bg-primary will-change-[width]" />
-        </SliderPrimitive.Track>
-        <SliderPrimitive.Thumb className="block size-2.5 shrink-0 rounded-full bg-primary shadow-sm ring-ring/22 transition-[color,box-shadow] will-change-transform hover:ring-4 focus-visible:outline-hidden focus-visible:ring-4 disabled:pointer-events-none disabled:opacity-50" />
-      </SliderPrimitive.Root>
+      <Tooltip open={!isDisabled && !context.withoutTooltip && (adjusting || keyboardFocused)} disableHoverableContent>
+        <SliderPrimitive.Root
+          id={sliderId}
+          aria-controls={context.mediaId}
+          data-slider=""
+          data-slot="media-player-volume"
+          {...volumeProps}
+          min={0}
+          max={1}
+          step={0.1}
+          className={cn(
+            "relative flex h-6 shrink-0 touch-none select-none items-center",
+            expandable
+              ? "w-0 opacity-0 motion-safe:transition-[width,opacity] motion-safe:duration-200 motion-safe:ease-in-out group-focus-within/volume:w-16 group-focus-within/volume:opacity-100 group-hover/volume:w-16 group-hover/volume:opacity-100 data-[adjusting]:w-16 data-[adjusting]:opacity-100"
+              : "w-16",
+            className
+          )}
+          disabled={isDisabled}
+          value={[effectiveVolume]}
+          onValueChange={onVolumeChange}
+          onPointerDown={(event) => {
+            volumeProps.onPointerDown?.(event);
+            if (event.defaultPrevented || isDisabled || !event.isPrimary || event.button !== 0) return;
+            event.currentTarget.setAttribute("data-adjusting", "");
+            setAdjusting(true);
+            setKeyboardFocused(false);
+            store.setState("dragging", true);
+          }}
+          onLostPointerCapture={(event) => {
+            if (event.isPrimary && event.currentTarget.hasAttribute("data-adjusting")) {
+              event.currentTarget.removeAttribute("data-adjusting");
+              setAdjusting(false);
+              store.setState("dragging", false);
+            }
+            volumeProps.onLostPointerCapture?.(event);
+          }}
+        >
+          <TooltipTrigger asChild>
+            <SliderPrimitive.Track data-slot="media-player-volume-track" className="relative h-[9px] w-full grow overflow-hidden rounded-full bg-white/20">
+              <SliderPrimitive.Range data-slot="media-player-volume-range" className="absolute h-full rounded-full bg-white" />
+            </SliderPrimitive.Track>
+          </TooltipTrigger>
+          <SliderPrimitive.Thumb data-slot="media-player-volume-thumb" aria-label="Volume" aria-valuetext={volumePercentage}
+            className="pointer-events-none block size-3 opacity-0 outline-none"
+            onFocus={event => setKeyboardFocused(event.currentTarget.matches(":focus-visible"))}
+            onBlur={() => setKeyboardFocused(false)}
+            onKeyDown={event => {
+              if (event.key.startsWith("Arrow") || ["Home", "End", "PageUp", "PageDown"].includes(event.key)) {
+                setKeyboardFocused(true);
+              }
+            }} />
+        </SliderPrimitive.Root>
+        <TooltipContent container={context.portalContainer} side="top" sideOffset={10} aria-label={volumePercentage}
+          className="pointer-events-none min-w-12 border px-2 py-1 text-center tabular-nums data-[side=top]:slide-in-from-bottom-1 motion-reduce:animate-none!"
+          onEscapeKeyDown={() => setKeyboardFocused(false)}>
+          {adjusting ? <RollingNumber value={volumePercent} text={volumePercentage} /> : volumePercentage}
+        </TooltipContent>
+      </Tooltip>
     </div>
   );
 }

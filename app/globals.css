@@ -345,8 +345,9 @@ html[data-native-platform="macos"]::-webkit-scrollbar-thumb {
 }
 
 /* One keyboard focus treatment for native controls, links, and custom widgets.
-   Compound fields delegate the indicator to their visible shell below. */
-:is(a[href], button, input, select, textarea, summary, [role="button"], [role="link"], [role="slider"], [role="checkbox"], [role="switch"], [role="combobox"], [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [role="option"], [role="radio"], [role="tab"], [role="treeitem"], :where([tabindex]:not([tabindex="-1"]))):focus-visible {
+   Compound fields delegate the indicator to their visible shell below.
+   Subtitle panels hold focus while it moves between their controls. Keep their elevation. */
+:is(a[href], button, input, select, textarea, summary, [role="button"], [role="link"], [role="slider"], [role="checkbox"], [role="switch"], [role="combobox"], [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [role="option"], [role="radio"], [role="tab"], [role="treeitem"], :where([tabindex]:not([tabindex="-1"]))):focus-visible:not(:where([data-player-subtitle-menu], [data-subtitle-timing])) {
   outline: var(--keyboard-focus-width) solid var(--ring);
   outline-offset: 0;
   box-shadow: 0 0 0 var(--keyboard-focus-halo-width) var(--focus-halo);
@@ -389,7 +390,7 @@ html[data-native-platform="macos"]::-webkit-scrollbar-thumb {
 /* Hover-driven menus call focus() too. Browser focus-visible heuristics can
    retain keyboard mode across those calls. Keep editable controls' indicators,
    and restore all keyboard rings as soon as a navigation key is pressed. */
-html[data-input-modality="pointer"] :focus-visible:not(:is(input, textarea, select, [contenteditable]:not([contenteditable="false"]))) {
+html[data-input-modality="pointer"] :focus-visible:not(:is(input, textarea, select, [contenteditable]:not([contenteditable="false"]))):not(:where([data-player-subtitle-menu], [data-subtitle-timing])) {
   --ring: transparent;
   --focus-halo: transparent;
   outline-color: transparent !important;

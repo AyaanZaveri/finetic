@@ -91,7 +91,7 @@ export function PlayerSubtitles({ mediaRef, sourceKey, native, tracks, requested
         data-slot="media-player-subtitles"><Subtitles aria-hidden="true" /></Button></DropdownMenuTrigger>
     </MediaPlayerTooltip>
     <DropdownMenuContent container={snapshot.container} side="top" sideOffset={10} align="end" aria-label="Subtitles"
-      data-player-native-glass="" className={styles.menu}
+      data-player-subtitle-menu="" data-player-native-glass="" className={styles.menu}
       onCloseAutoFocus={event => {
         if (!openingTiming.current) return;
         openingTiming.current = false;

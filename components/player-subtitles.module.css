@@ -8,7 +8,11 @@
 .menu .empty { margin-inline: 5px; }
 /* The glass shell clips its canvas; this inner viewport owns track scrolling. */
 .list { max-height: min(22rem, max(6rem, calc(var(--radix-dropdown-menu-content-available-height, 100dvh) - 4rem))); }
-.list [data-slot="scroll-area-viewport"] { max-height: inherit; }
+.list [data-slot="scroll-area-viewport"] {
+  max-height: inherit;
+  padding-block: var(--keyboard-focus-halo-width);
+  scroll-padding-block: var(--keyboard-focus-halo-width);
+}
 .heading { padding: 5px 11px; color: var(--muted-foreground); font-size: .75rem; font-weight: 500; }
 .empty { padding: 8px 11px; color: var(--muted-foreground); font-size: .75rem; }
 .timingLabel { flex: 1; font-weight: 500; }

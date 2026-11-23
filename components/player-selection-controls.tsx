@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useReducer, useRef, useState, type FocusEvent, type MouseEvent } from "react";
 import { QueryClient, queryOptions, useQuery } from "@tanstack/react-query";
-import { Layers, ListOrdered, ListVideo, Play, TriangleAlert, X } from "lucide-react";
+import { GalleryThumbnails, Layers, ListVideo, Play, TriangleAlert, X } from "lucide-react";
 import { useMediaSelector } from "media-chrome/react/media-store";
 import { fetchEpisodes, fetchSeasons, type Episode } from "@/app/actions/tv-shows";
 import { ArtworkImage } from "@/components/artwork-image";
@@ -198,7 +198,7 @@ export function PlayerSelectionControls({ media, streamUrl, playingEpisode, chap
                 <MediaPlayerTooltip tooltip="Chapters">
                     <Button type="button" variant="player-control" aria-label="Chapters"
                         aria-haspopup="dialog" aria-expanded={open && panel.view === "chapters"} onFocus={onOpenerFocus} onClick={event => show("chapters", event)}>
-                        <ListOrdered aria-hidden="true" />
+                        <GalleryThumbnails aria-hidden="true" />
                     </Button>
                 </MediaPlayerTooltip>
             )}
