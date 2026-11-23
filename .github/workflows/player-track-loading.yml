@@ -38,4 +38,8 @@ jobs:
       - run: node scripts/test-playback-preferences.cjs
       - run: node scripts/test-player-subtitles.cjs
       - run: node scripts/test-player-settings.cjs
-      - run: node scripts/test-webgpu-player.cjs
+      - name: Check WebGPU audio and the browser runtime
+        if: runner.os == 'Linux'
+        run: |
+          npm run prepare:webgpu
+          node scripts/test-webgpu-player.cjs

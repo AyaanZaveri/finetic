@@ -161,6 +161,13 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const [videoReady, setVideoReady] = useState(false);
   const [fetchingSubtitles, setFetchingSubtitles] = useState(false);
   const [waitingForSubtitles, setWaitingForSubtitles] = useState(false);
+  const [subtitleShortcutFeedback, setSubtitleShortcutFeedback] = useState<"on" | "off" | null>(null);
+  const subtitleFeedbackTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const showSubtitleShortcutFeedback = useCallback((feedback: "on" | "off" | null) => {
+    clearTimeout(subtitleFeedbackTimer.current);
+    setSubtitleShortcutFeedback(feedback);
+    subtitleFeedbackTimer.current = feedback ? setTimeout(() => setSubtitleShortcutFeedback(null), 650) : undefined;
+  }, []);
   const [requestedSubtitleSrc, setRequestedSubtitleSrc] = useState<string | null>(null);
   const [subtitleOptionsReady, setSubtitleOptionsReady] = useState(false);
   const [subtitleData, setSubtitleData] = useState<
@@ -413,6 +420,8 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       const mediaElement = videoRef.current;
       const mediaDuration = mediaElement.duration;
       setDuration(mediaDuration);
+      // WebGPU restores position and play/pause itself after an in-playback fallback.
+      if (mediaElement.dataset?.webgpuResuming !== undefined) return;
       let effectiveStartTime = mediaElement.currentTime || 0;
 
       const requestedResume = currentMedia?.resumePositionTicks;
@@ -464,12 +473,13 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     setDuration(0);
     setFetchingSubtitles(false);
     setWaitingForSubtitles(false);
+    showSubtitleShortcutFeedback(null);
     setRequestedSubtitleSrc(null);
     setCurrentMediaWithSource(null);
     setVideoReady(false);
     setPlaybackError(null);
     lastLoadedPlaybackKeyRef.current = null;
-  }, [sendPlaybackUpdate, setCurrentMediaWithSource, setIsPlayerVisible, reportNavigatorPlayback]);
+  }, [sendPlaybackUpdate, setCurrentMediaWithSource, setIsPlayerVisible, reportNavigatorPlayback, showSubtitleShortcutFeedback]);
 
   useEffect(() => {
     if (!nativePlayback || !isPlayerVisible) return;
@@ -516,6 +526,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     setSubtitleOptionsReady(false);
     setFetchingSubtitles(false);
     setWaitingForSubtitles(false);
+    showSubtitleShortcutFeedback(null);
     setRequestedSubtitleSrc(null);
     metadataAbortRef.current?.abort();
     const metadataAbort = new AbortController();
@@ -712,7 +723,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     } finally {
       if (isCurrent()) setLoading(false);
     }
-  }, [nativePlayback, setCurrentMediaWithSource, streamQueries, metadataQueries, subtitleQueries]);
+  }, [nativePlayback, setCurrentMediaWithSource, streamQueries, metadataQueries, subtitleQueries, showSubtitleShortcutFeedback]);
   loadMediaRef.current = loadMedia;
 
   useEffect(() => {
@@ -759,6 +770,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     return () => {
       loadGenerationRef.current++;
       metadataAbortRef.current?.abort();
+      clearTimeout(subtitleFeedbackTimer.current);
       lastLoadedPlaybackKeyRef.current = null;
     };
   }, []);
@@ -870,12 +882,13 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     subtitleTracks.some(track => track.active), `${streamUrl}:${playerAttempt}`, nativePlayback);
 
   const handleCustomSubtitleChange = useCallback((track: { src: string } | null, keepEmbedded = false) => {
+    showSubtitleShortcutFeedback(null);
     subtitleShortcutEnabled.current = null;
     subtitleManualOverride.current = true;
     subtitleDefaultApplied.current = true;
     subtitleDefaultSource.current = null;
     void selectSubtitle(track, keepEmbedded);
-  }, [selectSubtitle]);
+  }, [selectSubtitle, showSubtitleShortcutFeedback]);
   const toggleCaptions = useCallback(() => {
     const media = videoRef.current;
     const controller = (media as unknown as MpvElementHandle | null)?.controller;
@@ -889,12 +902,13 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     subtitleManualOverride.current = active;
     subtitleDefaultApplied.current = false;
     subtitleDefaultSource.current = null;
+    showSubtitleShortcutFeedback(active ? "off" : "on");
     if (active) void selectSubtitle(null);
     else {
       setWaitingForSubtitles(true);
       choosePreferredSubtitle.current?.();
     }
-  }, [requestedSubtitleSrc, selectSubtitle, subtitleTracks]);
+  }, [requestedSubtitleSrc, selectSubtitle, showSubtitleShortcutFeedback, subtitleTracks]);
   const adjustSubtitleSize = useCallback((direction: -1 | 1) => {
     const size = stepSubtitleSize(subtitleSize, direction);
     if (size !== subtitleSize) setSubtitleSize(size);
@@ -902,7 +916,8 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   if (!isPlayerVisible || !currentMedia) return null;
 
-  const trackLoadingLabel = fetchingSubtitles || waitingForSubtitles || fetchingNativeTrack === "subtitle" ? "Fetching subtitles"
+  const trackLoadingLabel = subtitleShortcutFeedback === "off" ? "Turning subtitles off"
+    : subtitleShortcutFeedback === "on" || fetchingSubtitles || waitingForSubtitles || fetchingNativeTrack === "subtitle" ? "Fetching subtitles"
     : fetchingBrowserAudio || fetchingNativeTrack === "audio" ? "Fetching audio" : null;
 
   const { isEpisode: isEpisodePlayback, showTitle, primaryTitle, season, episodeNumber } = getPlaybackTitles(currentMedia, mediaDetails);
