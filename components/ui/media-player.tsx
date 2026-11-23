@@ -534,13 +534,14 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
   const onPointerDownCapture = (event: React.PointerEvent<HTMLDivElement>) => {
     rootImplProps.onPointerDownCapture?.(event);
     pointerTypeRef.current = event.pointerType;
-    if (event.pointerType === "mouse" && event.button === 0) {
+    if (event.pointerType === "touch" && !event.isPrimary) speedHold.cancel();
+    if (event.isPrimary && event.button === 0) {
       speedHold.resetPointerClick();
-      if (!event.defaultPrevented && !disabled && !menuOpen && !dragging && event.isPrimary
+      if (!event.defaultPrevented && !disabled && !menuOpen && !dragging
         && !event.ctrlKey && !event.metaKey && !event.altKey && event.target instanceof Element
         && mediaRef.current && event.target.closest('[data-slot="media-player-video"]') === mediaRef.current) {
         speedHold.press({ id: event.pointerId, x: event.clientX, y: event.clientY });
-        if (event.isTrusted) mediaRef.current.setPointerCapture(event.pointerId);
+        if (event.pointerType === "mouse" && event.isTrusted) mediaRef.current.setPointerCapture(event.pointerId);
       }
     }
     if (event.defaultPrevented || !autoHide) return;
@@ -570,7 +571,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
   };
 
   const onClickCapture = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (event.detail > 0 && pointerTypeRef.current === "mouse" && speedHold.consumePointerClick()) {
+    if (event.detail > 0 && speedHold.consumePointerClick()) {
       event.preventDefault();
       event.stopPropagation();
       return;
@@ -1093,6 +1094,11 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
         ref={composedRef}
         onPointerDownCapture={onPointerDownCapture}
         onMouseDownCapture={onMouseDownCapture}
+        onContextMenu={(event) => {
+          rootImplProps.onContextMenu?.(event);
+          if (pointerTypeRef.current === "touch" && event.target instanceof Element
+            && event.target.closest('[data-slot="media-player-video"]') === mediaRef.current) event.preventDefault();
+        }}
         onPointerMoveCapture={(event) => {
           rootImplProps.onPointerMoveCapture?.(event);
           pointerTypeRef.current = event.pointerType;
@@ -1104,7 +1110,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
         onKeyDown={onKeyDown}
         onKeyUp={onKeyUp}
         className={cn(
-          "dark relative isolate flex touch-none select-none flex-col overflow-hidden bg-background outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/22 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_video]:relative [&_video]:object-contain",
+          "dark relative isolate flex touch-none select-none flex-col overflow-hidden bg-background outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/22 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_[data-slot='media-player-video']]:[-webkit-touch-callout:none] [&_video]:relative [&_video]:object-contain",
           "data-[state=fullscreen]:[&_video]:size-full [:fullscreen_&]:flex [:fullscreen_&]:h-full [:fullscreen_&]:max-h-screen [:fullscreen_&]:flex-col [:fullscreen_&]:justify-between",
           "[&_[data-slider]::before]:-top-4 [&_[data-slider]::before]:-bottom-2 [&_[data-slider]::before]:absolute [&_[data-slider]::before]:inset-x-0 [&_[data-slider]::before]:z-10 [&_[data-slider]::before]:h-8 [&_[data-slider]::before]:cursor-pointer [&_[data-slider]::before]:content-[''] [&_[data-slider]]:relative [&_[data-slot='media-player-seek']:not([data-hovering])::before]:cursor-default",
           "[&_video::-webkit-media-text-track-display]:top-auto! [&_video::-webkit-media-text-track-display]:bottom-[4%]! [&_video::-webkit-media-text-track-display]:mb-0! data-[state=fullscreen]:data-[controls-visible]:[&_video::-webkit-media-text-track-display]:bottom-[9%]! data-[controls-visible]:[&_video::-webkit-media-text-track-display]:bottom-[13%]! data-[state=fullscreen]:[&_video::-webkit-media-text-track-display]:bottom-[7%]!",
@@ -1116,7 +1122,7 @@ function MediaPlayerRootImpl(props: MediaPlayerRootProps) {
         </span>
         <span id={descriptionId} className="sr-only">
           {isVideo
-            ? "Tap Space to play or pause. While playing, hold Space or the primary mouse button on the video for 2× speed. Use left and right arrows to seek and up and down arrows to adjust volume."
+            ? "Tap Space to play or pause. Hold Space or press and hold the video to play at 2× speed. Release to return to the previous speed and pause state. Use left and right arrows to seek and up and down arrows to adjust volume."
             : "Audio player with custom controls for playback, volume, seeking, and more. Use space bar to play/pause, Shift + arrow keys (←/→) to seek, and arrow keys (↑/↓) to adjust volume."}
         </span>
         {children}

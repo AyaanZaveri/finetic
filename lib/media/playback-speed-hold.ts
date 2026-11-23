@@ -12,9 +12,12 @@ export function createPlaybackSpeedHold({
     onActive: (_active: boolean) => void;
     onTap: (_media: HTMLMediaElement) => void;
 }) {
-    let hold: { input: Input; media: HTMLMediaElement; timer: ReturnType<typeof setTimeout>; elapsed: boolean; rate?: number } | null = null;
+    let hold: {
+        input: Input; media: HTMLMediaElement; timer: ReturnType<typeof setTimeout>; elapsed: boolean;
+        boost?: { rate: number; startedPaused: boolean };
+    } | null = null;
     let suppressClick = false;
-    const mediaEvents = ["pause", "ended", "emptied", "loadstart", "seeking", "error"] as const;
+    const mediaEvents = ["pause", "ended", "emptied", "loadstart", "seeking", "error", "beforeplaybackenginechange"] as const;
 
     function finish(cancelled: boolean) {
         const previous = hold;
@@ -23,9 +26,14 @@ export function createPlaybackSpeedHold({
         clearTimeout(previous.timer);
         for (const event of mediaEvents) previous.media.removeEventListener(event, cancel);
 
-        if (previous.rate !== undefined) {
+        if (previous.boost) {
+            // The play command may still be in flight on a native engine.
+            // Always queue the matching pause before restoring the rate.
+            if (previous.boost.startedPaused) previous.media.pause();
             // Preserve a speed change made by another control during the hold.
-            if (previous.media.playbackRate === BOOST_RATE) previous.media.playbackRate = previous.rate;
+            if (previous.media.playbackRate === BOOST_RATE && previous.boost.rate !== BOOST_RATE) {
+                previous.media.playbackRate = previous.boost.rate;
+            }
             onActive(false);
         }
         if (previous.input !== "space" && (previous.elapsed || cancelled)) suppressClick = true;
@@ -38,12 +46,18 @@ export function createPlaybackSpeedHold({
         const media = currentMedia();
         if (hold || !media) return;
         const timer = setTimeout(() => {
-            if (!hold) return;
-            hold.elapsed = true;
-            if (currentMedia() !== media || !canBoost() || media.paused || media.ended || media.seeking) return;
-            hold.rate = media.playbackRate;
-            if (hold.rate !== BOOST_RATE) media.playbackRate = BOOST_RATE;
+            const pressed = hold;
+            if (!pressed) return;
+            pressed.elapsed = true;
+            if (currentMedia() !== media || !canBoost() || media.ended || media.seeking || media.error || media.readyState === 0) return;
+            const boost = { rate: media.playbackRate, startedPaused: media.paused };
+            pressed.boost = boost;
+            if (boost.rate !== BOOST_RATE) media.playbackRate = BOOST_RATE;
+            if (hold !== pressed) return;
             onActive(true);
+            if (boost.startedPaused) void media.play().catch(() => {
+                if (hold === pressed) cancel();
+            });
         }, HOLD_MS);
         hold = { input, media, timer, elapsed: false };
         for (const event of mediaEvents) media.addEventListener(event, cancel);

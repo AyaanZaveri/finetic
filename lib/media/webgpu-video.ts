@@ -30,6 +30,7 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
     let time = Number.isFinite(startPosition) ? Math.max(0, startPosition) : 0;
     let duration = NaN, width = 0, height = 0, ready = 0;
     let paused = true, ended = false, seeking = false;
+    let playRequested: boolean | undefined;
     let volume = video.volume, muted = video.muted, rate = video.playbackRate;
     let seekQueued = false;
     let seekRetried = false;
@@ -85,6 +86,8 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
     const fail = (atMs = time * 1000, reason = "unknown") => {
         if (closed) return;
         time = Math.max(0, atMs / 1000);
+        // Release temporary playback while the outgoing decoder still owns the media state.
+        emit("beforeplaybackenginechange");
         const shouldPlay = !paused;
         const resume = time;
         const reasonLabel = reasonCode(reason);
@@ -104,6 +107,7 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
         cleanup();
         // Preserve a useful, URL-free cause when the browser reports a generic format error.
         video.dataset.webgpuFallback = reasonLabel;
+        if (initialMetadata) video.dataset.webgpuResuming = "";
         // Restore preferences before loading the same URL through Mux/native.
         video.volume = volume; video.muted = muted; video.playbackRate = rate;
         fallbackMetadata = () => {
@@ -193,13 +197,16 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
         if (navigator.userActivation?.hasBeenActive === false && !muted) {
             throw new DOMException("Click play to start audio.", "NotAllowedError");
         }
+        playRequested = true;
         const changed = paused;
         paused = false; ended = false;
         if (changed) emit("play");
         if (opened) player?.play();
     } });
     define("pause", { value: () => {
-        if (closed || paused) return;
+        if (closed) return;
+        playRequested = false;
+        if (paused) return;
         paused = true; player?.pause(); emit("pause");
     } });
     // Media Chrome may call load while wiring up an already owned source.
@@ -304,9 +311,13 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
             onState(state) {
                 if (closed || current !== generation || !metadataSent || seeking) return;
                 if (state === "playing") {
+                    // A short play request can be released before the first frame arrives.
+                    if (playRequested === false) return;
                     paused = false; ready = 4; reportPlaying();
                 }
-                else if (state === "paused") { paused = true; emit("pause"); }
+                else if (state === "paused") {
+                    if (!paused) { paused = true; emit("pause"); }
+                }
                 else if (state === "ended") { paused = true; ended = true; emit("ended"); }
                 else emit("waiting");
             },

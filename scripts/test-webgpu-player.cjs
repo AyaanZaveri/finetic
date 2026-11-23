@@ -263,6 +263,41 @@ function fixture({ result, resolvedSource, audioFailure = false, deferred = fals
   fallback.events.onError('late failure'); assert.equal(fallback.fallbacks, 1, 'Late callbacks cannot restart fallback');
   fallback.detach();
 
+  const heldFallback = fixture(); await tick();
+  setMaxListeners(0, heldFallback.video);
+  const stopWatchingHold = store.subscribe(() => {});
+  store.dispatch({ type: 'mediaelementchangerequest', detail: heldFallback.video });
+  await tick();
+  const { createPlaybackSpeedHold } = load('lib/media/playback-speed-hold.ts', {}, {
+    setTimeout(fn) { heldFallback.fireHold = fn; return 1; }, clearTimeout() {},
+  });
+  heldFallback.video.playbackRate = 1.25;
+  const transportHold = createPlaybackSpeedHold({ currentMedia: () => heldFallback.video,
+    canBoost: () => true, onActive() {}, onTap() { assert.fail('A long press must not tap'); } });
+  transportHold.press('space'); heldFallback.fireHold();
+  assert.equal(heldFallback.video.paused, false);
+  assert.deepEqual(heldFallback.calls.slice(-2), [['rate', 2], ['play']]);
+  assert.equal(store.getState().mediaPaused, false);
+  assert.equal(store.getState().mediaPlaybackRate, 2);
+  transportHold.releaseSpace();
+  heldFallback.events.onState('playing');
+  assert.equal(heldFallback.video.paused, true, 'A queued playing notification cannot undo release');
+  assert.equal(heldFallback.video.playbackRate, 1.25);
+  assert.equal(store.getState().mediaPaused, true);
+  assert.equal(store.getState().mediaPlaybackRate, 1.25);
+
+  transportHold.press('space'); heldFallback.fireHold();
+  heldFallback.events.onFallback('device-lost', 3000);
+  heldFallback.video.dispatchEvent(new Event('loadedmetadata')); await tick();
+  transportHold.releaseSpace();
+  assert.equal(heldFallback.video.dataset.webgpuResuming, '');
+  assert.equal(heldFallback.video.currentTime, 3);
+  assert.equal(heldFallback.video.paused, true, 'Fallback keeps the prior pause state when it interrupts a temporary hold');
+  assert.equal(heldFallback.video.playbackRate, 1.25);
+  store.dispatch({ type: 'mediaelementchangerequest', detail: null });
+  stopWatchingHold();
+  heldFallback.detach();
+
   const silent = fixture({ audioFailure: true }); await silent.video.play(); await tick();
   assert.equal(silent.fallbacks, 0, 'An audio refusal must retry video without loading the browser MKV element');
   assert.ok(silent.calls.some(([name, request]) => name === 'open' && request.audioOrdinal === -1));

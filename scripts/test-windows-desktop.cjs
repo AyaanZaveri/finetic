@@ -66,6 +66,44 @@ function load(file, extra = {}) {
   assert.equal(media.currentTime, 0, "Replacement clears pending optimistic state");
   media.dispose();
 
+  for (const platform of ['windows', 'macos', 'linux', 'android', 'ios']) {
+    const commands = [];
+    let handleMessage, fireHold;
+    const native = new MpvController({ platform, send: message => commands.push(message),
+      subscribe(fn) { handleMessage = fn; return () => {}; } });
+    const { createPlaybackSpeedHold } = load('lib/media/playback-speed-hold.ts', {
+      setTimeout(fn) { fireHold = fn; return 1; }, clearTimeout() {},
+    });
+    native.load('https://example.invalid/paused.mkv');
+    const session = commands.find(command => command.type === 'load').session;
+    const receive = (rate, paused = true) => handleMessage({ type: 'state', session, state: { ...state, paused, rate } });
+    receive(1.25); handleMessage({ type: 'loaded', session }); handleMessage({ type: 'ready', session });
+    const boost = createPlaybackSpeedHold({ currentMedia: () => native, canBoost: () => true,
+      onActive() {}, onTap() { assert.fail('A long press must not tap'); } });
+
+    boost.press('space'); fireHold();
+    receive(1.25);
+    assert.equal(native.playbackRate, 2, 'A pre-boost snapshot cannot erase the active rate');
+    boost.releaseSpace();
+    assert.deepEqual(commands.slice(-4).map(command => [command.type, command.rate]),
+      [['rate', 2], ['play', undefined], ['pause', undefined], ['rate', 1.25]],
+      `${platform}: pause is sent even when play has not been acknowledged`);
+    assert.equal(native.paused, true, 'Release updates the visible transport immediately');
+    receive(2, false);
+    assert.equal(native.paused, true, 'A stale play snapshot cannot undo release');
+    assert.equal(native.playbackRate, 1.25, 'A stale boost snapshot cannot erase the restored rate');
+    receive(1.25);
+
+    boost.press('space'); fireHold();
+    native.load('https://example.invalid/replacement.mkv');
+    const stop = commands.findIndex(command => command.type === 'stop');
+    assert.equal(commands[stop - 2].type, 'pause');
+    assert.equal(commands[stop - 2].session, session, 'Stop temporary playback on the outgoing session');
+    assert.equal(commands.at(-1).rate, 1.25, 'The replacement inherits the restored rate');
+    boost.releaseSpace();
+    native.dispose();
+  }
+
   // Exercise readiness after hydration, cancellation, and platform gating.
   for (const platform of ["windows", "macos", "android"]) {
     const frames = new Map(); let index = 0; let effect;

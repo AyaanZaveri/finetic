@@ -49,7 +49,7 @@ export class MpvController extends EventTarget {
   private finished = false;
   private pending = new Map<"position" | "paused" | "volume" | "muted" | "rate", { value: number | boolean; until: number }>();
   private optimistic(key: "position" | "paused" | "volume" | "muted" | "rate", value: number | boolean) {
-    if (key !== "position" && this.bridge.platform !== "windows") return;
+    if ((key === "volume" || key === "muted") && this.bridge.platform !== "windows") return;
     this.pending.set(key, { value, until: Date.now() + (key === "position" ? 2000 : 1000) });
     this.state = { ...this.state, [key]: value };
   }
@@ -203,6 +203,7 @@ export class MpvController extends EventTarget {
     this.cancelPreview();
     this.previewImages.clear();
     if (this.disposed) return;
+    if (this.session) this.fire("beforeplaybackenginechange");
     this.clearTrackSwitches();
     this.pending.clear();
     if (this.session) this.bridge.send({ type: "stop", session: this.session });
@@ -241,22 +242,18 @@ export class MpvController extends EventTarget {
   play(): Promise<void> {
     if (this.disposed) return Promise.reject(new Error("Player has been closed"));
     if (this.failure) return Promise.reject(new Error(this.failure.message));
-    if (this.bridge.platform === "windows") {
-      const paused = this.state.paused;
-      if (paused) this.optimistic("paused", false);
-      if (paused) this.fire("play");
-    }
+    const paused = this.state.paused;
+    if (paused) this.optimistic("paused", false);
     this.bridge.send({ type: "play", session: this.session });
+    if (paused) this.fire("play");
     return Promise.resolve();
   }
   pause() {
     if (this.disposed) return;
-    if (this.bridge.platform === "windows") {
-      const paused = this.state.paused;
-      this.optimistic("paused", true);
-      if (!paused) this.fire("pause");
-    }
+    const paused = this.state.paused;
+    this.optimistic("paused", true);
     this.bridge.send({ type: "pause", session: this.session });
+    if (!paused) this.fire("pause");
   }
   get supportsSubtitleTiming() { return this.bridge.capabilities?.subtitleTiming === true; }
   setSubtitleDelay(seconds: number) {

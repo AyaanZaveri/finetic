@@ -95,6 +95,7 @@ function tryNativeWebGpuVideo(video: HTMLVideoElement, url: string, fallback: (_
     };
     const startEngine = () => {
         stopAttempt();
+        video.dispatchEvent(new Event("beforeplaybackenginechange"));
         const position = video.readyState >= 1 ? video.currentTime : startPosition;
         const playing = !video.paused;
         video.pause();
