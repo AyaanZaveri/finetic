@@ -67,7 +67,8 @@
 }
 
 .details {
-  margin-block-start: 0.75rem;
+  margin-block-start: 1rem;
+  padding-block-start: 0.25rem;
   border-block-start: 1px solid var(--border);
 }
 
