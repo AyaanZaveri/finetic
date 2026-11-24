@@ -26,8 +26,6 @@
   <p><a href="desktop/README.md">Desktop</a> · <a href="android/README.md">Android</a> · <a href="ios/README.md">iOS</a></p>
 </div>
 
-Navigator is the successor to Finetic. The original implementation is on the [finetic-legacy branch](https://github.com/AyaanZaveri/navigator/tree/finetic-legacy).
-
 ## Demo
 
 https://github.com/user-attachments/assets/697d0384-1f3b-45df-8cd4-6d2bb6405e46
@@ -75,6 +73,10 @@ For production, set `NAVIGATOR_SESSION_SECRET` with `openssl rand -hex 32`, then
 - [Skip timing providers and credits](docs/skip-provider-audit.md)
 
 Bugs, ideas, and pull requests are welcome.
+
+## Project history
+
+Navigator is the successor to Finetic. The original implementation is on the [finetic-legacy branch](https://github.com/AyaanZaveri/navigator/tree/finetic-legacy).
 
 ## License
 
