@@ -64,12 +64,11 @@ jobs:
       - name: Compile and test native playback commands
         if: matrix.libmpv != ''
         run: cargo test --manifest-path desktop/Cargo.toml --locked
+      - name: Download pinned playback libraries
+        if: matrix.libmpv != ''
+        run: node scripts/fetch-desktop-libs.mjs
       - name: Verify the real mpv audio-delay property (no playback)
         if: matrix.libmpv != ''
-        shell: bash
         env:
-          LIBMPV_PATH: ${{ matrix.libmpv }}
-        run: |
-          node scripts/fetch-desktop-libs.mjs
-          export NAVIGATOR_TEST_LIBMPV="$(node -p 'require("node:path").resolve(process.env.LIBMPV_PATH)')"
-          cargo test --manifest-path desktop/Cargo.toml --locked audio_delay_libmpv_property -- --ignored --nocapture
+          NAVIGATOR_TEST_LIBMPV: ${{ github.workspace }}/${{ matrix.libmpv }}
+        run: cargo test --manifest-path desktop/Cargo.toml --locked audio_delay_libmpv_property -- --ignored --nocapture
