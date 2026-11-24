@@ -147,13 +147,8 @@ components:
     textColor: "{colors.light.muted-foreground}"
   card-metadata-dark:
     textColor: "{colors.dark.muted-foreground}"
-  arc-dialog-light:
-    backgroundColor: "{colors.light.popover}"
-    textColor: "{colors.light.foreground}"
-  arc-dialog:
-    backgroundColor: "{colors.dark.popover}"
-    textColor: "{colors.dark.foreground}"
-    width: 440px
+  addon-dialog:
+    width: 560px
     rounded: 16px
     padding: "{spacing.space-6}"
 ---
@@ -201,7 +196,7 @@ Reuse the shared floating material for menus: 12px blur and a `--popover` tint a
 
 ## Shapes
 
-The base `--radius` is 0.625rem. Tailwind radius utilities use that base: sm is −4px, md is −2px, lg is the base, and xl is +4px. YAML records their equivalents at a 16px root. Keep the related but distinct shapes already in use: 8.5px poster frames, 12px standard buttons and text fields, 14px Arc dropdowns with 8px rows, and 16px Arc dialogs. Pills mark playback actions, compact badges, tracks, and switches. Arc’s default `--radius-control` is 1.125rem and can be scoped by a component. Use the radius of the component you are extending and preserve the clipping edge around moving artwork.
+The base `--radius` is 0.625rem. Tailwind radius utilities use that base: sm is −4px, md is −2px, lg is the base, and xl is +4px. YAML records their equivalents at a 16px root. Keep the related but distinct shapes already in use: 8.5px poster frames, 12px standard buttons and text fields, 14px Arc dropdowns with 8px rows, and 16px account and Add-ons dialogs. Pills mark playback actions, compact badges, tracks, and switches. Arc’s default `--radius-control` is 1.125rem and can be scoped by a component. Use the radius of the component you are extending and preserve the clipping edge around moving artwork.
 
 ## Motion & Micro-interaction
 
@@ -222,7 +217,7 @@ Write short, calm labels that name the action: “Sign in to play”, “Skip in
 | --- | --- |
 | Buttons and links | Use `Button` from `@components/ui/button.tsx`: `primary` for the main action, `secondary` for a framed alternative, `ghost` for low-emphasis icon actions, and `danger` for destructive actions. Use `asChild` for navigation links and give icon-only buttons an accessible name. Use the existing media Play action for title routes. |
 | Form fields | Compose `Field`, `Input`, and `InputGroup` from `@components/ui/field.tsx`, `@components/ui/input.tsx`, and `@components/ui/input-group.tsx`. Use Arc `Select` for a known list, `Combobox` for searchable choices, and `Switch`, `Slider`, or `NumberField` for the matching value type. See `@components/playback-settings.tsx` and `@components/playback-language-settings.tsx`. |
-| Menus, popovers, and dialogs | For new peers of current Arc surfaces, use `@components/arc/dropdown-menu/dropdown-menu.tsx`, `@components/arc/popover/popover.tsx`, or `@components/arc/dialog/dialog.tsx`. Use checkmarked radio rows for one choice, a popover for anchored editing, and a titled dialog for tasks that need modal focus. Arc dialogs cap at 440px and leave a 2rem total viewport-width allowance. Pass the player’s portal container in fullscreen. Keep existing `components/ui/` and `components/account-ui/` wrappers where feature flows already depend on them. |
+| Menus, popovers, and dialogs | Use the Arc dropdown and popover for menus and anchored editing. Use the shared `@components/account-ui/dialog.tsx` and `@components/account-ui/surface.module.css` for dialogs that follow the Add-ons and sign-in flows. Match the width to the content and leave a 2rem total viewport-width allowance. Use checkmarked radio rows for one choice and a titled dialog for tasks that need modal focus. Pass the player’s portal container in fullscreen. Keep existing `components/ui/` wrappers where feature flows depend on them. |
 | Segments and settings | Use Arc `SegmentedControl` for a short set of mutually exclusive options and `ChipGroup` for filter chips. Keep the selected item visible in a scrollable strip. For a concrete pairing of labeled settings, segments, slider, and preview, see `@components/subtitle-settings.tsx`. |
 | Navigation and media | Use `AppHeader`, its Arc `UserMenu`, and `SearchBar` for the top shell, and `SettingsShell` for settings categories. Reuse `MediaSection`, `MediaCard`, and `ArtworkImage` for browse rails and grids. Keep a details link and a separate Play button, with stable image ratios and explicit loading and missing-artwork states. See `@components/search-component.tsx` and `@components/artwork-image.tsx`. |
 | Playback | Compose the shared player from `@components/ui/media-player.tsx`, `@components/player-control-bar.tsx`, and the selection and settings controls in `@components/player-selection-controls.tsx` and `@components/player-settings-menu.tsx`. Reuse scrollable menus and the responsive selection drawer. Keep subtitle text centered and outlined via `@components/subtitle-text.module.css` and keep timing editing in `@components/subtitle-timing-popover.tsx`. Preserve the shared browser and native player paths. |

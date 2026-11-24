@@ -1,4 +1,4 @@
-/* Matches Locus's compact external-link arrow reveal. */
+/* Reveal the external-link arrow on hover or keyboard focus. */
 .link {
     padding-inline-end: 10px;
 }

@@ -7,6 +7,7 @@ import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { LayoutContent } from "@/components/layout-content";
 import { WatchHistoryProvider } from "@/contexts/watch-history-context";
 import { AccountProvider } from "@/components/account-provider";
+import { AppUpdateProvider } from "@/components/desktop/app-update-provider";
 
 import { getAuthData } from "@/lib/server/auth";
 import { StreamQueryProvider } from "@/components/stream-query-provider";
@@ -25,15 +26,17 @@ export default async function MainLayout({
         <JotaiProvider key={scope}>
             <StreamQueryProvider key={scope} scope={scope}>
                 <AccountProvider key={user?._id ?? "anonymous"} authenticated={Boolean(user)}>
-                    <MetadataPreloadPolicy />
-                    <FullscreenDetector />
-                    <KeyboardShortcuts />
-                    <SettingsShortcut />
-                    <WatchHistoryProvider key={user?._id ?? "anonymous"} enabled={Boolean(user)}>
-                        <HomeSnapshotProvider scope={scope}>
-                            <LayoutContent email={user?.email ?? ""} userId={user?._id ?? ""}>{children}</LayoutContent>
-                        </HomeSnapshotProvider>
-                    </WatchHistoryProvider>
+                    <AppUpdateProvider>
+                        <MetadataPreloadPolicy />
+                        <FullscreenDetector />
+                        <KeyboardShortcuts />
+                        <SettingsShortcut />
+                        <WatchHistoryProvider key={user?._id ?? "anonymous"} enabled={Boolean(user)}>
+                            <HomeSnapshotProvider scope={scope}>
+                                <LayoutContent email={user?.email ?? ""} userId={user?._id ?? ""}>{children}</LayoutContent>
+                            </HomeSnapshotProvider>
+                        </WatchHistoryProvider>
+                    </AppUpdateProvider>
                 </AccountProvider>
             </StreamQueryProvider>
         </JotaiProvider>
