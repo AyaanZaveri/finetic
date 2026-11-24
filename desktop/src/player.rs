@@ -478,6 +478,8 @@ mod tests {
     #[ignore = "requires the pinned NAVIGATOR_TEST_LIBMPV library"]
     fn audio_delay_libmpv_property() {
         let library = std::path::PathBuf::from(std::env::var("NAVIGATOR_TEST_LIBMPV").unwrap());
+        #[cfg(windows)]
+        crate::platform::prepare_library(&library);
         let mpv = Mpv::new(&library, &[
             ("config", "no"), ("vo", "null"), ("ao", "null"), ("idle", "yes"), ("terminal", "no"),
         ]).unwrap();
