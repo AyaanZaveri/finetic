@@ -14,7 +14,7 @@ import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field
 import { AddonPreviewCard } from "@/components/addon-preview-card";
 import { useStreamQueries } from "@/components/stream-query-provider";
 import surface from "@/components/account-ui/surface.module.css";
-import browseLink from "./browse-addon-link.module.css";
+import externalLink from "@/components/external-link-reveal.module.css";
 import previewStyle from "./addon-preview.module.css";
 
 type Preview = NonNullable<Awaited<ReturnType<typeof previewAddon>>["addon"]>;
@@ -144,11 +144,11 @@ export function AddAddonDialog() {
 
     const browseAction = (
         <Button asChild variant={isMobile ? "link" : "outline"} size={isMobile ? "default" : "sm"}>
-            <a draggable={false} className={browseLink.link} href="https://stremio-addons.net/" target="_blank" rel="noopener noreferrer" aria-label="Browse Stremio Addons (opens in a new tab)">
+            <a draggable={false} className={externalLink.link} href="https://stremio-addons.net/" target="_blank" rel="noopener noreferrer" aria-label="Browse Stremio Addons (opens in a new tab)">
                 <Image src="/images/stremio-addons.ico" width={16} height={16} unoptimized alt="" data-icon="inline-start" />
                 <span className="inline-flex items-center">
                     Browse addons
-                    <span className={browseLink.arrow} aria-hidden="true">
+                    <span className={externalLink.arrow} aria-hidden="true">
                         <ArrowUpRight className="size-4" strokeWidth={2} absoluteStrokeWidth />
                     </span>
                 </span>

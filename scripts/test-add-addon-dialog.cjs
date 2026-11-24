@@ -36,7 +36,7 @@ async function main() {
         '@/lib/addons': load('lib/addons.ts', {}),
         '@/lib/aurora-palette-loader': { loadHomePalette: source => new Promise(resolve => palettes.push({ source, resolve })) },
         '@/components/account-ui/surface.module.css': { surface: 'surface', addonBackdrop: 'addon-backdrop' },
-        './browse-addon-link.module.css': { link: 'browse-link', arrow: 'browse-arrow' },
+        '@/components/external-link-reveal.module.css': { link: 'browse-link', arrow: 'browse-arrow' },
         './addon-preview.module.css': { card: 'preview-card', artwork: 'preview-artwork' },
     };
     const { AddonPreviewCard } = load('components/addon-preview-card.tsx', {
