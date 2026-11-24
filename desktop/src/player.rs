@@ -491,6 +491,56 @@ mod tests {
         }
     }
 
+    #[test]
+    #[ignore = "requires the pinned libmpv and bundled A/V fixture"]
+    fn audio_delay_loaded_session_commands() {
+        let library = std::path::absolute(std::env::var("NAVIGATOR_TEST_LIBMPV").unwrap()).unwrap();
+        #[cfg(windows)]
+        crate::platform::prepare_library(&library);
+        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../public/images/subtitle-timing-demo.mp4");
+        assert!(fixture.is_file());
+        let mpv = Arc::new(Mpv::new(&library, &[
+            ("config", "no"), ("vo", "null"), ("ao", "null"), ("idle", "yes"), ("terminal", "no"),
+        ]).unwrap());
+        let (send, inbox) = mpsc::channel();
+        let mut player = Player::start(mpv.clone(), move |value| { let _ = send.send(value); }, |_, _| {}).unwrap();
+        let load = |session: &str| Command::Load {
+            session: session.into(), url: fixture.to_string_lossy().into_owned(),
+            headers: BTreeMap::new(), start_position: 0.0,
+        };
+        let property = |name, wanted: f64| {
+            let deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                let actual = mpv.get_property(name, Kind::Double).and_then(|value| value.as_f64());
+                if actual.is_some_and(|value| (value - wanted).abs() < 1e-6) { return; }
+                assert!(Instant::now() < deadline, "Expected {name}={wanted}, got {actual:?}");
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        };
+        player.send(load("first"));
+        wait_for(&inbox, |v| v["type"] == "loaded" && v["session"] == "first");
+        wait_for(&inbox, |v| v["type"] == "ready" && v["session"] == "first");
+        let tracks = mpv.get_property("track-list", Kind::Json).unwrap();
+        for kind in ["audio", "video"] {
+            assert!(tracks.as_array().unwrap().iter().any(|t| t["type"] == kind && t["selected"] == true), "Missing active {kind} track");
+        }
+        wait_for(&inbox, |v| v["type"] == "state" && v["session"] == "first" && v["state"]["position"].as_f64().is_some_and(|position| position > 0.1));
+        for seconds in [0.3_f64, -0.4, 0.0, 0.7] {
+            player.send(crate::protocol::parse(&format!(r#"{{"type":"audio-delay","session":"first","seconds":{seconds}}}"#)).unwrap());
+            property("audio-delay", seconds);
+        }
+        player.send(Command::AudioDelay { session: "stale".into(), seconds: -5.0 });
+        player.send(Command::Volume { session: "first".into(), volume: 0.427 });
+        property("volume", 42.7);
+        property("audio-delay", 0.7);
+        player.send(load("second"));
+        wait_for(&inbox, |v| v["type"] == "loaded" && v["session"] == "second");
+        property("audio-delay", 0.0);
+        player.begin_shutdown(); player.join();
+        println!("Actual native command dispatch, positive/negative adjustment, reset, stale-session rejection, and replacement reset passed with an A/V file loaded.");
+    }
+
     fn wait_for(inbox: &mpsc::Receiver<Value>, predicate: impl Fn(&Value) -> bool) -> Value {
         let until = Instant::now() + Duration::from_secs(8);
         while Instant::now() < until {

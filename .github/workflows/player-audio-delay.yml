@@ -2,7 +2,7 @@ name: Check player audio delay
 
 on:
   push:
-    branches: [player-audio-delay]
+    branches: [audio-delay-loaded-session-check]
   workflow_dispatch:
   pull_request:
     paths:
@@ -32,8 +32,6 @@ jobs:
             libmpv: desktop/vendor/macos-aarch64/libmpv.2.dylib
           - os: windows-2025
             libmpv: desktop/vendor/windows-x86_64/libmpv-2.dll
-          - os: ubuntu-latest
-            libmpv: ''
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     env:
@@ -71,4 +69,4 @@ jobs:
         if: matrix.libmpv != ''
         env:
           NAVIGATOR_TEST_LIBMPV: ${{ github.workspace }}/${{ matrix.libmpv }}
-        run: cargo test --manifest-path desktop/Cargo.toml --locked audio_delay_libmpv_property -- --ignored --nocapture
+        run: cargo test --manifest-path desktop/Cargo.toml --locked audio_delay_ -- --ignored --nocapture
