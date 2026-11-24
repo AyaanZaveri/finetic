@@ -2,13 +2,16 @@
 
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type PointerEvent, type RefObject } from "react";
 import dynamic from "next/dynamic";
-import { Check, Copy, GripHorizontal, Pause, Play, X } from "lucide-react";
+import { Check, ChevronDown, Copy, GripHorizontal, Pause, Play, X } from "lucide-react";
+import floatingSurface from "@/components/arc/floating-surface.module.css";
+import SegmentedControl from "@/components/arc/segmented-control/segmented-control";
 import { Button } from "@/components/ui/button";
 import { observePlaybackHistory, playbackDiagnostics, type PlaybackHistory } from "@/lib/media/playback-history";
 import { readNativePlaybackStats, readWebPlaybackStats } from "@/lib/media/playback-stats";
 import styles from "./player-playback-stats.module.css";
 
-const Timeline = dynamic(() => import("./player-playback-timeline"), { loading: () => <div className="h-28" /> });
+const Timeline = dynamic(() => import("./player-playback-timeline"), { loading: () => <div className={styles.plot} /> });
+const graphOptions = [{ value: "buffer", label: "Buffer" }, { value: "frames", label: "Frames" }];
 const seconds = (ms?: number | null) => ms == null ? undefined : `${(ms / 1000).toFixed(1)} s`;
 const gutter = 12;
 type Position = { x: number; y: number };
@@ -101,28 +104,30 @@ export function PlayerPlaybackStats({ open, videoRef, onClose, native = false }:
     const chartMode = hasFrameStats ? mode : "buffer";
     const freezeLabel = frozen ? "Resume stats updates" : "Freeze stats";
     const FreezeIcon = frozen ? Play : Pause;
-    const rows = [
+    const summary = [
         ["Playback", stats?.path],
-        ["Decoder route", stats?.route],
         ["Resolution", stats?.resolution],
+        ["Buffer ahead", seconds(stats?.videoAheadMs)],
+        ["Presented rate", fps === undefined ? undefined : `${fps.toFixed(1)} fps`],
+        ["Frames dropped", stats?.dropped],
+        ["HDR output", stats?.hdr],
+    ] as const;
+    const details = ([
+        ["Decoder route", stats?.route],
         ["Video codec", stats?.videoCodec],
         ["Audio codec", stats?.audioCodec],
-        ["Presented rate", fps === undefined ? undefined : `${fps.toFixed(1)} fps`],
         ["Frames presented", stats?.presented],
-        ["Frames dropped", stats?.dropped],
         ["Decoder frame drops", stats?.decoderDropped],
         ["Frames late", stats?.late],
         ["WebGPU draws submitted", stats?.draws],
-        ["HDR output", stats?.hdr],
-        [native ? "Buffer ahead" : "Video buffer ahead", seconds(stats?.videoAheadMs)],
         ["Audio buffer ahead", seconds(stats?.audioAheadMs)],
         ["Audio underruns", stats?.audioUnderflows],
         ["Fallback reason", stats?.fallback],
-    ] as const;
+    ] as const).filter(([, value]) => value !== undefined);
     return <section ref={panelRef} inert={!open} aria-label="Stats for nerds" data-player-stats="" data-open={open ? "" : undefined}
         style={position ? { left: position.x, top: position.y } : undefined}
-        className={`${styles.panel} absolute top-3 z-[var(--layer-overlay)] pointer-events-auto transform-gpu flex max-h-[55%] w-[22rem] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-xl border border-white/8 bg-black/85 text-[0.8125rem] leading-normal text-white shadow-lg shadow-black/35 ${position ? "" : "end-3"}`}>
-        <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-0.5 px-3 pb-1 pt-1.5">
+        className={`${floatingSurface.surface} ${styles.panel} absolute top-3 z-[var(--layer-overlay)] pointer-events-auto flex flex-col overflow-hidden rounded-xl border border-border text-[0.8125rem] leading-normal text-popover-foreground ${position ? "" : "end-3"}`}>
+        <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-0.5 px-3 py-2">
             <span id={moveInstructionsId} className="sr-only">Use arrow keys to move the stats panel.</span>
             <h2 tabIndex={0} aria-describedby={moveInstructionsId}
                 className="flex min-h-7 flex-1 cursor-grab touch-none select-none items-center gap-1.5 rounded-sm text-sm font-semibold leading-tight active:cursor-grabbing focus-visible:outline-2 focus-visible:outline-ring"
@@ -149,21 +154,21 @@ export function PlayerPlaybackStats({ open, videoRef, onClose, native = false }:
                     event.stopPropagation();
                     moveTo({ x: panel.offsetLeft + dx * 16, y: panel.offsetTop + dy * 16 });
                 }}>
-                <GripHorizontal aria-hidden="true" className="size-4 shrink-0 text-white/55" />
+                <GripHorizontal aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
                 Stats for nerds
             </h2>
             <div className="-me-1 ms-auto flex items-center gap-1">
                 <Button type="button" variant="ghost" size="icon-xs" aria-label="Copy diagnostics"
                     title={copyStatus === "copied" ? "Diagnostics copied" : "Copy diagnostics"} disabled={!history}
-                    className="size-7 text-white hover:bg-white/15" onClick={copyDiagnostics}>
+                    className="size-7" onClick={copyDiagnostics}>
                     {copyStatus === "copied" ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
                 </Button>
                 <Button type="button" variant="ghost" size="icon-xs" aria-label={freezeLabel} title={freezeLabel}
-                    className="size-7 text-white hover:bg-white/15" onClick={() => setFrozen(value => !value)}>
+                    className="size-7" onClick={() => setFrozen(value => !value)}>
                     <FreezeIcon aria-hidden="true" className="size-4 scale-80" fill="currentColor" />
                 </Button>
                 <Button type="button" variant="ghost" size="icon-xs" aria-label="Hide stats for nerds"
-                    className="size-7 text-white hover:bg-white/15" onClick={() => {
+                    className="size-7" onClick={() => {
                         const player = panelRef.current?.parentElement;
                         releaseDrag();
                         onClose();
@@ -173,38 +178,52 @@ export function PlayerPlaybackStats({ open, videoRef, onClose, native = false }:
                 </Button>
             </div>
         </div>
-        <div className="min-h-0 select-text overflow-y-auto overscroll-contain touch-pan-y px-3 pb-3">
-            <p role="status" className={copyStatus === "failed" ? "pb-2 text-xs text-white/80" : "sr-only"}>
+        <div data-selectable-text="" className="min-h-0 select-text overflow-y-auto overscroll-contain touch-pan-y px-3 pb-3">
+            <p role="status" className={copyStatus === "failed" ? "pb-2 text-xs text-destructive" : "sr-only"}>
                 {copyStatus === "copied" ? "Diagnostics copied." : copyStatus === "failed" ? "Couldn’t copy diagnostics." : ""}
             </p>
             {history && <div className={styles.timeline}>
                 <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-                    <span className="text-xs font-medium text-white/75">Last 60 seconds</span>
-                    <div role="group" aria-label="Playback graph" className="-me-1 flex items-center gap-1">
-                        {(["buffer", "frames"] as const).map(tab => (
-                            <Button key={tab} type="button" variant="ghost" size="xs" aria-pressed={chartMode === tab}
-                                disabled={tab === "frames" && !hasFrameStats}
-                                className="px-2 text-white/70 hover:bg-white/15 hover:text-white aria-pressed:bg-white/15 aria-pressed:text-white"
-                                onClick={() => setMode(tab)}>{tab === "buffer" ? "Buffer" : "Frames"}</Button>
-                        ))}
-                    </div>
+                    <span className="text-xs font-medium text-muted-foreground">Last 60 seconds</span>
+                    {hasFrameStats && <SegmentedControl className={styles.graphSwitch} label="Playback graph"
+                        options={graphOptions} value={chartMode} onValueChange={value => setMode(value === "frames" ? "frames" : "buffer")} />}
                 </div>
                 {/* Keep the current plot through the panel's exit transition after it has loaded. */}
                 <Timeline history={history} mode={chartMode} />
-                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-white/70">
-                    {chartMode === "frames" && stats?.presented !== undefined && <span className={styles.lineKey}>Presented</span>}
-                    {chartMode === "frames" && stats?.dropped !== undefined && <span className={styles.dropKey}>Dropped</span>}
-                    <span className={styles.stallKey}>{history.stallCount} {history.stallCount === 1 ? "stall" : "stalls"}
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
+                    <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+                        {chartMode === "buffer" && <span className={styles.lineKey}>Buffer ahead</span>}
+                        {chartMode === "frames" && stats?.presented !== undefined && <span className={styles.lineKey}>Presented</span>}
+                        {chartMode === "frames" && stats?.dropped !== undefined && <span className={styles.dropKey}>Dropped</span>}
+                        {history.events.some(event => event.kind === "seek") && <span className={styles.seekKey}>Seek</span>}
+                    </div>
+                    <span className={history.stallCount ? styles.stallKey : undefined}>{history.stallCount} {history.stallCount === 1 ? "stall" : "stalls"}
                         {history.stallCount > 0 && ` · ${seconds(history.stallMs)}`}</span>
-                    {history.events.some(event => event.kind === "seek") && <span className={styles.seekKey}>Seek</span>}
                 </div>
             </div>}
-            {stats ? <dl className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-3 gap-y-1">
-                {rows.map(([label, value]) => value === undefined ? null : <div key={label} className="col-span-2 grid grid-cols-subgrid">
-                    <dt className="min-w-0 wrap-break-word text-white/75">{label}</dt>
-                    <dd className="min-w-0 wrap-break-word text-end font-medium tabular-nums"><bdi>{value}</bdi></dd>
-                </div>)}
-            </dl> : <p className="text-white/75">Waiting for playback data.</p>}
+            {stats ? <>
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 px-1">
+                    {summary.map(([label, value]) => value === undefined ? null : <div key={label} className="min-w-0 wrap-break-word">
+                        <dt className="text-xs text-muted-foreground">{label}</dt>
+                        <dd className="text-sm font-medium tabular-nums"><bdi>{value}</bdi></dd>
+                    </div>)}
+                </dl>
+                {details.length > 0 && <details className={`${styles.details} group`}>
+                    <summary className="flex cursor-pointer list-none select-none items-center justify-between gap-2 rounded-md px-1 py-2 font-medium marker:hidden hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
+                        onKeyDown={event => {
+                            if (event.key === " " || event.key === "Enter") event.stopPropagation();
+                        }}>
+                        Playback details
+                        <ChevronDown aria-hidden="true" className="size-3.5 group-open:rotate-180" />
+                    </summary>
+                    <dl className="grid grid-cols-2 gap-x-3 gap-y-1 px-1">
+                        {details.map(([label, value]) => <div key={label} className="col-span-2 grid grid-cols-subgrid">
+                            <dt className="min-w-0 wrap-break-word text-muted-foreground">{label}</dt>
+                            <dd className="min-w-0 wrap-break-word text-end tabular-nums"><bdi>{value}</bdi></dd>
+                        </div>)}
+                    </dl>
+                </details>}
+            </> : <p className="text-muted-foreground">Waiting for playback data.</p>}
         </div>
     </section>;
 }
