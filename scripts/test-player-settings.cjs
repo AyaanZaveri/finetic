@@ -78,7 +78,7 @@ assert.equal(sent[0][1], true);
 const content = find(tree, 'DropdownMenuContent')[0];
 assert.equal(content.props.container, root, 'Settings inherit player theme and remain visible in fullscreen');
 assert.equal(content.props.className, 'settingsMenu');
-assert.equal(find(tree, 'DropdownMenuItem').length, 0, 'Only the web player supplies the stats action');
+assert.equal(find(tree, 'DropdownMenuItem').length, 0, 'The stats action is opt-in for player instances');
 const statsVisibility = [];
 for (const open of [false, true]) {
   const statsMenu = component('MediaPlayerSettings', context, state, [], {
@@ -102,16 +102,18 @@ assert.deepEqual(statsVisibility, [true, false], 'The menu requests explicit sho
   const panel = { offsetLeft: 436, offsetTop: 12, offsetWidth: 352, offsetHeight: 200, offsetParent: player, parentElement: player };
   const { PlayerPlaybackStats } = load('components/player-playback-stats.tsx', {
     react: { ...host.react, useId: () => 'stats-drag-instructions' }, 'react/jsx-runtime': host.jsx,
-    'lucide-react': { GripHorizontal: 'grip', Pause: 'pause-icon', Play: 'play-icon', X: 'close-icon' },
+    'next/dynamic': () => 'PlaybackTimeline',
+    'lucide-react': { Copy: 'copy-icon', GripHorizontal: 'grip', Pause: 'pause-icon', Play: 'play-icon', X: 'close-icon' },
     '@/components/ui/button': { Button: 'Button' },
     '@/lib/media/playback-stats': {},
+    '@/lib/media/playback-history': {
+      observePlaybackHistory() { sampling = true; return () => { sampling = false; }; },
+    },
     './player-playback-stats.module.css': { panel: 'panel' },
   }, {
     ResizeObserver: class { constructor(callback) { resize = callback; } observe() {} disconnect() { resize = undefined; } },
-    window: { setInterval() { sampling = true; return 1; }, clearInterval() { sampling = false; } },
-    document: { addEventListener() {}, removeEventListener() {} },
   });
-  const props = { open: true, videoRef: { current: null }, onClose: () => closed++ };
+  const props = { open: true, videoRef: { current: {} }, onClose: () => closed++ };
   const render = () => host.render(PlayerPlaybackStats, props);
   const initial = render();
   initial.props.ref.current = panel;

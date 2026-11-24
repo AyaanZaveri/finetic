@@ -53,7 +53,8 @@ function Stage({ id }: { id: StateId }) {
     });
     const [source, setSource] = useState(data.currentStream);
     const [duration, setDuration] = useState(0);
-    const [statsOpen, setStatsOpen] = useState(false);
+    const statsDemo = id === "playback-stats";
+    const [statsOpen, setStatsOpen] = useState(statsDemo);
     const [captions, setCaptions] = useState(timing?.available ?? false);
     const [subtitleSize, setSubtitleSize] = useState<SubtitleSize>("standard");
     const [timingOpen, setTimingOpen] = useState(Boolean(timing));
@@ -93,7 +94,7 @@ function Stage({ id }: { id: StateId }) {
             onAdjustSubtitleSize={direction => setSubtitleSize(size => stepSubtitleSize(size, direction))}>
             <MediaPlayerVideo ref={video} src={sample} poster="/images/subtitle-preview.jpg"
                 playsInline preload="auto" className="size-full bg-black"
-                autoPlay={id === "playing"} muted={id === "playing"} loop={id === "playing" || Boolean(timing)}
+                autoPlay={id === "playing" || statsDemo} muted={id === "playing" || statsDemo} loop={id === "playing" || statsDemo || Boolean(timing)}
                 onLoadedMetadata={event => {
                     const element = event.currentTarget;
                     setDuration(element.duration);
@@ -240,7 +241,7 @@ function Switcher({ active }: { active: StateId }) {
                 <ChevronDown aria-hidden="true" size={12} />
             </div>
             <iframe ref={frame} src={`/states/player-selection?__stage=1&__state=${initialState}`} className={styles.frame}
-                title="Navigator player workbench" allow="fullscreen; picture-in-picture" allowFullScreen />
+                title="Navigator player workbench" allow="fullscreen; picture-in-picture; clipboard-write" allowFullScreen />
         </div>
     </div>;
 }

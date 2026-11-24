@@ -1,5 +1,17 @@
 import { nativeWebGpuDrawCount } from "./native-webgpu-renderer";
 import type { WebGpuVideo } from "./webgpu-video";
+import type { MpvElementHandle } from "../desktop/mpv-element";
+
+function bufferAheadMs(video: HTMLVideoElement) {
+    const { buffered, currentTime, readyState } = video;
+    if (!buffered || readyState < 1 || !Number.isFinite(currentTime)) return undefined;
+    for (let index = 0; index < buffered.length; index++) {
+        if (buffered.start(index) <= currentTime && buffered.end(index) >= currentTime) {
+            return (buffered.end(index) - currentTime) * 1000;
+        }
+    }
+    return 0;
+}
 
 export function readWebPlaybackStats(video: WebGpuVideo) {
     const gpu = video.webgpu;
@@ -17,7 +29,7 @@ export function readWebPlaybackStats(video: WebGpuVideo) {
         draws,
         hdr: gpu ? stats?.hdrOutput === undefined ? "Pending" : stats.hdrOutput ? "HDR" : "SDR"
             : draws !== undefined ? "SDR" : "Browser-managed",
-        videoAheadMs: stats?.videoAheadMs,
+        videoAheadMs: gpu ? stats?.videoAheadMs : bufferAheadMs(video),
         audioAheadMs: stats?.audioAheadMs,
         audioUnderflows: stats?.audioUnderflows,
         fallback: video.dataset.webgpuFallback,
@@ -25,11 +37,30 @@ export function readWebPlaybackStats(video: WebGpuVideo) {
     };
 }
 
-type FrameSample = ReturnType<typeof readWebPlaybackStats>;
+export type PlaybackStats = Partial<Omit<ReturnType<typeof readWebPlaybackStats>, "path" | "playing">> & {
+    path: string;
+    playing: boolean;
+    decoderDropped?: number;
+    videoCodec?: string;
+    audioCodec?: string;
+};
 
-export function playbackFrameRate(previous: FrameSample, current: FrameSample, elapsedMs: number) {
+export function readNativePlaybackStats(video: HTMLVideoElement): PlaybackStats {
+    const controller = (video as unknown as MpvElementHandle).controller;
+    return {
+        path: "Native player",
+        resolution: video.videoWidth > 0 && video.videoHeight > 0 ? `${video.videoWidth} × ${video.videoHeight}` : undefined,
+        videoAheadMs: bufferAheadMs(video),
+        playing: !video.paused && !video.ended && !video.seeking,
+        ...controller?.playbackStats,
+    };
+}
+
+export function playbackFrameRate(previous: PlaybackStats, current: PlaybackStats, elapsedMs: number,
+    field: "presented" | "dropped" = "presented") {
+    const start = previous[field];
+    const end = current[field];
     if (!previous.playing || !current.playing || previous.path !== current.path || previous.route !== current.route
-        || previous.presented === undefined || current.presented === undefined
-        || current.presented < previous.presented || elapsedMs <= 0) return undefined;
-    return (current.presented - previous.presented) * 1000 / elapsedMs;
+        || start === undefined || end === undefined || end < start || elapsedMs <= 0) return undefined;
+    return (end - start) * 1000 / elapsedMs;
 }
