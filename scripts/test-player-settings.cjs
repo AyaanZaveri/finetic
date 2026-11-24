@@ -50,7 +50,7 @@ function component(name, context, state, sent, props = {}) {
     DropdownMenuContent: 'DropdownMenuContent', DropdownMenuTrigger: 'DropdownMenuTrigger',
     DropdownMenuOptions: 'DropdownMenuOptions', DropdownMenuGroup: 'Group', DropdownMenuLabel: 'Label',
     DropdownMenuItem: 'DropdownMenuItem',
-    MediaPlayerTooltip: 'Tooltip', SettingsIcon: 'svg', CaptionsOffIcon: 'CaptionsOff', Button: 'Button',
+    MediaPlayerTooltip: 'Tooltip', SettingsIcon: 'svg', GlassesIcon: 'GlassesIcon', CaptionsOffIcon: 'CaptionsOff', Button: 'Button',
   };
   vm.runInNewContext(ts.transpileModule(`export ${node.getText(parsed)}`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
@@ -85,7 +85,8 @@ for (const open of [false, true]) {
     stats: { open, onOpenChange: visible => statsVisibility.push(visible) },
   });
   const statsAction = find(statsMenu, 'DropdownMenuItem')[0];
-  assert.equal(statsAction.props.children, open ? 'Hide stats for nerds' : 'Stats for nerds');
+  assert.equal(statsAction.props.children[0], open ? 'Hide stats for nerds' : 'Stats for nerds');
+  assert.equal(find(statsAction, 'GlassesIcon')[0].props['aria-hidden'], 'true');
   statsAction.props.onSelect();
 }
 assert.deepEqual(statsVisibility, [true, false], 'The menu requests explicit show and hide states');

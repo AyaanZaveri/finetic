@@ -24,6 +24,7 @@ import {
   CaptionsOffIcon,
   DownloadIcon,
   FastForwardIcon,
+  GlassesIcon,
   Loader2Icon,
   Maximize2Icon,
   Minimize2Icon,
@@ -3357,6 +3358,7 @@ function MediaPlayerSettings(props: MediaPlayerSettingsProps) {
           />
           {stats && <DropdownMenuItem onSelect={() => stats.onOpenChange(!stats.open)} disabled={isDisabled}>
             {stats.open ? "Hide stats for nerds" : "Stats for nerds"}
+            <GlassesIcon aria-hidden="true" strokeWidth={1.75} className="ms-auto size-4 shrink-0 text-muted-foreground" />
           </DropdownMenuItem>}
         </DropdownMenuGroup>
       </DropdownMenuContent>
