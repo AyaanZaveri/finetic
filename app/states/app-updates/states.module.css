@@ -1,0 +1,130 @@
+.page {
+  container: update-states / inline-size;
+  min-block-size: 100dvh;
+  padding: 24px;
+}
+
+.layout {
+  display: flex;
+  max-inline-size: 44rem;
+  margin-inline: auto;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.stage {
+  inline-size: 100%;
+  padding-block: 1rem;
+}
+
+.switcher {
+  all: unset;
+  display: none;
+  flex-direction: column;
+  gap: 16px;
+  max-block-size: calc(100dvh - 48px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px;
+  border-radius: 14px;
+  background: rgb(20 20 20 / 92%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 10%);
+  font: 13px/1 system-ui, sans-serif;
+  user-select: none;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 6px;
+  color: rgb(255 255 255 / 60%);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.switcher button {
+  all: unset;
+  flex: none;
+  padding: 8px 10px;
+  overflow: hidden;
+  border-radius: 8px;
+  color: rgb(255 255 255 / 70%);
+  cursor: pointer;
+  font: inherit;
+  text-overflow: ellipsis;
+  transition: font-weight 200ms ease-out;
+  white-space: nowrap;
+}
+
+.switcher button[aria-pressed="true"] {
+  background: rgb(255 255 255 / 14%);
+  color: white;
+  font-weight: 500;
+}
+
+@media (hover: hover) {
+  .switcher button:hover { color: white; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switcher button { transition: none; }
+}
+
+.switcher button:focus-visible,
+.select select:focus-visible {
+  outline: 2px solid rgb(255 255 255 / 70%);
+  outline-offset: 2px;
+}
+
+.select {
+  position: relative;
+  align-self: flex-start;
+  max-inline-size: 100%;
+}
+
+.select select {
+  all: unset;
+  box-sizing: border-box;
+  max-inline-size: 100%;
+  padding: 10px 36px 10px 16px;
+  border-radius: 999px;
+  background: rgb(20 20 20 / 92%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 10%);
+  color: white;
+  cursor: pointer;
+  font: 500 13px/1 system-ui, sans-serif;
+}
+
+.select svg {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-end: 14px;
+  translate: 0 -50%;
+  color: rgb(255 255 255 / 70%);
+  pointer-events: none;
+}
+
+@container update-states (min-width: 936px) {
+  .layout:not([data-switcher-hidden]) {
+    display: grid;
+    grid-template-columns: 208px 44rem;
+    justify-content: center;
+    align-items: start;
+    max-inline-size: none;
+  }
+
+  .switcher {
+    position: sticky;
+    inset-block-start: 24px;
+    display: flex;
+  }
+
+  .select { display: none; }
+}
