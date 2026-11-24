@@ -174,7 +174,12 @@ async function run() {
     assert.equal(getPanel().props['data-player-native-glass'], '', 'Android drawers still request sampled video');
     desktopPlatform = 'windows';
     assert.equal(renderDrawer().props.modal, true, 'The drawer traps Tab and Shift+Tab');
-    assert.equal(getPanel().props.initialFocus, true, 'Move focus to the first control inside the drawer');
+    const drawerHeader = getPanel().props.children[0];
+    const closeControl = drawerHeader.props.children.find(child => child.type === 'DrawerClose');
+    assert.ok(closeControl);
+    assert.equal(getPanel().props.initialFocus, closeControl.props.ref, 'Move focus to the drawer’s Close button');
+    assert.match(getPanel().props.overlayClassName, /--layer-player-drawer/, 'The modal backdrop covers player feedback');
+    assert.match(getPanel().props.viewportClassName, /--layer-player-drawer/, 'The drawer stays above its backdrop');
     assert.equal(getPanel().props.finalFocus(), button, 'Return focus to the toolbar opener');
     const onOpenerFocus = renderDrawer().props.children[0].props.children.props.onFocus;
     let suppressed = 0;

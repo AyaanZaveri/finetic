@@ -56,7 +56,7 @@ export function KeyboardShortcuts() {
         event.defaultPrevented ||
         !isNavigatorEnabled ||
         (event.target instanceof Element &&
-          event.target.closest("[data-navigator-click-zone]"))
+          event.target.closest("[data-navigator-click-zone], [data-player-selection-drawer]"))
       )
         return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {

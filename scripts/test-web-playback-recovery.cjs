@@ -99,6 +99,7 @@ function harness({ native = false, automatic = false, autoSelectWebStream = true
                 routes.push({ path, options });
             } }) };
             if (name === 'react') return hooks;
+            if (name === 'jotai') return { useAtomValue: () => false };
             if (name === 'framer-motion') return { motion: new Proxy({}, { get: (_, tag) => tag }), AnimatePresence: 'animate-presence' };
             if (name === 'sonner') return { toast };
             if (name.endsWith('.css')) return {};
@@ -236,6 +237,37 @@ async function run() {
             assert.equal(episode.media.currentTime, expected, 'Validate the episode offset against the selected file');
         }
     }
+    for (const native of [false, true]) {
+        const episode = harness({ native, episodePosition: 42 });
+        await episode.settle();
+        episode.media.currentTime = 282;
+        episode.media.ended = true;
+        episode.video.props.onEnded({ currentTarget: episode.media });
+        await episode.settle();
+        if (native) {
+            assert.equal(episode.errorVisible, true, 'A premature native end shows a retry');
+            episode.retry();
+            await episode.settle();
+            assert.equal(episode.video.props.src, episode.source);
+        } else {
+            assert.equal(episode.errorVisible, false);
+            assert.equal(episode.video.props.src, 'https://stream.example/best.mp4', 'Web recovery switches streams');
+        }
+        episode.video.props.onLoadedMetadata();
+        assert.equal(episode.media.currentTime, 282, 'Recovery resumes the same episode at the interruption');
+        assert.equal(episode.selection.playingEpisode.episode, 2);
+    }
+    const interrupted = harness({ episodePosition: 42, streams: [{ url: 'https://stream.example/Buddy.2160p.mkv' }] });
+    await interrupted.settle();
+    interrupted.media.currentTime = 282;
+    interrupted.media.ended = true;
+    interrupted.video.props.onEnded({ currentTarget: interrupted.media });
+    await interrupted.settle();
+    assert.equal(interrupted.errorVisible, true, 'Show a retry when no replacement stream is available');
+    interrupted.retry();
+    await interrupted.settle();
+    interrupted.video.props.onLoadedMetadata();
+    assert.equal(interrupted.media.currentTime, 282, 'Manual retry retains the interruption position after fallback is exhausted');
     for (const automatic of [false, true]) {
         const direct = harness({ automatic, autoSelectWebStream: false });
         await direct.settle();

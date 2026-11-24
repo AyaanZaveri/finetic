@@ -1,6 +1,8 @@
 "use client";
 
 import { readPlaybackPreferences } from "@/lib/media/playback-preferences";
+import { useAtomValue } from "jotai";
+import { isAIAskOpenAtom, type MediaToPlay } from "@/lib/atoms";
 import { preferredSubtitleTrack } from "@/lib/media/subtitle-preference";
 import { installAudioLanguagePreference } from "@/lib/media/audio-language";
 
@@ -50,7 +52,6 @@ import { useStreamQueries } from "@/components/stream-query-provider";
 import { createPlaybackStreamRequest, fetchPlaybackStreams } from "@/lib/media/fetch-playback-streams";
 import { installWebStartupWatchdog } from "@/lib/media/web-startup-watchdog";
 import { resolvePlayback, invalidatePlaybackWarmup, playbackPhaseLabels, type PlaybackPhase } from "@/lib/media/resolve-playback";
-import type { MediaToPlay } from "@/lib/atoms";
 import { fetchPlaybackId } from "@/lib/media/fetch-playback-id";
 import { fetchPlaybackEpisode } from "@/lib/media/fetch-playback-episode";
 import { fetchPlaybackDetails } from "@/lib/media/fetch-playback-details";
@@ -118,12 +119,15 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const subtitleTiming = useSubtitleTiming(currentMedia);
   const [timingOpenKey, setTimingOpenKey] = useState<string | null>(null);
   const [showPlaybackStats, setShowPlaybackStats] = useState(false);
-  useEffect(() => { setTimingOpenKey(null); }, [subtitleTiming.key, isPlayerVisible]);
+  const navigatorOpen = useAtomValue(isAIAskOpenAtom);
+  const timingOpen = Boolean(!navigatorOpen && subtitleTiming.key && timingOpenKey === subtitleTiming.key);
+  useEffect(() => { setTimingOpenKey(null); }, [subtitleTiming.key, isPlayerVisible, navigatorOpen]);
   const [playbackPhase, setPlaybackPhase] = useState<PlaybackPhase>("fetching-streams");
 
   const [nativePlayback] = useState(() => Boolean(desktopBridge()));
   useEffect(() => { recordDesktopStage("player-mounted"); }, []);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
+  const interruptedPlaybackRef = useRef<{ generation: number; position: number } | null>(null);
   const [playerAttempt, setPlayerAttempt] = useState(0);
   const reportNavigatorPlayback = useCallback((state: "playing" | "error" | "closed", message?: string) => {
     if (!playbackRequest?.navigatorActionId) return;
@@ -334,7 +338,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   }, [sendPlaybackUpdate]);
 
   const tryNextWebStream = useCallback((element: HTMLVideoElement) => {
-    if (nativePlayback || !playbackPreferencesRef.current.autoSelectWebStream || !currentMedia || !streamUrl || element !== videoRef.current) return;
+    if (nativePlayback || !playbackPreferencesRef.current.autoSelectWebStream || !currentMedia || !streamUrl || element !== videoRef.current) return false;
     failedStreamUrlsRef.current.add(streamUrl);
     const position = element.currentTime > 0 ? element.currentTime : currentMedia.resumePositionTicks;
     toast("That stream failed. Trying another one…", { id: WEB_RECOVERY_TOAST_ID });
@@ -344,6 +348,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       subtitleFilename: undefined, subtitleVideoSize: undefined,
       resumePositionTicks: position,
     }, true);
+    return true;
   }, [nativePlayback, currentMedia, streamUrl]);
 
   const handleVideoCanPlay = useCallback((event: React.SyntheticEvent<HTMLVideoElement>) => {
@@ -355,6 +360,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   const handleVideoPlaying = useCallback((event: React.SyntheticEvent<HTMLVideoElement>) => {
     if (event.currentTarget !== videoRef.current) return;
+    if (!event.currentTarget.ended) interruptedPlaybackRef.current = null;
     setVideoReady(true);
     setPlaybackError(null);
     if (!nativePlayback && playbackPreferencesRef.current.autoSelectWebStream) playbackStartRef.current ??= { start: event.currentTarget.currentTime };
@@ -458,6 +464,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const handleClose = useCallback((options?: { ended?: boolean }) => {
     reportNavigatorPlayback("closed");
     loadGenerationRef.current++;
+    interruptedPlaybackRef.current = null;
     metadataAbortRef.current?.abort();
     sendPlaybackUpdate("stopped", { ended: options?.ended });
     toast.dismiss(WEB_RECOVERY_TOAST_ID);
@@ -496,11 +503,27 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   }, [isPlayerVisible, handleClose]);
 
   const handleVideoEnded = useCallback((event: React.SyntheticEvent<HTMLVideoElement>, generation: number) => {
-    if (event.currentTarget !== videoRef.current || generation !== loadGenerationRef.current
-      || activePlaybackRequestRef.current !== playbackRequest) return;
+    const element = event.currentTarget;
+    if (element !== videoRef.current || generation !== loadGenerationRef.current
+      || activePlaybackRequestRef.current !== playbackRequest || !isPlayerVisible || !element.ended) return;
+
+    const { currentTime: position, duration: length } = element;
+    // Native clocks can trail the end event. Allow a small gap for clock updates and track padding.
+    if (Number.isFinite(length) && length > 0 && Number.isFinite(position)
+      && length - position > Math.min(5, length * 0.1)) {
+      if (interruptedPlaybackRef.current?.generation === generation) return;
+      interruptedPlaybackRef.current = { generation, position };
+      sendPlaybackUpdate("progress");
+      if (tryNextWebStream(element)) return;
+      const message = "This stream ended early. Try again to resume playback.";
+      setPlaybackError(message);
+      reportNavigatorPlayback("error", message);
+      return;
+    }
+
     if (episodeContinuationRef.current) episodeContinuationRef.current.onEnded();
     else handleClose({ ended: true });
-  }, [handleClose, playbackRequest]);
+  }, [handleClose, isPlayerVisible, playbackRequest, reportNavigatorPlayback, sendPlaybackUpdate, tryNextWebStream]);
 
   // Process subtitle text for HTML rendering
   const processSubtitleText = useCallback((text: string) => {
@@ -512,9 +535,11 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   const findCurrentSubtitle = useMemo(() => createSubtitleCueIndex(subtitleData, processSubtitleText), [subtitleData, processSubtitleText]);
 
-  const loadMedia = useCallback(async (request: MediaToPlay, fallback = false) => {
+  const loadMedia = useCallback(async (target: MediaToPlay, fallback = false, resumePosition?: number) => {
     recordDesktopStage("stream-resolving");
     const generation = ++loadGenerationRef.current;
+    const request = resumePosition === undefined ? target
+      : { ...target, resumePositionTicks: resumePosition, resumeFromCurrentPosition: true };
     subtitleSelectionRequest.current++;
     if (!fallback) {
       subtitleManualOverride.current = false;
@@ -537,7 +562,8 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     playbackStartRef.current = null;
     confirmWebPlaybackRef.current = null;
     if (!fallback) {
-      activePlaybackRequestRef.current = request;
+      if (resumePosition === undefined) interruptedPlaybackRef.current = null;
+      activePlaybackRequestRef.current = target;
       webStreamsRef.current = [];
       failedStreamUrlsRef.current.clear();
       toast.dismiss(WEB_RECOVERY_TOAST_ID);
@@ -975,7 +1001,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         onToggleCaptions={toggleCaptions}
         onAdjustSubtitleSize={adjustSubtitleSize}
         onKeyDown={event => {
-          if (event.defaultPrevented || event.key !== "Escape" || !episodeContinuation.upNext) return;
+          if (event.defaultPrevented || event.key !== "Escape" || timingOpen || !episodeContinuation.upNext) return;
           if (event.target instanceof Element && event.target.closest("[data-player-selection-drawer]")) return;
           event.preventDefault();
           event.stopPropagation();
@@ -983,7 +1009,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         }}
         onCustomSubtitleChange={handleCustomSubtitleChange}
       >
-        <SubtitleTimingPopover open={Boolean(subtitleTiming.key && timingOpenKey === subtitleTiming.key)}
+        <SubtitleTimingPopover open={timingOpen}
           onOpenChange={open => setTimingOpenKey(open ? subtitleTiming.key : null)}
           seconds={subtitleTiming.seconds} onChange={subtitleTiming.onChange}
           available={embeddedSubtitleTiming || (subtitleData.length > 0 && subtitleTracks.some(track => track.active) && !fetchingSubtitles)}
@@ -1129,7 +1155,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                         setPlayerAttempt((attempt) => attempt + 1);
                         invalidatePlaybackWarmup(playbackRequest?.streamRequest);
                         if (playbackRequest) streamQueries?.invalidate({ id: playbackRequest.mediaSourceId || playbackRequest.id, type: playbackRequest.type });
-                        if (playbackRequest) void loadMedia(playbackRequest);
+                        if (playbackRequest) void loadMedia(playbackRequest, false, interruptedPlaybackRef.current?.position);
                       }}>Try again</Button>
                     </div>
                   ) : (
@@ -1163,14 +1189,14 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         )}
 
         {videoReady && !playbackError && trackLoadingLabel && (
-          <div className="pointer-events-none fixed right-4 top-4 z-50 h-9 bg-black/50 backdrop-blur-sm rounded-full px-3 text-white text-sm flex items-center gap-2">
+          <div className="pointer-events-none fixed right-4 top-4 z-[var(--layer-player-feedback)] h-9 bg-black/50 backdrop-blur-sm rounded-full px-3 text-white text-sm flex items-center gap-2">
             <Loader2 aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />
             <PlayerLoadingStatus label={trackLoadingLabel} />
           </div>
         )}
 
         {streamUrl && (
-          <PlayerPlaybackStats key={`stats:${streamUrl}:${playerAttempt}`} open={showPlaybackStats}
+          <PlayerPlaybackStats key={`stats:${streamUrl}:${playerAttempt}`} open={showPlaybackStats} obscured={timingOpen}
             videoRef={videoRef} native={nativePlayback} onClose={() => setShowPlaybackStats(false)} />
         )}
 
@@ -1225,10 +1251,13 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           <DesktopTracks mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} onBrowserLoadingChange={setFetchingBrowserAudio} />
           <PlayerSubtitles mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} native={nativePlayback}
             tracks={subtitleTracks} requestedSrc={requestedSubtitleSrc} onTrackChange={handleCustomSubtitleChange}
-            timing={{ seconds: subtitleTiming.seconds, open: Boolean(subtitleTiming.key && timingOpenKey === subtitleTiming.key),
+            timing={{ seconds: subtitleTiming.seconds, open: timingOpen,
               onOpen: () => setTimingOpenKey(subtitleTiming.key), onClose: () => setTimingOpenKey(null) }} />
           <PlayerVideoFit key={`${streamUrl}:${playerAttempt}`} mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} />
-          <MediaPlayerSettings stats={{ open: showPlaybackStats, onOpenChange: setShowPlaybackStats }} />
+          <MediaPlayerSettings stats={{ open: showPlaybackStats, onOpenChange: open => {
+            if (open) setTimingOpenKey(null);
+            setShowPlaybackStats(open);
+          } }} />
           {!nativePlayback && <MediaPlayerPiP />}
           <MediaPlayerFullscreen />
         </PlayerControlBar>

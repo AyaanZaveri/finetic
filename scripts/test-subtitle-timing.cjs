@@ -144,6 +144,16 @@ for (const type of ['pointerdown', 'focusin']) {
  assert.equal(prevented, true, 'Outside transport interaction must not dismiss timing');
  assert.equal(focused, false, 'Outside interactions leave focus where the user put it');
 }
+for (const surface of ['[data-player-selection-drawer]', '[data-slot="dropdown-menu-content"]', '[data-navigator-focus-ui]']) {
+ content.props.onOpenAutoFocus({ currentTarget: { querySelector: () => null }, preventDefault() {} });
+ prevented = false;
+ content.props.onInteractOutside({ target: { closest: selector => selector.includes(surface) ? {} : null },
+  preventDefault() { prevented = true; } });
+ assert.equal(prevented, false, 'Entering another tool allows Radix to dismiss timing');
+ content.props.onCloseAutoFocus({ preventDefault() {} });
+ assert.equal(focused, false, 'The next tool keeps focus');
+}
+content.props.onOpenAutoFocus({ currentTarget: { querySelector: () => null }, preventDefault() {} });
 
 assert.ok(Object.hasOwn(content.props, 'data-player-native-glass'), 'Timing participates in native menu glass');
 console.log('PASS: transport clicks and outside focus changes leave timing open');

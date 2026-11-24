@@ -102,7 +102,7 @@ function Stage({ id }: { id: StateId }) {
                 }} />
             {!windowsGlassFixture && <BrowserPlayerGlass mediaRef={video} sourceKey={sample} ready={duration > 0} />}
             {data.trackLoadingLabel && (
-                <div className="pointer-events-none fixed right-4 top-4 z-50 h-9 bg-black/50 backdrop-blur-sm rounded-full px-3 text-white text-sm flex items-center gap-2">
+                <div className="pointer-events-none fixed right-4 top-4 z-[var(--layer-player-feedback)] h-9 bg-black/50 backdrop-blur-sm rounded-full px-3 text-white text-sm flex items-center gap-2">
                     <Loader2 aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />
                     <PlayerLoadingStatus label={data.trackLoadingLabel} />
                 </div>
@@ -113,7 +113,7 @@ function Stage({ id }: { id: StateId }) {
             <SubtitleTimingPopover container={video.current?.closest<HTMLElement>('[data-slot="media-player"]')}
                 open={timingOpen && duration > 0} onOpenChange={setTimingOpen} seconds={delay} onChange={setDelay}
                 available={captions && (timing?.available ?? true)} mediaRef={video} sourceKey={sample} />
-            <PlayerPlaybackStats open={statsOpen} videoRef={video} onClose={() => setStatsOpen(false)} />
+            <PlayerPlaybackStats open={statsOpen} obscured={timingOpen && duration > 0} videoRef={video} onClose={() => setStatsOpen(false)} />
             {upNextOpen && next && <PlayerUpNext next={next} thumbnail={next.thumbnail} seconds={5} timerRunning={false}
                 onPlay={() => selectEpisode(next)} onCancel={() => setUpNextOpen(false)} />}
             <PlayerControlBar title={title} previewSource={sample}
@@ -139,7 +139,10 @@ function Stage({ id }: { id: StateId }) {
                     onTrackChange={track => setCaptions(Boolean(track))}
                     timing={{ seconds: delay, open: timingOpen, onOpen: () => setTimingOpen(true), onClose: () => setTimingOpen(false) }} />
                 <PlayerVideoFit mediaRef={video} sourceKey={sample} />
-                <MediaPlayerSettings stats={{ open: statsOpen, onOpenChange: setStatsOpen }} />
+                <MediaPlayerSettings stats={{ open: statsOpen, onOpenChange: open => {
+                    if (open) setTimingOpen(false);
+                    setStatsOpen(open);
+                } }} />
                 <MediaPlayerPiP />
                 <MediaPlayerFullscreen />
             </PlayerControlBar>

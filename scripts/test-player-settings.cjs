@@ -92,7 +92,7 @@ for (const open of [false, true]) {
 assert.deepEqual(statsVisibility, [true, false], 'The menu requests explicit show and hide states');
 {
   const host = hooks();
-  let resize, closed = 0, focused = false, sampling = false;
+  let resize, publishStats, closed = 0, focused = false, sampling = false;
   const captures = new Set();
   const handle = {
     setPointerCapture: id => captures.add(id),
@@ -105,12 +105,17 @@ assert.deepEqual(statsVisibility, [true, false], 'The menu requests explicit sho
     react: { ...host.react, useId: () => 'stats-drag-instructions' }, 'react/jsx-runtime': host.jsx,
     'next/dynamic': () => 'PlaybackTimeline',
     'lucide-react': { Copy: 'copy-icon', GripHorizontal: 'grip', Pause: 'pause-icon', Play: 'play-icon', X: 'close-icon' },
+    '@/components/arc/accordion/accordion': { Accordion: 'Accordion' },
     '@/components/arc/floating-surface.module.css': { surface: 'surface' },
     '@/components/arc/segmented-control/segmented-control': 'SegmentedControl',
     '@/components/ui/button': { Button: 'Button' },
     '@/lib/media/playback-stats': {},
     '@/lib/media/playback-history': {
-      observePlaybackHistory() { sampling = true; return () => { sampling = false; }; },
+      observePlaybackHistory(_video, _readStats, publish) {
+        sampling = true;
+        publishStats = publish;
+        return () => { sampling = false; };
+      },
     },
     './player-playback-stats.module.css': { panel: 'panel' },
   }, {
@@ -180,6 +185,19 @@ assert.deepEqual(statsVisibility, [true, false], 'The menu requests explicit sho
   assert.equal(reopened.props.inert, false);
   assert.equal(reopened.props.style.left, 20, 'Reopening preserves the last panel position');
   assert.equal(sampling, true);
+  publishStats({ stats: { presented: 14289 }, samples: [], events: [], stallCount: 0 });
+  const disclosure = find(render(), 'Accordion')[0];
+  assert.equal(disclosure.props.size, 'sm');
+  assert.equal(disclosure.props.defaultOpen, -1, 'Playback details start collapsed');
+  assert.equal(disclosure.props.items[0].title, 'Playback details');
+  assert.equal(find(disclosure.props.items[0].content, 'bdi')[0].props.children, 14289);
+  props.obscured = true;
+  assert.equal(render().props.inert, true, 'Timing temporarily covers stats and removes them from the tab order');
+  assert.equal(render().props['data-open'], undefined);
+  host.flush();
+  assert.equal(sampling, true, 'Timing leaves the background diagnostics running');
+  props.obscured = false;
+  assert.equal(render().props['data-open'], '', 'Stats are visible again after timing closes');
   host.unmount();
 }
 let timingClosed = 0;

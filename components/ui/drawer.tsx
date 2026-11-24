@@ -102,10 +102,12 @@ function DrawerContent({
     children,
     container,
     overlayClassName,
+    viewportClassName,
     ...props
 }: DrawerPrimitive.Popup.Props & {
   container?: DrawerPrimitive.Portal.Props["container"]
   overlayClassName?: string
+  viewportClassName?: string
 }) {
     const { hasSnapPoints, modal, showSwipeHandle, swipeDirection } = useDrawer();
     const swipeAxis =
@@ -119,7 +121,7 @@ function DrawerContent({
             <DrawerPrimitive.Viewport
                 data-slot="drawer-viewport"
                 data-modal={modal}
-                className="pointer-events-none fixed inset-0 z-50 select-none data-[modal=true]:pointer-events-auto"
+                className={cn("pointer-events-none fixed inset-0 z-50 select-none data-[modal=true]:pointer-events-auto", viewportClassName)}
             >
                 <DrawerPrimitive.Popup
                     data-slot="drawer-popup"

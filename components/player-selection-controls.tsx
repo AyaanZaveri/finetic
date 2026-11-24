@@ -186,7 +186,8 @@ export function PlayerSelectionControls({ media, streamUrl, playingEpisode, chap
             {panel && (
                 <DrawerContent ref={setPopup} container={panel.container} data-player-selection-drawer=""
                     data-player-native-glass=""
-                    overlayClassName={`${drawerStyles.overlay} bg-black/25`}
+                    overlayClassName={`${drawerStyles.overlay} z-[var(--layer-player-drawer)] bg-black/25`}
+                    viewportClassName="z-[var(--layer-player-drawer)]"
                     className={`${drawerStyles.popup} ${floatingSurface.surface} rounded-2xl border border-border shadow-xl [--drawer-inset:1rem] after:hidden`}
                     initialFocus={closeButton} finalFocus={() => restoreFocus(panel.container)} onKeyDown={onDrawerKeyDown}>
                     <div className="flex shrink-0 items-center justify-between gap-2 px-4 pt-3 pb-2">
