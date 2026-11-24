@@ -1,8 +1,8 @@
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Event {
-    Available,
-    Downloading,
-    Ready,
+    Available(Option<String>),
+    Downloading(Option<String>),
+    Ready(Option<String>),
     Current,
     Error,
     Finished,

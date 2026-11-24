@@ -367,6 +367,7 @@ pub fn run(app: App) -> Result<(), String> {
     let mut updater = updater_result.and_then(Result::ok);
     let mut update_state = if update_error.is_some() { "error" } else { "idle" };
     let mut update_message = update_error;
+    let mut next_update_version = None;
 
     let webview_data = app.data.join("webview");
 
@@ -500,18 +501,18 @@ pub fn run(app: App) -> Result<(), String> {
                 use crate::windows_updater::Event as UpdateEvent;
                 match event {
                     UpdateEvent::Shutdown => platform::request_close(&window),
-                    UpdateEvent::ProbeAvailable if automatic_updates && update_state != "checking" => { update_state = "available"; update_message = None; }
-                    UpdateEvent::ProbeCurrent if automatic_updates && update_state != "checking" => { update_state = "current"; update_message = None; }
+                    UpdateEvent::ProbeAvailable if automatic_updates && update_state != "checking" => { update_state = "available"; update_message = None; next_update_version = None; }
+                    UpdateEvent::ProbeCurrent if automatic_updates && update_state != "checking" => { update_state = "current"; update_message = None; next_update_version = None; }
                     UpdateEvent::ProbeAvailable | UpdateEvent::ProbeCurrent | UpdateEvent::ProbeError => {}
-                    UpdateEvent::Available => { update_state = "available"; update_message = None; }
-                    UpdateEvent::Downloading => { update_state = "downloading"; update_message = None; }
-                    UpdateEvent::Ready => { update_state = "ready"; update_message = None; }
-                    UpdateEvent::Current => { update_state = "current"; update_message = None; }
+                    UpdateEvent::Available => { update_state = "available"; update_message = None; next_update_version = None; }
+                    UpdateEvent::Downloading(version) => { update_state = "downloading"; update_message = None; next_update_version = version; }
+                    UpdateEvent::Ready(version) => { update_state = "ready"; update_message = None; next_update_version = version; }
+                    UpdateEvent::Current => { update_state = "current"; update_message = None; next_update_version = None; }
                     UpdateEvent::Error => { update_state = "error"; update_message = Some("Couldn’t check or download the update. Try again later.".into()); }
                     UpdateEvent::InstallError => { update_state = "error"; update_message = Some(install_error.into()); }
                     UpdateEvent::Dismissed => { if update_state == "checking" { update_state = "idle"; } }
                 }
-                if let Some(view) = &view { let _ = view.evaluate_script(&receive(&json!({"type":"update-status", "version":env!("CARGO_PKG_VERSION"), "available":updater.is_some(), "automatic":automatic_updates, "state":update_state, "message":update_message}))); }
+                if let Some(view) = &view { let _ = view.evaluate_script(&receive(&json!({"type":"update-status", "version":env!("CARGO_PKG_VERSION"), "nextVersion":next_update_version, "available":updater.is_some(), "automatic":automatic_updates, "state":update_state, "message":update_message}))); }
             }
             Event::UserEvent(UserEvent::ClientStage(stage)) => record(&log, started, stage.label()),
             Event::UserEvent(UserEvent::BackendReady) => {
@@ -532,10 +533,27 @@ pub fn run(app: App) -> Result<(), String> {
                     media_session.observe_command(&command);
                     if let Some(controls) = &mut media_controls { controls.sync(media_session.now_playing()); }
                     if matches!(command, protocol::Command::MediaMetadata { .. }) { return; }
-                    if matches!(&command, protocol::Command::UpdateStatus {} | protocol::Command::UpdateCheck {} | protocol::Command::UpdateAutomatic { .. }) {
+                    if matches!(&command, protocol::Command::UpdateStatus {} | protocol::Command::UpdateCheck { .. } | protocol::Command::UpdateAutomatic { .. }) {
                         if let Some(updater) = &updater {
                             match command {
-                                protocol::Command::UpdateCheck {} => { if update_state != "checking" { update_state = "checking"; update_message = None; updater.check(); } }
+                                protocol::Command::UpdateCheck { intent } => {
+                                    use protocol::UpdateIntent;
+                                    match UpdateIntent::for_state(intent, update_state) {
+                                        Some(UpdateIntent::Prepare) => {
+                                            update_state = "checking";
+                                            update_message = None;
+                                            updater.check();
+                                        }
+                                        Some(UpdateIntent::Install) => {
+                                            if updater.install() { update_state = "installing"; }
+                                            else {
+                                                update_state = "error";
+                                                update_message = Some("The update is no longer ready. Check for updates again.".into());
+                                            }
+                                        }
+                                        None => {}
+                                    }
+                                }
                                 protocol::Command::UpdateAutomatic { enabled } => {
                                     match std::fs::write(&update_settings, if enabled { "true" } else { "false" }) {
                                         Ok(()) => {
@@ -549,7 +567,7 @@ pub fn run(app: App) -> Result<(), String> {
                                 _ => {}
                             }
                         }
-                        if let Some(view) = &view { let _ = view.evaluate_script(&receive(&json!({"type":"update-status", "version":env!("CARGO_PKG_VERSION"), "available":updater.is_some(), "automatic":automatic_updates, "state":update_state, "message":update_message}))); }
+                        if let Some(view) = &view { let _ = view.evaluate_script(&receive(&json!({"type":"update-status", "version":env!("CARGO_PKG_VERSION"), "nextVersion":next_update_version, "available":updater.is_some(), "automatic":automatic_updates, "state":update_state, "message":update_message}))); }
                     } else if let protocol::Command::WindowControlsVisible { visible } = &command {
                         platform::set_window_controls_visible(*visible);
                     } else if let protocol::Command::NativeHdrPeak { nits } = &command {

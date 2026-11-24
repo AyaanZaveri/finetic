@@ -9,9 +9,14 @@ does not accept update URLs or file paths from JavaScript.
 
 Settings → About has a manual check button and an automatic-download switch.
 When enabled, the native shell checks on launch and hourly. It downloads and
-prepares eligible updates in the background. The header and Settings show
-“Restart to update” when preparation is complete. A manual check also prepares
-an update; a second action installs it and restarts the app.
+prepares eligible updates in the background. The header shows “Update ready”
+and Settings shows “Review update” when preparation is complete. Both open the
+same release notes dialog. “Restart to update” in the dialog installs the
+prepared update and relaunches Navigator. A manual check can also prepare an
+update.
+
+The dialog reads highlights from the matching GitHub release tag. When the
+update is installed, “What’s new” in About opens the installed version’s notes.
 
 Normal quit cancels a pending installation. If extraction has already started,
 the event loop waits for the ready callback so it can cancel safely. It does

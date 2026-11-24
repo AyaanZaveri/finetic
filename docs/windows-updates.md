@@ -2,7 +2,10 @@
 
 Navigator downloads signed updates in the background. In Settings → About,
 you can turn automatic downloads off or check manually. When Navigator has
-verified the download, Settings and the header show **Restart to update**.
+verified the download, **Update ready** in the header and **Review update** in
+Settings open the same dialog. It shows notes from the matching GitHub release.
+Choose **Restart to update** in the dialog to install the prepared update.
+**What’s new** in About opens the installed version’s notes.
 Closing the app normally does not install a pending update.
 
 The background helper runs outside the installation folder. It tells Navigator

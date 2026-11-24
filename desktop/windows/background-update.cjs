@@ -106,7 +106,7 @@ async function prepare(install, installed, cache, publicKey, fetcher = fetch, re
   if (!release) return {state:'current'};
   await mkdir(cache,{recursive:true});
   const key=keyFrom(publicKey), delta=release.deltas.find(item=>item.from===installed && item.size<release.full.size);
-  report({state:'downloading'});
+  report({state:'downloading',version:release.version});
   let selected=delta || release.full;
   try { await download(selected,cache,key,fetcher); }
   catch(error) { if (!delta) throw error; selected=release.full; await download(selected,cache,key,fetcher); }
@@ -122,7 +122,7 @@ async function prepare(install, installed, cache, publicKey, fetcher = fetch, re
     if (/^Navigator-\d+\.\d+\.\d+-windows-x64-(?:setup|from-\d+\.\d+\.\d+-delta)\.exe(?:\.part)?$/.test(name)
       && name!==selected.filename && name!==release.full.filename) await rm(join(cache,name),{force:true});
   }
-  return {state:'ready'};
+  return {state:'ready',version:release.version};
 }
 // A manually reopened app can see the same helper binary still mapped by
 // Windows. Reuse an identical copy without opening it for writing.
