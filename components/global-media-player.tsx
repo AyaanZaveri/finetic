@@ -1169,9 +1169,9 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           </div>
         )}
 
-        {!nativePlayback && streamUrl && (
+        {streamUrl && (
           <PlayerPlaybackStats key={`stats:${streamUrl}:${playerAttempt}`} open={showPlaybackStats}
-            videoRef={videoRef} onClose={() => setShowPlaybackStats(false)} />
+            videoRef={videoRef} native={nativePlayback} onClose={() => setShowPlaybackStats(false)} />
         )}
 
         {upNext && (
@@ -1228,7 +1228,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
             timing={{ seconds: subtitleTiming.seconds, open: Boolean(subtitleTiming.key && timingOpenKey === subtitleTiming.key),
               onOpen: () => setTimingOpenKey(subtitleTiming.key), onClose: () => setTimingOpenKey(null) }} />
           <PlayerVideoFit key={`${streamUrl}:${playerAttempt}`} mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} />
-          <MediaPlayerSettings stats={nativePlayback ? undefined : { open: showPlaybackStats, onOpenChange: setShowPlaybackStats }} />
+          <MediaPlayerSettings stats={{ open: showPlaybackStats, onOpenChange: setShowPlaybackStats }} />
           {!nativePlayback && <MediaPlayerPiP />}
           <MediaPlayerFullscreen />
         </PlayerControlBar>

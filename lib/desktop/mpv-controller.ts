@@ -130,6 +130,14 @@ export class MpvController extends EventTarget {
   get seekable() { return ranges(this.state.duration); }
   get videoWidth() { return this.state.width; }
   get videoHeight() { return this.state.height; }
+  get playbackStats() {
+    return {
+      dropped: this.state.droppedFrames,
+      decoderDropped: this.state.decoderDroppedFrames,
+      videoCodec: this.tracks.find(track => track.type === "video" && track.selected)?.codec,
+      audioCodec: this.tracks.find(track => track.type === "audio" && track.selected)?.codec,
+    };
+  }
   get volume() { return this.state.volume; }
   set volume(volume: number) {
     if (!Number.isFinite(volume)) return;

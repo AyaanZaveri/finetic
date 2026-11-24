@@ -1,11 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type PointerEvent, type RefObject } from "react";
-import { GripHorizontal, Pause, Play, X } from "lucide-react";
+import dynamic from "next/dynamic";
+import { Check, Copy, GripHorizontal, Pause, Play, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { playbackFrameRate, readWebPlaybackStats } from "@/lib/media/playback-stats";
+import { observePlaybackHistory, playbackDiagnostics, type PlaybackHistory } from "@/lib/media/playback-history";
+import { readNativePlaybackStats, readWebPlaybackStats } from "@/lib/media/playback-stats";
 import styles from "./player-playback-stats.module.css";
 
+const Timeline = dynamic(() => import("./player-playback-timeline"), { loading: () => <div className="h-28" /> });
 const seconds = (ms?: number | null) => ms == null ? undefined : `${(ms / 1000).toFixed(1)} s`;
 const gutter = 12;
 type Position = { x: number; y: number };
@@ -16,17 +19,21 @@ function fitPosition(panel: HTMLElement, bounds: Element, position: Position): P
     return x === position.x && y === position.y ? position : { x, y };
 }
 
-export function PlayerPlaybackStats({ open, videoRef, onClose }: {
+export function PlayerPlaybackStats({ open, videoRef, onClose, native = false }: {
     open: boolean;
     videoRef: RefObject<HTMLVideoElement | null>;
     onClose: () => void;
+    native?: boolean;
 }) {
     const moveInstructionsId = useId();
     const panelRef = useRef<HTMLElement>(null);
     const drag = useRef<{ id: number; handle: HTMLElement; start: Position; origin: Position } | null>(null);
     const [position, setPosition] = useState<Position | null>(null);
     const [frozen, setFrozen] = useState(false);
-    const [reading, setReading] = useState<{ stats: ReturnType<typeof readWebPlaybackStats>; fps?: number }>();
+    const [history, setHistory] = useState<PlaybackHistory>();
+    const lastHistory = useRef<PlaybackHistory>(undefined);
+    const [mode, setMode] = useState<"buffer" | "frames">("buffer");
+    const [copyStatus, setCopyStatus] = useState<"copied" | "failed">();
 
     const releaseDrag = useCallback(() => {
         const active = drag.current;
@@ -64,43 +71,50 @@ export function PlayerPlaybackStats({ open, videoRef, onClose }: {
     };
 
     useEffect(() => {
-        if (!open || frozen) return;
-        let previous: { video: HTMLVideoElement; stats: ReturnType<typeof readWebPlaybackStats>; at: number } | undefined;
-        const sample = () => {
-            const video = videoRef.current;
-            if (document.hidden || !video) {
-                previous = undefined;
-                return;
-            }
-            const stats = readWebPlaybackStats(video);
-            const at = performance.now();
-            const fps = previous?.video === video ? playbackFrameRate(previous.stats, stats, at - previous.at) : undefined;
-            previous = { video, stats, at };
-            setReading({ stats, fps });
-        };
-        const reset = () => { previous = undefined; };
-        const timer = window.setInterval(sample, 1000);
-        document.addEventListener("visibilitychange", reset);
-        return () => {
-            window.clearInterval(timer);
-            document.removeEventListener("visibilitychange", reset);
-        };
-    }, [open, frozen, videoRef]);
+        const video = videoRef.current;
+        if (!open || frozen || !video) return;
+        return observePlaybackHistory(video, native ? readNativePlaybackStats : readWebPlaybackStats, reading => {
+            lastHistory.current = reading;
+            setHistory(reading);
+        }, lastHistory.current);
+    }, [open, frozen, native, videoRef]);
 
-    const stats = reading?.stats;
+    useEffect(() => {
+        if (copyStatus !== "copied") return;
+        const timer = window.setTimeout(() => setCopyStatus(undefined), 2200);
+        return () => window.clearTimeout(timer);
+    }, [copyStatus]);
+
+    const copyDiagnostics = async () => {
+        if (!history) return;
+        try {
+            await navigator.clipboard.writeText(playbackDiagnostics(history));
+            setCopyStatus("copied");
+        } catch {
+            setCopyStatus("failed");
+        }
+    };
+
+    const stats = history?.stats;
+    const fps = history?.samples.at(-1)?.fps;
+    const hasFrameStats = stats?.presented !== undefined || stats?.dropped !== undefined;
+    const chartMode = hasFrameStats ? mode : "buffer";
     const freezeLabel = frozen ? "Resume stats updates" : "Freeze stats";
     const FreezeIcon = frozen ? Play : Pause;
     const rows = [
         ["Playback", stats?.path],
         ["Decoder route", stats?.route],
         ["Resolution", stats?.resolution],
-        ["Presented rate", reading?.fps === undefined ? undefined : `${reading.fps.toFixed(1)} fps`],
+        ["Video codec", stats?.videoCodec],
+        ["Audio codec", stats?.audioCodec],
+        ["Presented rate", fps === undefined ? undefined : `${fps.toFixed(1)} fps`],
         ["Frames presented", stats?.presented],
         ["Frames dropped", stats?.dropped],
+        ["Decoder frame drops", stats?.decoderDropped],
         ["Frames late", stats?.late],
         ["WebGPU draws submitted", stats?.draws],
         ["HDR output", stats?.hdr],
-        ["Video buffer ahead", seconds(stats?.videoAheadMs)],
+        [native ? "Buffer ahead" : "Video buffer ahead", seconds(stats?.videoAheadMs)],
         ["Audio buffer ahead", seconds(stats?.audioAheadMs)],
         ["Audio underruns", stats?.audioUnderflows],
         ["Fallback reason", stats?.fallback],
@@ -139,6 +153,11 @@ export function PlayerPlaybackStats({ open, videoRef, onClose }: {
                 Stats for nerds
             </h2>
             <div className="-me-1 ms-auto flex items-center gap-1">
+                <Button type="button" variant="ghost" size="icon-xs" aria-label="Copy diagnostics"
+                    title={copyStatus === "copied" ? "Diagnostics copied" : "Copy diagnostics"} disabled={!history}
+                    className="size-7 text-white hover:bg-white/15" onClick={copyDiagnostics}>
+                    {copyStatus === "copied" ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+                </Button>
                 <Button type="button" variant="ghost" size="icon-xs" aria-label={freezeLabel} title={freezeLabel}
                     className="size-7 text-white hover:bg-white/15" onClick={() => setFrozen(value => !value)}>
                     <FreezeIcon aria-hidden="true" className="size-4 scale-80" fill="currentColor" />
@@ -155,6 +174,31 @@ export function PlayerPlaybackStats({ open, videoRef, onClose }: {
             </div>
         </div>
         <div className="min-h-0 select-text overflow-y-auto overscroll-contain touch-pan-y px-3 pb-3">
+            <p role="status" className={copyStatus === "failed" ? "pb-2 text-xs text-white/80" : "sr-only"}>
+                {copyStatus === "copied" ? "Diagnostics copied." : copyStatus === "failed" ? "Couldn’t copy diagnostics." : ""}
+            </p>
+            {history && <div className={styles.timeline}>
+                <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                    <span className="text-xs font-medium text-white/75">Last 60 seconds</span>
+                    <div role="group" aria-label="Playback graph" className="-me-1 flex items-center gap-1">
+                        {(["buffer", "frames"] as const).map(tab => (
+                            <Button key={tab} type="button" variant="ghost" size="xs" aria-pressed={chartMode === tab}
+                                disabled={tab === "frames" && !hasFrameStats}
+                                className="px-2 text-white/70 hover:bg-white/15 hover:text-white aria-pressed:bg-white/15 aria-pressed:text-white"
+                                onClick={() => setMode(tab)}>{tab === "buffer" ? "Buffer" : "Frames"}</Button>
+                        ))}
+                    </div>
+                </div>
+                {/* Keep the current plot through the panel's exit transition after it has loaded. */}
+                <Timeline history={history} mode={chartMode} />
+                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-white/70">
+                    {chartMode === "frames" && stats?.presented !== undefined && <span className={styles.lineKey}>Presented</span>}
+                    {chartMode === "frames" && stats?.dropped !== undefined && <span className={styles.dropKey}>Dropped</span>}
+                    <span className={styles.stallKey}>{history.stallCount} {history.stallCount === 1 ? "stall" : "stalls"}
+                        {history.stallCount > 0 && ` · ${seconds(history.stallMs)}`}</span>
+                    {history.events.some(event => event.kind === "seek") && <span className={styles.seekKey}>Seek</span>}
+                </div>
+            </div>}
             {stats ? <dl className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-3 gap-y-1">
                 {rows.map(([label, value]) => value === undefined ? null : <div key={label} className="col-span-2 grid grid-cols-subgrid">
                     <dt className="min-w-0 wrap-break-word text-white/75">{label}</dt>

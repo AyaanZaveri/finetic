@@ -5,9 +5,10 @@ const path = require('node:path');
 const { load, hooks } = require('./test-support/react-hooks.cjs');
 const tick = async () => { for (let i = 0; i < 40; i++) await Promise.resolve(); };
 
-const { readWebPlaybackStats, playbackFrameRate } = load('lib/media/playback-stats.ts', {
+const playbackStats = load('lib/media/playback-stats.ts', {
   './native-webgpu-renderer': { nativeWebGpuDrawCount: video => video.draws },
 });
+const { readWebPlaybackStats, readNativePlaybackStats, playbackFrameRate } = playbackStats;
 const statsVideo = {
   videoWidth: 3840, videoHeight: 2160, paused: false, ended: false, seeking: false,
   dataset: { webgpuFallback: 'playback-stalled' },
@@ -32,6 +33,54 @@ assert.equal(customStats.presented, 6);
 assert.equal(customStats.dropped, 7);
 assert.equal(customStats.late, 4);
 assert.equal(customStats.videoAheadMs, 1500);
+
+{
+  const buffer = { length: 2, start: index => [0, 20][index], end: index => [10, 30][index] };
+  const video = Object.assign(new EventTarget(), statsVideo, { buffered: buffer, readyState: 4, currentTime: 6 });
+  assert.equal(readWebPlaybackStats(video).videoAheadMs, 4000, 'Only contiguous buffer ahead counts');
+  assert.equal(readWebPlaybackStats({ ...video, currentTime: 14 }).videoAheadMs, 0, 'A gap cannot borrow a later buffered range');
+  const native = readNativePlaybackStats({ ...video, controller: { playbackStats: { dropped: 7, decoderDropped: 3 } } });
+  assert.equal(native.videoAheadMs, 4000);
+  assert.equal(native.dropped, 7);
+  assert.equal(native.decoderDropped, 3);
+  assert.equal(native.presented, undefined);
+
+  let now = 0, timer, history, presented = 20;
+  const document = Object.assign(new EventTarget(), { hidden: false });
+  const { observePlaybackHistory, playbackDiagnostics } = load('lib/media/playback-history.ts', {
+    './playback-stats': playbackStats,
+  }, { document, performance: { now: () => now }, window: {
+    setInterval: callback => { timer = callback; return 1; }, clearInterval: () => { timer = undefined; },
+  } });
+  const stop = observePlaybackHistory(video, element => ({
+    ...readWebPlaybackStats(element), presented, fallback: 'https://example.test/?token=secret',
+  }), reading => { history = reading; });
+  const event = (type, at) => { now = at; video.dispatchEvent(new Event(type)); };
+  const sample = (at, frames) => { now = at; presented = frames; timer(); };
+  sample(1000, 44);
+  assert.equal(history.samples.at(-1).fps, 24);
+  event('waiting', 1200);
+  event('waiting', 1300);
+  event('playing', 1700);
+  sample(2000, 58);
+  assert.equal(history.stallCount, 1, 'Repeated waiting events only count once per stall');
+  assert.equal(history.stallMs, 500);
+  video.seeking = true;
+  event('seeking', 2300);
+  event('waiting', 2400);
+  video.seeking = false;
+  event('seeked', 2500);
+  sample(3000, 90);
+  assert.equal(history.samples.at(-1).fps, undefined, 'A seek breaks the frame rate baseline');
+  assert.equal(history.stallCount, 1, 'Waiting during a seek is excluded');
+  assert.equal(history.events.at(-1).kind, 'seek');
+  assert.equal(playbackDiagnostics(history).includes('secret'), false, 'Clipboard exports exclude free-form errors');
+  sample(65_000, 100);
+  assert.equal(history.events.length, 0, 'Timeline events expire with the buffer history');
+  assert.equal(history.samples.at(-1).fps, undefined, 'Sampling gaps do not produce misleading frame rates');
+  stop();
+  assert.equal(timer, undefined);
+}
 
 class Video extends EventTarget {
   constructor() {
