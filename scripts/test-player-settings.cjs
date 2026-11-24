@@ -104,6 +104,8 @@ assert.deepEqual(statsVisibility, [true, false], 'The menu requests explicit sho
     react: { ...host.react, useId: () => 'stats-drag-instructions' }, 'react/jsx-runtime': host.jsx,
     'next/dynamic': () => 'PlaybackTimeline',
     'lucide-react': { Copy: 'copy-icon', GripHorizontal: 'grip', Pause: 'pause-icon', Play: 'play-icon', X: 'close-icon' },
+    '@/components/arc/floating-surface.module.css': { surface: 'surface' },
+    '@/components/arc/segmented-control/segmented-control': 'SegmentedControl',
     '@/components/ui/button': { Button: 'Button' },
     '@/lib/media/playback-stats': {},
     '@/lib/media/playback-history': {
