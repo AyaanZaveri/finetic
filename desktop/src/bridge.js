@@ -64,7 +64,7 @@
     value: Object.freeze({
       protocol: __PROTOCOL__,
       platform,
-      capabilities: Object.freeze({ nativePreviews: true, subtitleTiming: true, nativeHdrPeak: platform === "macos" || platform === "windows", chapters: true, initialSeek: true, windowControlsVisibility: platform === "macos" || platform === "windows", videoFit: true, updates: platform === "windows" || platform === "macos", updateReview: platform === "windows" || platform === "macos", timings: platform === "windows" || platform === "macos", glass: platform === "windows", glassPixels: platform === "windows", systemMedia: platform === "macos" || platform === "windows" }),
+      capabilities: Object.freeze({ nativePreviews: true, subtitleTiming: true, audioTiming: true, nativeHdrPeak: platform === "macos" || platform === "windows", chapters: true, initialSeek: true, windowControlsVisibility: platform === "macos" || platform === "windows", videoFit: true, updates: platform === "windows" || platform === "macos", updateReview: platform === "windows" || platform === "macos", timings: platform === "windows" || platform === "macos", glass: platform === "windows", glassPixels: platform === "windows", systemMedia: platform === "macos" || platform === "windows" }),
       get fullscreen() { return fullscreen; },
       send(message) {
         if (message.type === "load") session = message.session;

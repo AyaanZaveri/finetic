@@ -10,7 +10,7 @@
   .anchor { --timing-top: 4rem; }
 }
 
-.panel[data-subtitle-timing] {
+.panel:is([data-subtitle-timing], [data-audio-timing]) {
   --surface: var(--muted);
   --text-secondary: var(--muted-foreground);
   --text-muted: var(--muted-foreground);

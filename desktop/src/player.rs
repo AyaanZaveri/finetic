@@ -128,6 +128,7 @@ impl Player {
             let mut session = String::new();
             let mut desired = String::new();
             let mut subtitle_delay = 0.0;
+            let mut audio_delay = 0.0;
             let mut entries = HashMap::<i64, String>::new();
             let mut playing_id = -1;
             let mut last_colour = (None, None);
@@ -149,7 +150,7 @@ impl Player {
                     let target = match &command {
                         Command::Load { session, .. } | Command::Play { session } | Command::Pause { session }
                         | Command::Seek { session, .. } | Command::Volume { session, .. } | Command::Muted { session, .. }
-                        | Command::SubtitleDelay { session, .. } | Command::Rate { session, .. } | Command::Track { session, .. } | Command::Stop { session } | Command::Thumbnail { session, .. } | Command::VideoFit { session, .. } | Command::Glass { session, .. } => session,
+                        | Command::SubtitleDelay { session, .. } | Command::AudioDelay { session, .. } | Command::Rate { session, .. } | Command::Track { session, .. } | Command::Stop { session } | Command::Thumbnail { session, .. } | Command::VideoFit { session, .. } | Command::Glass { session, .. } => session,
                         Command::MediaMetadata { .. } | Command::UpdateStatus {} | Command::UpdateCheck { .. } | Command::UpdateAutomatic { .. } | Command::WindowControlsVisible { .. } | Command::Fullscreen { .. } | Command::WindowDrag { .. } | Command::WindowControl { .. } | Command::AppReady { .. } | Command::ClientStage { .. } | Command::GlassConsumed { .. } | Command::NativeHdrPeak { .. } => continue,
                     };
                     if !matches!(command, Command::Load { .. }) && target != &desired { continue; }
@@ -158,6 +159,8 @@ impl Player {
                         Command::Load { session: next, url, headers, start_position } => {
                             subtitle_delay = 0.0;
                             let _ = client.set_property("sub-delay", "0");
+                            audio_delay = 0.0;
+                            let _ = client.set_property("audio-delay", "0");
                             wake_file_open = false;
                             load_started = Some(Instant::now());
                             first_ready_logged = false;
@@ -239,6 +242,10 @@ impl Player {
                             let _ = (session, active);
                             Ok(())
                         }
+                        Command::AudioDelay { seconds, .. } => {
+                            audio_delay = seconds;
+                            client.set_property("audio-delay", &audio_delay.to_string())
+                        }
                         Command::SubtitleDelay { seconds, .. } => {
                             subtitle_delay = seconds;
                             sync_subtitle_visibility(&client, subtitle_delay).map(|_| ())
@@ -281,6 +288,7 @@ impl Player {
                     }
                     Some(Event::FileLoaded) => {
                         if session == desired {
+                            let _ = client.set_property("audio-delay", &audio_delay.to_string());
                             if let Some(started) = load_started { log::debug!("playback metadata ready after {} ms", started.elapsed().as_millis()); }
                         }
                         // Publish the complete track snapshot before loadedmetadata so an
@@ -464,6 +472,20 @@ mod tests {
         assert_eq!(event_wait(true, Duration::from_secs(1), 0), 0.0);
         assert_eq!(event_wait(true, Duration::from_micros(249_900), 0), 0.002);
         assert_eq!(event_wait(false, Duration::ZERO, 32), 0.0);
+    }
+
+    #[test]
+    #[ignore = "requires the pinned NAVIGATOR_TEST_LIBMPV library"]
+    fn audio_delay_libmpv_property() {
+        let library = std::path::PathBuf::from(std::env::var("NAVIGATOR_TEST_LIBMPV").unwrap());
+        let mpv = Mpv::new(&library, &[
+            ("config", "no"), ("vo", "null"), ("ao", "null"), ("idle", "yes"), ("terminal", "no"),
+        ]).unwrap();
+        for seconds in [-30.0_f64, -0.3, 0.0, 0.3, 30.0, 0.0] {
+            mpv.set_property("audio-delay", &seconds.to_string()).unwrap();
+            let actual = mpv.get_property("audio-delay", Kind::Double).unwrap().as_f64().unwrap();
+            assert!((actual - seconds).abs() < 1e-6);
+        }
     }
 
     fn wait_for(inbox: &mpsc::Receiver<Value>, predicate: impl Fn(&Value) -> bool) -> Value {

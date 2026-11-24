@@ -26,3 +26,31 @@ assert.equal(render(.5, false, 'webgpu-video', false), true, 'WebGPU app-rendere
 assert.equal(render(.5, true, 'webgpu-video', false), false, 'External selection stays separate on WebGPU too');
 h.unmount(); assert.equal(listeners.size, 0);
 console.log('PASS: native text timing signs, paused adjustment, external/bitmap isolation, track changes, per-video reset, old-build gating, and listener cleanup');
+
+const audioHost = hooks(), audioDelays = [];
+const { useAudioDelay } = load('lib/media/use-audio-delay.ts', { react: audioHost.react });
+controller.supportsAudioTiming = true;
+controller.tracks = [{ type: 'audio', selected: true }];
+controller.setAudioDelay = value => audioDelays.push(value);
+function renderAudio(seconds, source = 'video-one') {
+    audioHost.render(() => useAudioDelay(ref, seconds, source)); audioHost.flush();
+    return audioHost.render(() => useAudioDelay(ref, seconds, source));
+}
+assert.equal(renderAudio(.3), true); assert.equal(audioDelays.at(-1), .3);
+assert.equal(renderAudio(-.8), true); assert.equal(audioDelays.at(-1), -.8);
+controller.tracks = [];
+listeners.get('emptied')();
+assert.equal(renderAudio(-.8), false);
+controller.tracks = [{ type: 'audio', selected: true }];
+listeners.get('loadedmetadata')();
+assert.equal(renderAudio(-.8), true); assert.equal(audioDelays.at(-1), -.8);
+assert.equal(renderAudio(0, 'video-two'), true); assert.equal(audioDelays.at(-1), 0);
+controller.supportsAudioTiming = false;
+listeners.get('trackschange')();
+assert.equal(renderAudio(0, 'video-two'), false);
+const count = audioDelays.length;
+ref.current = { ...element, controller: undefined, webgpu: {} };
+assert.equal(renderAudio(1, 'webgpu-video'), false);
+assert.equal(audioDelays.length, count, 'WebGPU and old native releases must not receive an unsupported command');
+audioHost.unmount(); assert.equal(listeners.size, 0);
+console.log('PASS: native audio offset, source replacement, reset, capability gating and listener cleanup');
