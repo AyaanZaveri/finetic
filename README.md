@@ -26,6 +26,8 @@
   <p><a href="desktop/README.md">Desktop</a> · <a href="android/README.md">Android</a> · <a href="ios/README.md">iOS</a></p>
 </div>
 
+Navigator is the successor to Finetic. The original Finetic implementation is available on the [finetic-legacy branch](https://github.com/AyaanZaveri/navigator/tree/finetic-legacy). Earlier Navigator issues and pull requests are available in the [repository archive](https://github.com/AyaanZaveri/navigator-archive).
+
 ## Demo
 
 https://github.com/user-attachments/assets/697d0384-1f3b-45df-8cd4-6d2bb6405e46
