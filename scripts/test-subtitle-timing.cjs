@@ -44,6 +44,7 @@ assert.match(source, /delay=\{subtitleTiming\.seconds\}/);
 
 
 const panelHost = hooks();
+let markClock = 0;
 class FixtureElement {
  constructor(control = null) { this.control = control; }
  closest() { return this.control; }
@@ -59,7 +60,7 @@ const { SubtitleTimingPopover } = load('components/subtitle-timing-popover.tsx',
  '@/lib/media/subtitle-timing': timing,
  './subtitle-timing-popover.module.css': { syncStatus: 'sync-status' },
  './arc/floating-surface.module.css': {},
-}, { Element: FixtureElement });
+}, { Element: FixtureElement, performance: { now: () => markClock } });
 function all(tree, type) {
  if (Array.isArray(tree)) return tree.flatMap(child => all(child, type));
  if (!tree || typeof tree !== 'object') return [];
@@ -233,3 +234,41 @@ renderSync(.2, { open: false });
 assert.equal(press('h'), false, 'Closed timing leaves H and S available to the player');
 panelHost.unmount();
 console.log('PASS: Heard and Saw in either order, live media clock, shortcuts, seek reset and pause guard');
+
+// The same popover measures the matching picture and sound, rather than a cue.
+assert.equal(timing.audioDelayForMarks(.4, 10, 11.5), 1.9, 'Early audio needs a positive delay');
+assert.equal(timing.audioDelayForMarks(-.4, 11.5, 10), -1.9, 'Late audio needs a negative delay');
+assert.equal(timing.audioDelayForMarks(29, 10, 13), null);
+const audioHost = hooks();
+const audioState = load('lib/media/subtitle-timing.ts', { react: audioHost.react });
+const independent = media => audioHost.render(() => [audioState.useVideoTiming(media), audioState.useSubtitleTiming(media)]);
+let [audio, subtitle] = independent(movie);
+audio.onChange(.7); subtitle.onChange(-1.2);
+assert.deepEqual(independent(movie).map(value => value.seconds), [.7, -1.2]);
+assert.deepEqual(independent(episode1).map(value => value.seconds), [0, 0]);
+assert.deepEqual(independent(movie).map(value => value.seconds), [.7, -1.2]);
+audioHost.unmount();
+
+media.readyState = 4;
+media.playbackRate = 1;
+const renderAudio = (seconds = 0, extra = {}) => renderSync(seconds, { mode: 'audio', ...extra });
+renderAudio(); panel = renderAudio();
+assert.equal(all(panel, 'RulerSlider')[0].props.label, 'Audio delay');
+assert.equal(all(panel, 'PopoverContent')[0].props['data-audio-timing'], '');
+assert.deepEqual(all(panel, 'TooltipContent').map(node => node.props.children), ['Mark when you hear a sound', 'Mark when you see the matching action']);
+markClock = 1000; press('s'); renderAudio();
+markClock = 1400; press('h');
+assert.equal(changed, -.4, 'Seeing the action before hearing the sound advances audio');
+renderAudio(-.4);
+markClock = 2000; press('h'); renderAudio(-.4);
+markClock = 2500; press('s');
+assert.equal(changed, .1, 'Hearing the sound before seeing the action delays audio');
+renderAudio(.1);
+markClock = 3000; press('s'); renderAudio(.1);
+media.dispatchEvent(new Event('waiting'));
+assert.equal(mark(renderAudio(.1), 'S').props['aria-pressed'], false, 'An interruption invalidates the marks');
+const disabledAudio = renderAudio(0, { available: false });
+assert.equal(all(disabledAudio, 'RulerSlider')[0].props.disabled, true);
+assert.match(statusText(disabledAudio), /unavailable for this playback engine/);
+panelHost.unmount();
+console.log('PASS: audio and subtitle state are independent, A/V marks have the correct signs, and unsupported engines cannot change delay');

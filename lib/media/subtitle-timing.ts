@@ -23,8 +23,13 @@ export function subtitleDelayForMarks(delay: number, heard: number, saw: number)
   return normalizeSubtitleDelay(next);
 }
 
+/** Positive audio delay makes sound later, so the correction reverses the subtitle sign. */
+export function audioDelayForMarks(delay: number, heard: number, saw: number): number | null {
+  return subtitleDelayForMarks(delay, saw, heard);
+}
+
 /** Timing is scoped to each video for this app session, never a global preference. */
-export function useSubtitleTiming(media: MediaToPlay | null) {
+export function useVideoTiming(media: MediaToPlay | null) {
   const key = subtitleVideoKey(media);
   const [delays, setDelays] = useState<Record<string, number>>({});
   const onChange = useCallback((seconds: number) => {
@@ -32,3 +37,6 @@ export function useSubtitleTiming(media: MediaToPlay | null) {
   }, [key]);
   return { key, seconds: key ? delays[key] ?? 0 : 0, onChange };
 }
+
+// Separate hook calls keep audio and caption offsets independent.
+export const useSubtitleTiming = useVideoTiming;

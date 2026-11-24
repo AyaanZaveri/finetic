@@ -75,7 +75,8 @@ import { stepSubtitleSize } from "@/lib/subtitle-appearance";
 import { PlayerSubtitles } from "@/components/player-subtitles";
 import { useNativeSubtitleTiming } from "@/lib/media/use-native-subtitle-timing";
 import { SubtitleTimingPopover } from "@/components/subtitle-timing-popover";
-import { useSubtitleTiming } from "@/lib/media/subtitle-timing";
+import { useAudioDelay } from "@/lib/media/use-audio-delay";
+import { useSubtitleTiming, useVideoTiming } from "@/lib/media/subtitle-timing";
 import { NAVIGATOR_PLAYBACK_EVENT } from "@/lib/navigator-playback-ack";
 import { WATCH_HISTORY_CHANGED } from "@/lib/watch-history";
 import { createPlaybackReporter } from "@/lib/media/playback-reporter";
@@ -117,11 +118,14 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   }, [metadataQueries, currentMedia, isPlayerVisible]);
 
   const subtitleTiming = useSubtitleTiming(currentMedia);
+  const audioTiming = useVideoTiming(currentMedia);
+  const [audioTimingOpenKey, setAudioTimingOpenKey] = useState<string | null>(null);
   const [timingOpenKey, setTimingOpenKey] = useState<string | null>(null);
   const [showPlaybackStats, setShowPlaybackStats] = useState(false);
   const navigatorOpen = useAtomValue(isAIAskOpenAtom);
   const timingOpen = Boolean(!navigatorOpen && subtitleTiming.key && timingOpenKey === subtitleTiming.key);
-  useEffect(() => { setTimingOpenKey(null); }, [subtitleTiming.key, isPlayerVisible, navigatorOpen]);
+  const audioTimingOpen = Boolean(!navigatorOpen && audioTiming.key && audioTimingOpenKey === audioTiming.key);
+  useEffect(() => { setTimingOpenKey(null); setAudioTimingOpenKey(null); }, [subtitleTiming.key, isPlayerVisible, navigatorOpen]);
   const [playbackPhase, setPlaybackPhase] = useState<PlaybackPhase>("fetching-streams");
 
   const [nativePlayback] = useState(() => Boolean(desktopBridge()));
@@ -904,6 +908,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   });
   episodeContinuationRef.current = episodeContinuation;
 
+  const audioDelayAvailable = useAudioDelay(videoRef, audioTiming.seconds, `${streamUrl}:${playerAttempt}`);
   const embeddedSubtitleTiming = useNativeSubtitleTiming(videoRef, subtitleTiming.seconds,
     subtitleTracks.some(track => track.active), `${streamUrl}:${playerAttempt}`, nativePlayback);
 
@@ -1001,7 +1006,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         onToggleCaptions={toggleCaptions}
         onAdjustSubtitleSize={adjustSubtitleSize}
         onKeyDown={event => {
-          if (event.defaultPrevented || event.key !== "Escape" || timingOpen || !episodeContinuation.upNext) return;
+          if (event.defaultPrevented || event.key !== "Escape" || timingOpen || audioTimingOpen || !episodeContinuation.upNext) return;
           if (event.target instanceof Element && event.target.closest("[data-player-selection-drawer]")) return;
           event.preventDefault();
           event.stopPropagation();
@@ -1013,6 +1018,11 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           onOpenChange={open => setTimingOpenKey(open ? subtitleTiming.key : null)}
           seconds={subtitleTiming.seconds} onChange={subtitleTiming.onChange}
           available={embeddedSubtitleTiming || (subtitleData.length > 0 && subtitleTracks.some(track => track.active) && !fetchingSubtitles)}
+          mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`}
+          container={videoRef.current?.closest<HTMLElement>('[data-slot="media-player"]')} />
+        <SubtitleTimingPopover mode="audio" open={audioTimingOpen}
+          onOpenChange={open => setAudioTimingOpenKey(open ? audioTiming.key : null)}
+          seconds={audioDelayAvailable ? audioTiming.seconds : 0} onChange={audioTiming.onChange} available={audioDelayAvailable}
           mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`}
           container={videoRef.current?.closest<HTMLElement>('[data-slot="media-player"]')} />
         <NativePlayerGlass mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} ready={videoReady && !loading && !playbackError} />
@@ -1196,7 +1206,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         )}
 
         {streamUrl && (
-          <PlayerPlaybackStats key={`stats:${streamUrl}:${playerAttempt}`} open={showPlaybackStats} obscured={timingOpen}
+          <PlayerPlaybackStats key={`stats:${streamUrl}:${playerAttempt}`} open={showPlaybackStats} obscured={timingOpen || audioTimingOpen}
             videoRef={videoRef} native={nativePlayback} onClose={() => setShowPlaybackStats(false)} />
         )}
 
@@ -1248,14 +1258,16 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                 });
               }} />
           )}
-          <DesktopTracks mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} onBrowserLoadingChange={setFetchingBrowserAudio} />
+          <DesktopTracks mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} onBrowserLoadingChange={setFetchingBrowserAudio}
+            timing={{ seconds: audioDelayAvailable ? audioTiming.seconds : 0, open: audioTimingOpen,
+              onOpen: () => { setTimingOpenKey(null); setAudioTimingOpenKey(audioTiming.key); }, onClose: () => setAudioTimingOpenKey(null) }} />
           <PlayerSubtitles mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} native={nativePlayback}
             tracks={subtitleTracks} requestedSrc={requestedSubtitleSrc} onTrackChange={handleCustomSubtitleChange}
             timing={{ seconds: subtitleTiming.seconds, open: timingOpen,
-              onOpen: () => setTimingOpenKey(subtitleTiming.key), onClose: () => setTimingOpenKey(null) }} />
+              onOpen: () => { setAudioTimingOpenKey(null); setTimingOpenKey(subtitleTiming.key); }, onClose: () => setTimingOpenKey(null) }} />
           <PlayerVideoFit key={`${streamUrl}:${playerAttempt}`} mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} />
           <MediaPlayerSettings stats={{ open: showPlaybackStats, onOpenChange: open => {
-            if (open) setTimingOpenKey(null);
+            if (open) { setTimingOpenKey(null); setAudioTimingOpenKey(null); }
             setShowPlaybackStats(open);
           } }} />
           {!nativePlayback && <MediaPlayerPiP />}

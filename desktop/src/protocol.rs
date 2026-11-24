@@ -51,6 +51,7 @@ pub enum Command {
         rate: f64,
     },
     SubtitleDelay { session: String, seconds: f64 },
+    AudioDelay { session: String, seconds: f64 },
     #[serde(alias = "mac-hdr-peak")]
     NativeHdrPeak { nits: Option<u32> },
     Track {
@@ -216,6 +217,9 @@ pub fn parse(text: &str) -> Result<Command, String> {
         Command::SubtitleDelay { session, seconds } if session.is_empty() || session.len() > 128 || !seconds.is_finite() || !(-30.0..=30.0).contains(seconds) => {
             return Err("Invalid subtitle delay".into());
         }
+        Command::AudioDelay { session, seconds } if session.is_empty() || session.len() > 128 || !seconds.is_finite() || !(-30.0..=30.0).contains(seconds) => {
+            return Err("Invalid audio delay".into());
+        }
         Command::NativeHdrPeak { nits: Some(nits) } if !(203..=10_000).contains(nits) => {
             return Err("Invalid HDR peak brightness".into());
         }
@@ -250,6 +254,16 @@ pub fn origin(value: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn audio_delay_boundary() {
+        for seconds in ["-30", "-0.1", "0", "0.1", "30"] {
+            assert!(matches!(parse(&format!(r#"{{"type":"audio-delay","session":"test","seconds":{seconds}}}"#)), Ok(Command::AudioDelay { .. })));
+        }
+        for seconds in ["-31", "31", "null", "1e999", "\"0.1\""] {
+            assert!(parse(&format!(r#"{{"type":"audio-delay","session":"test","seconds":{seconds}}}"#)).is_err());
+        }
+        assert!(parse(r#"{"type":"audio-delay","session":"","seconds":0}"#).is_err());
+    }
     #[test]
     fn playback_boundary() {
         for seconds in ["-30", "0", "0.1", "30"] {

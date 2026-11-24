@@ -249,7 +249,7 @@ assert.equal(activity.playerControlsActive({ querySelector: () => null }), true,
 const menuMocks = {
   DropdownMenu: 'Menu', DropdownMenuTrigger: 'Trigger', DropdownMenuContent: 'Content',
   DropdownMenuSub: 'Sub', DropdownMenuSubTrigger: 'SubTrigger', DropdownMenuSubContent: 'SubContent',
-  DropdownMenuOptions: 'Options', DropdownMenuItem: 'Item',
+  DropdownMenuOptions: 'Options', DropdownMenuItem: 'Item', DropdownMenuSeparator: 'Separator',
 };
 const menuHooks = hooks();
 const { PlayerSettingsMenu: RawPlayerSettingsMenu } = load('components/player-settings-menu.tsx', {
@@ -326,6 +326,16 @@ assert.equal(nativeControls.length, 1, 'The old caption button is removed; only 
 assert.equal(nativeControls[0].props.options[0].value, '75');
 nativeControls[0].props.onValueChange('75');
 assert.deepEqual(nativeCalls, [['audio', '75']]);
+let audioTimingOpened = 0;
+const audioMenu = nativeHooks.render(DesktopTracks, { ...nativeProps, timing: { seconds: .4, onOpen() { audioTimingOpened++; }, onClose() {} } });
+const audioTimingRow = find(audioMenu, 'Item').find(row => row.props['data-slot'] === 'media-player-audio-timing');
+assert.ok(audioTimingRow, 'Audio delay lives in the audio track menu');
+audioTimingRow.props.onSelect();
+assert.equal(audioTimingOpened, 0, 'Wait until the audio menu releases focus');
+let focusPrevented = false;
+find(audioMenu, 'Content')[0].props.onCloseAutoFocus({ preventDefault() { focusPrevented = true; } });
+assert.equal(audioTimingOpened, 1);
+assert.equal(focusPrevented, true);
 nativeHooks.unmount(); assert.equal(events.size, 0);
 
 // Execute the real external-track handler: duplicate raw labels used to load
