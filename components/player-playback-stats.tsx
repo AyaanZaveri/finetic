@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type PointerEvent, type RefObject } from "react";
 import dynamic from "next/dynamic";
-import { Check, ChevronDown, Copy, GripHorizontal, Pause, Play, X } from "lucide-react";
+import { Check, Copy, GripHorizontal, Pause, Play, X } from "lucide-react";
+import { Accordion } from "@/components/arc/accordion/accordion";
 import floatingSurface from "@/components/arc/floating-surface.module.css";
 import SegmentedControl from "@/components/arc/segmented-control/segmented-control";
 import { Button } from "@/components/ui/button";
@@ -22,8 +23,9 @@ function fitPosition(panel: HTMLElement, bounds: Element, position: Position): P
     return x === position.x && y === position.y ? position : { x, y };
 }
 
-export function PlayerPlaybackStats({ open, videoRef, onClose, native = false }: {
+export function PlayerPlaybackStats({ open, obscured = false, videoRef, onClose, native = false }: {
     open: boolean;
+    obscured?: boolean;
     videoRef: RefObject<HTMLVideoElement | null>;
     onClose: () => void;
     native?: boolean;
@@ -124,9 +126,10 @@ export function PlayerPlaybackStats({ open, videoRef, onClose, native = false }:
         ["Audio underruns", stats?.audioUnderflows],
         ["Fallback reason", stats?.fallback],
     ] as const).filter(([, value]) => value !== undefined);
-    return <section ref={panelRef} inert={!open} aria-label="Stats for nerds" data-player-stats="" data-open={open ? "" : undefined}
+    const visible = open && !obscured;
+    return <section ref={panelRef} inert={!visible} aria-label="Stats for nerds" data-player-stats="" data-open={visible ? "" : undefined}
         style={position ? { left: position.x, top: position.y } : undefined}
-        className={`${floatingSurface.surface} ${styles.panel} absolute top-3 z-[var(--layer-overlay)] pointer-events-auto flex flex-col overflow-hidden rounded-xl border border-border text-[0.8125rem] leading-normal text-popover-foreground ${position ? "" : "end-3"}`}>
+        className={`${floatingSurface.surface} ${styles.panel} absolute top-3 z-[var(--layer-player-stats)] pointer-events-auto flex flex-col overflow-hidden rounded-xl border border-border text-[0.8125rem] leading-normal text-popover-foreground ${position ? "" : "end-3"}`}>
         <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-0.5 px-3 py-2">
             <span id={moveInstructionsId} className="sr-only">Use arrow keys to move the stats panel.</span>
             <h2 tabIndex={0} aria-describedby={moveInstructionsId}
@@ -165,7 +168,7 @@ export function PlayerPlaybackStats({ open, videoRef, onClose, native = false }:
                 </Button>
                 <Button type="button" variant="ghost" size="icon-xs" aria-label={freezeLabel} title={freezeLabel}
                     className="size-7" onClick={() => setFrozen(value => !value)}>
-                    <FreezeIcon aria-hidden="true" className="size-4 scale-80" fill="currentColor" />
+                    <FreezeIcon aria-hidden="true" className="size-4 scale-80" fill="currentColor" strokeWidth={1.5} />
                 </Button>
                 <Button type="button" variant="ghost" size="icon-xs" aria-label="Hide stats for nerds"
                     className="size-7" onClick={() => {
@@ -178,7 +181,7 @@ export function PlayerPlaybackStats({ open, videoRef, onClose, native = false }:
                 </Button>
             </div>
         </div>
-        <div data-selectable-text="" className="min-h-0 select-text overflow-y-auto overscroll-contain touch-pan-y px-3 pb-3">
+        <div data-selectable-text="" className={`${styles.body} min-h-0 select-text overflow-y-auto overscroll-contain touch-pan-y`}>
             <p role="status" className={copyStatus === "failed" ? "pb-2 text-xs text-destructive" : "sr-only"}>
                 {copyStatus === "copied" ? "Diagnostics copied." : copyStatus === "failed" ? "Couldn’t copy diagnostics." : ""}
             </p>
@@ -208,21 +211,17 @@ export function PlayerPlaybackStats({ open, videoRef, onClose, native = false }:
                         <dd className="text-sm font-medium tabular-nums"><bdi>{value}</bdi></dd>
                     </div>)}
                 </dl>
-                {details.length > 0 && <details className={`${styles.details} group`}>
-                    <summary className="flex cursor-pointer list-none select-none items-center justify-between gap-2 rounded-md px-1 py-2 font-medium marker:hidden hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
-                        onKeyDown={event => {
-                            if (event.key === " " || event.key === "Enter") event.stopPropagation();
-                        }}>
-                        Playback details
-                        <ChevronDown aria-hidden="true" className="size-3.5 group-open:rotate-180" />
-                    </summary>
-                    <dl className="grid grid-cols-2 gap-x-3 gap-y-1 px-1">
-                        {details.map(([label, value]) => <div key={label} className="col-span-2 grid grid-cols-subgrid">
-                            <dt className="min-w-0 wrap-break-word text-muted-foreground">{label}</dt>
-                            <dd className="min-w-0 wrap-break-word text-end tabular-nums"><bdi>{value}</bdi></dd>
-                        </div>)}
-                    </dl>
-                </details>}
+                {details.length > 0 && <div className={styles.details}>
+                    <Accordion size="sm" defaultOpen={-1} triggerClassName={styles.detailsTrigger} items={[{
+                        title: "Playback details",
+                        content: <dl className="grid grid-cols-2 gap-x-3 gap-y-1 px-1 pb-2 text-[0.8125rem] leading-normal text-popover-foreground">
+                            {details.map(([label, value]) => <div key={label} className="col-span-2 grid grid-cols-subgrid">
+                                <dt className="min-w-0 wrap-break-word text-muted-foreground">{label}</dt>
+                                <dd className="min-w-0 wrap-break-word text-end tabular-nums"><bdi>{value}</bdi></dd>
+                            </div>)}
+                        </dl>,
+                    }]} />
+                </div>}
             </> : <p className="text-muted-foreground">Waiting for playback data.</p>}
         </div>
     </section>;

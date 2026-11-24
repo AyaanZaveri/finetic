@@ -58,7 +58,7 @@ export function PlayerUpNext({ next, thumbnail, seconds, timerRunning = true, on
     }, [counting]);
     return (
         <section data-player-up-next="" data-player-native-glass="" data-player-hdr-glass="" aria-label="Up Next"
-            className={`${floatingSurface.surface} absolute end-4 z-[60] w-[min(27.5rem,calc(100%_-_2rem))] rounded-xl border border-border/50 p-2 text-popover-foreground shadow-lg`}
+            className={`${floatingSurface.surface} absolute end-4 z-[var(--layer-player-feedback)] w-[min(27.5rem,calc(100%_-_2rem))] rounded-xl border border-border/50 p-2 text-popover-foreground shadow-lg`}
             onKeyDown={event => {
                 if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onCancel(); }
             }}>

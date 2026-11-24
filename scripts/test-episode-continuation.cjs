@@ -239,11 +239,15 @@ function controller(overrides={}) {
   const ast=ts.createSourceFile('player.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
   let endedCallback;
   function visit(node){if(ts.isVariableDeclaration(node)&&node.name.getText(ast)==='handleVideoEnded') endedCallback=node.initializer.arguments[0].getText(ast);ts.forEachChild(node,visit);}visit(ast);
-  h=hookHarness();h.render();await tick();value=h.render();const video={}, playbackRequest={};
+  h=hookHarness();h.render();await tick();value=h.render();
+  const video={currentTime:470,duration:1000,ended:true}, playbackRequest={};
+  const interruptions=[];
   const activePlaybackRequestRef={current:playbackRequest};
   const onEnded=vm.runInNewContext(ts.transpileModule(`(${endedCallback})`,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,
     {videoRef:{current:video},loadGenerationRef:{current:2},activePlaybackRequestRef,playbackRequest,
-      episodeContinuationRef:{current:value},handleClose(){throw Error('Shared episode continuation should handle ended');}});
+      episodeContinuationRef:{current:value},handleClose(){throw Error('Shared episode continuation should handle ended');},
+      tryNextWebStream:()=>false,sendPlaybackUpdate(){},setPlaybackError:message=>interruptions.push(message),reportNavigatorPlayback(){},
+      interruptedPlaybackRef:{current:null},isPlayerVisible:true});
   onEnded({currentTarget:{}},2);
   onEnded({currentTarget:video},1);
   activePlaybackRequestRef.current={};
@@ -251,6 +255,16 @@ function controller(overrides={}) {
   await tick();
   assert.equal(h.played.length,0,'Detached or superseded video events are ignored');
   activePlaybackRequestRef.current=playbackRequest;
+  onEnded({currentTarget:video},2);
+  await tick();
+  assert.equal(h.render().upNext,null,'A stream ending at 47% must not start the countdown');
+  assert.equal(h.finished.length,0,'A premature end must not mark the episode complete');
+  assert.equal(interruptions.length,1,'Show the playback interruption when automatic recovery is unavailable');
+  video.currentTime=999;
+  video.ended=false;
+  onEnded({currentTarget:video},2);
+  assert.equal(h.render().upNext,null,'An old end event after playback resumes is ignored');
+  video.ended=true;
   onEnded({currentTarget:video},2);onEnded({currentTarget:video},2);await tick();h.render().playUpNext();
   await tick();assert.equal(h.played.length,1);h.host.unmount();
 

@@ -153,6 +153,15 @@ html[data-native-platform="macos"]::-webkit-scrollbar-thumb {
   --jellyfin-blue-alt: #4fc7e2;
 }
 
+[data-slot="media-player"] {
+  /* Local to the player. Menus use the shared overlay layer above playback
+     chrome. The modal drawer covers both, including its backdrop. */
+  --layer-player-controls: 20;
+  --layer-player-stats: 25;
+  --layer-player-feedback: 30;
+  --layer-player-drawer: 55;
+}
+
 .dark {
   --text-input-fill: color-mix(in oklab, var(--background) 70%, transparent);
   --text-input-border: rgb(255 255 255 / .12);

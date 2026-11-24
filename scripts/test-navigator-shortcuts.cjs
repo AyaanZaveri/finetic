@@ -82,6 +82,11 @@ async function fire(event) {
     assert.equal(fullscreenExits, 0, 'Native browsing fullscreen must stay active too');
   }
   mount({ enabled: false }); await fire(key({ ctrlKey: true })); assert.equal(state.open, false);
+  mount();
+  const drawerControl = new Element();
+  drawerControl.closest = selector => selector.includes('[data-player-selection-drawer]') ? drawerControl : null;
+  await fire(key({ ctrlKey: true, target: drawerControl }));
+  assert.equal(state.open, false, 'A focused modal player drawer keeps keyboard priority');
   native = false; mount(); await fire(key({ ctrlKey: true }));
   assert.equal(fullscreenExits, 1, 'Browser element fullscreen must exit to reveal the global overlay');
   assert.equal(state.open, true); native = true;

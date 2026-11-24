@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState, type RefObject } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type RefObject } from "react";
 import { Ear, Eye, Minus, Play, Plus } from "lucide-react";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/arc/popover/popover";
 import { RulerSlider } from "@/components/arc/ruler-slider/ruler-slider";
@@ -17,6 +17,7 @@ const syncMarks = [
 ] as const;
 
 type Mark = { kind: (typeof syncMarks)[number]["kind"]; time: number };
+const otherPlayerTool = '[data-player-selection-drawer], [data-slot="dropdown-menu-content"], [data-slot="dropdown-menu-sub-content"], [data-navigator-focus-ui]';
 
 export function SubtitleTimingPopover({ open, onOpenChange, seconds, onChange, available, container, mediaRef, sourceKey }: {
   open: boolean;
@@ -30,6 +31,7 @@ export function SubtitleTimingPopover({ open, onOpenChange, seconds, onChange, a
 }) {
   const headingId = useId();
   const descriptionId = useId();
+  const handingOff = useRef(false);
   const [firstMark, setFirstMark] = useState<Mark | null>(null);
   const [completedMark, setCompletedMark] = useState<Mark["kind"] | null>(null);
   const [syncStatus, setSyncStatus] = useState<{ text: string; warning?: "paused" | "range" } | null>(null);
@@ -128,15 +130,25 @@ export function SubtitleTimingPopover({ open, onOpenChange, seconds, onChange, a
         event.currentTarget.focus({ preventScroll: true });
       }}
       onOpenAutoFocus={event => {
+        handingOff.current = false;
         const panel = event.currentTarget as HTMLElement;
         const target = panel.querySelector<HTMLElement>('[role="slider"]:not([aria-disabled="true"])')
           ?? panel.querySelector<HTMLElement>('[data-timing-done]');
         if (target) { event.preventDefault(); target.focus(); }
       }}
-      onInteractOutside={event => event.preventDefault()}
+      onInteractOutside={event => {
+        // Transport stays usable during sync. Entering another tool ends the
+        // timing session and lets the new surface keep focus.
+        const target = event.target as Element | null;
+        if (target?.closest?.(otherPlayerTool)) handingOff.current = true;
+        else event.preventDefault();
+      }}
       onCloseAutoFocus={event => {
         event.preventDefault();
-        if (!trigger?.isConnected) return;
+        const owner = container?.ownerDocument;
+        const focused = owner?.activeElement;
+        if (handingOff.current || !trigger?.isConnected
+          || (focused && focused !== owner?.body && !focused.closest?.("[data-subtitle-timing]"))) return;
         trigger.setAttribute("data-restoring-subtitle-focus", "");
         try {
           trigger.focus({ preventScroll: true });

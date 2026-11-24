@@ -20,6 +20,16 @@
   transition-delay: 0s;
 }
 
+.body {
+  --stats-content-inset: var(--space-3);
+  padding-inline: var(--stats-content-inset);
+  padding-block-end: var(--space-3);
+}
+
+.body:has(> .details) {
+  padding-block-end: var(--space-1);
+}
+
 .timeline {
   --stats-chart-line: color-mix(in oklab, var(--primary) 85%, var(--foreground));
   --stats-chart-drop: var(--destructive);
@@ -68,8 +78,26 @@
 
 .details {
   margin-block-start: 1rem;
+  margin-inline: calc(-1 * var(--stats-content-inset));
   padding-block-start: 0.25rem;
+  padding-inline: var(--stats-content-inset);
   border-block-start: 1px solid var(--border);
+}
+
+.details button.detailsTrigger {
+  padding-inline: var(--space-1);
+  border-radius: var(--radius-md);
+  font-size: inherit;
+  user-select: none;
+}
+
+.details button.detailsTrigger[data-state="open"] {
+  color: var(--popover-foreground);
+}
+
+.detailsTrigger:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
 }
 
 @media (max-height: 450px) {
