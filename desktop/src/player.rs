@@ -477,7 +477,8 @@ mod tests {
     #[test]
     #[ignore = "requires the pinned NAVIGATOR_TEST_LIBMPV library"]
     fn audio_delay_libmpv_property() {
-        let library = std::path::PathBuf::from(std::env::var("NAVIGATOR_TEST_LIBMPV").unwrap());
+        let library = std::path::absolute(std::env::var("NAVIGATOR_TEST_LIBMPV").unwrap()).unwrap();
+        assert!(library.is_file(), "Missing pinned library: {}", library.display());
         #[cfg(windows)]
         crate::platform::prepare_library(&library);
         let mpv = Mpv::new(&library, &[
