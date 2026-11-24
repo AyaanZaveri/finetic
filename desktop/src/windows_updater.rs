@@ -7,7 +7,7 @@ pub const FEED: &str =
     "https://raw.githubusercontent.com/AyaanZaveri/navigator/main/updates/windows.xml";
 pub const PUBLIC_KEY: &str = include_str!("../windows/update-public-key.txt");
 mod background;
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum Event {
     Available,
     Current,
@@ -18,8 +18,8 @@ pub enum Event {
     ProbeAvailable,
     ProbeCurrent,
     ProbeError,
-    Downloading,
-    Ready,
+    Downloading(Option<String>),
+    Ready(Option<String>),
 }
 static NOTIFY: OnceLock<Box<dyn Fn(Event) + Send + Sync>> = OnceLock::new();
 fn notify(event: Event) {
@@ -180,10 +180,13 @@ impl Updater {
         }
     }
     pub fn check(&self) {
-        if let Some(background) = &self.background { background.check(); return; }
+        if let Some(background) = &self.background { background.probe(); return; }
         unsafe {
             (self.check)();
         }
+    }
+    pub fn install(&self) -> bool {
+        self.background.as_ref().is_some_and(background::Background::install)
     }
     pub fn probe(&self) -> bool {
         if let Some(background) = &self.background { return background.probe(); }

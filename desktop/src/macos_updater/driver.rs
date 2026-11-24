@@ -5,6 +5,7 @@ pub(super) struct DriverIvars {
     pub notify: Box<dyn Fn(Event)>,
     pub ready: RefCell<Option<RcBlock<dyn Fn(isize)>>>,
     pub cancellation: RefCell<Option<RcBlock<dyn Fn()>>>,
+    pub target: RefCell<Option<String>>,
     pub closing: std::cell::Cell<bool>,
     pub extracting: std::cell::Cell<bool>,
 }
@@ -37,11 +38,15 @@ define_class!(
                 else if information {
                     reply.call((2,)); // Dismiss information-only updates; never run an external installer.
                 } else if stage < 2 {
-                    (self.ivars().notify)(Event::Downloading);
+                    let target = appcast_version(item);
+                    *self.ivars().target.borrow_mut() = target.clone();
+                    (self.ivars().notify)(Event::Downloading(target));
                     reply.call((1,)); // Download and extract, then wait at the ready callback.
                 } else {
                     *self.ivars().ready.borrow_mut() = Some(reply.copy());
-                    (self.ivars().notify)(Event::Ready);
+                    let target = appcast_version(item);
+                    *self.ivars().target.borrow_mut() = target.clone();
+                    (self.ivars().notify)(Event::Ready(target));
                 }
             }
         }
@@ -56,6 +61,7 @@ define_class!(
         #[unsafe(method(showUpdaterError:acknowledgement:))]
         fn failed(&self, _error: &NSError, acknowledge: &Block<dyn Fn()>) {
             self.ivars().ready.borrow_mut().take();
+            self.ivars().target.borrow_mut().take();
             self.ivars().extracting.set(false);
             (self.ivars().notify)(Event::Error); acknowledge.call(());
         }
@@ -63,7 +69,7 @@ define_class!(
         fn downloading(&self, cancel: &Block<dyn Fn()>) {
             if self.ivars().closing.get() { cancel.call(()); return; }
             *self.ivars().cancellation.borrow_mut() = Some(cancel.copy());
-            (self.ivars().notify)(Event::Downloading);
+            (self.ivars().notify)(Event::Downloading(self.ivars().target.borrow().clone()));
         }
         #[unsafe(method(showDownloadDidReceiveExpectedContentLength:))]
         fn expected(&self, _length: u64) {}
@@ -81,7 +87,7 @@ define_class!(
             self.ivars().extracting.set(false);
             if self.ivars().closing.get() { reply.call((0,)); return; }
             *self.ivars().ready.borrow_mut() = Some(reply.copy());
-            (self.ivars().notify)(Event::Ready);
+            (self.ivars().notify)(Event::Ready(self.ivars().target.borrow().clone()));
         }
         #[unsafe(method(showInstallingUpdateWithApplicationTerminated:retryTerminatingApplication:))]
         fn installing(&self, _terminated: bool, _retry: &Block<dyn Fn()>) {}
@@ -91,6 +97,7 @@ define_class!(
         fn dismissed(&self) {
             self.ivars().ready.borrow_mut().take();
             self.ivars().cancellation.borrow_mut().take();
+            self.ivars().target.borrow_mut().take();
             self.ivars().extracting.set(false);
         }
         #[unsafe(method(showUpdateInFocus))]

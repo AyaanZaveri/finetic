@@ -27,7 +27,7 @@ export type NativeState = {
   decoderDroppedFrames?: number;
 };
 
-export type UpdateStatus = { type: "update-status"; version: string; available: boolean; automatic: boolean; state: "idle" | "checking" | "downloading" | "ready" | "available" | "current" | "error"; message?: string };
+export type UpdateStatus = { type: "update-status"; version: string; nextVersion?: string | null; available: boolean; automatic: boolean; state: "idle" | "checking" | "downloading" | "ready" | "available" | "installing" | "current" | "error"; message?: string };
 
 export type NativeMessage =
   | UpdateStatus
@@ -49,7 +49,8 @@ export type NativeMessage =
 export type ClientStage = "interface-hydrated" | "play-requested" | "player-mounted" | "stream-resolving" | "stream-resolved";
 
 export type NativeRequest =
-  | { type: "update-status" | "update-check" }
+  | { type: "update-status" }
+  | { type: "update-check"; intent?: "prepare" | "install" }
   | { type: "update-automatic"; enabled: boolean }
   | { type: "client-stage"; stage: ClientStage }
   | { type: "app-ready"; dark: boolean }
@@ -79,7 +80,7 @@ export interface DesktopBridge {
   readonly protocol: 1;
   readonly platform: "macos" | "windows" | "linux" | "android" | "ios";
   readonly engine?: "mpv" | "exoplayer" | "vlc";
-  readonly capabilities?: { subtitleTiming?: boolean; macHdrPeak?: boolean; nativeHdrPeak?: boolean; updates?: boolean; chapters?: boolean; initialSeek?: boolean; windowControlsVisibility?: boolean; videoFit?: boolean; timings?: boolean; glass?: boolean; glassPixels?: boolean; nativePreviews?: boolean; nativeSurfaceGestures?: boolean; nativeMaterials?: boolean; nativeSystemVolume?: boolean; pip?: boolean; airplay?: boolean; systemVolume?: boolean; systemMedia?: boolean };
+  readonly capabilities?: { subtitleTiming?: boolean; macHdrPeak?: boolean; nativeHdrPeak?: boolean; updates?: boolean; updateReview?: boolean; chapters?: boolean; initialSeek?: boolean; windowControlsVisibility?: boolean; videoFit?: boolean; timings?: boolean; glass?: boolean; glassPixels?: boolean; nativePreviews?: boolean; nativeSurfaceGestures?: boolean; nativeMaterials?: boolean; nativeSystemVolume?: boolean; pip?: boolean; airplay?: boolean; systemVolume?: boolean; systemMedia?: boolean };
   readonly fullscreen: boolean;
   send(request: NativeRequest): void;
   subscribe(listener: (message: NativeMessage) => void): () => void;

@@ -26,9 +26,8 @@ impl Background {
             ready: Arc::new(AtomicBool::new(false)),
         })
     }
-    pub fn check(&self) {
-        let apply = self.ready.load(Ordering::Acquire);
-        self.run(apply);
+    pub fn install(&self) -> bool {
+        self.ready.load(Ordering::Acquire) && self.run(true)
     }
     pub fn probe(&self) -> bool {
         // Keep a staged update ready for the user's restart action. A scheduled
@@ -68,7 +67,7 @@ impl Background {
             // the next click. A Ready button must never lead to a busy no-op.
             let event = match result {
                 Ok(event) => {
-                    this.ready.store(matches!(event, Event::Ready), Ordering::Release);
+                    this.ready.store(matches!(&event, Event::Ready(_)), Ordering::Release);
                     event
                 }
                 Err(error) => {
@@ -94,9 +93,10 @@ fn completion(mut child: std::process::Child, apply: bool) -> Result<Event, Stri
         let line = line.map_err(|e| e.to_string())?;
         if line.len() > 1024 { return Err("Invalid updater response".into()); }
         let message: serde_json::Value = serde_json::from_str(&line).map_err(|e| e.to_string())?;
+        let version = message["version"].as_str().map(str::to_owned);
         match message["state"].as_str() {
-            Some("downloading") => notify(Event::Downloading),
-            Some("ready") => terminal = Some(Event::Ready),
+            Some("downloading") => notify(Event::Downloading(version)),
+            Some("ready") => terminal = Some(Event::Ready(version)),
             Some("current") => terminal = Some(Event::Current),
             Some("installing") if apply => return Ok(Event::Shutdown),
             Some("error") => return Err("Could not prepare the update".into()),
@@ -117,8 +117,8 @@ mod tests {
     fn background_ready_requires_successful_helper_exit() {
         let child = fixture(r#"console.log('{"state":"ready"}'); process.exit(1)"#);
         assert!(completion(child, false).is_err());
-        let child = fixture(r#"console.log('{"state":"ready"}'); setTimeout(() => process.exit(0), 50)"#);
-        assert!(matches!(completion(child, false), Ok(Event::Ready)));
+        let child = fixture(r#"console.log('{"state":"ready","version":"0.6.13"}'); setTimeout(() => process.exit(0), 50)"#);
+        assert!(matches!(completion(child, false), Ok(Event::Ready(Some(version))) if version == "0.6.13"));
     }
     #[test]
     fn manual_checks_receive_an_unguarded_current_result() {

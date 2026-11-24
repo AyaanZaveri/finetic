@@ -55,8 +55,8 @@ try {
     return new Response(url.endsWith('.json')?text:url.includes('-delta.exe')?patch:full);
   };
   const statuses=[];
-  assert.deepEqual(await runtime.prepare(install,'0.6.0',cache,publicKey,fetcher,s=>statuses.push(s.state)),{state:'ready'});
-  assert.deepEqual(statuses,['downloading']);
+  assert.deepEqual(await runtime.prepare(install,'0.6.0',cache,publicKey,fetcher,s=>statuses.push(s)),{state:'ready',version:'0.6.1'});
+  assert.deepEqual(statuses,[{state:'downloading',version:'0.6.1'}]);
   assert.equal(requests.filter(u=>u.endsWith('.exe')).length,1,'Download only the applicable delta');
   await runtime.prepare(install,'0.6.0',cache,publicKey,fetcher);
   assert.equal(requests.filter(u=>u.endsWith('.exe')).length,1,'A verified cached payload is reused after relaunch');

@@ -60,7 +60,7 @@ function Find-Control([Diagnostics.Process]$Process, [string]$Name) {
     if ($control -and $control.Current.IsEnabled) { return $control }
 }
 function Find-UpdateButton([Diagnostics.Process]$Process) {
-    foreach ($name in 'Update ready. Restart to update.', 'Restart to update') {
+    foreach ($name in 'Update ready. Review update.', 'Update ready. Restart to update.', 'Restart to update') {
         $button = Find-Control $Process $name
         if ($button) { return $button }
     }
@@ -144,6 +144,10 @@ try {
     $recording = Start-ThreadJob -FilePath (Join-Path $PSScriptRoot 'record-windows-update.ps1') -ArgumentList $results.FullName
     [void](Wait-For { Test-Path (Join-Path $results 'record.ready') } 20 'the screen and console monitor')
     Start-Sleep -Milliseconds 400
+    if ($button.Current.Name -eq 'Update ready. Review update.') {
+        $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+        $button = Wait-For { Find-Control $app 'Restart to update' } 15 'the release notes dialog'
+    }
     $invoke = $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
     $timer = [Diagnostics.Stopwatch]::StartNew()
     $invoke.Invoke()

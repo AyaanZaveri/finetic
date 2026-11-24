@@ -157,7 +157,7 @@ pub fn run(mut app: App) -> Result<(), String> {
                 }
                 Ok(
                     command @ (protocol::Command::UpdateStatus {}
-                    | protocol::Command::UpdateCheck {}
+                    | protocol::Command::UpdateCheck { .. }
                     | protocol::Command::UpdateAutomatic { .. }),
                 ) => {
                     let _ = ipc_proxy.send_event(UserEvent::UpdateCommand(command));
@@ -241,6 +241,7 @@ pub fn run(mut app: App) -> Result<(), String> {
     } else {
         "idle"
     };
+    let mut next_update_version = None;
     let mut installing = false;
     let mut closing = false;
     let mut fullscreen = false;
@@ -270,7 +271,7 @@ pub fn run(mut app: App) -> Result<(), String> {
             // The installer is ready before it asks AppKit to quit. Our custom
             // Cmd-Q menu sends Close, so it must remain live after the handoff.
             let update = match &event {
-                Event::UserEvent(UserEvent::Update(event)) => Some(*event),
+                Event::UserEvent(UserEvent::Update(event)) => Some(event.clone()),
                 _ => None,
             };
             let quit = matches!(&event, Event::UserEvent(UserEvent::Close)
@@ -316,21 +317,38 @@ pub fn run(mut app: App) -> Result<(), String> {
             Event::UserEvent(UserEvent::Update(event)) => {
                 use crate::macos_updater::Event as UpdateEvent;
                 match event {
-                    UpdateEvent::Available => { update_state = "available"; update_message = None; }
-                    UpdateEvent::Downloading => { update_state = "downloading"; update_message = None; }
-                    UpdateEvent::Ready => { update_state = "ready"; update_message = None; }
-                    UpdateEvent::Current => { update_state = "current"; update_message = None; }
+                    UpdateEvent::Available(version) => { update_state = "available"; update_message = None; next_update_version = version; }
+                    UpdateEvent::Downloading(version) => { update_state = "downloading"; update_message = None; next_update_version = version; }
+                    UpdateEvent::Ready(version) => { update_state = "ready"; update_message = None; next_update_version = version; }
+                    UpdateEvent::Current => { update_state = "current"; update_message = None; next_update_version = None; }
                     UpdateEvent::Error => { update_state = "error"; update_message = Some("Couldn’t check or download the update. Try again later.".into()); }
-                    UpdateEvent::Finished => { if update_state == "checking" { update_state = "idle"; } }
-                    UpdateEvent::Install => { update_state = "idle"; closing = true; player.begin_shutdown(); }
+                    UpdateEvent::Finished => { if update_state == "checking" { update_state = "idle"; next_update_version = None; } }
+                    UpdateEvent::Install => { update_state = "installing"; closing = true; player.begin_shutdown(); }
                     UpdateEvent::Relaunch => { closing = true; player.begin_shutdown(); }
                 }
-                let _ = webview.evaluate_script(&receive(&json!({"type":"update-status", "version":env!("CARGO_PKG_VERSION"), "available":updater.is_some(), "automatic":automatic_updates, "state":update_state, "message":update_message})));
+                let _ = webview.evaluate_script(&receive(&json!({"type":"update-status", "version":env!("CARGO_PKG_VERSION"), "nextVersion":next_update_version, "available":updater.is_some(), "automatic":automatic_updates, "state":update_state, "message":update_message})));
             }
             Event::UserEvent(UserEvent::UpdateCommand(command)) if !closing => {
                 if let Some(updater) = &updater {
                     match command {
-                        protocol::Command::UpdateCheck {} => { update_state = "checking"; update_message = None; updater.check(); }
+                        protocol::Command::UpdateCheck { intent } => {
+                            use protocol::UpdateIntent;
+                            match UpdateIntent::for_state(intent, update_state) {
+                                Some(UpdateIntent::Prepare) => {
+                                    update_state = "checking";
+                                    update_message = None;
+                                    updater.check();
+                                }
+                                Some(UpdateIntent::Install) => {
+                                    if updater.install() { update_state = "installing"; }
+                                    else {
+                                        update_state = "error";
+                                        update_message = Some("The update is no longer ready. Check for updates again.".into());
+                                    }
+                                }
+                                None => {}
+                            }
+                        }
                         protocol::Command::UpdateAutomatic { enabled } => {
                             match std::fs::write(&update_settings, if enabled { "true" } else { "false" }) {
                                 Ok(()) => {
@@ -344,7 +362,7 @@ pub fn run(mut app: App) -> Result<(), String> {
                         _ => {}
                     }
                 }
-                let _ = webview.evaluate_script(&receive(&json!({"type":"update-status", "version":env!("CARGO_PKG_VERSION"), "available":updater.is_some(), "automatic":automatic_updates, "state":update_state, "message":update_message})));
+                let _ = webview.evaluate_script(&receive(&json!({"type":"update-status", "version":env!("CARGO_PKG_VERSION"), "nextVersion":next_update_version, "available":updater.is_some(), "automatic":automatic_updates, "state":update_state, "message":update_message})));
             }
             Event::UserEvent(UserEvent::Emit(value)) => {
                 media_session.observe_event(&value);

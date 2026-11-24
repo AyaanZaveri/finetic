@@ -15,6 +15,12 @@ mod status;
 mod driver;
 pub use status::{Event, install_should_exit};
 
+fn appcast_version(item: &AnyObject) -> Option<String> {
+    // The display version is the release version used in the GitHub tag.
+    let version: Option<Retained<NSString>> = unsafe { msg_send![item, displayVersionString] };
+    version.map(|version| version.to_string())
+}
+
 struct DelegateIvars {
     notify: Box<dyn Fn(Event)>,
     install: RefCell<Option<RcBlock<dyn Fn()>>>,
@@ -27,7 +33,9 @@ define_class!(
     struct Delegate;
     impl Delegate {
         #[unsafe(method(updater:didFindValidUpdate:))]
-        fn found(&self, _updater: &AnyObject, _item: &AnyObject) { (self.ivars().notify)(Event::Available); }
+        fn found(&self, _updater: &AnyObject, item: &AnyObject) {
+            (self.ivars().notify)(Event::Available(appcast_version(item)));
+        }
         #[unsafe(method(updaterDidNotFindUpdate:error:))]
         fn current(&self, _updater: &AnyObject, _error: &NSError) { (self.ivars().notify)(Event::Current); }
         #[unsafe(method(updater:didAbortWithError:))]
@@ -88,6 +96,7 @@ impl Updater {
             notify: Box::new(move |event| driver_notify(event)),
             ready: RefCell::new(None),
             cancellation: RefCell::new(None),
+            target: RefCell::new(None),
             closing: std::cell::Cell::new(false),
             extracting: std::cell::Cell::new(false),
         });
@@ -125,11 +134,11 @@ impl Updater {
         }
     }
     pub fn check(&self) {
-        if self.driver.install() { return; }
         unsafe {
             let _: () = msg_send![&*self.updater, checkForUpdates];
         }
     }
+    pub fn install(&self) -> bool { self.driver.install() }
     pub fn probe(&self) -> bool {
         // Background checks use our driver to download and stage without UI.
         unsafe {

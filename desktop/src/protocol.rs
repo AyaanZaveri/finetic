@@ -65,7 +65,7 @@ pub enum Command {
         value: bool,
     },
     UpdateStatus {},
-    UpdateCheck {},
+    UpdateCheck { #[serde(default)] intent: Option<UpdateIntent> },
     UpdateAutomatic { enabled: bool },
     WindowDrag {
         #[serde(default, rename = "doubleClick")]
@@ -84,6 +84,38 @@ pub enum Command {
         request: u64,
         position: Option<f64>,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum UpdateIntent {
+    Prepare,
+    Install,
+}
+
+impl UpdateIntent {
+    pub fn for_state(intent: Option<Self>, state: &str) -> Option<Self> {
+        match state {
+            "ready" if intent != Some(Self::Prepare) => Some(Self::Install),
+            "ready" | "checking" | "downloading" | "installing" => None,
+            _ if intent != Some(Self::Install) => Some(Self::Prepare),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn update_intent_distinguishes_preparing_from_restarting() {
+    use UpdateIntent::{Install, Prepare};
+    assert!(matches!(parse(r#"{"type":"update-check","intent":"install"}"#), Ok(Command::UpdateCheck { intent: Some(Install) })));
+    assert!(parse(r#"{"type":"update-check","intent":"force"}"#).is_err());
+    assert_eq!(UpdateIntent::for_state(Some(Prepare), "ready"), None);
+    assert_eq!(UpdateIntent::for_state(Some(Install), "available"), None);
+    assert_eq!(UpdateIntent::for_state(Some(Install), "installing"), None);
+    assert_eq!(UpdateIntent::for_state(Some(Install), "ready"), Some(Install));
+    assert_eq!(UpdateIntent::for_state(Some(Prepare), "available"), Some(Prepare));
+    assert_eq!(UpdateIntent::for_state(None, "ready"), Some(Install));
 }
 
 #[derive(Debug, Deserialize)]
