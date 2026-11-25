@@ -7,15 +7,18 @@ type ModelState = { models: ModelsDevModel[]; loading: boolean; error: string | 
 const EMPTY_STATE: ModelState = { models: [], loading: false, error: null };
 const LOADING_STATE: ModelState = { models: [], loading: true, error: null };
 
-export function useOpenAIModels({ enabled, baseUrl, apiKey }: { enabled: boolean; baseUrl: string; apiKey: string }) {
-    const [result, setResult] = useState<{ baseUrl: string; apiKey: string; state: ModelState } | null>(null);
+export type LiveModelProvider = "openai" | "anthropic" | "gemini" | "groq" | "openrouter" | "cerebras" | "opencode";
+
+export function useProviderModelList({ enabled, provider, baseUrl, apiKey }: { enabled: boolean; provider: LiveModelProvider; baseUrl: string; apiKey: string }) {
+    const [result, setResult] = useState<{ provider: LiveModelProvider; baseUrl: string; apiKey: string; state: ModelState } | null>(null);
 
     useEffect(() => {
-        if (!enabled || !baseUrl.trim()) return;
+        if (!enabled || (provider === "openai" && !baseUrl.trim())) return;
 
         let active = true;
         const controller = new AbortController();
-        const setState = (state: ModelState) => setResult({ baseUrl, apiKey, state });
+        const setState = (state: ModelState) => setResult({ provider, baseUrl, apiKey, state });
+        setState(LOADING_STATE);
         const deadline = window.setTimeout(() => {
             controller.abort();
             if (active) setState({ models: [], loading: false, error: "Loading models timed out. You can still enter a model ID manually." });
@@ -23,10 +26,11 @@ export function useOpenAIModels({ enabled, baseUrl, apiKey }: { enabled: boolean
         const debounce = window.setTimeout(async () => {
             setState(LOADING_STATE);
             try {
-                const response = await fetch("/api/openai/models", {
+                const response = await fetch(provider === "openai" ? "/api/openai/models" : `/api/provider-models?provider=${provider}`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json", "x-openai-api-key": apiKey.trim() },
-                    body: JSON.stringify({ baseUrl: baseUrl.trim() }),
+                    headers: provider === "openai" ? { "Content-Type": "application/json", "x-openai-api-key": apiKey.trim() } : { "x-provider-api-key": apiKey.trim() },
+                    body: provider === "openai" ? JSON.stringify({ baseUrl: baseUrl.trim() }) : undefined,
+                    cache: "no-store",
                     signal: controller.signal,
                 });
                 const data = await response.json() as { models?: ModelsDevModel[]; error?: string };
@@ -35,7 +39,7 @@ export function useOpenAIModels({ enabled, baseUrl, apiKey }: { enabled: boolean
                 if (active && !controller.signal.aborted) setState({
                     models: data.models,
                     loading: false,
-                    error: data.models.length ? null : "The provider returned no models. Enter a model ID manually.",
+                    error: null,
                 });
             } catch (error) {
                 if (active && !controller.signal.aborted) setState({
@@ -53,8 +57,12 @@ export function useOpenAIModels({ enabled, baseUrl, apiKey }: { enabled: boolean
             window.clearTimeout(deadline);
             controller.abort();
         };
-    }, [enabled, baseUrl, apiKey]);
+    }, [enabled, provider, baseUrl, apiKey]);
 
-    if (!enabled || !baseUrl.trim()) return EMPTY_STATE;
-    return result?.baseUrl === baseUrl && result.apiKey === apiKey ? result.state : LOADING_STATE;
+    if (!enabled || (provider === "openai" && !baseUrl.trim())) return EMPTY_STATE;
+    return result?.provider === provider && result.baseUrl === baseUrl && result.apiKey === apiKey ? result.state : LOADING_STATE;
+}
+
+export function useOpenAIModels(props: { enabled: boolean; baseUrl: string; apiKey: string }) {
+    return useProviderModelList({ ...props, provider: "openai" });
 }

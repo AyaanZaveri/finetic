@@ -34,6 +34,7 @@ export interface ComboboxProps
   description?: string;
   placeholder?: string;
   emptyMessage?: string;
+  allowCustomValue?: boolean;
   className?: string;
 }
 
@@ -61,6 +62,7 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxProps>(function Com
         description,
         placeholder = "Search or select…",
         emptyMessage = "No matches found",
+        allowCustomValue = false,
         id,
         className,
         disabled,
@@ -104,10 +106,19 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxProps>(function Com
         const normalize = (text: string) => text.toLocaleLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
         const normalizedQuery = normalize(query);
         if (!normalizedQuery) return options;
-        return options.filter((option) =>
+        const matches = options.filter((option) =>
             [option.label, ...(option.keywords ?? [])].some((term) => normalize(term).includes(normalizedQuery)),
         );
-    }, [options, query]);
+        const custom = query.trim();
+        if (allowCustomValue && custom && !options.some(option => option.value === custom || option.label === custom)) {
+            matches.push({ value: custom, label: `Use “${custom}”` });
+        }
+        return matches;
+    }, [options, query, allowCustomValue]);
+
+    // The model catalog can be replaced while the menu is open. Do not let a
+    // highlighted index silently select a different model after a refresh.
+    useEffect(() => { setActiveIndex(-1); }, [options]);
 
     const enabledIndices = filteredOptions.reduce<number[]>((indices, option, index) => {
         if (!option.disabled) indices.push(index);
@@ -168,9 +179,9 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxProps>(function Com
             setActiveIndex(enabledIndices[nextPosition]!);
             return;
         }
-        if (event.key === "Enter" && open && activeIndex >= 0) {
+        if (event.key === "Enter" && open && (activeIndex >= 0 || (allowCustomValue && filteredOptions.length === 1))) {
             event.preventDefault();
-            const option = filteredOptions[activeIndex];
+            const option = filteredOptions[activeIndex >= 0 ? activeIndex : 0];
             if (option) choose(option);
             return;
         }

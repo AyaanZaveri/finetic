@@ -45,6 +45,60 @@ function mount() {
 }
 
 async function main() {
+    const catalog = {
+        openai: { models: {
+            "gpt-6.2-sol": { name: "GPT-6.2 Sol", family: "gpt-sol", release_date: "2026-11-17", tool_call: true },
+            "gpt-6-luna": { name: "GPT-6 Luna", family: "gpt-luna", release_date: "2026-09-22", tool_call: true, cost: { input: 0.1, output: 0.5 }, experimental: { modes: { fast: {} } } },
+            "gpt-5.6-luna": { family: "gpt-luna", release_date: "2026-07-09", tool_call: true },
+            "gpt-luna-preview": { family: "gpt-luna", release_date: "2026-11-18", tool_call: true },
+            "gpt-luna-deprecated": { family: "gpt-luna", release_date: "2026-11-18", tool_call: true, status: "deprecated" },
+            "gpt-luna-experimental": { family: "gpt-luna", release_date: "2026-11-18", tool_call: true, experimental: true },
+            "gpt-luna-no-tools": { family: "gpt-luna", release_date: "2026-11-18", tool_call: false },
+            "gpt-luna-2026-09-22": { family: "gpt-luna", release_date: "2026-09-22", tool_call: true },
+            "gpt-4o-mini": { release_date: "2024-07-18", tool_call: true },
+        } },
+        anthropic: { models: {
+            "claude-fable-5-2": { family: "claude-fable", release_date: "2026-11-09", tool_call: true },
+            "claude-haiku-5-5": { family: "claude-haiku", release_date: "2026-10-07", tool_call: true },
+        } },
+        google: { models: {
+            "gemini-4-neon": { family: "gemini", release_date: "2026-11-18", tool_call: true },
+            "gemini-4-flash-lite-image": { family: "nano-banana-lite", release_date: "2026-11-18", tool_call: true },
+            "gemini-3.5-flash-lite": { family: "gemini-flash-lite", release_date: "2026-07-21", tool_call: true },
+            "gemini-flash-lite-latest": { family: "gemini-flash-lite", release_date: "2026-07-21", tool_call: true },
+        } },
+    };
+    const openaiCatalog = constants.getModelsDevProviderById(catalog, "openai").models;
+    assert.equal(constants.latestSmallModel("openai", openaiCatalog).id, "gpt-6-luna");
+    assert.equal(constants.latestSmallModel("anthropic", constants.getModelsDevProviderById(catalog, "anthropic").models).id, "claude-haiku-5-5");
+    assert.equal(constants.latestSmallModel("gemini", constants.getModelsDevProviderById(catalog, "google").models).id, "gemini-3.5-flash-lite");
+    const enriched = constants.enrichProviderModels([{ id: "gpt-5.6-luna", name: "gpt-5.6-luna" }, { id: "gpt-6.2-sol", name: "Sol" }], openaiCatalog);
+    assert.equal(constants.latestSmallModel("openai", enriched).id, "gpt-5.6-luna", "Only consider models available to the account");
+    assert.equal(constants.latestSmallModel("openai", [{ id: "gpt-unknown", name: "Unknown" }]), undefined);
+
+    let accountModels = ["gpt-5.6-luna", "gpt-6.2-sol"];
+    const { resolveLatestSmallModel } = load("lib/server/default-ai-model.ts", {
+        "@/lib/models-dev": constants,
+        "@/lib/server/models-dev-catalog": { loadModelsDevCatalog: async () => catalog },
+        "@/lib/server/outbound-fetch": { outboundFetch: async (url, options) => {
+            assert.equal(url, "https://api.openai.com/v1/models");
+            assert.equal(options.headers.Authorization, "Bearer fixture-key");
+            assert.equal(options.redirect, "error");
+            return Response.json({ data: accountModels.map(id => ({ id })) });
+        } },
+        "@/lib/server/provider-model-list": { listProviderModels: async provider => ({
+            models: provider === "anthropic" ? [{ id: "claude-haiku-5-5" }] : [{ id: "gemini-flash-lite-latest" }],
+        }) },
+    }, { AbortSignal, Response, URL });
+    const signal = new AbortController().signal;
+    assert.equal(await resolveLatestSmallModel("openai", "fixture-key", signal), "gpt-5.6-luna");
+    accountModels = ["gpt-6.2-sol"];
+    assert.equal(await resolveLatestSmallModel("openai", "fixture-key", signal), undefined, "Do not silently default to a flagship");
+    accountModels.push("gpt-6-luna");
+    assert.equal(await resolveLatestSmallModel("openai", "fixture-key", signal), "gpt-6-luna");
+    assert.equal(await resolveLatestSmallModel("anthropic", "fixture-key", signal), "claude-haiku-5-5");
+    assert.equal(await resolveLatestSmallModel("gemini", "fixture-key", signal), "gemini-flash-lite-latest");
+
     // A private host can never be discovered by the previous public-catalog lookup.
     assert.equal(constants.matchModelsDevProvider({ openai: { api: 'https://api.openai.com/v1', models: {} } }, 'https://custom.test/v1'), null);
 

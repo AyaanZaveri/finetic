@@ -2,9 +2,8 @@ import { NextResponse } from "next/server";
 import {
   getModelsDevProviderById,
   matchModelsDevProvider,
-  MODELS_DEV_API_URL,
-  type ModelsDevApiResponse,
 } from "@/lib/models-dev";
+import { loadModelsDevCatalog } from "@/lib/server/models-dev-catalog";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -19,20 +18,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    // The full catalog exceeds the Next.js Data Cache item-size limit.
-    const upstream = await fetch(MODELS_DEV_API_URL, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(12_000),
-    });
-
-    if (!upstream.ok) {
-      return NextResponse.json(
-        { error: "Failed to fetch provider data from models.dev." },
-        { status: upstream.status }
-      );
-    }
-
-    const payload = (await upstream.json()) as ModelsDevApiResponse;
+    const payload = await loadModelsDevCatalog();
     const provider = providerId
       ? getModelsDevProviderById(payload, providerId)
       : matchModelsDevProvider(payload, baseUrl);

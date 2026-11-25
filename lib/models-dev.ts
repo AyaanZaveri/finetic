@@ -6,6 +6,11 @@ type ModelsDevModelRecord = {
   id?: string;
   name?: string;
   family?: string;
+  release_date?: string;
+  status?: string;
+  tool_call?: boolean;
+  experimental?: unknown;
+  cost?: { input?: number; output?: number };
   modalities?: {
     input?: string[];
     output?: string[];
@@ -25,6 +30,12 @@ export type ModelsDevModel = {
   id: string;
   name: string;
   family?: string;
+  releaseDate?: string;
+  status?: string;
+  toolCall?: boolean;
+  experimental?: boolean;
+  inputCost?: number;
+  outputCost?: number;
 };
 
 export type MatchedModelsDevProvider = {
@@ -64,13 +75,75 @@ function getProviderApiBaseUrl(provider: ModelsDevProviderRecord): string | null
     return provider.api ?? null;
 }
 
-function supportsTextInput(model: ModelsDevModelRecord): boolean {
-    const inputModalities = model.modalities?.input;
-    if (!Array.isArray(inputModalities) || inputModalities.length === 0) {
-        return true;
-    }
+/** Ask Navigator needs models that accept and produce text. */
+export function isTextModel(id: string, modalities?: ModelsDevModelRecord["modalities"]): boolean {
+    // Catalog modality labels can describe text embeddings and image prompts
+    // as text output even when the model cannot answer a chat request.
+    if (/(?:^|[\/\-])(?:embedding|embeddings|whisper|tts|transcribe|transcription|moderation|realtime|dall-e|sora|imagen|veo)(?:[\/\-]|$)/i.test(id)
+        || /(?:^|\/)(?:gpt-image-|chatgpt-image-|canopylabs\/orpheus-)/i.test(id)) return false;
+    if (modalities?.input?.length && !modalities.input.includes("text")) return false;
+    if (modalities?.output?.length) return modalities.output.includes("text");
+    return true;
+}
 
-    return inputModalities.includes("text");
+function catalogTextModels(provider: ModelsDevProviderRecord): ModelsDevModel[] {
+    return Object.entries(provider.models ?? {})
+        .filter(([id, model]) => isTextModel(model.id ?? id, model.modalities))
+        .map(([modelId, model]) => ({
+            id: model.id ?? modelId,
+            name: model.name ?? model.id ?? modelId,
+            family: model.family,
+            releaseDate: model.release_date,
+            status: model.status,
+            toolCall: model.tool_call,
+            // models.dev also uses this object for experimental service modes
+            // on stable models; only an explicit boolean marks the model itself.
+            experimental: model.experimental === true ? true : undefined,
+            inputCost: model.cost?.input,
+            outputCost: model.cost?.output,
+        }));
+}
+
+export const SMALL_MODEL_CATALOGS = { openai: "openai", anthropic: "anthropic", gemini: "google" } as const;
+export type SmallModelProvider = keyof typeof SMALL_MODEL_CATALOGS;
+
+export function isSmallModelProvider(provider: string): provider is SmallModelProvider {
+    return Object.hasOwn(SMALL_MODEL_CATALOGS, provider);
+}
+
+/** The catalog has families, not a standardized model-size tier. Only infer
+ * lightweight models from known provider families, with older IDs as fallback. */
+export function latestSmallModel(provider: SmallModelProvider, models: ModelsDevModel[]): ModelsDevModel | undefined {
+    const smallFamily = {
+        openai: /(?:^|[-/])(?:luna|mini|nano)(?:[-/]|$)/i,
+        anthropic: /(?:^|[-/])haiku(?:[-/]|$)/i,
+        gemini: /(?:^|[-/])flash-lite(?:[-/]|$)/i,
+    }[provider];
+    const alias = /-(?:\d{4}-\d{2}-\d{2}|latest)$/;
+    return models.filter(model =>
+        model.toolCall === true && /^\d{4}-\d{2}-\d{2}$/.test(model.releaseDate ?? "")
+        && (!model.status || model.status === "stable" || model.status === "latest")
+        && !model.experimental
+        && !/(?:^|[-/])(?:preview|beta|alpha|experimental)(?:[-/]|$)/i.test(model.id)
+        && !/-image(?:-|$)/i.test(model.id)
+        && (smallFamily.test(model.family ?? "") || smallFamily.test(model.id))
+        && isTextModel(model.id)
+    ).sort((a, b) =>
+        b.releaseDate!.localeCompare(a.releaseDate!)
+        || Number(alias.test(a.id)) - Number(alias.test(b.id))
+        || (a.outputCost ?? Infinity) - (b.outputCost ?? Infinity)
+        || (a.inputCost ?? Infinity) - (b.inputCost ?? Infinity)
+        || a.id.localeCompare(b.id)
+    )[0];
+}
+
+/** The live list controls membership. The public catalog only supplies metadata. */
+export function enrichProviderModels(models: ModelsDevModel[], catalog: ModelsDevModel[]): ModelsDevModel[] {
+    const metadata = new Map(catalog.map(model => [model.id, model]));
+    return models.map(model => {
+        const publicModel = metadata.get(model.id);
+        return { ...publicModel, ...model, name: publicModel && publicModel.name !== model.id ? publicModel.name : model.name, family: publicModel?.family ?? model.family };
+    }).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function getMatchScore(candidateBaseUrl: string, targetBaseUrl: string): number {
@@ -139,13 +212,7 @@ export function matchModelsDevProvider(
 
     if (!bestMatch?.provider.id) return null;
 
-    const models = Object.entries(bestMatch.provider.models ?? {})
-        .filter(([, model]) => supportsTextInput(model))
-        .map(([modelId, model]) => ({
-            id: model.id ?? modelId,
-            name: model.name ?? model.id ?? modelId,
-            family: model.family,
-        }))
+    const models = catalogTextModels(bestMatch.provider)
         .sort((a, b) => a.name.localeCompare(b.name));
 
     return {
@@ -164,13 +231,7 @@ export function getModelsDevProviderById(
     const provider = payload[providerId];
     if (!provider) return null;
 
-    const models = Object.entries(provider.models ?? {})
-        .filter(([, model]) => supportsTextInput(model))
-        .map(([modelId, model]) => ({
-            id: model.id ?? modelId,
-            name: model.name ?? model.id ?? modelId,
-            family: model.family,
-        }))
+    const models = catalogTextModels(provider)
         .sort((a, b) => a.id.localeCompare(b.id));
 
     return {

@@ -28,6 +28,7 @@ const playback: Partial<Record<StateId, Partial<PlaybackPreferences>>> = {
 };
 
 const providers: Partial<Record<StateId, string>> = {
+    "navigator-anthropic": "anthropic",
     "navigator-gemini": "gemini",
     "navigator-ollama": "ollama",
     "navigator-groq": "groq",
@@ -38,13 +39,10 @@ const providers: Partial<Record<StateId, string>> = {
     "navigator-model-loading": "gemini",
 };
 
-const catalog: Record<string, ModelsDevModel[]> = {
-    openai: [{ id: "gpt-4o-mini", name: "GPT-4o mini" }, { id: "gpt-4.1-mini", name: "GPT-4.1 mini" }],
-    google: [{ id: "gemini-flash-lite-latest", name: "Gemini Flash-Lite" }, { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro" }],
-    groq: [{ id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B Versatile" }],
-    openrouter: [{ id: "anthropic/claude-sonnet-4.5", name: "Claude Sonnet 4.5" }],
-    "opencode-go": [{ id: "kimi-k2.5", name: "Kimi K2.5" }],
-};
+const chatGPTModels: ModelsDevModel[] = [
+    { id: "gpt-6.2-sol", name: "GPT-6.2 Sol" },
+    { id: "gpt-6.1-sol", name: "GPT-6.1 Sol" },
+];
 
 const updateStates: Partial<Record<StateId, UpdateStatus["state"]>> = {
     "about-portable": "idle", "about-idle": "idle", "about-checking": "checking",
@@ -110,6 +108,9 @@ function fixtureStorage(id: StateId): Storage {
     if (providers[id]) values.set("navigator-ai-provider", providers[id]);
     if (id === "navigator-disabled") values.set("navigator-navigator-enabled", "false");
     if (id === "navigator-cerebras") values.set("navigator-cerebras-api-key", "fixture-cerebras-api-key");
+    if (["navigator-model-checking", "navigator-model-filtered", "navigator-model-error", "navigator-model-empty"].includes(id)) {
+        values.set("navigator-openai-api-key", "fixture-openai-api-key");
+    }
     if (id.startsWith("navigator-chatgpt")) values.set("navigator-openai-auth-method", "chatgpt");
     if (["connections-personal", "connections-saving", "connections-save-error"].includes(id)) {
         values.set("navigator-tmdb-token", artworkToken);
@@ -149,6 +150,18 @@ export function installFixtures(id: StateId) {
     const pending = () => new Promise<Response>((_resolve, reject) => {
         teardown.signal.addEventListener("abort", () => reject(teardown.signal.reason), { once: true });
     });
+    // Real public data, simulated account access. Never send fixture keys to a
+    // provider or substitute a static public catalog for the production route.
+    async function mockAccountModels(providerId: string, signal?: AbortSignal | null) {
+        const params = new URLSearchParams({ providerId });
+        const response = await previousFetch(`/api/models-dev/provider?${params}`, { signal: signal ?? teardown.signal });
+        if (!response.ok) return response;
+        const data = await response.json() as { provider?: { models?: ModelsDevModel[] } };
+        const models = data.provider?.models ?? [];
+        return Response.json({ models: id === "navigator-model-filtered"
+            ? [...models.filter((_, index) => index % 2 === 0), { id: "private-model", name: "Private model" }]
+            : models });
+    }
     const flight = (value: unknown) => new Response(`0:${JSON.stringify({ a: value })}\n`, { headers: { "Content-Type": "text/x-component" } });
     const actionIds = new Map<string, Action>();
     let registering: Action | undefined;
@@ -206,13 +219,19 @@ export function installFixtures(id: StateId) {
             return flight({ success: false, error: "This action has no workbench fixture." });
         }
         if (url.pathname === "/api/openai/models") {
+            if (id === "navigator-model-checking") return pending();
             if (id === "navigator-model-error") return Response.json({ error: "Couldn’t reach the model provider." }, { status: 503 });
-            return Response.json({ models: id === "navigator-model-empty" ? [] : catalog.openai });
+            if (id === "navigator-model-empty") return Response.json({ models: [] });
+            return mockAccountModels("openai", init?.signal);
+        }
+        if (url.pathname === "/api/provider-models") {
+            const provider = url.searchParams.get("provider") ?? "";
+            const catalogId = provider === "gemini" ? "google" : provider === "opencode" ? "opencode-go" : provider;
+            return mockAccountModels(catalogId, init?.signal);
         }
         if (url.pathname === "/api/models-dev/provider") {
             if (id === "navigator-model-loading") return pending();
-            const provider = url.searchParams.get("providerId") ?? "";
-            return Response.json({ provider: { id: provider, models: catalog[provider] ?? [] } });
+            return previousFetch(resource, init);
         }
         if (url.pathname === "/api/cerebras/models") return Response.json({ models: ["gpt-oss-120b", "zai-glm-4.7"] });
         if (url.pathname === "/api/openai/chatgpt") {
@@ -221,7 +240,7 @@ export function installFixtures(id: StateId) {
             if (action === "models") {
                 if (id === "navigator-chatgpt-model-loading") return pending();
                 if (id === "navigator-chatgpt-model-error") return Response.json({ error: "Couldn’t load ChatGPT models." }, { status: 503 });
-                return Response.json({ models: catalog.openai });
+                return Response.json({ models: chatGPTModels });
             }
             if (action === "start") {
                 if (id === "navigator-chatgpt-error") return Response.json({ error: "Couldn’t start ChatGPT sign-in. Try again." }, { status: 503 });

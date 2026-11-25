@@ -22,6 +22,7 @@ export const groups = {
     ],
     navigator: [
         ["navigator-openai", "OpenAI"],
+        ["navigator-anthropic", "Anthropic"],
         ["navigator-disabled", "Ask Navigator off"],
         ["navigator-gemini", "Gemini"],
         ["navigator-ollama", "Ollama"],
@@ -31,6 +32,8 @@ export const groups = {
         ["navigator-cerebras", "Cerebras"],
         ["navigator-opencode", "OpenCode Go"],
         ["navigator-model-loading", "Models loading"],
+        ["navigator-model-checking", "Public catalog, checking model access"],
+        ["navigator-model-filtered", "Models from API key"],
         ["navigator-model-empty", "No models available"],
         ["navigator-model-error", "Model load failed"],
         ["navigator-chatgpt", "ChatGPT signed out"],
