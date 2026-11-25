@@ -52,12 +52,12 @@ export function AppUpdateDialog({ status, view, open, triggerRef, onClose, reque
     const action = ready ? "Restart to update" : status.state === "available" ? "Download update" : "Check for updates";
     const history = result?.url === notesUrl ? result.history : undefined;
     const loadingNotes = !!notesUrl && !history;
-    const description = installed ? "Changes in your installed version."
-        : ready ? since ? `Navigator will update to ${version} and reopen automatically.` : "Navigator will reopen automatically."
+    const description = installed ? "Changes in your installed version"
+        : ready ? since ? `Navigator will update to ${version} and reopen automatically` : "Navigator will reopen automatically"
         : pending ? progress
-        : status.state === "current" ? "You’re up to date."
+        : status.state === "current" ? "All caught up"
         : status.state === "error" ? status.message ?? "Couldn’t update Navigator. Try again."
-        : since ? `Navigator ${version} is available to download.` : "Review the changes before updating Navigator.";
+        : since ? `Navigator ${version} is available to download` : "Review the changes before updating Navigator";
 
     return <Dialog open={open} onOpenChange={next => { if (!next) onClose(); }}>
         <DialogContent overlayClassName={surface.addonBackdrop}
@@ -92,7 +92,7 @@ export function AppUpdateDialog({ status, view, open, triggerRef, onClose, reque
                             <Skeleton className={`h-3 ${width}`} />
                         </div>)}
                     </LoadingPlaceholder>
-                </> : version && <p role="status">Couldn’t load release notes.</p>}
+                </> : version && <p role="status">Couldn’t load release notes</p>}
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
                 <Button asChild variant="outline" size="sm" className="me-auto">

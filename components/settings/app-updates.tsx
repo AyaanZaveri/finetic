@@ -21,9 +21,9 @@ export function AppUpdates() {
     const offered = state === "ready" || state === "available";
     const action = offered ? "Review update" : "Check for updates";
     const feedback = state === "error" ? (status?.message ?? "Couldn’t update Navigator. Try again.")
-        : state === "current" ? "You’re up to date." : "";
+        : state === "current" ? "All caught up" : "";
     const announcement = feedback || (status?.available
-        ? activity ?? (state === "ready" ? "Update ready to install." : state === "available" ? "Update available." : "")
+        ? activity ?? (state === "ready" ? "Update ready to install" : state === "available" ? "Update available" : "")
         : "");
 
     return <section className={styles.section} aria-label="About Navigator">
@@ -32,7 +32,7 @@ export function AppUpdates() {
             <FieldContent><FieldLabel htmlFor="automatic-app-updates">Download updates automatically</FieldLabel></FieldContent>
             <Switch id="automatic-app-updates" checked={status.automatic}
                 onCheckedChange={enabled => desktopBridge()?.send({ type: "update-automatic", enabled })} />
-        </Field> : status && <p className={styles.description}>Install Navigator to use in-app updates.</p>}
+        </Field> : status && <p className={styles.description}>Install Navigator to use in-app updates</p>}
         <div className="flex flex-wrap items-center gap-2">
             {status?.available && <Button type="button" variant="outline" size="sm" disabled={!!activity} aria-busy={!!activity || undefined}
                 aria-haspopup={offered ? "dialog" : undefined}

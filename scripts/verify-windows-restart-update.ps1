@@ -213,7 +213,7 @@ try {
     if ($expectRecovery) {
         [void](Wait-For { Find-UpdateButton $aboutApp } 40 'a second successful check after the installation error')
     } else {
-        [void](Wait-For { Find-Control $aboutApp "You’re up to date." } 40 'a successful update check after relaunch')
+        [void](Wait-For { Find-Control $aboutApp "All caught up" } 40 'a successful update check after relaunch')
     }
     Start-Sleep -Milliseconds 500
     if ($fixture -and (Test-Path (Join-Path $results 'console-windows.txt'))) {

@@ -102,7 +102,7 @@ for (const platform of ['windows', 'macos']) {
     tree = settingsTree();
     const feedback = find(tree, 'p').find(node => node.props.role === 'status');
     assert.match(feedback.props.className, /\bfeedback\b/);
-    assert.ok(feedback.props.children.props.children.includes('You’re up to date.'));
+    assert.ok(feedback.props.children.props.children.includes('All caught up'));
     assert.equal(find(feedback, 'CheckCircle')[0].props['aria-hidden'], 'true');
     const installedNotes = find(tree, 'Button').find(button => Array.isArray(button.props.children) && button.props.children.includes('Release notes'));
     assert.equal(find(installedNotes, 'FileText')[0].props['aria-hidden'], 'true');
