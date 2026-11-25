@@ -67,6 +67,7 @@ try {
       const results = [];
       const prefs = gpu => localStorage.setItem('navigator-playback-preferences', JSON.stringify({ webGpuPlayback: gpu }));
       async function playback(name, url, gpu, corsFallback) {
+        document.querySelector('#result').textContent = 'Testing ' + name;
         prefs(gpu);
         check(canUseWebGpu(url) === gpu, name + ': requested engine is unavailable');
         const session = createWebVideoSession(url);
@@ -119,7 +120,14 @@ try {
   const app = await listen(async (req, res) => {
     const url = new URL(req.url, 'http://fixture');
     if (url.pathname === '/') {
-      res.writeHead(200, { 'Content-Type': 'text/html' }).end('<!doctype html><div id="host" style="width:320px;height:180px"></div><pre id="result">Running</pre><script type="module" src="/bundle.js"></script>');
+      res.writeHead(200, { 'Content-Type': 'text/html' }).end(`<!doctype html><div id="host" style="width:320px;height:180px"></div><pre id="result">Loading bundle</pre>
+        <script>
+          window.addEventListener('error', event => {
+            if (window.finished) return;
+            document.querySelector('#result').textContent = JSON.stringify({ ok: false, error: event.error?.stack || event.message || 'Failed to load browser test module' });
+            window.finished = true;
+          });
+        </script><script type="module" src="/bundle.js" onerror="window.dispatchEvent(new ErrorEvent('error', {message: 'Failed to load browser test module'}))"></script>`);
     } else if (url.pathname === '/bundle.js') {
       res.writeHead(200, { 'Content-Type': 'text/javascript' }).end(outputFiles[0].contents);
     } else if (url.pathname === '/api/playback/source') {
@@ -135,7 +143,16 @@ try {
     } else res.writeHead(404).end();
   });
   await cli(['--headed', '--executable-path', browser, '--args', '--enable-unsafe-webgpu,--enable-unsafe-swiftshader,--use-angle=swiftshader,--autoplay-policy=no-user-gesture-required', 'open', app]);
-  await cli(['wait', '--fn', 'window.finished === true'], { env: { ...process.env, AGENT_BROWSER_DEFAULT_TIMEOUT: '90000' }, timeout: 100_000 });
+  try {
+    await cli(['wait', '--fn', 'window.finished === true'], { env: { ...process.env, AGENT_BROWSER_DEFAULT_TIMEOUT: '90000' }, timeout: 100_000 });
+  } catch (error) {
+    for (const command of [['get', 'text', '#result'], ['console'], ['errors']]) {
+      const diagnostics = await cli(command).catch(e => ({ stdout: e.stdout, stderr: e.stderr }));
+      console.log(command.join(' '), diagnostics.stdout, diagnostics.stderr);
+    }
+    console.log('Media requests:', requests);
+    throw error;
+  }
   const { stdout } = await cli(['get', 'text', '#result']);
   const result = JSON.parse(stdout.trim());
   console.log(JSON.stringify(result, null, 2));
