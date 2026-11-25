@@ -10,6 +10,7 @@ async function main() {
   const zod = await import('zod');
   let activeModel;
   const compatibleSettings = [];
+  const anthropicSettings = [];
   const ollamaSettings = [];
   let authenticated = true;
   let subtitleTracks = [];
@@ -53,6 +54,7 @@ async function main() {
     return new Response(JSON.stringify(data), { status: episodeMetadataUnavailable && endpoint.includes('/episode/') ? 404 : tmdbStatus, headers: { 'content-type': 'application/json' } });
   }
   const selectedModelIds = [];
+  const defaultModels = { openai: 'gpt-6-luna', anthropic: 'claude-haiku-5-5', gemini: 'gemini-3.5-flash-lite' };
   const provider = modelId => { selectedModelIds.push(modelId); return activeModel; };
   provider.responses = provider;
   const modules = new Map();
@@ -63,11 +65,16 @@ async function main() {
       if (!authenticated) throw new Error('Not authenticated');
       return { user: { _id: subtitleUserId } };
     } },
+    '@/lib/server/default-ai-model': { resolveLatestSmallModel: async (provider, apiKey) => {
+      assert.ok(apiKey, 'Automatic discovery uses the selected provider key');
+      return defaultModels[provider];
+    } },
     "server-only": {},
     "@/lib/server/auth": { getAuthData: async () => { if (!authenticated) throw Error("Not authenticated"); return { user: { _id: subtitleUserId } }; } },
     "@/lib/server/outbound-fetch": { outboundUrl: value => new URL(value), OutboundRequestError: class extends Error {}, providerFetch: fetch, outboundFetch: (...args) => tmdbFetch(...args) },
     "@/lib/tmdb-credentials": { getTMDBToken: async () => tmdbToken },
     '@ai-sdk/google': { google: provider, createGoogle: () => provider },
+    '@ai-sdk/anthropic': { createAnthropic: settings => { anthropicSettings.push(settings); return provider; } },
     '@ai-sdk/openai': { openai: provider, createOpenAI: () => provider },
     '@ai-sdk/groq': { groq: provider, createGroq: () => provider },
     '@ai-sdk/cerebras': { cerebras: provider, createCerebras: () => provider },
@@ -746,7 +753,7 @@ async function main() {
   activeModel = new MockLanguageModelV4({ provider: 'openai-compatible.chat', modelId: 'gpt-6-luna',
     doStream: async () => stream([{ type: 'text-start', id: 'custom' }, { type: 'text-delta', id: 'custom', delta: 'Hello' }, { type: 'text-end', id: 'custom' }], 'stop'),
   });
-  await readResponse(await POST(request({ ...payload, pathname: '/', currentMedia: null, openaiBaseUrl: 'https://custom-compatible.example/v1', messages: [user('custom-structured-config', 'hello')] })));
+  await readResponse(await POST(request({ ...payload, pathname: '/', currentMedia: null, openaiBaseUrl: 'https://custom-compatible.example/v1', openaiModel: 'gpt-6-luna', messages: [user('custom-structured-config', 'hello')] })));
   assert.equal(compatibleSettings.at(-1).supportsStructuredOutputs, true, 'Compatible endpoints must receive json_schema for structured tool planning, not unstructured json_object');
 
   for (const apiKey of [' hosted-key ', '']) {
@@ -759,6 +766,21 @@ async function main() {
   assert.equal(missingModel.status, 400);
   assert.match(await missingModel.text(), /Choose a model in Settings/);
   assert.equal(ollamaSettings.length, beforeMissingModel);
+
+  const anthropicRequest = { ...payload, aiProvider: 'anthropic', anthropicModel: ' claude-sonnet-5-5 ',
+    anthropicApiKey: ' fixture-anthropic-key ', pathname: '/', currentMedia: null, messages: [user('anthropic-auth', 'hello')] };
+  await readResponse(await POST(request(anthropicRequest)));
+  assert.equal(anthropicSettings.at(-1).apiKey, 'fixture-anthropic-key');
+  assert.equal(typeof anthropicSettings.at(-1).fetch, 'function');
+  assert.equal(selectedModelIds.at(-1), 'claude-sonnet-5-5');
+  await readResponse(await POST(request({ ...anthropicRequest, anthropicModel: '' })));
+  assert.equal(selectedModelIds.at(-1), 'claude-haiku-5-5');
+  defaultModels.anthropic = undefined;
+  const beforeAnthropic = anthropicSettings.length;
+  const missingAnthropicModel = await POST(request({ ...anthropicRequest, anthropicModel: '' }));
+  assert.equal(missingAnthropicModel.status, 400);
+  assert.match(await missingAnthropicModel.text(), /Choose a model in Settings/);
+  assert.equal(anthropicSettings.length, beforeAnthropic);
 
   // Real track discovery must start providers concurrently and retain provider ordering.
   overrides['./auth'] = { getInstalledAddons: async () => [

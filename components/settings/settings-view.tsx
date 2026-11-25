@@ -1,12 +1,12 @@
 "use client";
 import { useStreamQueries } from "@/components/stream-query-provider";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
-import { Cerebras, Gemini, Groq, Ollama, OpenAI, OpenRouter } from "@lobehub/icons";
+import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { Cerebras, Claude, Gemini, Groq, Ollama, OpenAI, OpenRouter } from "@lobehub/icons";
 import { ArrowUpRight, Eye, EyeOff, Hexagon, KeyRound, Link2 } from "lucide-react";
 import Image from "next/image";
 import { OpenCodeIcon } from "@/components/opencode-icon";
-import { useCatalogModels } from "./use-catalog-models";
+import { useProviderModels } from "./use-provider-models";
 import { ModelIcon } from "@/components/model-icon";
 import { Switch } from "@/components/arc/switch/switch";
 import { Select } from "@/components/arc/select/select";
@@ -33,7 +33,7 @@ import {
     OpenRouterReasoningEffort,
     useSettings,
 } from "@/contexts/settings-context";
-import { OPENAI_DEFAULT_BASE_URL, type ModelsDevModel } from "@/lib/models-dev";
+import { isSmallModelProvider, latestSmallModel, OPENAI_DEFAULT_BASE_URL, type ModelsDevModel } from "@/lib/models-dev";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { getArtworkSettings, saveArtworkToken, removeArtworkToken, saveMetadataProvider, type ArtworkSettingsState } from "@/app/actions/artwork-settings";
@@ -49,7 +49,6 @@ import { useConnectionCredential } from "@/components/settings/use-connection-cr
 import { useChatGPTConnection } from "./use-chatgpt-connection";
 import { CHATGPT_USAGE_URL } from "@/lib/chatgpt-provider";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useOpenAIModels } from "@/components/settings/use-openai-models";
 import { CONNECTION_CREDENTIALS_EVENT } from "@/lib/browser-connection-credentials";
 import { createOptimisticToggle } from "@/lib/optimistic-toggle";
 import type { SettingsCategory } from "@/lib/settings-navigation";
@@ -69,20 +68,10 @@ const SETTINGS_INPUT_ATTRIBUTES = {
     "data-form-type": "other",
 } as const;
 
-type ModelsDevProviderResponse = {
-    provider: {
-        id: string;
-        name: string;
-        apiBaseUrl: string;
-        logoUrl: string;
-        models: ModelsDevModel[];
-    } | null;
-    error?: string;
-};
-
 const PROVIDERS: Array<{ value: AIProvider; name: string; icon: ComponentType<{ className?: string }>; modelsUrl: string }> = [
     { value: "openai", name: "OpenAI", icon: OpenAI, modelsUrl: "https://developers.openai.com/api/docs/models" },
-    { value: "gemini", name: "Gemini", icon: Gemini.Color, modelsUrl: "https://aistudio.google.com/docs/models" },
+    { value: "anthropic", name: "Anthropic", icon: Claude, modelsUrl: "https://platform.claude.com/docs/en/models/overview" },
+    { value: "gemini", name: "Gemini", icon: Gemini, modelsUrl: "https://aistudio.google.com/docs/models" },
     { value: "ollama", name: "Ollama", icon: Ollama, modelsUrl: "https://ollama.com/search?c=tools" },
     { value: "groq", name: "Groq", icon: Groq, modelsUrl: "https://console.groq.com/docs/models" },
     { value: "openrouter", name: "OpenRouter", icon: OpenRouter, modelsUrl: "https://openrouter.ai/models" },
@@ -439,7 +428,7 @@ function ModelCombobox({ id, value, onValueChange, options, description, loading
     }, [cacheKey, catalogName, value]);
 
     const savedName = cached?.id === value ? cached.name : undefined;
-    const waitingForName = !!value && !catalogModel && !savedName && !disabled && (cached === undefined || loading);
+    const waitingForName = !!value && !catalogModel && !savedName && !disabled && (cached === undefined || (loading && !options.length));
     const selected = value && !waitingForName
         ? { ...catalogModel, id: value, name: catalogName ?? savedName ?? value }
         : null;
@@ -472,8 +461,9 @@ function ModelCombobox({ id, value, onValueChange, options, description, loading
                     keywords: [model.id],
                     icon: <ModelIcon model={model} fallbackIcon={providerIcon} />,
                 }))}
-                placeholder={loading ? "Loading models…" : "Search models…"}
-                emptyMessage={loading ? "Loading models…" : "No models found."}
+                placeholder={loading && !options.length ? "Loading models…" : "Search models…"}
+                allowCustomValue
+                emptyMessage={loading ? "Loading models…" : "No models found"}
                 aria-describedby={describedBy}
                 aria-busy={loading || undefined}
                 disabled={unavailable}
@@ -502,6 +492,8 @@ function NavigatorSettings() {
         setChatGPTModel,
         openaiModel,
         setOpenaiModel,
+        anthropicModel,
+        setAnthropicModel,
         geminiModel,
         setGeminiModel,
         ollamaApiKey,
@@ -524,6 +516,8 @@ function NavigatorSettings() {
         setOpencodeModel,
         openaiApiKey,
         setOpenaiApiKey,
+        anthropicApiKey,
+        setAnthropicApiKey,
         googleApiKey,
         setGoogleApiKey,
         groqApiKey,
@@ -536,113 +530,17 @@ function NavigatorSettings() {
         setOpencodeApiKey,
     } = useSettings();
 
-    const [cerebrasModels, setCerebrasModels] = useState<string[]>([]);
-    const [isLoadingCerebrasModels, setIsLoadingCerebrasModels] = useState(false);
-    const [cerebrasModelsError, setCerebrasModelsError] = useState<string | null>(
-        null
-    );
     const usingChatGPT = aiProvider === "openai" && openaiAuthMethod === "chatgpt";
     const chatGPT = useChatGPTConnection(navigatorEnabled && aiProvider === "openai", usingChatGPT);
     const showChatGPT = aiProvider === "openai" && (chatGPT.available || usingChatGPT);
     const chatGPTBusy = chatGPT.pending || chatGPT.busy;
-    const { models: openaiModels, loading: isLoadingOpenAIModels, error: openaiModelsError } = useOpenAIModels({
-        enabled: navigatorEnabled && aiProvider === "openai" && !usingChatGPT,
-        baseUrl: openaiBaseUrl,
-        apiKey: openaiApiKey,
-    });
-    const [geminiModelsProvider, setGeminiModelsProvider] =
-    useState<ModelsDevProviderResponse["provider"]>();
-    const [isLoadingGeminiModels, setIsLoadingGeminiModels] = useState(false);
-    const [geminiModelsError, setGeminiModelsError] = useState<string | null>(
-        null
-    );
-    const catalog = useCatalogModels(
-        aiProvider === "opencode" ? "opencode-go"
-            : aiProvider === "groq" || aiProvider === "openrouter" ? aiProvider : null
-    );
-
-    const fetchGeminiModels = useCallback(async () => {
-        setIsLoadingGeminiModels(true);
-        setGeminiModelsError(null);
-
-        try {
-            const params = new URLSearchParams({ providerId: "google" });
-            const response = await fetch(`/api/models-dev/provider?${params.toString()}`);
-            const data = (await response.json()) as ModelsDevProviderResponse;
-
-            if (!response.ok) {
-                throw new Error(data.error || "Failed to load Gemini models.");
-            }
-
-            setGeminiModelsProvider(data.provider ?? null);
-        } catch (error) {
-            console.error("Failed to load Gemini models:", error);
-            setGeminiModelsProvider(null);
-            setGeminiModelsError(
-                error instanceof Error ? error.message : "Failed to load Gemini models."
-            );
-        } finally {
-            setIsLoadingGeminiModels(false);
-        }
-    }, []);
-
-    const fetchCerebrasModels = useCallback(async () => {
-        if (!cerebrasApiKey.trim()) {
-            setCerebrasModels([]);
-            setCerebrasModelsError(null);
-            return;
-        }
-
-        setIsLoadingCerebrasModels(true);
-        setCerebrasModelsError(null);
-
-        try {
-            const response = await fetch("/api/cerebras/models", {
-                method: "GET",
-                headers: {
-                    "x-cerebras-api-key": cerebrasApiKey.trim(),
-                },
-            });
-
-            const data = (await response.json()) as {
-                models?: string[];
-                error?: string;
-            };
-
-            if (!response.ok) {
-                throw new Error(data.error || "Failed to fetch Cerebras models.");
-            }
-
-            const models = Array.isArray(data.models) ? data.models : [];
-            setCerebrasModels(models);
-            if (!models.length) setCerebrasModelsError("No models are currently available.");
-        } catch (error) {
-            console.error("Failed to load Cerebras models:", error);
-            setCerebrasModels([]);
-            setCerebrasModelsError(
-                error instanceof Error
-                    ? error.message
-                    : "Failed to load Cerebras models."
-            );
-        } finally {
-            setIsLoadingCerebrasModels(false);
-        }
-    }, [cerebrasApiKey]);
-
-    useEffect(() => {
-        if (aiProvider !== "gemini") return;
-        const timeout = window.setTimeout(() => void fetchGeminiModels(), 0);
-        return () => window.clearTimeout(timeout);
-    }, [aiProvider, fetchGeminiModels]);
-
-    useEffect(() => {
-        if (aiProvider !== "cerebras") return;
-        const timeout = window.setTimeout(() => void fetchCerebrasModels(), 400);
-        return () => window.clearTimeout(timeout);
-    }, [aiProvider, fetchCerebrasModels]);
+    const catalogProvider = navigatorEnabled && !usingChatGPT && aiProvider !== "ollama" ? aiProvider : null;
+    const modelKeys = { openai: openaiApiKey, anthropic: anthropicApiKey, gemini: googleApiKey,
+        groq: groqApiKey, openrouter: openrouterApiKey, cerebras: cerebrasApiKey, opencode: opencodeApiKey };
+    const catalog = useProviderModels({ provider: catalogProvider, apiKey: catalogProvider ? modelKeys[catalogProvider] : "", baseUrl: openaiBaseUrl });
 
     const selectedProvider = PROVIDERS.find((provider) => provider.value === aiProvider)!;
-    const isDefaultOpenAI = openaiBaseUrl.replace(/\/+$/, "") === OPENAI_DEFAULT_BASE_URL;
+    const isDefaultOpenAI = openaiBaseUrl.trim().replace(/\/+$/, "") === OPENAI_DEFAULT_BASE_URL;
     const ProviderIcon = selectedProvider.icon;
     const browseModels = (aiProvider !== "openai" || usingChatGPT || isDefaultOpenAI) && <div className="flex">
         <Button asChild variant="outline" size="sm">
@@ -659,43 +557,30 @@ function NavigatorSettings() {
     </div>;
     const apiKeySettings = {
         openai: { value: openaiApiKey, onValueChange: setOpenaiApiKey, placeholder: isDefaultOpenAI ? "sk-…" : undefined, keyUrl: isDefaultOpenAI ? "https://platform.openai.com/api-keys" : undefined },
+        anthropic: { value: anthropicApiKey, onValueChange: setAnthropicApiKey, placeholder: "sk-ant-api…", keyUrl: "https://platform.claude.com/settings/keys" },
         gemini: { value: googleApiKey, onValueChange: setGoogleApiKey, placeholder: "AQ.…", keyUrl: "https://aistudio.google.com/apikey" },
         groq: { value: groqApiKey, onValueChange: setGroqApiKey, placeholder: "gsk_…", keyUrl: "https://console.groq.com/keys" },
         openrouter: { value: openrouterApiKey, onValueChange: setOpenrouterApiKey, placeholder: "sk-or-v1-…", keyUrl: "https://openrouter.ai/keys" },
         cerebras: { value: cerebrasApiKey, onValueChange: setCerebrasApiKey, placeholder: "csk-…", keyUrl: "https://cloud.cerebras.ai" },
         opencode: { value: opencodeApiKey, onValueChange: setOpencodeApiKey, placeholder: "oc_sk_…", keyUrl: "https://opencode.ai/auth" },
     };
-    const modelSettings: Record<AIProvider, Omit<SettingsSelectProps, "id" | "label" | "options"> & { options?: ModelOption[]; placeholder?: string }> = {
-        openai: {
-            value: openaiModel, onValueChange: setOpenaiModel, options: openaiModels,
-            loading: isLoadingOpenAIModels, error: openaiModelsError,
-        },
-        gemini: {
-            value: geminiModel, onValueChange: setGeminiModel, options: geminiModelsProvider?.models ?? [],
-            loading: geminiModelsProvider === undefined || isLoadingGeminiModels, error: geminiModelsError,
-        },
-        ollama: {
-            value: ollamaModel, onValueChange: setOllamaModel, placeholder: "model:tag",
-        },
-        groq: {
-            value: groqModel, onValueChange: setGroqModel, options: catalog.models,
-            loading: catalog.loading, error: catalog.error,
-        },
-        openrouter: {
-            value: openrouterModel, onValueChange: setOpenrouterModel, options: catalog.models,
-            loading: catalog.loading, error: catalog.error,
-        },
-        cerebras: {
-            value: cerebrasModel, onValueChange: setCerebrasModel,
-            options: cerebrasModels.map((id) => ({ id, name: id })),
-            loading: isLoadingCerebrasModels || (cerebrasModels.length === 0 && !cerebrasModelsError), error: cerebrasModelsError, disabled: !cerebrasApiKey.trim(),
-        },
-        opencode: {
-            value: opencodeModel, onValueChange: setOpencodeModel, options: catalog.models,
-            loading: catalog.loading, error: catalog.error,
-        },
+    const modelSettings: Record<AIProvider, { value: string; onValueChange: (_value: string) => void }> = {
+        openai: { value: openaiModel, onValueChange: setOpenaiModel },
+        anthropic: { value: anthropicModel, onValueChange: setAnthropicModel },
+        gemini: { value: geminiModel, onValueChange: setGeminiModel },
+        ollama: { value: ollamaModel, onValueChange: setOllamaModel },
+        groq: { value: groqModel, onValueChange: setGroqModel },
+        openrouter: { value: openrouterModel, onValueChange: setOpenrouterModel },
+        cerebras: { value: cerebrasModel, onValueChange: setCerebrasModel },
+        opencode: { value: opencodeModel, onValueChange: setOpencodeModel },
     };
     const currentModel = modelSettings[aiProvider];
+    const automaticSmallModel = isSmallModelProvider(aiProvider) && !usingChatGPT && (aiProvider !== "openai" || isDefaultOpenAI);
+    const latest = automaticSmallModel ? latestSmallModel(aiProvider, catalog.models) : undefined;
+    const modelValue = automaticSmallModel && !currentModel.value ? latest?.id ?? "" : currentModel.value;
+    const modelDescription = catalog.live && catalog.models.length > 0 && currentModel.value && !catalog.models.some(model => model.id === currentModel.value)
+        ? "Your saved model is not in the provider’s list"
+        : catalog.description;
 
     return <>
     <Dialog open={chatGPT.welcomed} onOpenChange={open => { if (!open) chatGPT.dismissWelcome(); }}>
@@ -834,16 +719,17 @@ function NavigatorSettings() {
                     <ApiKeyInput key={`${aiProvider}-api-key`} id={`${aiProvider}-api-key`} {...apiKeySettings[aiProvider]} />
                 )}
 
-                {!usingChatGPT && (currentModel.options ? (
-                    <ModelCombobox key={`${aiProvider}-model`} id={`${aiProvider}-model`} {...currentModel} description={currentModel.disabled ? "Add an API key to load models." : undefined} options={currentModel.options} providerIcon={selectedProvider.icon} />
+                {!usingChatGPT && (aiProvider !== "ollama" ? (
+                    <ModelCombobox key={`${aiProvider}-model`} id={`${aiProvider}-model`} value={modelValue}
+                        onValueChange={currentModel.onValueChange}
+                        description={modelDescription} options={catalog.models} loading={catalog.loading} error={catalog.error} providerIcon={selectedProvider.icon} />
                 ) : (
                     <SettingsInput
                         id={`${aiProvider}-model`}
                         label="Model"
                         value={currentModel.value}
                         onValueChange={currentModel.onValueChange}
-                        placeholder={currentModel.placeholder}
-                        description={currentModel.description}
+                        placeholder="model:tag"
                     />
                 ))}
 

@@ -8,7 +8,7 @@ export function NavigatorRequestError({ error, busy, onRetry }: { error: Error; 
     const setup = /api key|api_key|AI endpoint|AI provider|stable session/i.test(error.message)
         && /required|requires|missing|configured|expired|rejected|unsupported|check.*settings/i.test(error.message);
     const chatGPTSetup = /ChatGPT/.test(error.message) && /in Settings|Navigator Desktop/.test(error.message);
-    const modelSetup = /Ollama model.*in Settings/i.test(error.message);
+    const modelSetup = /(?:(?:Ollama|Anthropic) model|No compatible lightweight model|Choose a model for your custom OpenAI endpoint).*in Settings/i.test(error.message);
     const chatGPTLimit = error.message.startsWith("ChatGPT usage limit reached");
     const missing = /required|requires|missing|not configured/i.test(error.message);
     const title = chatGPTLimit ? "ChatGPT usage limit reached"

@@ -142,7 +142,12 @@ async function main() {
         '@ai-sdk/openai-compatible': { createOpenAICompatible: provider }, ai,
         '@/lib/navigator-chat': {}, '@/app/tools/scene-workflow': {}, '@/lib/navigator-model-settings': {}, '@/lib/opencode-go': {}, '@/lib/tmdb-discovery': {}, '@/app/tools': {},
         '@/lib/navigator-scene-context': { sceneRequestContext: () => ({}) },
-        '@/lib/models-dev': { OPENAI_DEFAULT_BASE_URL: 'https://api.openai.com/v1' }, '@/lib/server/auth': auth, '@/lib/server/outbound-fetch': transport,
+        '@/lib/models-dev': load('lib/models-dev.ts', {}, { URL }), '@/lib/server/auth': auth, '@/lib/server/outbound-fetch': transport,
+        '@/lib/server/default-ai-model': { resolveLatestSmallModel: async (provider, key) => {
+            assert.equal(provider, 'openai');
+            assert.equal(key, 'dummy-server-key');
+            return 'gpt-6-luna';
+        } },
     };
     env.OPENAI_API_KEY = 'dummy-server-key';
     const chat = load('app/api/chat/route.ts', chatDependencies, globals).POST;
@@ -151,7 +156,7 @@ async function main() {
     cookie = token;
     assert.equal((await chat(chatRequest({ openaiBaseUrl: 'https://attacker.example.com/v1' }))).status, 400);
     assert.equal(selected, undefined, 'A custom endpoint never receives an environment credential');
-    await chat(chatRequest({ openaiBaseUrl: 'https://provider.example.com/v1', openaiApiKey: 'personal-key' }));
+    await chat(chatRequest({ openaiBaseUrl: 'https://provider.example.com/v1', openaiApiKey: 'personal-key', openaiModel: 'custom-model' }));
     assert.equal(selected.apiKey, 'personal-key'); assert.equal(selected.fetch, transport.providerFetch);
     await chat(chatRequest({})); assert.equal(selected.apiKey, 'dummy-server-key'); assert.equal(selected.baseURL, undefined);
 

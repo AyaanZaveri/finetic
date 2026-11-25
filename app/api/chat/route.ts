@@ -2,6 +2,7 @@ import { subtitleSnapshotSchema } from "@/lib/media/subtitle-snapshot";
 import { publicArtworkUrl } from "@/lib/artwork";
 import { providerFetch, outboundUrl, outboundFetch, OutboundRequestError } from "@/lib/server/outbound-fetch";
 import { createGoogle } from "@ai-sdk/google";
+import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import {
@@ -27,7 +28,8 @@ import { hasTMDBDiscovery } from "@/lib/discovery";
 import { fetchMediaDetails } from "@/app/actions/media";
 import { fetchEpisodeDetails } from "@/app/actions/tv-shows";
 import { createAllTools, createSystemPrompt } from "@/app/tools";
-import { OPENAI_DEFAULT_BASE_URL } from "@/lib/models-dev";
+import { isSmallModelProvider, OPENAI_DEFAULT_BASE_URL } from "@/lib/models-dev";
+import { resolveLatestSmallModel } from "@/lib/server/default-ai-model";
 import { ChatGPTConnectionError, requireChatGPTOrigin } from "@/lib/server/chatgpt-connection";
 import { createChatGPTModel } from "@/lib/server/chatgpt-model";
 import { getAuthData } from "@/lib/server/auth";
@@ -98,10 +100,11 @@ export async function POST(req: Request) {
 
             aiProvider = "openai",
             openaiBaseUrl = "https://api.openai.com/v1",
-            openaiModel = "gpt-4o-mini",
+            openaiModel = "",
+            anthropicModel = "",
             openaiAuthMethod,
             chatGPTModel,
-            geminiModel = "gemini-flash-lite-latest",
+            geminiModel = "",
             ollamaBaseUrl = "http://localhost:11434",
             ollamaModel = "",
             ollamaApiKey,
@@ -112,6 +115,7 @@ export async function POST(req: Request) {
             cerebrasReasoningEffort = "default",
             opencodeModel = "gpt-5.6-luna",
             openaiApiKey,
+            anthropicApiKey,
             googleApiKey,
             groqApiKey,
             openrouterApiKey,
@@ -121,6 +125,10 @@ export async function POST(req: Request) {
         } = requestPayload;
         const { currentMedia, currentTimestamp, pathname } = context;
         usingChatGPT = aiProvider === "openai" && openaiAuthMethod === "chatgpt";
+        const officialOpenAI = typeof openaiBaseUrl === "string" && openaiBaseUrl.trim().replace(/\/+$/, "") === OPENAI_DEFAULT_BASE_URL;
+        const personalOpenAIKey = typeof openaiApiKey === "string" ? openaiApiKey.trim() : "";
+        const anthropicKey = (typeof anthropicApiKey === "string" ? anthropicApiKey.trim() : "") || process.env.ANTHROPIC_API_KEY?.trim();
+        const geminiKey = (typeof googleApiKey === "string" ? googleApiKey.trim() : "") || process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim();
         if (usingChatGPT) requireChatGPTOrigin(req);
         if (aiProvider === "openai" && !usingChatGPT) outboundUrl(openaiBaseUrl, { provider: true });
         if (aiProvider === "ollama") {
@@ -129,12 +137,27 @@ export async function POST(req: Request) {
             }
             outboundUrl(ollamaBaseUrl, { provider: true });
         }
-        if (aiProvider === "openai" && !usingChatGPT && openaiBaseUrl !== OPENAI_DEFAULT_BASE_URL && !openaiApiKey) {
+        if (aiProvider === "openai" && !usingChatGPT && !officialOpenAI && !personalOpenAIKey) {
             return new Response("A custom AI endpoint requires its own API key in Settings.", { status: 400 });
         }
 
         if (!Array.isArray(messages)) {
             return new Response("Invalid messages payload", { status: 400 });
+        }
+
+        const requestedSmallModel = aiProvider === "openai" ? openaiModel : aiProvider === "anthropic" ? anthropicModel : geminiModel;
+        let resolvedSmallModel = typeof requestedSmallModel === "string" ? requestedSmallModel.trim() : "";
+        if (isSmallModelProvider(aiProvider) && !usingChatGPT && !resolvedSmallModel) {
+            if (aiProvider === "openai" && !officialOpenAI) return new Response("Choose a model for your custom OpenAI endpoint in Settings.", { status: 400 });
+            const apiKey = aiProvider === "openai" ? personalOpenAIKey || process.env.OPENAI_API_KEY?.trim()
+                : aiProvider === "anthropic" ? anthropicKey : geminiKey;
+            if (!apiKey) return new Response("An API key is required. Set your API key in Settings.", { status: 400 });
+            try {
+                resolvedSmallModel = await resolveLatestSmallModel(aiProvider, apiKey, req.signal) ?? "";
+            } catch {
+                return new Response("Could not determine your default model. Try again or choose a model in Settings.", { status: 502 });
+            }
+            if (!resolvedSmallModel) return new Response("No compatible lightweight model is available to your API key. Choose a model in Settings.", { status: 400 });
         }
 
         const normalizedOpenrouterReasoningEffort: OpenRouterReasoningEffort =
@@ -156,8 +179,9 @@ export async function POST(req: Request) {
 
         console.log({
             aiProvider,
-            openaiModel,
-            geminiModel,
+            openaiModel: aiProvider === "openai" ? resolvedSmallModel : openaiModel,
+            anthropicModel: aiProvider === "anthropic" ? resolvedSmallModel : anthropicModel,
+            geminiModel: aiProvider === "gemini" ? resolvedSmallModel : geminiModel,
             ollamaModel,
             groqModel,
             openrouterModel,
@@ -166,6 +190,7 @@ export async function POST(req: Request) {
             cerebrasReasoningEffort: normalizedCerebrasReasoningEffort,
             opencodeModel,
             hasOpenaiApiKey: Boolean(openaiApiKey),
+            hasAnthropicApiKey: Boolean(anthropicApiKey),
             hasGoogleApiKey: Boolean(googleApiKey),
             hasGroqApiKey: Boolean(groqApiKey),
             hasOpenrouterApiKey: Boolean(openrouterApiKey),
@@ -190,39 +215,41 @@ export async function POST(req: Request) {
             let model;
             switch (aiProvider) {
             case "openai":
-                if (openaiApiKey) {
-                    if (openaiBaseUrl === OPENAI_DEFAULT_BASE_URL) {
+                if (personalOpenAIKey) {
+                    if (officialOpenAI) {
                         const openaiProvider = createOpenAI({
-                            apiKey: openaiApiKey, fetch: providerFetch,
-                            baseURL: openaiBaseUrl,
+                            apiKey: personalOpenAIKey, fetch: providerFetch,
+                            baseURL: OPENAI_DEFAULT_BASE_URL,
                         });
-                        model = openaiProvider(openaiModel);
+                        model = openaiProvider(resolvedSmallModel);
                     } else {
                         const openaiCompatibleProvider = createOpenAICompatible({
                             name: "openai-compatible",
                             supportsStructuredOutputs: true,
-                            apiKey: openaiApiKey, fetch: providerFetch,
+                            apiKey: personalOpenAIKey, fetch: providerFetch,
                             baseURL: openaiBaseUrl,
                         });
-                        model = openaiCompatibleProvider(openaiModel);
+                        model = openaiCompatibleProvider(resolvedSmallModel);
                     }
                 } else if (process.env.OPENAI_API_KEY) {
-                    model = createOpenAI({ apiKey: process.env.OPENAI_API_KEY, fetch: providerFetch })(openaiModel);
+                    model = createOpenAI({ apiKey: process.env.OPENAI_API_KEY, fetch: providerFetch })(resolvedSmallModel);
                 } else {
                     throw new Error(
                         "OpenAI API key is required for OpenAI provider. Please set your API key in settings."
                     );
                 }
                 break;
+            case "anthropic": {
+                if (!anthropicKey) throw new Error("Anthropic API key is required. Set your API key in Settings.");
+                model = createAnthropic({ apiKey: anthropicKey, fetch: providerFetch })(resolvedSmallModel);
+                break;
+            }
             case "gemini":
-                if (googleApiKey) {
+                if (geminiKey) {
                     const googleProvider = createGoogle({
-                        apiKey: googleApiKey, fetch: providerFetch,
+                        apiKey: geminiKey, fetch: providerFetch,
                     });
-                    model = googleProvider(geminiModel);
-                } else if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
-                    // Fallback to environment variable
-                    model = createGoogle({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY, fetch: providerFetch })(geminiModel);
+                    model = googleProvider(resolvedSmallModel);
                 } else {
                     throw new Error(
                         "Google API key is required for Gemini provider. Please set your API key in settings."

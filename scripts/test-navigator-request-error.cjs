@@ -14,6 +14,14 @@ const missingModel = renderToStaticMarkup(React.createElement(NavigatorRequestEr
 assert.match(missingModel,/Choose a model in Settings/);
 assert.match(missingModel,/href="\/settings\/navigator"/);
 assert.doesNotMatch(missingModel,/API key|Try again/);
+const missingAnthropicModel = renderToStaticMarkup(React.createElement(NavigatorRequestError,{error:Error('An Anthropic model is required. Choose a model in Settings.'),busy:false,onRetry(){}}));
+assert.match(missingAnthropicModel,/href="\/settings\/navigator"/);
+assert.doesNotMatch(missingAnthropicModel,/API key|Try again/);
+for (const message of ['No compatible lightweight model is available to your API key. Choose a model in Settings.', 'Choose a model for your custom OpenAI endpoint in Settings.']) {
+    const setup = renderToStaticMarkup(React.createElement(NavigatorRequestError,{error:Error(message),busy:false,onRetry(){}}));
+    assert.match(setup,/href="\/settings\/navigator"/);
+    assert.doesNotMatch(setup,/>Try again</);
+}
 const retry=NavigatorRequestError({error:Error('Connection interrupted'),busy:true,onRetry(){}});
 assert.equal(retry.props.children[1].props.disabled,true);
 assert.equal(retry.props.children[1].props.children,'Try again');

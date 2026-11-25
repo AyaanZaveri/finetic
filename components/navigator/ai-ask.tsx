@@ -52,6 +52,7 @@ const AIAsk = ({ userId }: { userId: string }) => {
         aiProvider,
         openaiBaseUrl,
         openaiModel,
+        anthropicModel,
         openaiAuthMethod,
         chatGPTModel,
         geminiModel,
@@ -65,6 +66,7 @@ const AIAsk = ({ userId }: { userId: string }) => {
         cerebrasReasoningEffort,
         opencodeModel,
         openaiApiKey,
+        anthropicApiKey,
         googleApiKey,
         groqApiKey,
         openrouterApiKey,
@@ -369,10 +371,10 @@ const AIAsk = ({ userId }: { userId: string }) => {
                 backdropUrl: publicArtworkUrl(media.backdropUrl),
             } : null,
             currentTimestamp: playbackStore.get(currentTimestampAtom), pathname,
-            aiProvider, openaiBaseUrl, openaiModel, openaiAuthMethod, chatGPTModel, geminiModel, ollamaApiKey, ollamaBaseUrl, ollamaModel,
+            aiProvider, openaiBaseUrl, openaiModel, openaiAuthMethod, chatGPTModel, anthropicModel, geminiModel, ollamaApiKey, ollamaBaseUrl, ollamaModel,
             groqModel, openrouterModel, openrouterReasoningEffort, cerebrasModel, cerebrasReasoningEffort,
             opencodeModel, openaiApiKey: openaiAuthMethod === "chatgpt" ? undefined : openaiApiKey, googleApiKey, groqApiKey, openrouterApiKey, cerebrasApiKey,
-            opencodeApiKey, opencodeSessionId,
+            anthropicApiKey: aiProvider === "anthropic" ? anthropicApiKey : undefined, opencodeApiKey, opencodeSessionId,
         };
         taskStartTimeRef.current = Date.now();
         playbackHandoffTimeRef.current = null;

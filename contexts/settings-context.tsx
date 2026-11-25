@@ -25,6 +25,7 @@ export const BITRATE_OPTIONS: BitrateOption[] = [
 
 export type AIProvider =
   | "openai"
+  | "anthropic"
   | "gemini"
   | "ollama"
   | "groq"
@@ -70,6 +71,8 @@ interface SettingsContextType {
   setChatGPTModel: (model: string) => void;
   openaiModel: string;
   setOpenaiModel: (model: string) => void;
+  anthropicModel: string;
+  setAnthropicModel: (model: string) => void;
   geminiModel: string;
   setGeminiModel: (model: string) => void;
   ollamaBaseUrl: string;
@@ -93,6 +96,8 @@ interface SettingsContextType {
   setOllamaApiKey: (key: string) => void;
   openaiApiKey: string;
   setOpenaiApiKey: (key: string) => void;
+  anthropicApiKey: string;
+  setAnthropicApiKey: (key: string) => void;
   googleApiKey: string;
   setGoogleApiKey: (key: string) => void;
   groqApiKey: string;
@@ -160,10 +165,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   );
   const [openaiAuthMethod, setOpenaiAuthMethodState] = useState<OpenAIAuthMethod>("api-key");
   const [chatGPTModel, setChatGPTModelState] = useState("");
-  const [openaiModel, setOpenaiModelState] = useState<string>("gpt-4o-mini");
-  const [geminiModel, setGeminiModelState] = useState<string>(
-    "gemini-flash-lite-latest"
-  );
+  // An empty selection follows the latest compatible lightweight model.
+  const [openaiModel, setOpenaiModelState] = useState("");
+  const [anthropicModel, setAnthropicModelState] = useState("");
+  const [geminiModel, setGeminiModelState] = useState("");
   const [ollamaBaseUrl, setOllamaBaseUrlState] = useState<string>(
     "http://localhost:11434"
   );
@@ -182,6 +187,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   // API Key states
   const [ollamaApiKey, setOllamaApiKeyState] = useState<string>("");
   const [openaiApiKey, setOpenaiApiKeyState] = useState<string>("");
+  const [anthropicApiKey, setAnthropicApiKeyState] = useState("");
   const [googleApiKey, setGoogleApiKeyState] = useState<string>("");
   const [groqApiKey, setGroqApiKeyState] = useState<string>("");
   const [openrouterApiKey, setOpenrouterApiKeyState] = useState<string>("");
@@ -222,7 +228,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     ) as AIProvider;
     if (
       savedAiProvider &&
-      ["openai", "gemini", "ollama", "groq", "openrouter", "cerebras", "opencode"].includes(
+      ["openai", "anthropic", "gemini", "ollama", "groq", "openrouter", "cerebras", "opencode"].includes(
         savedAiProvider
       )
     ) {
@@ -241,6 +247,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     if (savedOpenaiModel) {
       setOpenaiModelState(savedOpenaiModel);
     }
+    setAnthropicModelState(localStorage.getItem("navigator-anthropic-model") ?? "");
 
     const savedGeminiModel = localStorage.getItem("navigator-gemini-model");
     if (savedGeminiModel) {
@@ -304,6 +311,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     if (savedOpenaiApiKey) {
       setOpenaiApiKeyState(savedOpenaiApiKey);
     }
+    setAnthropicApiKeyState(localStorage.getItem("navigator-anthropic-api-key") ?? "");
 
     const savedGoogleApiKey = localStorage.getItem("navigator-google-api-key");
     if (savedGoogleApiKey) {
@@ -364,6 +372,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     setOpenaiModelState(model);
     localStorage.setItem("navigator-openai-model", model);
   };
+  const setAnthropicModel = (model: string) => {
+    setAnthropicModelState(model);
+    localStorage.setItem("navigator-anthropic-model", model);
+  };
 
   const setGeminiModel = (model: string) => {
     setGeminiModelState(model);
@@ -416,6 +428,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     setOpenaiApiKeyState(key);
     localStorage.setItem("navigator-openai-api-key", key);
   };
+  const setAnthropicApiKey = (key: string) => {
+    setAnthropicApiKeyState(key);
+    localStorage.setItem("navigator-anthropic-api-key", key);
+  };
 
   const setGoogleApiKey = (key: string) => {
     setGoogleApiKeyState(key);
@@ -460,6 +476,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         setChatGPTModel,
         openaiModel,
         setOpenaiModel,
+        anthropicModel,
+        setAnthropicModel,
         geminiModel,
         setGeminiModel,
         ollamaApiKey,
@@ -482,6 +500,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         setOpencodeModel,
         openaiApiKey,
         setOpenaiApiKey,
+        anthropicApiKey,
+        setAnthropicApiKey,
         googleApiKey,
         setGoogleApiKey,
         groqApiKey,
