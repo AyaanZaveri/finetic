@@ -65,6 +65,7 @@ async function main() {
         assert.equal(shell.props.overlayClassName, 'addon-backdrop');
         const card = content.find(node => node.type === AddonPreviewCard);
         assert.equal(card.props.addon, addon, 'Sharing uses the install preview card in every state');
+        assert.equal(card.props.reveal, undefined, 'Sharing does not replay the install preview reveal');
         const link = content.find(node => node.type === 'InputGroupInput');
         assert.equal(link?.props.value, share.url);
         if (link) assert.equal(link.props.readOnly, true);
@@ -121,6 +122,7 @@ async function main() {
     assert.equal(find('AvatarImage'), undefined, 'An older lookup cannot show the wrong addon icon');
     lookups[1].resolve(result('New addon', 'https://example.com/new.png')); await tick();
     assert.equal(find('AvatarImage').props.src, 'https://example.com/new.png');
+    assert.equal(find('section').props['data-reveal'], true, 'An arriving install preview opts into the reveal');
     assert.equal(nodes(render()).filter(node => node.type === 'AvatarImage').length, 1, 'The logo appears only in the preview');
     assert.ok(find('Link2'), 'The reviewed input retains its link icon');
     assert.equal(palettes[0].source, 'https://example.com/new.png');

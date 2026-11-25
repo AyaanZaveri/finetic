@@ -12,6 +12,23 @@
     --addon-wash: 38%;
 }
 
+.card[data-reveal] {
+    transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+@starting-style {
+    .card[data-reveal] { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .card[data-reveal] {
+        transition: opacity var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
+    }
+    @starting-style {
+        .card[data-reveal] { transform: translateY(4px); }
+    }
+}
+
 .copyIcons {
     display: grid;
     flex: none;

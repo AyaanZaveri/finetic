@@ -10,7 +10,7 @@ import styles from "./addon-preview.module.css";
 
 type PreviewAddon = Pick<AddonListItem, "name" | "version" | "description" | "logo" | "capabilities">;
 
-export function AddonPreviewCard({ addon, children }: { addon: PreviewAddon; children?: ReactNode }) {
+export function AddonPreviewCard({ addon, children, reveal = false }: { addon: PreviewAddon; children?: ReactNode; reveal?: boolean }) {
     const [palette, setPalette] = useState<{ source: string; color: string } | null>(null);
     const source = addon.logo;
     useEffect(() => {
@@ -23,7 +23,7 @@ export function AddonPreviewCard({ addon, children }: { addon: PreviewAddon; chi
     }, [source]);
     const capabilities = ADDON_CAPABILITIES.filter(item => addon.capabilities.includes(item.value));
 
-    return <section aria-label="Addon preview" aria-live="polite"
+    return <section aria-label="Add-on preview" aria-live="polite" data-reveal={reveal || undefined}
         className={`${styles.card} flex min-w-0 flex-col gap-4 rounded-xl border p-4`}
         style={palette && palette.source === source ? { "--addon-color": palette.color } as CSSProperties : undefined}>
         <div className="flex min-w-0 items-center gap-3">

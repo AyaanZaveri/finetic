@@ -208,7 +208,7 @@ export function AddAddonDialog() {
                                 {error && <FieldError id={`${id}-error`}>{error}</FieldError>}
                             </Field>
                         </FieldGroup>
-                        {preview && <AddonPreviewCard addon={preview}>
+                        {preview && <AddonPreviewCard addon={preview} reveal>
                             {configurationRequired && <p className="text-sm leading-[1.5] text-muted-foreground">
                                 Configure this addon first, then paste its configured link here.
                             </p>}
