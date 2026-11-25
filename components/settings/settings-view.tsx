@@ -3,7 +3,7 @@ import { useStreamQueries } from "@/components/stream-query-provider";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Cerebras, Gemini, Groq, Ollama, OpenAI, OpenRouter } from "@lobehub/icons";
-import { ArrowUpRight, Eye, EyeOff, KeyRound, Link2, Hexagon } from "lucide-react";
+import { ArrowUpRight, Eye, EyeOff, Hexagon, KeyRound, Link2 } from "lucide-react";
 import Image from "next/image";
 import { OpenCodeIcon } from "@/components/opencode-icon";
 import { useCatalogModels } from "./use-catalog-models";
@@ -35,6 +35,7 @@ import {
 } from "@/contexts/settings-context";
 import { OPENAI_DEFAULT_BASE_URL, type ModelsDevModel } from "@/lib/models-dev";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { getArtworkSettings, saveArtworkToken, removeArtworkToken, saveMetadataProvider, type ArtworkSettingsState } from "@/app/actions/artwork-settings";
 import { continueWatchingKey } from "@/lib/media/continue-watching-query";
 import { invalidateSeriesSeasons } from "@/lib/media/series-season";
@@ -79,14 +80,14 @@ type ModelsDevProviderResponse = {
     error?: string;
 };
 
-const PROVIDERS: Array<{ value: AIProvider; name: string; icon: ComponentType<{ className?: string }> }> = [
-    { value: "openai", name: "OpenAI", icon: OpenAI },
-    { value: "gemini", name: "Gemini", icon: Gemini.Color },
-    { value: "ollama", name: "Ollama", icon: Ollama },
-    { value: "groq", name: "Groq", icon: Groq },
-    { value: "openrouter", name: "OpenRouter", icon: OpenRouter },
-    { value: "cerebras", name: "Cerebras", icon: Cerebras },
-    { value: "opencode", name: "OpenCode Go", icon: OpenCodeIcon },
+const PROVIDERS: Array<{ value: AIProvider; name: string; icon: ComponentType<{ className?: string }>; modelsUrl: string }> = [
+    { value: "openai", name: "OpenAI", icon: OpenAI, modelsUrl: "https://developers.openai.com/api/docs/models" },
+    { value: "gemini", name: "Gemini", icon: Gemini.Color, modelsUrl: "https://aistudio.google.com/docs/models" },
+    { value: "ollama", name: "Ollama", icon: Ollama, modelsUrl: "https://ollama.com/search?c=tools" },
+    { value: "groq", name: "Groq", icon: Groq, modelsUrl: "https://console.groq.com/docs/models" },
+    { value: "openrouter", name: "OpenRouter", icon: OpenRouter, modelsUrl: "https://openrouter.ai/models" },
+    { value: "cerebras", name: "Cerebras", icon: Cerebras, modelsUrl: "https://inference-docs.cerebras.ai/models/overview" },
+    { value: "opencode", name: "OpenCode Go", icon: OpenCodeIcon, modelsUrl: "https://opencode.ai/docs/console/go/" },
 ];
 
 type ModelOption = ModelsDevModel;
@@ -536,6 +537,8 @@ function NavigatorSettings() {
     );
     const usingChatGPT = aiProvider === "openai" && openaiAuthMethod === "chatgpt";
     const chatGPT = useChatGPTConnection(navigatorEnabled && aiProvider === "openai", usingChatGPT);
+    const showChatGPT = aiProvider === "openai" && (chatGPT.available || usingChatGPT);
+    const chatGPTBusy = chatGPT.pending || chatGPT.busy;
     const { models: openaiModels, loading: isLoadingOpenAIModels, error: openaiModelsError } = useOpenAIModels({
         enabled: navigatorEnabled && aiProvider === "openai" && !usingChatGPT,
         baseUrl: openaiBaseUrl,
@@ -633,8 +636,23 @@ function NavigatorSettings() {
     }, [aiProvider, fetchCerebrasModels]);
 
     const selectedProvider = PROVIDERS.find((provider) => provider.value === aiProvider)!;
+    const isDefaultOpenAI = openaiBaseUrl.replace(/\/+$/, "") === OPENAI_DEFAULT_BASE_URL;
+    const ProviderIcon = selectedProvider.icon;
+    const browseModels = (aiProvider !== "openai" || usingChatGPT || isDefaultOpenAI) && <div className="flex">
+        <Button asChild variant="outline" size="sm">
+            <a draggable={false} className={externalLink.link} href={selectedProvider.modelsUrl} target="_blank" rel="noopener noreferrer">
+                <ProviderIcon className="size-4" aria-hidden="true" data-icon="inline-start" />
+                <span className="inline-flex items-center">
+                    Browse {selectedProvider.name} models
+                    <span className={externalLink.arrow} aria-hidden="true">
+                        <ArrowUpRight className="size-4" strokeWidth={2} absoluteStrokeWidth />
+                    </span>
+                </span>
+            </a>
+        </Button>
+    </div>;
     const apiKeySettings = {
-        openai: { value: openaiApiKey, onValueChange: setOpenaiApiKey, placeholder: openaiBaseUrl.replace(/\/+$/, "") === OPENAI_DEFAULT_BASE_URL ? "sk-…" : undefined, keyUrl: openaiBaseUrl.replace(/\/+$/, "") === OPENAI_DEFAULT_BASE_URL ? "https://platform.openai.com/api-keys" : undefined },
+        openai: { value: openaiApiKey, onValueChange: setOpenaiApiKey, placeholder: isDefaultOpenAI ? "sk-…" : undefined, keyUrl: isDefaultOpenAI ? "https://platform.openai.com/api-keys" : undefined },
         gemini: { value: googleApiKey, onValueChange: setGoogleApiKey, placeholder: "AQ.…", keyUrl: "https://aistudio.google.com/apikey" },
         groq: { value: groqApiKey, onValueChange: setGroqApiKey, placeholder: "gsk_…", keyUrl: "https://console.groq.com/keys" },
         openrouter: { value: openrouterApiKey, onValueChange: setOpenrouterApiKey, placeholder: "sk-or-v1-…", keyUrl: "https://openrouter.ai/keys" },
@@ -652,7 +670,6 @@ function NavigatorSettings() {
         },
         ollama: {
             value: ollamaModel, onValueChange: setOllamaModel, placeholder: "model:tag",
-            description: <a draggable={false} href="https://ollama.com/search?c=tools" target="_blank" rel="noopener noreferrer">Browse Ollama models</a>,
         },
         groq: {
             value: groqModel, onValueChange: setGroqModel, options: catalog.models,
@@ -716,38 +733,33 @@ function NavigatorSettings() {
                     />
                 </Field>
 
-                {aiProvider === "openai" && (chatGPT.available || usingChatGPT) && (
-                    <SettingsSelect id="openai-auth-method" label="Connection" value={openaiAuthMethod}
-                        disabled={chatGPT.pending || chatGPT.busy}
-                        onValueChange={value => setOpenaiAuthMethod(value === "chatgpt" ? "chatgpt" : "api-key")}
-                        options={[
-                            { id: "api-key", name: "API key" },
-                            { id: "chatgpt", name: "Sign in with ChatGPT" },
-                        ]}
-                    />
-                )}
-
-                {usingChatGPT && (
-                    <Field>
-                        <FieldLabel>ChatGPT account</FieldLabel>
-                        <FieldDescription role="status">
-                            {chatGPT.pending ? "Finish signing in in your browser." :
-                                chatGPT.connection?.signedIn ? <>
-                                    {chatGPT.connection.email || "Signed in to ChatGPT"}.{" "}
-                                    {chatGPT.connection.planEnabled ? "Using ChatGPT plan." : "ChatGPT plan usage needs permission."}
-                                </> : chatGPT.connection?.email ? `Signed out of ${chatGPT.connection.email}.` :
-                                    "Use your ChatGPT plan for eligible Ask Navigator requests."}
-                        </FieldDescription>
-                        {chatGPT.error && <FieldError role="alert">{chatGPT.error}</FieldError>}
-                        {chatGPT.warning && <FieldDescription role="status">{chatGPT.warning}{" "}
-                            <a href={CHATGPT_USAGE_URL} target="_blank" rel="noreferrer">Open ChatGPT settings</a>
-                        </FieldDescription>}
+                {showChatGPT && <>
+                    <Field aria-labelledby="chatgpt-account-title" className={styles.chatGPTAccount}>
+                        <FieldContent className="gap-1">
+                            <FieldTitle id="chatgpt-account-title">ChatGPT account</FieldTitle>
+                            <FieldDescription role="status">
+                                {chatGPT.pending ? "Finish signing in in your browser." :
+                                    chatGPT.connection?.signedIn ? <>
+                                        {chatGPT.connection.email || "Signed in to ChatGPT"}.{" "}
+                                        {chatGPT.connection.planEnabled ? (usingChatGPT ? "Using ChatGPT plan." : "ChatGPT plan connected.") : "ChatGPT plan usage needs permission."}
+                                    </> : chatGPT.connection?.email ? `Signed out of ${chatGPT.connection.email}.` :
+                                        "Use your ChatGPT plan for eligible Ask Navigator requests."}
+                            </FieldDescription>
+                            {chatGPT.error && <FieldError role="alert">{chatGPT.error}</FieldError>}
+                            {chatGPT.warning && <FieldDescription role="status">{chatGPT.warning}{" "}
+                                <a href={CHATGPT_USAGE_URL} target="_blank" rel="noreferrer">Open ChatGPT settings</a>
+                            </FieldDescription>}
+                        </FieldContent>
                         <div className="flex flex-wrap items-center gap-2">
                             {chatGPT.pending ?
                                 <Button type="button" variant="outline" size="sm" disabled={chatGPT.busy} onClick={chatGPT.cancel}>Cancel sign-in</Button>
                                 : <>
-                                    <Button type="button" size="sm" className="bg-black text-white hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200" disabled={!chatGPT.available || chatGPT.busy} onClick={chatGPT.start}>
-                                        <OpenAI aria-hidden="true" /> Continue with ChatGPT
+                                    <Button type="button" size="sm" className="bg-black text-white hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200" disabled={!chatGPT.available || chatGPT.busy}
+                                        onClick={() => {
+                                            setOpenaiAuthMethod("chatgpt");
+                                            if (!chatGPT.connection?.planEnabled || usingChatGPT) void chatGPT.start();
+                                        }}>
+                                        <OpenAI aria-hidden="true" /> {chatGPT.connection?.planEnabled && !usingChatGPT ? "Use ChatGPT" : "Continue with ChatGPT"}
                                     </Button>
                                     {chatGPT.connection?.signedIn ?
                                         <Button type="button" variant="outline" size="sm" disabled={chatGPT.busy} onClick={() => void chatGPT.signOut(false)}>Sign out</Button>
@@ -762,7 +774,32 @@ function NavigatorSettings() {
                                 </>}
                         </div>
                     </Field>
-                )}
+                    {usingChatGPT && chatGPT.connection?.planEnabled && <>
+                        <SettingsSelect id="chatgpt-model" label="Model" options={chatGPT.models}
+                            value={chatGPTModel ? (chatGPT.models.some(model => model.id === chatGPTModel) ? chatGPTModel : "") : chatGPT.models[0]?.id ?? ""}
+                            onValueChange={setChatGPTModel}
+                            loading={chatGPT.modelsLoading}
+                            error={chatGPT.modelError}
+                            disabled={!chatGPT.models.length || chatGPTBusy} />
+                        {chatGPT.modelError && <div>
+                            <Button type="button" variant="outline" size="sm" onClick={chatGPT.reloadModels}>Reload models</Button>
+                        </div>}
+                        {browseModels}
+                    </>}
+                    <div className="flex items-center gap-3">
+                        <Separator className="flex-1" />
+                        <span className="text-xs text-muted-foreground">or</span>
+                        <Separator className="flex-1" />
+                    </div>
+                </>}
+
+                {aiProvider === "openai" && <>
+                    <ApiKeyInput id="openai-api-key" {...apiKeySettings.openai} disabled={chatGPTBusy} />
+                    {usingChatGPT && <div>
+                        <Button type="button" variant="outline" size="sm" disabled={chatGPTBusy}
+                            onClick={() => setOpenaiAuthMethod("api-key")}>Use API key</Button>
+                    </div>}
+                </>}
 
                 {aiProvider === "openai" && !usingChatGPT && (
                     <SettingsInput
@@ -785,25 +822,13 @@ function NavigatorSettings() {
                             onValueChange={setOllamaBaseUrl}
                             placeholder="http://localhost:11434"
                         />
-                        <ApiKeyInput id="ollama-api-key" label="API key (optional)" description="Required only if your Ollama server uses authentication." value={ollamaApiKey} onValueChange={setOllamaApiKey} />
+                        <ApiKeyInput id="ollama-api-key" label="API key (optional)" value={ollamaApiKey} onValueChange={setOllamaApiKey} />
                     </>
-                ) : !usingChatGPT && (
+                ) : aiProvider !== "openai" && (
                     <ApiKeyInput key={`${aiProvider}-api-key`} id={`${aiProvider}-api-key`} {...apiKeySettings[aiProvider]} />
                 )}
 
-                {usingChatGPT ? chatGPT.connection?.planEnabled && (
-                    <>
-                        <SettingsSelect id="chatgpt-model" label="Model" options={chatGPT.models}
-                            value={chatGPTModel ? (chatGPT.models.some(model => model.id === chatGPTModel) ? chatGPTModel : "") : chatGPT.models[0]?.id ?? ""}
-                            onValueChange={setChatGPTModel}
-                            loading={chatGPT.modelsLoading}
-                            error={chatGPT.modelError}
-                            disabled={!chatGPT.models.length || chatGPT.pending || chatGPT.busy} />
-                        {chatGPT.modelError && <div>
-                            <Button type="button" variant="outline" size="sm" onClick={chatGPT.reloadModels}>Reload models</Button>
-                        </div>}
-                    </>
-                ) : currentModel.options ? (
+                {!usingChatGPT && (currentModel.options ? (
                     <ModelCombobox key={`${aiProvider}-model`} id={`${aiProvider}-model`} {...currentModel} description={currentModel.disabled ? "Add an API key to load models." : undefined} options={currentModel.options} providerIcon={selectedProvider.icon} />
                 ) : (
                     <SettingsInput
@@ -814,7 +839,9 @@ function NavigatorSettings() {
                         placeholder={currentModel.placeholder}
                         description={currentModel.description}
                     />
-                )}
+                ))}
+
+                {!usingChatGPT && browseModels}
 
                 {aiProvider === "openrouter" && (
                     <SettingsSelect

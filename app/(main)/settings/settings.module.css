@@ -308,6 +308,10 @@
   gap: 1rem;
 }
 
+.content .chatGPTAccount[data-slot="field"][data-orientation="vertical"] {
+  gap: var(--space-3);
+}
+
 .panel[data-category="connections"] [data-slot="field-group"] {
   gap: 1rem;
 }
