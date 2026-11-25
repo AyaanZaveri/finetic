@@ -1,7 +1,7 @@
-/* Floating sheets clear system chrome with their outer inset, not with a
-   second block of empty space beneath their last action. */
+/* Keep the bottom edge aligned with the floating sheet's side gutters.
+   Mobile hosts can already reserve system chrome outside the viewport. */
 .popup[data-swipe-direction="down"] {
-  --drawer-bottom-inset: max(var(--drawer-inset, 0px), var(--navigator-safe-bottom, env(safe-area-inset-bottom, 0px)));
+  --drawer-bottom-inset: var(--drawer-inset, 0px);
   --drawer-top-inset: max(var(--drawer-inset, 0px), var(--navigator-safe-top, env(safe-area-inset-top, 0px)));
   --drawer-content-max-height: min(calc(100dvh - 6rem), calc(100dvh - var(--drawer-top-inset) - var(--drawer-bottom-inset)));
   --closed-transform: translate3d(0, calc(100% + var(--drawer-bottom-inset) + 2px), 0);

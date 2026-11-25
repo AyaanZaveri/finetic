@@ -13,8 +13,8 @@ function declarations(file, selector) {
 }
 
 const drawer = declarations('components/account-ui/drawer.module.css', '.popup[data-swipe-direction="down"]');
-assert.match(drawer['--drawer-bottom-inset'], /max\(var\(--drawer-inset, 0px\), var\(--navigator-safe-bottom, env\(safe-area-inset-bottom, 0px\)\)\)/);
-assert.equal(drawer['margin-bottom'], 'var(--drawer-bottom-inset)', 'System chrome belongs outside the floating sheet');
+assert.equal(drawer['--drawer-bottom-inset'], 'var(--drawer-inset, 0px)', 'The bottom gap must match the side inset, even when a platform reports a 34px safe area');
+assert.equal(drawer['margin-bottom'], 'var(--drawer-bottom-inset)', 'Keep the sheet close to the viewport edge');
 assert.match(drawer['--drawer-content-max-height'], /100dvh - var\(--drawer-top-inset\) - var\(--drawer-bottom-inset\)/);
 assert.match(drawer['--closed-transform'], /100% \+ var\(--drawer-bottom-inset\)/, 'A sheet must still animate completely offscreen');
 assert.match(read('components/account-ui/drawer.tsx'), /styles\.popup,\s*className/, 'Apply the shared geometry to every account drawer');
@@ -30,10 +30,10 @@ for (const file of ['components/account-provider.tsx', 'components/add-addon-dia
 }
 const menuFile = 'components/arc/user-menu/user-menu.module.css';
 const menu = declarations(menuFile, '.sheet');
-assert.match(menu['--sheet-bottom-inset'], /var\(--navigator-safe-bottom, env\(safe-area-inset-bottom, 0px\)\)/);
+assert.equal(menu['--sheet-bottom-inset'], 'var(--inset)', 'Account sheet uses the same 8px bottom gap');
 assert.equal(menu.bottom, 'var(--sheet-bottom-inset)');
 assert.equal(menu.padding, '6px var(--inset) var(--inset)');
 assert.match(menu['max-height'], /100dvh - var\(--sheet-top-inset\) - var\(--sheet-bottom-inset\)/);
-const android = declarations(menuFile, ':global(html[data-native-engine="exoplayer"]) .sheet[data-slot="user-menu-sheet"][aria-modal="true"]');
-assert.equal(android.bottom, menu.bottom, 'Hosted menu must override the legacy bundled Android bottom offset');
-console.log('PASS: compact mobile action rows and forms, one outer safe-area inset, scrollable content and sheet dismissal geometry');
+assert.doesNotMatch(read('components/account-ui/drawer.module.css'), /safe-area-inset-bottom|navigator-safe-bottom/, 'Do not double-count system chrome outside the drawer');
+assert.doesNotMatch(read(menuFile), /safe-area-inset-bottom|navigator-safe-bottom/, 'Account menu must not float higher than the other drawers');
+console.log('PASS: compact mobile action rows and forms, matching 8px bottom placement, scrollable content and sheet dismissal geometry');
