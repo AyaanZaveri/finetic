@@ -1,0 +1,64 @@
+name: Verify artwork reveals in browsers
+
+on:
+  push:
+    branches: [artwork-reveal-browser-tests]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            browser: chromium
+          - os: windows-2025
+            browser: chromium
+          - os: macos-15
+            browser: chromium
+          - os: macos-15
+            browser: webkit
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 18
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      ARTWORK_BROWSER: ${{ matrix.browser }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 26.7.0
+          cache: npm
+      - run: npm ci
+      - name: Install browser test driver
+        shell: bash
+        run: |
+          npm install --prefix "$RUNNER_TEMP/reveal-test" --no-save playwright@1.56.1
+          echo "PLAYWRIGHT_ENTRY=$RUNNER_TEMP/reveal-test/node_modules/playwright/index.mjs" >> "$GITHUB_ENV"
+          if [ "$RUNNER_OS" = Linux ]; then
+            node "$RUNNER_TEMP/reveal-test/node_modules/playwright/cli.js" install --with-deps "$ARTWORK_BROWSER"
+          else
+            node "$RUNNER_TEMP/reveal-test/node_modules/playwright/cli.js" install "$ARTWORK_BROWSER"
+          fi
+      - name: Run actual card reveal and frame sampling
+        shell: bash
+        run: |
+          npm run dev -- --hostname 127.0.0.1 --port 3000 > artwork-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          curl -fsS --retry 30 --retry-connrefused --retry-delay 2 --max-time 100 --output /dev/null http://127.0.0.1:3000/states/artwork-reveal
+          node scripts/verify-artwork-reveal-browser.mjs
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always()
+        with:
+          name: artwork-reveal-${{ matrix.os }}-${{ matrix.browser }}
+          path: |
+            artwork-server.log
+            artwork-browser-captures/
+          retention-days: 3
