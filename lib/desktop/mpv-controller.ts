@@ -263,6 +263,7 @@ export class MpvController extends EventTarget {
     this.bridge.send({ type: "pause", session: this.session });
     if (!paused) this.fire("pause");
   }
+  get supportsAudioTiming() { return this.bridge.capabilities?.audioTiming === true; }
   get supportsSubtitleTiming() { return this.bridge.capabilities?.subtitleTiming === true; }
   private publishedMetadata?: { session: string; metadata: SystemMediaMetadata };
   setMediaMetadata(metadata: SystemMediaMetadata) {
@@ -276,6 +277,10 @@ export class MpvController extends EventTarget {
   setSubtitleDelay(seconds: number) {
     if (!this.supportsSubtitleTiming || this.disposed || !this.session) return;
     this.bridge.send({ type: "subtitle-delay", session: this.session, seconds: Number.isFinite(seconds) ? Math.round(Math.max(-30, Math.min(30, seconds)) * 10) / 10 : 0 });
+  }
+  setAudioDelay(seconds: number) {
+    if (!this.supportsAudioTiming || this.disposed || !this.session) return;
+    this.bridge.send({ type: "audio-delay", session: this.session, seconds: Number.isFinite(seconds) ? Math.round(Math.max(-30, Math.min(30, seconds)) * 10) / 10 : 0 });
   }
   selectTrack(kind: TrackKind, id: string) {
     if (this.disposed || !this.session) return;

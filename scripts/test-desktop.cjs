@@ -30,7 +30,7 @@ async function testController(platform) {
     const listeners = new Set();
     const bridge = {
         platform,
-        capabilities: platform === "ios" ? { systemVolume: true } : undefined,
+        capabilities: platform === "ios" ? { systemVolume: true } : { audioTiming: platform === "windows" || platform === "macos" },
         send: (message) => sent.push(message),
         subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     };
@@ -44,6 +44,17 @@ async function testController(platform) {
     media.load("https://example.test/video.mkv", headers, 123.4);
     assert.equal(sent.find(m => m.type === 'load').startPosition, 123.4, `${platform} must receive resume time before it prepares its first frame`);
     const first = sent.find((m) => m.type === "load").session;
+    const audioSupported = platform === "macos" || platform === "windows";
+    assert.equal(media.supportsAudioTiming, audioSupported);
+    for (const [value, expected] of [[.16, .2], [-.36, -.4], [31, 30], [NaN, 0]]) {
+        const count = sent.length;
+        media.setAudioDelay(value);
+        if (audioSupported) {
+            assert.equal(sent.at(-1).type, "audio-delay");
+            assert.equal(sent.at(-1).session, first);
+            assert.equal(sent.at(-1).seconds, expected);
+        } else assert.equal(sent.length, count, "Unsupported native hosts never receive audio delay");
+    }
     const frames = [];
     media.addEventListener("previewframe", event => frames.push(event.detail));
     receive({ type: "thumbnail-frame", session: "old-session", position: 2, src: "data:image/jpeg;base64,AA==" });
@@ -139,6 +150,10 @@ async function testController(platform) {
     assert.equal(media.cachedPreview(1299),undefined,"A new media session cannot show thumbnails from the previous file");
     const second = sent.filter((m) => m.type === "load").at(-1).session;
     assert.notEqual(first, second);
+    if (audioSupported) {
+        media.setAudioDelay(-1);
+        assert.equal(sent.at(-1).session, second, "Delay applies only to the replacement session");
+    }
     assert.equal(media.subtitleText, "", "Replacing a stream must clear its last cue");
     receive({ type: "subtitle", session: first, text: "Stale cue" });
     assert.equal(media.subtitleText, "", "Old sessions must not display subtitles on the new stream");

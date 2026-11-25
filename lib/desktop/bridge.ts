@@ -65,6 +65,7 @@ export type NativeRequest =
   | { type: "muted"; session: string; muted: boolean }
   | { type: "rate"; session: string; rate: number }
   | { type: "subtitle-delay"; session: string; seconds: number }
+  | { type: "audio-delay"; session: string; seconds: number }
   | { type: "native-hdr-peak" | "mac-hdr-peak"; nits: number | null }
   | { type: "track"; session: string; kind: "audio" | "subtitle"; id: string }
   | { type: "fullscreen"; value: boolean }
@@ -80,7 +81,7 @@ export interface DesktopBridge {
   readonly protocol: 1;
   readonly platform: "macos" | "windows" | "linux" | "android" | "ios";
   readonly engine?: "mpv" | "exoplayer" | "vlc";
-  readonly capabilities?: { subtitleTiming?: boolean; macHdrPeak?: boolean; nativeHdrPeak?: boolean; updates?: boolean; updateReview?: boolean; chapters?: boolean; initialSeek?: boolean; windowControlsVisibility?: boolean; videoFit?: boolean; timings?: boolean; glass?: boolean; glassPixels?: boolean; nativePreviews?: boolean; nativeSurfaceGestures?: boolean; nativeMaterials?: boolean; nativeSystemVolume?: boolean; pip?: boolean; airplay?: boolean; systemVolume?: boolean; systemMedia?: boolean };
+  readonly capabilities?: { subtitleTiming?: boolean; audioTiming?: boolean; macHdrPeak?: boolean; nativeHdrPeak?: boolean; updates?: boolean; updateReview?: boolean; chapters?: boolean; initialSeek?: boolean; windowControlsVisibility?: boolean; videoFit?: boolean; timings?: boolean; glass?: boolean; glassPixels?: boolean; nativePreviews?: boolean; nativeSurfaceGestures?: boolean; nativeMaterials?: boolean; nativeSystemVolume?: boolean; pip?: boolean; airplay?: boolean; systemVolume?: boolean; systemMedia?: boolean };
   readonly fullscreen: boolean;
   send(request: NativeRequest): void;
   subscribe(listener: (message: NativeMessage) => void): () => void;
