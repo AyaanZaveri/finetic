@@ -59,7 +59,7 @@ export function AddAddonDialog() {
             setConfigureUrl(result.configureUrl);
             setConfigurationRequired(result.configurationRequired);
         } catch {
-            if (request.current === currentRequest) setError("Could not load this addon. Please try again.");
+            if (request.current === currentRequest) setError("Couldn’t load this add-on. Check the link and try again.");
         }
     }, []);
 
@@ -128,7 +128,7 @@ export function AddAddonDialog() {
                     await review(link, currentRequest);
                 }
             } catch {
-                if (request.current === currentRequest) setError("Could not add this addon. Please try again.");
+                if (request.current === currentRequest) setError("Couldn’t install this add-on. Try again.");
             } finally {
                 submitting.current = false;
             }
@@ -144,10 +144,10 @@ export function AddAddonDialog() {
 
     const browseAction = (
         <Button asChild variant={isMobile ? "link" : "outline"} size={isMobile ? "default" : "sm"}>
-            <a draggable={false} className={externalLink.link} href="https://stremio-addons.net/" target="_blank" rel="noopener noreferrer" aria-label="Browse Stremio Addons (opens in a new tab)">
+            <a draggable={false} className={externalLink.link} href="https://stremio-addons.net/" target="_blank" rel="noopener noreferrer" aria-label="Browse add-ons (opens in a new tab)">
                 <Image src="/images/stremio-addons.ico" width={16} height={16} unoptimized alt="" data-icon="inline-start" />
                 <span className="inline-flex items-center">
-                    Browse addons
+                    Browse add-ons
                     <span className={externalLink.arrow} aria-hidden="true">
                         <ArrowUpRight className="size-4" strokeWidth={2} absoluteStrokeWidth />
                     </span>
@@ -157,37 +157,37 @@ export function AddAddonDialog() {
     );
     const primaryAction = configurationRequired && configureUrl ? (
         <Button asChild size={isMobile ? "default" : "sm"} className={isMobile ? "w-full" : undefined}>
-            <a draggable={false} href={configureUrl} target="_blank" rel="noopener noreferrer">Configure addon<ExternalLink data-icon="inline-end" strokeWidth={1.75} aria-hidden="true" /></a>
+            <a draggable={false} href={configureUrl} target="_blank" rel="noopener noreferrer">Configure add-on<ExternalLink data-icon="inline-end" strokeWidth={1.75} aria-hidden="true" /></a>
         </Button>
     ) : (
         <Button type="submit" size={isMobile ? "default" : "sm"} className={isMobile ? "w-full" : undefined} aria-busy={pending || lookupPending} disabled={pending || lookupPending || !link.trim() || configurationRequired}>
             {pending || lookupPending ? <>
                 <Loader2 data-icon="inline-start" aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
-                <span className={previewStyle.loadingText}>{pending && preview ? "Installing" : "Loading"}</span>
-            </> : (preview ? "Install addon" : "Review addon")}
+                <span className={previewStyle.loadingText}>{pending && preview ? "Installing…" : "Loading…"}</span>
+            </> : (preview ? "Install add-on" : "Review add-on")}
         </Button>
     );
 
     return (
         <>
-            <Button ref={trigger} size="sm" className="size-[var(--addon-search-height,2.75rem)] rounded-xl p-0 sm:h-9 sm:w-auto sm:rounded-full sm:px-3" disabled={pending} aria-label="Add addon" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? `${id}-dialog` : undefined} onClick={() => { void openFromClipboard(); }}>
-                <Plus data-icon="inline-start" aria-hidden="true" /><span className="hidden sm:inline">Add addon</span>
+            <Button ref={trigger} size="sm" className="size-[var(--addon-search-height,2.75rem)] rounded-xl p-0 sm:h-9 sm:w-auto sm:rounded-full sm:px-3" disabled={pending} aria-label="Add add-on" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? `${id}-dialog` : undefined} onClick={() => { void openFromClipboard(); }}>
+                <Plus data-icon="inline-start" aria-hidden="true" /><span className="hidden sm:inline">Add add-on</span>
             </Button>
             <Modal open={open} onOpenChange={changeOpen} {...(isMobile ? { showSwipeHandle: true } : {})}>
                 <ModalContent id={`${id}-dialog`} overlayClassName={surface.addonBackdrop} className={isMobile
                     ? `${surface.surface} [--drawer-inset:0.5rem] after:hidden`
                     : `${surface.surface} max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain gap-7 p-6 sm:max-w-[560px]`} finalFocus={trigger}>
                     <ModalHeader className={isMobile ? "relative p-6 pb-0" : "pr-8"}>
-                        <ModalTitle className={isMobile ? "mx-10" : undefined}>Add addon</ModalTitle>
+                        <ModalTitle className={isMobile ? "mx-10" : undefined}>Add add-on</ModalTitle>
                         {isMobile && <Button type="button" variant="ghost" size="icon" className="absolute right-4 top-4 size-11" aria-label="Close" onClick={() => changeOpen(false)}>
                             <X aria-hidden="true" />
                         </Button>}
-                        <ModalDescription className="sr-only">Install an addon from its Stremio link.</ModalDescription>
+                        <ModalDescription className="sr-only">Install an add-on using its Stremio link</ModalDescription>
                     </ModalHeader>
                     <form onSubmit={submit} className={`flex min-w-0 flex-col gap-6 ${isMobile ? "min-h-0 overflow-y-auto overscroll-contain p-6" : ""}`} aria-busy={pending || lookupPending}>
                         <FieldGroup>
                             <Field data-invalid={!!error}>
-                                <FieldLabel htmlFor={`${id}-link`} className="sr-only">Addon link</FieldLabel>
+                                <FieldLabel htmlFor={`${id}-link`} className="sr-only">Add-on link</FieldLabel>
                                 <InputGroup data-disabled={pending}>
                                     <InputGroupInput id={`${id}-link`} type="url" inputMode="url" autoComplete="off" autoCapitalize="none" spellCheck={false}
                                         placeholder="https://example.com/manifest.json" required maxLength={8192} value={link} disabled={pending}
@@ -210,7 +210,7 @@ export function AddAddonDialog() {
                         </FieldGroup>
                         {preview && <AddonPreviewCard addon={preview} reveal>
                             {configurationRequired && <p className="text-sm leading-[1.5] text-muted-foreground">
-                                Configure this addon first, then paste its configured link here.
+                                Configure this add-on, then paste its configured link
                             </p>}
                         </AddonPreviewCard>}
                         {isMobile ? (

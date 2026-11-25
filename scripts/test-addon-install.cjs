@@ -41,13 +41,13 @@ async function main() {
     assert.equal(addon.manifest.id, manifest.id);
     assert.deepEqual(Object.keys(addon.flags), [], 'Addons cannot set protected/official account flags');
     payload = { ...manifest, resources: [null] };
-    await assert.rejects(installer.loadAddonForInstall(link), /valid addon manifest/);
+    await assert.rejects(installer.loadAddonForInstall(link), /valid add-on manifest/);
     payload = { ...manifest, behaviorHints: { configurationRequired: 'yes' } };
-    await assert.rejects(installer.loadAddonForInstall(link), /valid addon manifest/);
+    await assert.rejects(installer.loadAddonForInstall(link), /valid add-on manifest/);
     payload = { ...manifest, behaviorHints: { configurationRequired: true } };
     assert.equal((await installer.loadAddonForInstall(link)).manifest.behaviorHints.configurationRequired, true);
     failFetch = true;
-    await assert.rejects(installer.loadAddonForInstall(link), /Could not load this addon/);
+    await assert.rejects(installer.loadAddonForInstall(link), /Couldn’t load this add-on/);
 
     let authenticated = true;
     let required = false;

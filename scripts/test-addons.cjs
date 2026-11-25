@@ -89,11 +89,11 @@ async function managementTests() {
   await assert.rejects(removeInstalledAddon('account-token', addonKey(protectedAddon.transportUrl)), /protected/);
   await assert.rejects(removeInstalledAddon('account-token', addonKey('not-installed')), /no longer installed/);
   malformed = true;
-  await assert.rejects(removeInstalledAddon('account-token', addonKey(secondConfig.transportUrl)), /Could not read/);
+  await assert.rejects(removeInstalledAddon('account-token', addonKey(secondConfig.transportUrl)), /Couldn’t load your add-ons/);
   assert.equal(writes.length, 0, 'Invalid reads and protected/missing addons never write the collection');
   malformed = false;
   failure = true;
-  await assert.rejects(removeInstalledAddon('account-token', addonKey(secondConfig.transportUrl)), /could not update/);
+  await assert.rejects(removeInstalledAddon('account-token', addonKey(secondConfig.transportUrl)), /couldn’t update your add-ons/);
   assert.equal(collection.length, 2, 'API errors preserve the installed collection');
   failure = false;
   collection = [protectedAddon, configured, secondConfig];
@@ -110,7 +110,7 @@ async function managementTests() {
   await assert.rejects(addInstalledAddon('account-token', configured), /already installed/);
   assert.equal(writes.length, beforeDuplicate, 'Duplicate installs never replace the collection');
   failure = true;
-  await assert.rejects(addInstalledAddon('account-token', secondConfig), /could not update/);
+  await assert.rejects(addInstalledAddon('account-token', secondConfig), /couldn’t update your add-ons/);
   assert.equal(collection.length, 2, 'Failed installs preserve the collection');
   failure = false;
   await Promise.all([

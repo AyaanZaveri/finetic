@@ -66,28 +66,28 @@ export function AddonsList({ addons }: { addons: AddonListItem[] }) {
             <div className={`${styles.toolbar} [&_button[data-chip]]:backdrop-blur-md`}>
                 {installed.length > 0 && <>
                     <div className={`${styles.search} rounded-xl backdrop-blur-md`}>
-                        <SearchField ref={search} label="Search addons" hideLabel placeholder="Search addons…" value={query} onValueChange={setQuery} autoComplete="off" />
+                        <SearchField ref={search} label="Search add-ons" hideLabel placeholder="Search add-ons…" value={query} onValueChange={setQuery} autoComplete="off" />
                     </div>
                     <div className={styles.filters}>
-                        <ChipGroup label="Filter addons by capability" multiple={false} options={filters} value={[capability]} onValueChange={(values) => setCapability(values[0] ?? "all")} />
+                        <ChipGroup label="Filter add-ons by capability" multiple={false} options={filters} value={[capability]} onValueChange={(values) => setCapability(values[0] ?? "all")} />
                     </div>
                 </>}
                 <div className={styles.addAction}><AddAddonDialog /></div>
             </div>
 
             <p role="status" aria-live="polite" className="sr-only">
-                {results.length} addon{results.length === 1 ? "" : "s"} found
+                {results.length} add-on{results.length === 1 ? "" : "s"} found
             </p>
 
             {!installed.length ? (
                 <Empty className={styles.empty}>
                     <EmptyHeader>
-                        <EmptyTitle ref={emptyTitle} tabIndex={-1}>No addons installed</EmptyTitle>
-                        <EmptyDescription>Use Add addon to install an addon from its manifest link.</EmptyDescription>
+                        <EmptyTitle ref={emptyTitle} tabIndex={-1}>No add-ons installed</EmptyTitle>
+                        <EmptyDescription>Install an add-on using its manifest link</EmptyDescription>
                     </EmptyHeader>
                 </Empty>
             ) : results.length ? (
-                <ul aria-label="Installed addons" className={styles.list}>
+                <ul aria-label="Installed add-ons" className={styles.list}>
                     {results.map((addon) => {
                         const details = [...new Set(addon.types.map(addonTypeLabel))].filter(Boolean);
                         if (addon.catalogCount > 0) {
@@ -118,7 +118,7 @@ export function AddonsList({ addons }: { addons: AddonListItem[] }) {
                                         {ADDON_CAPABILITIES.filter((item) => addon.capabilities.includes(item.value)).map((item) => (
                                             <Badge key={item.value} variant="secondary" className={styles.badge}>{item.label}</Badge>
                                         ))}
-                                        {!ADDON_CAPABILITIES.some((item) => addon.capabilities.includes(item.value)) && <Badge variant="secondary" className={styles.badge}>Addon</Badge>}
+                                        {!ADDON_CAPABILITIES.some((item) => addon.capabilities.includes(item.value)) && <Badge variant="secondary" className={styles.badge}>Add-on</Badge>}
                                     </div>
                                     <AddonActions addon={addon} onRemovalFocus={restoreFocus} onUninstalled={({ animate }) => {
                                         try { pendingMotion.current = motion.prepare(addon.id, animate); }
@@ -133,8 +133,8 @@ export function AddonsList({ addons }: { addons: AddonListItem[] }) {
             ) : (
                 <Empty className={styles.empty}>
                     <EmptyHeader>
-                        <EmptyTitle>No matching addons</EmptyTitle>
-                        <EmptyDescription>Try another search or clear the filters to see all your addons.</EmptyDescription>
+                        <EmptyTitle>That narrows it down to… nothing</EmptyTitle>
+                        <EmptyDescription>Try another search or clear the filters</EmptyDescription>
                     </EmptyHeader>
                     <Button variant="outline" onClick={() => { setQuery(""); setCapability("all"); }}>Clear filters</Button>
                 </Empty>

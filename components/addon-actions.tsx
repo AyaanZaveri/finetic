@@ -37,7 +37,7 @@ export function AddonActions({ addon, onUninstalled, onRemovalFocus }: { addon: 
     useEffect(() => {
         if (!shareOpen) return;
         let active = true;
-        const fallback = "Could not load the addon link. Close this dialog and try again.";
+        const fallback = "Couldn’t load the add-on link. Close and try again.";
         void getInstalledAddonLinks(addon.id).then(result => {
             if (!active) return;
             setShare(result.shareUrl ? { kind: "ready", url: result.shareUrl }
@@ -84,7 +84,7 @@ export function AddonActions({ addon, onUninstalled, onRemovalFocus }: { addon: 
             setRemoveOpen(false);
             onUninstalled({ animate });
         } catch {
-            setRemoveError("Could not uninstall this addon. Please try again.");
+            setRemoveError("Couldn’t uninstall this add-on. Try again.");
         } finally { setRemoving(false); }
     }
 
@@ -116,7 +116,7 @@ export function AddonActions({ addon, onUninstalled, onRemovalFocus }: { addon: 
                     }}>
                         <AlertDialogHeader>
                             <AlertDialogTitle>Uninstall {addon.name}?</AlertDialogTitle>
-                            <AlertDialogDescription>This removes this addon configuration from your Stremio account and all your synced devices. You can install it again later.</AlertDialogDescription>
+                            <AlertDialogDescription>This removes the add-on from your Stremio account and all synced devices. You can install it again later.</AlertDialogDescription>
                         </AlertDialogHeader>
                         {removeError && <p role="alert" className={styles.error}>{removeError}</p>}
                         <AlertDialogFooter>
@@ -127,7 +127,7 @@ export function AddonActions({ addon, onUninstalled, onRemovalFocus }: { addon: 
                                         <Loader2 data-icon="inline-start" aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
                                             Uninstalling
                                     </>
-                                ) : "Uninstall addon"}
+                                ) : "Uninstall add-on"}
                             </AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>

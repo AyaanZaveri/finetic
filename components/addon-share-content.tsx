@@ -55,17 +55,17 @@ export function AddonShareContent({ addon, state, onCopy, open, onOpenChange, fi
             : `${surface.surface} max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain gap-7 p-6 sm:max-w-[560px]`}
             finalFocus={finalFocus}>
             <Header className={isMobile ? "relative p-6 pb-0" : "pr-8"}>
-                <Title className={isMobile ? "mx-10" : undefined}>Share addon</Title>
+                <Title className={isMobile ? "mx-10" : undefined}>Share add-on</Title>
                 {isMobile && <Button type="button" variant="ghost" size="icon" className="absolute right-4 top-4 size-11" aria-label="Close" onClick={() => onOpenChange(false)}>
                     <X aria-hidden="true" />
                 </Button>}
-                <Description className="sr-only">Copy the manifest link to install this addon in Stremio.</Description>
+                <Description className="sr-only">Copy the manifest link to install this add-on in Stremio</Description>
             </Header>
             <div className={`flex min-w-0 flex-col gap-6 ${isMobile ? "min-h-0 overflow-y-auto overscroll-contain p-6" : ""}`}>
                 <AddonPreviewCard addon={addon} />
                 <div className="flex min-w-0 flex-col gap-4">
                     {"url" in state && <Field data-invalid={state.kind === "copy-error"}>
-                        <FieldLabel htmlFor={id} className="sr-only">Addon link</FieldLabel>
+                        <FieldLabel htmlFor={id} className="sr-only">Add-on link</FieldLabel>
                         <InputGroup>
                             <InputGroupInput id={id} value={state.url} readOnly onFocus={event => event.currentTarget.select()}
                                 aria-describedby={[warningId, errorId].filter(Boolean).join(" ") || undefined} />
@@ -78,7 +78,7 @@ export function AddonShareContent({ addon, state, onCopy, open, onOpenChange, fi
                     </Field>}
                     {loading && <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Loader2 aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />
-                        <span className={previewStyle.loadingText}>Loading addon link…</span>
+                        <span className={previewStyle.loadingText}>Loading add-on link…</span>
                     </p>}
                     {state.kind === "unavailable" && <FieldError id={errorId}>{state.message}</FieldError>}
                     <div className={isMobile ? "flex flex-col" : "flex justify-end"}>
@@ -90,7 +90,7 @@ export function AddonShareContent({ addon, state, onCopy, open, onOpenChange, fi
                             </span>
                             Copy link
                         </Button>
-                        <span className="sr-only" role="status">{copied ? "Addon link copied" : ""}</span>
+                        <span className="sr-only" role="status">{copied ? "Add-on link copied" : ""}</span>
                     </div>
                 </div>
             </div>

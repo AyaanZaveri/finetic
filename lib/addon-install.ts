@@ -29,9 +29,9 @@ const manifestSchema = z.object({
 }).passthrough();
 
 export function addonInstallUrl(value: string): string {
-    if (typeof value !== "string" || value.length > 8192) throw new Error("Enter a valid addon manifest link.");
+    if (typeof value !== "string" || value.length > 8192) throw new Error("Enter a valid add-on manifest link");
     const url = outboundUrl(value.trim().replace(/^stremio:\/\//iu, "https://"));
-    if (!/\/manifest\.json$/u.test(url.pathname)) throw new Error("Use the addon link that ends in /manifest.json.");
+    if (!/\/manifest\.json$/u.test(url.pathname)) throw new Error("Use the add-on link that ends in /manifest.json");
     return url.toString();
 }
 
@@ -43,8 +43,8 @@ export async function loadAddonForInstall(value: string): Promise<StremioAddon> 
         if (!response.ok) throw new Error();
         manifest = manifestSchema.safeParse(await response.json());
     } catch {
-        throw new Error("Could not load this addon. Check the link and try again.");
+        throw new Error("Couldn’t load this add-on. Check the link and try again.");
     }
-    if (!manifest.success) throw new Error("This link does not contain a valid addon manifest.");
+    if (!manifest.success) throw new Error("This link does not contain a valid add-on manifest");
     return { transportUrl, transportName: "http", manifest: manifest.data as StremioAddon["manifest"], flags: {} };
 }

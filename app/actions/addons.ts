@@ -8,7 +8,7 @@ import { loadAddonForInstall } from "@/lib/addon-install";
 import { toAddonListItem } from "@/lib/addons";
 
 function errorMessage(error: unknown) {
-    return error instanceof Error ? error.message : "Something went wrong. Please try again.";
+    return error instanceof Error ? error.message : "Couldn’t complete the add-on action. Try again.";
 }
 
 export async function getInstalledAddonLinks(key: string) {
@@ -39,7 +39,7 @@ export async function previewAddon(link: string) {
         const addon = await loadAddonForInstall(link);
         const installed = await readAddonCollection(authKey);
         if (installed.some(item => item.transportUrl === addon.transportUrl)) {
-            throw new Error("This addon configuration is already installed.");
+            throw new Error("This add-on is already installed");
         }
         return {
             addon: toAddonListItem(addon, 0),
@@ -57,8 +57,8 @@ export async function installAddon(link: string, expectedId: string) {
         const { authKey } = await getAuthData();
         // Fetch again on install. Never trust a manifest sent back by the browser.
         const addon = await loadAddonForInstall(link);
-        if (`${addon.manifest.id}:0` !== expectedId) throw new Error("This addon changed. Review the link again before installing.");
-        if (addon.manifest.behaviorHints?.configurationRequired) throw new Error("Configure this addon first, then paste its configured link.");
+        if (`${addon.manifest.id}:0` !== expectedId) throw new Error("This add-on changed. Review the link before installing again.");
+        if (addon.manifest.behaviorHints?.configurationRequired) throw new Error("Configure this add-on, then paste its configured link");
         await addInstalledAddon(authKey, addon);
         await invalidateAddonCollection();
         revalidatePath("/", "layout");
