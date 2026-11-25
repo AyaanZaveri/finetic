@@ -228,7 +228,18 @@
 }
 
 .content [data-slot="field-description"], .feedback, .credits, .description { max-width: 65ch; }
-.keyLink { text-underline-offset: .2em; overflow-wrap: anywhere; }
+.keyLink {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.keyLink:focus-visible { color: var(--foreground); }
+
+@media (hover: hover) and (pointer: fine) {
+  .keyLink:hover { color: var(--foreground); }
+}
 
 .apiKeyInput[data-slot="input-group"],
 .providerInput {
@@ -282,7 +293,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .apiKeyInput[data-slot="input-group"], .providerInput { transition: none; }
+  .apiKeyInput[data-slot="input-group"], .providerInput, .keyLink { transition: none; }
 }
 
 .navigatorSettings {

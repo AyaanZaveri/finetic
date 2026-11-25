@@ -5,7 +5,6 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type Compone
 import { Cerebras, Gemini, Groq, Ollama, OpenAI, OpenRouter } from "@lobehub/icons";
 import { ArrowUpRight, Eye, EyeOff, KeyRound, Link2, Hexagon } from "lucide-react";
 import Image from "next/image";
-import Link from "next/link";
 import { OpenCodeIcon } from "@/components/opencode-icon";
 import { useCatalogModels } from "./use-catalog-models";
 import { ModelIcon } from "@/components/model-icon";
@@ -125,12 +124,13 @@ function SettingsInput({ id, label, value, onValueChange, placeholder, descripti
     );
 }
 
-function ApiKeyInput({ id, value, onValueChange, keyUrl, label = "API key", description, keyLinkLabel = "Get an API key", error, disabled, icon }: {
+function ApiKeyInput({ id, value, onValueChange, keyUrl, label = "API key", placeholder = "abc123…", description, keyLinkLabel = "Get an API key", error, disabled, icon }: {
     id: string;
     value: string;
     onValueChange: (_value: string) => void;
     keyUrl?: string;
     label?: string;
+    placeholder?: string;
     description?: string;
     keyLinkLabel?: string;
     error?: string | null;
@@ -148,7 +148,7 @@ function ApiKeyInput({ id, value, onValueChange, keyUrl, label = "API key", desc
                         href={keyUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={`${styles.keyLink} min-w-0 underline underline-offset-4 hover:text-foreground`}
+                        className={`${styles.keyLink} min-w-0`}
                     >
                         {keyLinkLabel}
                     </a>
@@ -160,6 +160,7 @@ function ApiKeyInput({ id, value, onValueChange, keyUrl, label = "API key", desc
                     id={id}
                     type={visible ? "text" : "password"}
                     value={value}
+                    placeholder={placeholder}
                     onChange={(event) => onValueChange(event.target.value)}
                     aria-describedby={[description && `${id}-description`, error && `${id}-error`].filter(Boolean).join(" ") || undefined}
                     aria-invalid={!!error || undefined}
@@ -262,13 +263,10 @@ function WebSearchSettings({ variant }: { variant: "preference" | "connection" }
                     }} />
             </Field>}
             {variant === "preference" && error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-            {variant === "preference" && !loading && !state.configured && <p className={styles.description}>
-                <Link draggable={false} href="/settings/connections" className={styles.keyLink}>Connect TinyFish</Link> to enable web search.
-            </p>}
             {variant === "connection" && <form autoComplete="off" data-form-type="other" className="min-w-0" aria-busy={loading || pending} onSubmit={event => { event.preventDefault(); if (!pending && key.trim()) void update("save"); }}>
                 <FieldGroup className="gap-4">
                     <ApiKeyInput id="tinyfish-api-key" label="TinyFish API key" value={key} icon={<TinyFishIcon />}
-                        onValueChange={value => { setKey(value); setError(null); setStatus(""); }} keyUrl="https://tinyfish.ai" keyLinkLabel="Get a TinyFish key"
+                        onValueChange={value => { setKey(value); setError(null); setStatus(""); }} keyUrl="https://agent.tinyfish.ai/api-keys" keyLinkLabel="Get a TinyFish key"
                         disabled={loading || pending} error={error} />
                     <div className="flex flex-wrap items-center gap-1">
                         <Button type="submit" variant="outline" size="sm" disabled={loading || pending || !key.trim()}>{pending ? "Updating…" : "Save key"}</Button>
@@ -349,6 +347,7 @@ function ArtworkSettings() {
                     <ApiKeyInput
                         id="tmdb-read-access-token"
                         label="TMDB read access token"
+                        placeholder="eyJ…"
                         value={token}
                         onValueChange={(value) => { setToken(value); setError(null); setStatus(""); }}
                         keyUrl="https://www.themoviedb.org/settings/api"
@@ -635,12 +634,12 @@ function NavigatorSettings() {
 
     const selectedProvider = PROVIDERS.find((provider) => provider.value === aiProvider)!;
     const apiKeySettings = {
-        openai: { value: openaiApiKey, onValueChange: setOpenaiApiKey, keyUrl: openaiBaseUrl.replace(/\/+$/, "") === OPENAI_DEFAULT_BASE_URL ? "https://platform.openai.com/api-keys" : undefined },
-        gemini: { value: googleApiKey, onValueChange: setGoogleApiKey, keyUrl: "https://aistudio.google.com/apikey" },
-        groq: { value: groqApiKey, onValueChange: setGroqApiKey, keyUrl: "https://console.groq.com/keys" },
-        openrouter: { value: openrouterApiKey, onValueChange: setOpenrouterApiKey, keyUrl: "https://openrouter.ai/keys" },
-        cerebras: { value: cerebrasApiKey, onValueChange: setCerebrasApiKey, keyUrl: "https://cloud.cerebras.ai" },
-        opencode: { value: opencodeApiKey, onValueChange: setOpencodeApiKey, keyUrl: "https://opencode.ai/auth" },
+        openai: { value: openaiApiKey, onValueChange: setOpenaiApiKey, placeholder: openaiBaseUrl.replace(/\/+$/, "") === OPENAI_DEFAULT_BASE_URL ? "sk-…" : undefined, keyUrl: openaiBaseUrl.replace(/\/+$/, "") === OPENAI_DEFAULT_BASE_URL ? "https://platform.openai.com/api-keys" : undefined },
+        gemini: { value: googleApiKey, onValueChange: setGoogleApiKey, placeholder: "AQ.…", keyUrl: "https://aistudio.google.com/apikey" },
+        groq: { value: groqApiKey, onValueChange: setGroqApiKey, placeholder: "gsk_…", keyUrl: "https://console.groq.com/keys" },
+        openrouter: { value: openrouterApiKey, onValueChange: setOpenrouterApiKey, placeholder: "sk-or-v1-…", keyUrl: "https://openrouter.ai/keys" },
+        cerebras: { value: cerebrasApiKey, onValueChange: setCerebrasApiKey, placeholder: "csk-…", keyUrl: "https://cloud.cerebras.ai" },
+        opencode: { value: opencodeApiKey, onValueChange: setOpencodeApiKey, placeholder: "oc_sk_…", keyUrl: "https://opencode.ai/auth" },
     };
     const modelSettings: Record<AIProvider, Omit<SettingsSelectProps, "id" | "label" | "options"> & { options?: ModelOption[]; placeholder?: string }> = {
         openai: {
