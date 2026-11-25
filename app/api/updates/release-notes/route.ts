@@ -20,9 +20,9 @@ export async function GET(request: Request) {
             return Response.json(history, { headers: history.complete ? cacheControl : { "Cache-Control": "no-store" } });
         }
         const notes = await githubReleaseNotes(version, request.signal);
-        if (!notes) return Response.json({ notes: "" }, { status: 404 });
+        if (!notes) return Response.json({ notes: "" }, { status: 404, headers: { "Cache-Control": "no-store" } });
         return Response.json({ notes }, { headers: cacheControl });
     } catch {
-        return Response.json({ notes: "" }, { status: 502 });
+        return Response.json({ notes: "" }, { status: 502, headers: { "Cache-Control": "no-store" } });
     }
 }
