@@ -31,15 +31,29 @@ function artwork(item: MediaItem) {
     return mediaArtwork({ poster: text(item.poster), background: text(item.background), logo: text(item.logo) });
 }
 
-/** Keep only what the Home cards need. Playback URLs and add-on URLs stay in memory. */
+function genres(value: unknown): string[] | undefined {
+    if (!Array.isArray(value)) return undefined;
+    const list = value
+        .map(item => (typeof item === "string" ? item.trim() : ""))
+        .filter((item): item is string => item.length > 0 && item.length <= 48)
+        .slice(0, 5);
+    return list.length ? list : undefined;
+}
+
+/** Keep only what the Home cards and hero need. Playback URLs and add-on URLs stay in memory. */
 export function snapshotItems(items: MediaItem[], limit: number): MediaItem[] {
     if (!Array.isArray(items)) return [];
     return items.slice(0, limit).flatMap(item => {
         const itemId = id(item?.id);
         if (!itemId || !["movie", "series", "tv", "channel"].includes(item.type)) return [];
+        const rating = number(item.communityRating);
         return [{
             id: itemId, type: item.type, name: text(item.name) || "Untitled",
             ...artwork(item), year: number(item.year), releaseInfo: text(item.releaseInfo),
+            description: text(item.description, 480), genres: genres(item.genres),
+            imdbRating: text(item.imdbRating, 16),
+            communityRating: rating !== undefined && rating <= 10 ? rating : undefined,
+            ratingSource: text(item.ratingSource, 32), runtime: text(item.runtime, 32),
             mediaSourceId: id(item.mediaSourceId), seriesId: id(item.seriesId), episodeId: id(item.episodeId),
             episodeTitle: text(item.episodeTitle), showName: text(item.showName),
             seasonNumber: number(item.seasonNumber), episodeNumber: number(item.episodeNumber),

@@ -35,6 +35,7 @@ export async function cinemetaCatalog(type: TitleType, query?: string, signal?: 
         id: item.id, imdbId: item.id, type, name: item.name,
         poster: publicArtworkUrl(item.poster), background: publicArtworkUrl(item.background),
         logo: publicArtworkUrl(item.logo), description: item.description,
+        genres: Array.isArray(item.genres) ? item.genres.filter((genre): genre is string => typeof genre === "string" && genre.trim().length > 0) : undefined,
         releaseInfo: item.releaseInfo, year: releaseYear(undefined, item.releaseInfo), imdbRating: item.imdbRating,
     }));
 }
