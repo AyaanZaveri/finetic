@@ -73,8 +73,27 @@ const resumeCard = load('components/media-card.tsx', {
 });
 const resumeProps = { ...posterProps, continueWatching: true, item: {
   ...posterProps.item, background: 'https://image.tmdb.org/t/p/original/wide.jpg',
+  logo: 'https://image.tmdb.org/t/p/original/logo.png',
 } };
 const findResumeImage = (props) => nodes(resumeHooks.render(resumeCard.MediaCard, props)).find(node => node.type === 'artwork-image');
+assert.equal(findResumeImage({ ...resumeProps, revealArtwork: false }).props.reveal, 'late',
+  'Cached resume metadata suppresses only already-loaded artwork, not newly arriving pixels');
+const cachedLogoProps = { ...resumeProps, revealArtwork: false };
+const logo = () => nodes(resumeHooks.render(resumeCard.MediaCard, cachedLogoProps)).find(node => node.type === 'img');
+const wordmark = () => nodes(resumeHooks.render(resumeCard.MediaCard, cachedLogoProps)).find(node => node.props?.className?.includes('wordmark'));
+logo().props.ref({ complete: false, naturalWidth: 0 });
+assert.equal(wordmark().props['data-logo-ready'], undefined, 'The wordmark stays hidden while its image loads');
+logo().props.onLoad();
+assert.equal(wordmark().props['data-logo-late'], '', 'A delayed wordmark on a cached card must still reveal');
+logo().props.ref({ complete: true, naturalWidth: 500 });
+assert.equal(wordmark().props['data-logo-late'], '', 'Reattaching a decoded wordmark does not interrupt its fade');
+const warmLogoProps = { ...cachedLogoProps, item: { ...cachedLogoProps.item, logo: 'https://image.tmdb.org/t/p/original/warm-logo.png' } };
+const warmLogo = () => nodes(resumeHooks.render(resumeCard.MediaCard, warmLogoProps)).find(node => node.type === 'img');
+warmLogo().props.ref({ complete: true, naturalWidth: 500 });
+warmLogo().props.onLoad();
+const warmWordmark = nodes(resumeHooks.render(resumeCard.MediaCard, warmLogoProps)).find(node => node.props?.className?.includes('wordmark'));
+assert.equal(warmWordmark.props['data-logo-ready'], '');
+assert.equal(warmWordmark.props['data-logo-late'], undefined, 'An already-complete logo does not replay motion');
 assert.match(findResumeImage(resumeProps).props.srcSet, /w780\/wide.jpg 780w/);
 findResumeImage(resumeProps).props.onUnavailable();
 const resumePoster = findResumeImage(resumeProps);

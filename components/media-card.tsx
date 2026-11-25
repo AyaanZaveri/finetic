@@ -92,11 +92,18 @@ export function MediaCard({
   const imageSrcSet = continueWatching && imageUrl === backdrop && artwork.background?.startsWith("https://image.tmdb.org/t/p/")
     ? ([300, 780, 1280] as const).map(width => `${backdropVariantUrl(artwork.background, width)} ${width}w`).join(", ") : undefined;
   const [failedLogo, setFailedLogo] = useState<string | null>(null);
-  const [loadedLogo, setLoadedLogo] = useState<string | null>(null);
+  const [loadedLogo, setLoadedLogo] = useState<{ src: string; late: boolean } | null>(null);
+  const pendingLogo = useRef<string | null>(null);
+  const finishLogo = useCallback((late: boolean) => {
+    const src = artwork.logo;
+    if (src) setLoadedLogo(previous => previous?.src === src ? previous : { src, late });
+  }, [artwork.logo]);
   const attachLogo = useCallback((image: HTMLImageElement | null) => {
     // Cached logos can finish before React attaches the load listener.
-    if (image?.complete && image.naturalWidth > 0) setLoadedLogo(artwork.logo ?? null);
-  }, [artwork.logo]);
+    if (!image || !artwork.logo) return;
+    if (!image.complete) pendingLogo.current = artwork.logo;
+    else if (image.naturalWidth > 0) finishLogo(pendingLogo.current === artwork.logo);
+  }, [artwork.logo, finishLogo]);
   const [pressed, setPressed] = useState(false);
   const subtitle = continueWatching
     ? item.progressLabel ||
@@ -189,7 +196,7 @@ export function MediaCard({
           <div className={`${styles.artworkBounds} absolute inset-0`}>
             {imageUrl ? (
               <ArtworkImage
-                reveal={revealArtwork}
+                reveal={revealArtwork ? true : "late"}
                 src={imageUrl}
                 srcSet={imageSrcSet}
                 sizes={continueWatching ? "320px" : undefined}
@@ -208,14 +215,16 @@ export function MediaCard({
           </div>
 
           {continueWatching && artwork.logo && failedLogo !== artwork.logo ? (
-            <div data-logo-ready={loadedLogo === artwork.logo ? "" : undefined} className={`${styles.wordmark} absolute inset-0 z-25 pointer-events-none flex items-center justify-center px-6`}>
+            <div data-logo-ready={loadedLogo?.src === artwork.logo ? "" : undefined}
+              data-logo-late={loadedLogo?.src === artwork.logo && loadedLogo.late ? "" : undefined}
+              className={`${styles.wordmark} absolute inset-0 z-25 pointer-events-none flex items-center justify-center px-6`}>
               <img
                 ref={attachLogo}
                 src={artwork.logo}
                 loading="lazy"
                 decoding="async"
                 fetchPriority="low"
-                onLoad={() => setLoadedLogo(artwork.logo!)}
+                onLoad={() => finishLogo(true)}
                 onError={() => setFailedLogo(artwork.logo!)}
                 alt=""
                 aria-hidden="true"

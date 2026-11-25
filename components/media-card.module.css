@@ -34,7 +34,9 @@
   visibility: visible;
   opacity: 1;
 }
-.card[data-reveal-artwork] .frame:has(.artwork[data-artwork-state="ready"]) .wordmark[data-logo-ready] {
+.card[data-reveal-artwork] .frame:has(.artwork[data-artwork-state="ready"]) .wordmark[data-logo-ready],
+.frame:has(.artwork[data-artwork-state="ready"]) .wordmark[data-logo-ready][data-logo-late],
+.frame:has(.artwork[data-artwork-revealing]) .wordmark[data-logo-ready] {
   animation: wordmark-reveal 300ms var(--ease-out) backwards;
 }
 
@@ -44,7 +46,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .card[data-reveal-artwork] .frame:has(.artwork[data-artwork-state="ready"]) .wordmark[data-logo-ready] { animation-duration: 100ms; }
+  .card[data-reveal-artwork] .frame:has(.artwork[data-artwork-state="ready"]) .wordmark[data-logo-ready],
+  .frame:has(.artwork[data-artwork-state="ready"]) .wordmark[data-logo-ready][data-logo-late],
+  .frame:has(.artwork[data-artwork-revealing]) .wordmark[data-logo-ready] { animation-duration: 100ms; }
 }
 
 .playOverlay {
