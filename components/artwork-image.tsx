@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useRef, useState, type ComponentPropsWithoutRef } from "react";
+import { useCallback, useRef, useState, type ComponentPropsWithRef, type ComponentPropsWithoutRef } from "react";
 import { Film } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useComposedRefs } from "@/lib/compose-refs";
 import styles from "./artwork-image.module.css";
 
-type Props = Omit<ComponentPropsWithoutRef<"img">, "src"> & {
+type Props = Omit<ComponentPropsWithRef<"img">, "src"> & {
   src?: string;
   fallbackText?: string;
   /** "late" reveals newly loaded pixels without replaying already-complete images. */
@@ -25,7 +26,7 @@ export function ArtworkPlaceholder({ label = "Artwork unavailable", className, .
 
 /** Keep native image geometry; reveal loaded pixels over the card's surface. */
 export function ArtworkImage({
-  src, srcSet, sizes, alt = "", className, style, width, height,
+  src, srcSet, sizes, alt = "", className, style, width, height, ref,
   onLoad, onError, onUnavailable, decoding = "async", fallbackText = "Artwork unavailable", reveal = true, waitForDecode = false, ...props
 }: Props) {
   const key = JSON.stringify([src, srcSet, sizes]);
@@ -74,6 +75,7 @@ export function ArtworkImage({
       else fail();
     } else pendingKey.current = key;
   }, [src, key, finish, fail]);
+  const imageRef = useComposedRefs(attach, ref);
 
   if (state === "error") {
     return <ArtworkPlaceholder label={fallbackText} aria-label={alt ? `${alt}: ${fallbackText}` : fallbackText}
@@ -84,7 +86,7 @@ export function ArtworkImage({
   }
 
   const revealing = state === "ready" && !result?.unseen && (reveal === true || (reveal === "late" && result?.late));
-  return <img {...props} ref={attach} src={src} srcSet={srcSet} sizes={sizes}
+  return <img {...props} ref={imageRef} src={src} srcSet={srcSet} sizes={sizes}
     alt={alt} width={width} height={height} style={style} decoding={decoding}
     data-artwork-state={state}
     data-artwork-revealing={revealing ? "" : undefined}

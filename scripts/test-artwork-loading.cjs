@@ -144,11 +144,16 @@ assert.equal(image.type.name, 'ArtworkPlaceholder');
 assert.equal(image.type(image.props).props.role, 'img');
 assert.match(image.props['aria-label'], /unavailable/);
 const cached = { ...props, src: '/cached.jpg' };
-image = h.render(ArtworkImage, cached);
-image.props.ref({ complete: true, naturalWidth: 500 });
+const externalRef = { current: null };
+image = h.render(ArtworkImage, { ...cached, ref: externalRef });
+const cachedImage = { complete: true, naturalWidth: 500 };
+image.props.ref(cachedImage);
+assert.equal(externalRef.current, cachedImage, 'Forward the actual image to hero overscroll and contrast sampling');
 h.flush();
-image = h.render(ArtworkImage, cached);
+image = h.render(ArtworkImage, { ...cached, ref: externalRef });
 assert.equal(image.props['data-artwork-state'], 'ready', 'Recover a cache load that completed before hydration');
+image.props.ref(null);
+assert.equal(externalRef.current, null, 'Detach the external image ref on cleanup');
 image = h.render(ArtworkImage, { ...props, src: '/offscreen.jpg' });
 image.props.onLoad({ currentTarget: { getBoundingClientRect: () => ({ top: 900, bottom: 1100, left: 0, right: 200 }) } });
 image = h.render(ArtworkImage, { ...props, src: '/offscreen.jpg' });
@@ -174,6 +179,26 @@ assert.ok(pending.nodes.some(node => node.prop === 'opacity' && node.value === '
 assert.ok(css.nodes.some(node => node.selector === '.reveal' && node.nodes.some(decl => decl.prop === 'animation' && /300ms/.test(decl.value))), 'Use a finite 300ms reveal');
 assert.ok(css.nodes.some(node => node.type === 'atrule' && node.params === '(prefers-reduced-motion: reduce)'), 'Keep the reveal gentle with reduced motion');
 console.log('PASS: source changes, stale events, immediate load, pre-hydration cache hits, failures and missing images.');
+
+const backdropHooks = hooks();
+let overscroll;
+const { BackdropImage } = load('components/media-page/backdrop-image.tsx', {
+  react: backdropHooks.react, 'react/jsx-runtime': backdropHooks.jsx,
+  '@/components/artwork-image': { ArtworkImage: 'artwork-image' },
+  './use-backdrop-overscroll': { useBackdropOverscroll: (ref, source) => { overscroll = { ref, source }; } },
+});
+const backdropProps = { name: 'Fixture', backdropImage: '/hero.jpg' };
+let heroBackdrop = backdropHooks.render(BackdropImage, backdropProps);
+assert.equal(heroBackdrop.type, 'artwork-image');
+assert.equal(heroBackdrop.props.waitForDecode, true, 'Title hero uses the shared decoded-image reveal');
+assert.equal(heroBackdrop.props.ref, overscroll.ref, 'Keep the overscroll image ref connected');
+assert.equal(heroBackdrop.props.fetchPriority, 'high');
+assert.ok('data-header-backdrop' in heroBackdrop.props, 'Keep header contrast sampling connected');
+heroBackdrop.props.onUnavailable();
+assert.equal(backdropHooks.render(BackdropImage, backdropProps).type, 'div', 'Failed hero uses the original unadorned fallback');
+assert.equal(overscroll.source, '', 'Failed hero removes overscroll artwork');
+assert.equal(backdropHooks.render(BackdropImage, { ...backdropProps, backdropImage: '/new-hero.jpg' }).type, 'artwork-image');
+backdropHooks.unmount();
 
 // A real decode can finish long after load. Keep the wordmark hidden until
 // the decode resolves, deduplicate ref/load notifications and ignore stale work.
