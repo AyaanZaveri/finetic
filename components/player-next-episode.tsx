@@ -65,7 +65,7 @@ export function PlayerUpNext({ next, thumbnail, seconds, timerRunning = true, on
             <div data-player-up-next-content="" className="flex items-stretch gap-4">
                 {thumbnail && (
                     <div className="relative w-[clamp(3.5rem,33%,9rem)] shrink-0 overflow-hidden rounded-lg bg-muted">
-                        <ArtworkImage src={thumbnail} alt="" reveal={false} fallbackText="" draggable={false}
+                        <ArtworkImage src={thumbnail} alt="" waitForDecode fallbackText="" draggable={false}
                             className="absolute inset-0 block size-full object-cover" />
                     </div>
                 )}

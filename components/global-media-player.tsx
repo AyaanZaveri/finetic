@@ -1070,6 +1070,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
               {fallbackBackdrop && (
                 <ArtworkImage
                   src={fallbackBackdrop}
+                  waitForDecode
                   draggable={false}
                   fetchPriority="high"
                   fallbackText=""

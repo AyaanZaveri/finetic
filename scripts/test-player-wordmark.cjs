@@ -3,7 +3,8 @@ const fs = require('node:fs');
 const { load } = require('./test-support/react-hooks.cjs');
 let failure = null;
 const { PlayerLoadingWordmark } = load('components/player-loading-wordmark.tsx', {
-  react: { useState: () => [failure, value => { failure = value; }] },
+  react: { useState: () => [failure, value => { failure = value; }], useCallback: callback => callback },
+  '@/components/artwork-image': { ArtworkImage: 'artwork-image' },
   './player-loading-wordmark.module.css': {},
   '@/lib/artwork': load('lib/artwork.ts', {}, { URLSearchParams }),
 });
@@ -13,11 +14,12 @@ const children = tree => tree.props.children.props.children;
 let tree = render();
 assert.equal(children(tree)[0].props.src, src);
 assert.equal(children(tree)[0].props.fetchPriority, 'high');
+assert.equal(children(tree)[0].props.waitForDecode, true, 'Reveal the actual decoded logo instead of relying on the loading container animation');
 assert.ok(children(tree)[1].props.style.maskImage.includes('wsrv.nl'));
-children(tree)[0].props.onError();
+children(tree)[0].props.onUnavailable();
 tree = render();
 assert.ok(children(tree)[0].props.src.includes('wsrv.nl'), 'A failed CDN redirect retries through the external image service');
-children(tree)[0].props.onError();
+children(tree)[0].props.onUnavailable();
 tree = render();
 assert.equal(tree.props['data-state'], 'failed');
 assert.equal(children(tree)[0].props.children, 'Modern Family', 'Image failures never silently remove the entire wordmark region');
@@ -31,4 +33,7 @@ assert.equal(value('.logo', 'height'), '18vh');
 assert.equal(value('.image', 'width'), '100%');
 assert.equal(value('.image', 'height'), '100%');
 assert.equal(value('.image', 'object-fit'), 'contain');
+assert.equal(value('.image[data-artwork-state]', 'background-color'), 'transparent', 'Do not give transparent wordmarks a rectangular image backing');
+assert.equal(value('.mask', 'visibility'), 'hidden', 'Never show a shimmer before the actual logo has decoded');
+assert.equal(value('.logo:has(.image[data-artwork-state="ready"]) .mask', 'visibility'), 'visible');
 console.log('PASS: definite SVG display size, high-priority image reuse, external image retry, nonempty failure fallback, and source changes.');

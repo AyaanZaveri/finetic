@@ -14,7 +14,7 @@ const mount = () => {
     const h = hooks();
     const { ProgressiveEpisodeStill } = load('components/progressive-episode-still.tsx', {
         react: h.react, 'react/jsx-runtime': h.jsx,
-        '@/components/artwork-image': { ArtworkPlaceholder: 'placeholder' },
+        '@/components/artwork-image': { ArtworkImage: 'artwork-image', ArtworkPlaceholder: 'placeholder' },
         './progressive-episode-still.module.css': {},
     });
     return { h, render: () => h.render(ProgressiveEpisodeStill, { preview: small, source: large, title: 'The Roundup' }) };
@@ -40,30 +40,32 @@ const mount = () => {
     assert.equal(preview.props.src, small); assert.equal(high.props.src, large);
     assert.equal(preview.props['aria-hidden'], 'true'); assert.equal(high.props.alt, 'The Roundup');
     assert.equal(high.props.fetchPriority, 'high');
-    preview.props.ref({ complete: true, naturalWidth: 500 });
+    assert.equal(preview.type, 'artwork-image');
+    assert.equal(preview.props.waitForDecode, true, 'Initial preview must fade when its pixels decode');
+    preview.props.ref.current = { complete: true, naturalWidth: 500, dataset: { artworkState: 'ready' } };
     const decoding = deferred(); const image = { complete: false, naturalWidth: 1280, decode: () => decoding.promise };
     high.props.ref(image); high.props.onLoad({ currentTarget: image });
     assert.equal(cold.render().props['data-episode-hero-state'], 'loading', 'Keep the preview while sharp pixels decode');
     decoding.resolve(); await tick(); tree = cold.render();
     assert.equal(tree.props['data-episode-hero-state'], 'sharp');
-    assert.equal(tree.props.children[1].props['data-animate'], true, 'Only a real low-to-high upgrade fades');
+    assert.equal(tree.props.children[1].props['data-animate'], 'upgrade', 'A real low-to-high upgrade gets the short crossfade');
     high.props.ref(null); cold.h.unmount();
 
     const warm = mount(); tree = warm.render();
-    tree.props.children[0].props.ref({ complete: true, naturalWidth: 500 });
+    tree.props.children[0].props.ref.current = { complete: true, naturalWidth: 500, dataset: { artworkState: 'loading' } };
     tree.props.children[1].props.ref({ complete: true, naturalWidth: 1280, decode: async () => {} });
     await tick(); tree = warm.render();
     assert.equal(tree.props['data-episode-hero-state'], 'sharp');
-    assert.equal(tree.props.children[1].props['data-animate'], undefined, 'Cached high resolution is immediate');
+    assert.equal(tree.props.children[1].props['data-animate'], 'first', 'Even a warm high-resolution first image must fade into the hero surface');
     tree.props.children[1].props.ref(null); warm.h.unmount();
 
     const failed = mount(); tree = failed.render();
     tree.props.children[1].props.onError(); tree = failed.render();
     assert.equal(tree.props['data-episode-hero-state'], 'preview', 'High-resolution failure retains usable low-resolution pixels');
-    tree.props.children[0].props.onError(); assert.equal(failed.render().type, 'placeholder'); failed.h.unmount();
+    tree.props.children[0].props.onUnavailable(); assert.equal(failed.render().type, 'placeholder'); failed.h.unmount();
 
     const cachedErrors = mount(); tree = cachedErrors.render();
-    tree.props.children[0].props.ref({ complete: true, naturalWidth: 0 });
+    tree.props.children[0].props.onUnavailable();
     tree.props.children[1].props.ref({ complete: true, naturalWidth: 0 });
     assert.equal(cachedErrors.render().type, 'placeholder', 'Cached failures before hydration cannot leave broken pixels or a permanent loading state');
     cachedErrors.h.unmount();
@@ -75,6 +77,8 @@ const mount = () => {
     pending.resolve(); await tick(); assert.equal(abandoned.h.updates, before, 'Late decoding cannot reveal the previous episode');
     const css = fs.readFileSync('components/progressive-episode-still.module.css', 'utf8');
     assert.match(css, /transition: opacity 150ms var\(--ease-out\)/);
+    assert.match(css, /transition: opacity 300ms var\(--ease-out\)/);
+    assert.match(css, /@starting-style/);
     assert.match(css, /prefers-reduced-motion: reduce[\s\S]*transition: none/);
-    console.log('PASS: separate hero URLs, decoded progressive replacement, instant warm hits, high-resolution fallback, stale decode isolation and reduced motion.');
+    console.log('PASS: separate hero URLs, decoded initial preview and first sharp reveal, progressive replacement, high-resolution fallback, stale decode isolation and reduced motion.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

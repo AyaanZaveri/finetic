@@ -31,6 +31,7 @@
     object-fit: contain;
     filter: drop-shadow(0 10px 28px rgb(0 0 0 / .85));
 }
+.image[data-artwork-state] { background-color: transparent; }
 
 .fallback { display: flex; height: 100%; align-items: center; justify-content: center; color: white; font-size: clamp(1.5rem, 4vw, 3rem); font-weight: 600; text-align: center; text-wrap: balance; }
 
@@ -44,7 +45,9 @@
     -webkit-mask-repeat: no-repeat;
     -webkit-mask-position: center;
     -webkit-mask-size: contain;
+    visibility: hidden;
 }
+.logo:has(.image[data-artwork-state="ready"]) .mask { visibility: visible; }
 
 .sheen {
     position: absolute;

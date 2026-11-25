@@ -17,10 +17,16 @@
 
 .sharp { opacity: 0; }
 .sharp[data-ready] { opacity: 1; }
-.sharp[data-animate] { transition: opacity 150ms var(--ease-out); }
+.sharp[data-animate="first"] { transition: opacity 300ms var(--ease-out); }
+.sharp[data-animate="upgrade"] { transition: opacity 150ms var(--ease-out); }
+@starting-style {
+  .sharp[data-ready] { opacity: 0; }
+}
+.preview[data-artwork-state="error"],
 .preview[data-failed],
 .sharp[data-failed] { visibility: hidden; }
 
 @media (prefers-reduced-motion: reduce) {
-  .sharp[data-animate] { transition: none; }
+  .sharp[data-animate="first"] { transition-duration: 100ms; }
+  .sharp[data-animate="upgrade"] { transition: none; }
 }

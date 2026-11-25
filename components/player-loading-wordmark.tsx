@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { ArtworkImage } from "@/components/artwork-image";
 import { artworkSampleUrl } from "@/lib/artwork";
 import styles from "./player-loading-wordmark.module.css";
 
@@ -14,20 +15,23 @@ export function PlayerLoadingWordmark({ src, alt, loading }: {
     const maskSrc = artworkSampleUrl(src);
     const stage = failure?.src === src ? failure.stage : undefined;
     const imageSrc = stage === "proxy" ? maskSrc : src;
+    const unavailable = useCallback(() => setFailure({ src, stage: !stage && maskSrc !== src ? "proxy" : "failed" }), [src, stage, maskSrc]);
 
     const maskImage = `url(${JSON.stringify(maskSrc)})`;
 
     return (
         <div className={styles.root} data-player-wordmark="" data-state={stage || "image"}>
             <div className={styles.logo} data-loading={loading || undefined}>
-                {stage === "failed" ? <span className={styles.fallback}>{alt.replace(/ logo$/i, "")}</span> : <img
+                {stage === "failed" ? <span className={styles.fallback}>{alt.replace(/ logo$/i, "")}</span> : <ArtworkImage
                     src={imageSrc}
                     fetchPriority="high"
                     decoding="async"
                     alt={alt}
                     draggable={false}
                     className={styles.image}
-                    onError={() => setFailure({ src, stage: !stage && maskSrc !== src ? "proxy" : "failed" })}
+                    waitForDecode
+                    fallbackText=""
+                    onUnavailable={unavailable}
                 />}
                 {loading && stage !== "failed" && (
                     <span

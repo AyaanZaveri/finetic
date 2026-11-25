@@ -61,6 +61,7 @@ export function EpisodeHeroThumbnail({
       draggable={false}
       src={thumbnail}
       alt={title}
+      waitForDecode
       className="h-full w-full object-cover"
       onError={() => setFailedSrc(thumbnail)}
     />
