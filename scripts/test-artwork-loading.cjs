@@ -52,6 +52,7 @@ const posterProps = { item: { id: 'tmdb:236182', type: 'series', name: 'Amazing 
   poster: 'https://image.tmdb.org/t/p/w500/u17FjBbauOJailVQC1siM9yGfDw.jpg' } };
 let card = cardHooks.render(cardFixture.MediaCard, posterProps);
 let poster = nodes(card).find(node => node.type === 'artwork-image');
+assert.equal(poster.props.waitForDecode, false, 'Ordinary posters retain their existing reveal behavior');
 assert.equal(poster.props.src, posterProps.item.poster, 'Search cards keep the same exact poster as suggestions');
 poster.props.onUnavailable();
 card = cardHooks.render(cardFixture.MediaCard, posterProps);
@@ -78,6 +79,8 @@ const resumeProps = { ...posterProps, continueWatching: true, item: {
 const findResumeImage = (props) => nodes(resumeHooks.render(resumeCard.MediaCard, props)).find(node => node.type === 'artwork-image');
 assert.equal(findResumeImage({ ...resumeProps, revealArtwork: false }).props.reveal, true,
   'Continue Watching uses the same first-paint reveal as episode cards, including cached metadata');
+assert.equal(findResumeImage(resumeProps).props.waitForDecode, true,
+  'Continue Watching must not start its backdrop fade before pixels are decoded');
 const cachedLogoProps = { ...resumeProps, revealArtwork: false };
 const logo = () => nodes(resumeHooks.render(resumeCard.MediaCard, cachedLogoProps)).find(node => node.type === 'img');
 const wordmark = () => nodes(resumeHooks.render(resumeCard.MediaCard, cachedLogoProps)).find(node => node.props?.className?.includes('wordmark'));
@@ -203,4 +206,38 @@ console.log('PASS: source changes, stale events, immediate load, pre-hydration c
   assert.equal(getWordmark(nextProps).props['data-logo-ready'], '', 'A stale decode cannot replace the current logo');
   fixture.unmount();
   console.log('PASS: decoded logo readiness, duplicate notification protection and stale decode cancellation');
+})().catch(error => { console.error(error); process.exitCode = 1; });
+
+// The native load event and cached-image ref may precede actual decoding.
+(async () => {
+  const fixture = hooks();
+  const { ArtworkImage } = load('components/artwork-image.tsx', {
+    ...imageDependencies, react: { ...React, ...fixture.react }, 'react/jsx-runtime': fixture.jsx,
+  }, { window: { innerHeight: 800, innerWidth: 1200 } });
+  const props = { src: '/continue-watching.jpg', waitForDecode: true };
+  const render = (value = props) => fixture.render(ArtworkImage, value);
+  let finish, calls = 0;
+  const image = { complete: true, naturalWidth: 780, src: props.src,
+    decode: () => { calls++; return new Promise(resolve => { finish = resolve; }); } };
+  render().props.ref(image);
+  render().props.onLoad({ currentTarget: image });
+  assert.equal(calls, 1, 'Ref and load must share the same backdrop decode');
+  assert.equal(render().props['data-artwork-state'], 'loading', 'Do not start the fade on an undecoded image');
+  finish(); await Promise.resolve();
+  assert.equal(render().props['data-artwork-state'], 'ready');
+  assert.equal(render().props['data-artwork-revealing'], '', 'Decoded pixels trigger the reveal');
+  let finishOld;
+  const old = { ...props, src: '/old.jpg' }, next = { ...props, src: '/new.jpg' };
+  const oldRef = render(old).props.ref;
+  oldRef({ ...image, src: old.src, decode: () => new Promise(resolve => { finishOld = resolve; }) });
+  oldRef(null);
+  render(next).props.ref({ complete: true, naturalWidth: 780, src: next.src });
+  finishOld(); await Promise.resolve();
+  assert.equal(render(next).props['data-artwork-state'], 'ready', 'A replaced source cannot overwrite newer readiness');
+  const rejected = { ...props, src: '/decode-rejected.jpg' };
+  render(rejected).props.ref({ complete: true, naturalWidth: 780, src: rejected.src, decode: () => Promise.reject(Error('decode unavailable')) });
+  await Promise.resolve();
+  assert.equal(render(rejected).props['data-artwork-state'], 'ready', 'A successfully loaded image must not remain hidden if decode rejects');
+  fixture.unmount();
+  console.log('PASS: Continue Watching backdrop waits for decoding, deduplicates load/ref, and ignores stale decodes');
 })().catch(error => { console.error(error); process.exitCode = 1; });

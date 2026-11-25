@@ -16,6 +16,7 @@
     "test:settings": "node scripts/test-settings-shortcut.cjs && node scripts/test-desktop-tmdb-setup.cjs && node scripts/test-settings-navigation.cjs && node scripts/test-artwork-settings.cjs && node scripts/test-episode-discovery.cjs && node scripts/test-browser-connection-credentials.cjs && node scripts/test-openai-models.cjs && node scripts/test-catalog-models.cjs && node scripts/test-provider-models.cjs && node scripts/test-chatgpt-sign-in.cjs && node scripts/test-optimistic-web-search.cjs",
     "test:openai-models": "node scripts/test-openai-models.cjs",
     "test:artwork-loading": "node scripts/test-motion-endpoints.cjs && node scripts/test-artwork-loading.cjs && node scripts/test-artwork-reveal.cjs && node scripts/test-episode-hero-resolution.cjs",
+    "test:continue-watching-reveal-browser": "node scripts/test-continue-watching-reveal-browser.mjs",
     "test:carousel-artwork": "node scripts/test-carousel-artwork.cjs",
     "test:player-settings": "node scripts/test-player-settings.cjs && node scripts/test-subtitle-appearance.cjs && node scripts/test-subtitle-timing.cjs && node scripts/test-native-subtitle-timing.cjs && node scripts/test-player-subtitles.cjs && node scripts/test-native-readiness.cjs && node scripts/test-playback-preferences.cjs && node scripts/test-audio-language.cjs && node scripts/test-player-clock-work.cjs",
     "test:people": "node scripts/test-cast.cjs && node scripts/test-person-filmography.cjs && node scripts/test-tmdb-known-for.cjs && node scripts/test-person-skeleton.cjs && node scripts/test-episode-skeleton.cjs",

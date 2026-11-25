@@ -206,6 +206,7 @@ export function MediaCard({
             {imageUrl ? (
               <ArtworkImage
                 reveal={continueWatching || revealArtwork ? true : "late"}
+                waitForDecode={continueWatching}
                 src={imageUrl}
                 srcSet={imageSrcSet}
                 sizes={continueWatching ? "320px" : undefined}

@@ -10,6 +10,8 @@ type Props = Omit<ComponentPropsWithoutRef<"img">, "src"> & {
   fallbackText?: string;
   /** "late" reveals newly loaded pixels without replaying already-complete images. */
   reveal?: boolean | "late";
+  /** Large backdrops start their reveal only when the decoded pixels can paint. */
+  waitForDecode?: boolean;
   onUnavailable?: () => void;
 };
 
@@ -24,28 +26,49 @@ export function ArtworkPlaceholder({ label = "Artwork unavailable", className, .
 /** Keep native image geometry; reveal loaded pixels over the card's surface. */
 export function ArtworkImage({
   src, srcSet, sizes, alt = "", className, style, width, height,
-  onLoad, onError, onUnavailable, decoding = "async", fallbackText = "Artwork unavailable", reveal = true, ...props
+  onLoad, onError, onUnavailable, decoding = "async", fallbackText = "Artwork unavailable", reveal = true, waitForDecode = false, ...props
 }: Props) {
   const key = JSON.stringify([src, srcSet, sizes]);
   const [result, setResult] = useState<{ key: string; state: "ready" | "error"; unseen?: boolean; late?: boolean } | null>(null);
   const pendingKey = useRef<string | null>(null);
+  const decodeAttempt = useRef<{ key: string; image: HTMLImageElement; source: string } | null>(null);
   const state = !src ? "error" : result?.key === key ? result.state : "loading";
 
-  const finish = useCallback((image: HTMLImageElement, late: boolean) => {
+  const markReady = useCallback((image: HTMLImageElement, late: boolean) => {
     const box = image.getBoundingClientRect?.();
     const unseen = !!box && box.right > box.left && box.bottom > box.top && (box.bottom <= 0 || box.right <= 0 || box.top >= window.innerHeight || box.left >= window.innerWidth);
     // A load event can follow the cached-image ref callback, or a ref can
     // attach again after a real load. Preserve the first readiness decision.
     setResult(previous => previous?.key === key && previous.state === "ready" ? previous : { key, state: "ready", unseen, late });
   }, [key]);
+  const finish = useCallback((image: HTMLImageElement, late: boolean) => {
+    if (!waitForDecode || typeof image.decode !== "function") { markReady(image, late); return; }
+    const source = image.currentSrc || image.src;
+    const previous = decodeAttempt.current;
+    if (previous?.key === key && previous.image === image && previous.source === source) return;
+    const attempt = { key, image, source };
+    decodeAttempt.current = attempt;
+    const ready = () => {
+      if (decodeAttempt.current !== attempt || source !== (image.currentSrc || image.src)) return;
+      if (image.complete && image.naturalWidth > 0) markReady(image, late);
+      else decodeAttempt.current = null;
+    };
+    // A successful load does not establish that a wide image can already
+    // paint. Keep it hidden until decode completes, including cache hits.
+    void image.decode().then(ready, ready);
+  }, [key, markReady, waitForDecode]);
   const fail = useCallback(() => {
+    if (decodeAttempt.current?.key === key) decodeAttempt.current = null;
     setResult({ key, state: "error" });
     onUnavailable?.();
   }, [key, onUnavailable]);
 
   const attach = useCallback((image: HTMLImageElement | null) => {
     // A cached image can finish before hydration attaches load/error handlers.
-    if (!image || !src) return;
+    if (!image || !src) {
+      if (decodeAttempt.current?.key === key) decodeAttempt.current = null;
+      return;
+    }
     if (image.complete) {
       if (image.naturalWidth > 0) finish(image, pendingKey.current === key);
       else fail();

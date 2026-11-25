@@ -25,6 +25,25 @@
   box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--shadow-artwork);
 }
 
+/* Fade the stable backdrop plane, not the newly decoded and independently
+   zooming image. The wordmark, shade and progress bar remain separate. */
+.card[data-continue-watching] .artworkBounds:has(.artwork[data-artwork-state="loading"]) {
+  opacity: 0;
+}
+.card[data-continue-watching] .artworkBounds:has(.artwork[data-artwork-revealing]) {
+  opacity: 1;
+  transition: opacity 300ms var(--ease-out);
+}
+.card[data-continue-watching] .artwork[data-artwork-revealing] {
+  animation: none;
+}
+@starting-style {
+  .card[data-continue-watching] .artworkBounds:has(.artwork[data-artwork-revealing]) { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card[data-continue-watching] .artworkBounds:has(.artwork[data-artwork-revealing]) { transition-duration: 100ms; }
+}
+
 /* Match the title-page wordmark: keep one stable opacity transition, and
    only reveal when both the decoded logo and its artwork are ready. */
 .wordmark {
