@@ -138,10 +138,14 @@ async function main() {
     const ai = {}; for (const name of ['APICallError', 'NoObjectGeneratedError', 'RetryError']) ai[name] = { isInstance: () => false };
     const provider = settings => { selected = settings; throw new Error('STOP_AT_MODEL_SELECTION'); };
     const chatDependencies = {
+        'server-only': {},
         '@ai-sdk/google': {}, '@ai-sdk/openai': { createOpenAI: provider }, '@openrouter/ai-sdk-provider': {}, '@ai-sdk/groq': {}, '@ai-sdk/cerebras': {}, 'ai-sdk-ollama': {},
         '@ai-sdk/openai-compatible': { createOpenAICompatible: provider }, ai,
         '@/lib/navigator-chat': {}, '@/app/tools/scene-workflow': {}, '@/lib/navigator-model-settings': {}, '@/lib/opencode-go': {}, '@/lib/tmdb-discovery': {}, '@/app/tools': {},
         '@/lib/navigator-scene-context': { sceneRequestContext: () => ({}) },
+        '@/lib/discovery': { hasTMDBDiscovery: async () => false },
+        '@/app/actions/media': {}, '@/app/actions/tv-shows': {},
+        '@/lib/server/chatgpt-connection': { ChatGPTConnectionError: class extends Error {} }, '@/lib/server/chatgpt-model': {},
         '@/lib/models-dev': load('lib/models-dev.ts', {}, { URL }), '@/lib/server/auth': auth, '@/lib/server/outbound-fetch': transport,
         '@/lib/server/default-ai-model': { resolveLatestSmallModel: async (provider, key) => {
             assert.equal(provider, 'openai');
