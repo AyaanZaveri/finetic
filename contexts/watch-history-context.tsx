@@ -15,7 +15,12 @@ interface WatchHistoryContextValue {
 const WatchHistoryContext = createContext<WatchHistoryContextValue>({ items: {}, subscribe: () => () => {}, update: () => {}, toggle: async () => false });
 
 /** Account-scoped and shared across cards; never one API request per thumbnail. */
-export function WatchHistoryProvider({ children, enabled = true }: { children: ReactNode; enabled?: boolean }) {
+export function WatchHistoryProvider({ children, enabled = true, fetchItems = fetchWatchedItems, saveStatus = setWatchedStatus }: {
+    children: ReactNode;
+    enabled?: boolean;
+    fetchItems?: typeof fetchWatchedItems;
+    saveStatus?: typeof setWatchedStatus;
+}) {
     const [items, setItems] = useState<Record<string, WatchHistoryItem>>({});
     const currentItems = useRef<Record<string, WatchHistoryItem>>({});
     const mutations = useRef<ReturnType<typeof createWatchStatusQueue> | null>(null);
@@ -41,7 +46,7 @@ export function WatchHistoryProvider({ children, enabled = true }: { children: R
             for (let index = 0; index < batch.length; index += 100) {
                 const chunk = batch.slice(index, index + 100);
                 const sentVersions = new Map(chunk.map(item => [watchHistoryKey(item), versions.current.get(watchHistoryKey(item))]));
-                void fetchWatchedItems(chunk).then(result => {
+                void fetchItems(chunk).then(result => {
                     if (current !== generation.current.value) return;
                     if (result) {
                         const fresh = Object.fromEntries(Object.entries(result)
@@ -53,7 +58,7 @@ export function WatchHistoryProvider({ children, enabled = true }: { children: R
                 }).catch(() => { chunk.forEach(item => cached.current.delete(watchHistoryKey(item))); });
             }
         }, 0);
-    }, [enabled]);
+    }, [enabled, fetchItems]);
 
     const subscribe = useCallback((request: WatchHistoryRequest) => {
         const key = watchHistoryKey(request);
@@ -113,7 +118,7 @@ export function WatchHistoryProvider({ children, enabled = true }: { children: R
         const queue = createWatchStatusQueue({
             read: request => currentItems.current[watchHistoryKey(request)],
             update,
-            save: setWatchedStatus,
+            save: saveStatus,
             settled: request => window.dispatchEvent(new CustomEvent(WATCH_HISTORY_CHANGED, { detail: { id: request.id } })),
         });
         mutations.current = queue;
@@ -121,7 +126,7 @@ export function WatchHistoryProvider({ children, enabled = true }: { children: R
             queue.dispose();
             if (mutations.current === queue) mutations.current = null;
         };
-    }, [enabled, update]);
+    }, [enabled, update, saveStatus]);
 
     const toggle = useCallback((input: Omit<WatchStatusInput, "watched">) => mutations.current?.toggle(input) ?? Promise.resolve(false), []);
 

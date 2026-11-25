@@ -1,0 +1,305 @@
+{
+  "show": {
+    "id": "tmdb:225171",
+    "type": "series",
+    "name": "Pluribus",
+    "description": "The most miserable person on Earth must save the world from happiness.",
+    "year": 2025,
+    "releaseInfo": "2025-11-06",
+    "poster": "https://image.tmdb.org/t/p/w500/z7Nga7Q9IGFWs5OEduY2gGFxnX3.jpg",
+    "background": "https://image.tmdb.org/t/p/w1280/ulm1ex4JFYJByyaPyqTr47MFyEQ.jpg",
+    "communityRating": 7.9,
+    "ratingSource": "TMDB",
+    "voteCount": 1225,
+    "imdbId": "tt22202452",
+    "logo": "https://image.tmdb.org/t/p/original/qUMaG3ZB32GXtXMMjz7pkxehz26.png",
+    "genres": [
+      "Drama",
+      "Sci-Fi & Fantasy"
+    ],
+    "cast": [
+      "Rhea Seehorn",
+      "Karolina Wydra",
+      "Carlos-Manuel Vesga"
+    ],
+    "director": [],
+    "writer": [],
+    "seasons": [
+      {
+        "number": 1,
+        "name": "Season 1",
+        "episodeCount": 9
+      }
+    ],
+    "videos": [
+      {
+        "id": "tmdb:225171:1:1",
+        "title": "We Is Us",
+        "overview": "An astronomer's discovery turns the planet upside down. Carol Sturka, a curmudgeonly novelist, is terrified by this strange new world.",
+        "season": 1,
+        "episode": 1,
+        "released": "2025-11-06",
+        "thumbnail": "https://image.tmdb.org/t/p/w780/5abqAAPKjFDqmNwLb0sCtGlS8aj.jpg",
+        "runtime": 57
+      },
+      {
+        "id": "tmdb:225171:1:2",
+        "title": "Pirate Lady",
+        "overview": "A curiously familiar face introduces Carol to the bizarre new normal. A gathering in Europe brings strangers together...and causes friction.",
+        "season": 1,
+        "episode": 2,
+        "released": "2025-11-06",
+        "thumbnail": "https://image.tmdb.org/t/p/w780/3uTzBoc6zkcKRexqB6nEhQYOglb.jpg",
+        "runtime": 63
+      },
+      {
+        "id": "tmdb:225171:1:3",
+        "title": "Grenade",
+        "overview": "The World just wants to help—which infuriates Carol. A heart-to-heart conversation ends with a bang.",
+        "season": 1,
+        "episode": 3,
+        "released": "2025-11-13",
+        "thumbnail": "https://image.tmdb.org/t/p/w780/b2PaM8KcHLS2TIwQOyTSyiIn9FF.jpg",
+        "runtime": 44
+      },
+      {
+        "id": "tmdb:225171:1:4",
+        "title": "Please, Carol",
+        "overview": "Carol tests the boundaries of this weirdly honest world at the expense of her ego. Far away, a resolute individual learns he's not alone.",
+        "season": 1,
+        "episode": 4,
+        "released": "2025-11-20",
+        "thumbnail": "https://image.tmdb.org/t/p/w780/7HyFmXC7ydtA4aKzlimCPGLcdxJ.jpg",
+        "runtime": 46
+      },
+      {
+        "id": "tmdb:225171:1:5",
+        "title": "Got Milk",
+        "overview": "Carol doubles down on her investigation—loneliness be damned. Meanwhile, howls in the night reveal a new source of danger.",
+        "season": 1,
+        "episode": 5,
+        "released": "2025-11-25",
+        "thumbnail": "https://image.tmdb.org/t/p/w780/7dQXHMP7irZNis7erI8mHL3p8Ve.jpg",
+        "runtime": 46
+      },
+      {
+        "id": "tmdb:225171:1:6",
+        "title": "HDP",
+        "overview": "Carol shares a horrific discovery and learns new truths in the process. Mr. Diabaté lives life to the fullest in Sin City.",
+        "season": 1,
+        "episode": 6,
+        "released": "2025-12-04",
+        "thumbnail": "https://image.tmdb.org/t/p/w780/u7RyWMcyi3Fhyr5UPlyYFuVJTYP.jpg",
+        "runtime": 50
+      },
+      {
+        "id": "tmdb:225171:1:7",
+        "title": "The Gap",
+        "overview": "Manousos begins a dangerous trek to meet Carol. Returning home from Las Vegas, Carol gets creative with her rebellion.",
+        "season": 1,
+        "episode": 7,
+        "released": "2025-12-11",
+        "thumbnail": "https://image.tmdb.org/t/p/w780/kcIF01S5674EzsvwyNE2oY9Y65Q.jpg",
+        "runtime": 46
+      },
+      {
+        "id": "tmdb:225171:1:8",
+        "title": "Charm Offensive",
+        "overview": "Carol takes a different tack with The Others and discovers more than she anticipated. Manousos awakens in unfamiliar surroundings.",
+        "season": 1,
+        "episode": 8,
+        "released": "2025-12-18",
+        "thumbnail": "https://image.tmdb.org/t/p/w780/d3uHwrDjnyfXv6Vradm88Xw2nV1.jpg",
+        "runtime": 43
+      },
+      {
+        "id": "tmdb:225171:1:9",
+        "title": "La Chica o El Mundo",
+        "overview": "Manousos arrives in Albuquerque and complications ensue. Carol visits the last best place on Earth.",
+        "season": 1,
+        "episode": 9,
+        "released": "2025-12-23",
+        "thumbnail": "https://image.tmdb.org/t/p/w780/gykreh1ZKPlQDucTvrNOYf7Ccxp.jpg",
+        "runtime": 58
+      }
+    ]
+  },
+  "cast": [
+    {
+      "id": "62765",
+      "name": "Rhea Seehorn",
+      "role": "Carol Sturka",
+      "image": "https://image.tmdb.org/t/p/w185/tql4gvY8NfYvmAdmdp1olkwJnrq.jpg"
+    },
+    {
+      "id": "210829",
+      "name": "Karolina Wydra",
+      "role": "Zosia",
+      "image": "https://image.tmdb.org/t/p/w185/141nqX6Ikw7sXgWAkMTEbLbzqpU.jpg"
+    },
+    {
+      "id": "1251536",
+      "name": "Carlos-Manuel Vesga",
+      "role": "Manousos Oviedo",
+      "image": "https://image.tmdb.org/t/p/w185/crm5YcUTtb5pXhZbJsATA8EAoPD.jpg"
+    }
+  ],
+  "recommendations": [
+    {
+      "id": "tmdb:9045",
+      "type": "series",
+      "name": "The Stand",
+      "description": "After a deadly plague kills most of the world’s population, the remaining survivors split into two groups - one led by a benevolent elder and the other by a maleficent being - to face each other in a final battle between good and evil.",
+      "year": 1994,
+      "releaseInfo": "1994-05-08",
+      "poster": "https://image.tmdb.org/t/p/w500/o4Gb63aXRh5mMqGifYACixnxGkQ.jpg",
+      "background": "https://image.tmdb.org/t/p/w1280/mCbh1Mzcu6AlTO4aFlfnwfKsxsE.jpg",
+      "communityRating": 6.8,
+      "ratingSource": "TMDB",
+      "voteCount": 550
+    },
+    {
+      "id": "tmdb:79501",
+      "type": "series",
+      "name": "Doom Patrol",
+      "description": "The Doom Patrol’s members each suffered horrible accidents that gave them superhuman abilities — but also left them scarred and disfigured. Traumatized and downtrodden, the team found purpose through The Chief, who brought them together to investigate the weirdest phenomena in existence — and to protect Earth from what they find.",
+      "year": 2019,
+      "releaseInfo": "2019-02-15",
+      "poster": "https://image.tmdb.org/t/p/w500/nVN7Dt0Xr78gnJepRsRLaLYklbY.jpg",
+      "background": "https://image.tmdb.org/t/p/w1280/sSJZVwCS0tFzcLSaQOjLpv5mFau.jpg",
+      "communityRating": 7.468,
+      "ratingSource": "TMDB",
+      "voteCount": 1515
+    },
+    {
+      "id": "tmdb:42009",
+      "type": "series",
+      "name": "Black Mirror",
+      "description": "Twisted tales run wild in this mind-bending anthology series that reveals humanity's worst traits, greatest innovations and more.",
+      "year": 2011,
+      "releaseInfo": "2011-12-04",
+      "poster": "https://image.tmdb.org/t/p/w500/seN6rRfN0I6n8iDXjlSMk1QjNcq.jpg",
+      "background": "https://image.tmdb.org/t/p/w1280/dg3OindVAGZBjlT3xYKqIAdukPL.jpg",
+      "communityRating": 8.294,
+      "ratingSource": "TMDB",
+      "voteCount": 6735
+    },
+    {
+      "id": "tmdb:86382",
+      "type": "series",
+      "name": "The Stand",
+      "description": "In a world mostly wiped out by the plague and embroiled in an elemental struggle between good and evil, the fate of mankind rests on the frail shoulders of the 108-year-old Mother Abagail and a handful of survivors. Their worst nightmares are embodied in a man with a lethal smile and unspeakable powers: Randall Flagg, the Dark Man.",
+      "year": 2020,
+      "releaseInfo": "2020-12-17",
+      "poster": "https://image.tmdb.org/t/p/w500/w6XiuRK5QQaLNmIqDRCWOpEcHwi.jpg",
+      "background": "https://image.tmdb.org/t/p/w1280/b7MUOLzo9kxQRSjGHwp589HMdxI.jpg",
+      "communityRating": 6.779,
+      "ratingSource": "TMDB",
+      "voteCount": 767
+    },
+    {
+      "id": "tmdb:138505",
+      "type": "series",
+      "name": "Marvel Zombies",
+      "description": "After the Avengers are overtaken by a zombie plague, a desperate group of survivors discover the key to bringing an end to the super-powered undead, racing across a dystopian landscape and risking life and limb to save their world.",
+      "year": 2025,
+      "releaseInfo": "2025-09-24",
+      "poster": "https://image.tmdb.org/t/p/w500/mwKj9ERGFXsWot0nXgQ5yMQf9I7.jpg",
+      "background": "https://image.tmdb.org/t/p/w1280/lxQMxqao3vs2ehxESrkQU6acU86.jpg",
+      "communityRating": 7.279,
+      "ratingSource": "TMDB",
+      "voteCount": 448
+    },
+    {
+      "id": "tmdb:1396",
+      "type": "series",
+      "name": "Breaking Bad",
+      "description": "Walter White, a New Mexico chemistry teacher, is diagnosed with Stage III cancer and given a prognosis of only two years left to live. He becomes filled with a sense of fearlessness and an unrelenting desire to secure his family's financial future at any cost as he enters the dangerous world of drugs and crime.",
+      "year": 2008,
+      "releaseInfo": "2008-01-20",
+      "poster": "https://image.tmdb.org/t/p/w500/anFx9aTOOYqgS3v7x3R84Kz67ly.jpg",
+      "background": "https://image.tmdb.org/t/p/w1280/tsRy63Mu5cu8etL1X7ZLyf7UP1M.jpg",
+      "communityRating": 8.96,
+      "ratingSource": "TMDB",
+      "voteCount": 19184
+    },
+    {
+      "id": "tmdb:103768",
+      "type": "series",
+      "name": "Sweet Tooth",
+      "description": "On an epic adventure across a postapocalyptic world, a lovable boy who's part human and part deer searches for family and home with a gruff protector.",
+      "year": 2021,
+      "releaseInfo": "2021-06-04",
+      "poster": "https://image.tmdb.org/t/p/w500/rgMfhcrVZjuy5b7Pn0KzCRCEnMX.jpg",
+      "background": "https://image.tmdb.org/t/p/w1280/xpba0Dxz3sxV3QgYLR8UIe1LAAX.jpg",
+      "communityRating": 7.731,
+      "ratingSource": "TMDB",
+      "voteCount": 1689
+    },
+    {
+      "id": "tmdb:86550",
+      "type": "series",
+      "name": "Y: The Last Man",
+      "description": "Traverse a post-apocalyptic world in which a cataclysmic event decimates every mammal with a Y chromosome but for one cisgender man and his pet monkey. Follow the survivors in this new world as they struggle with their efforts to restore what was lost and the opportunity to build something better.",
+      "year": 2021,
+      "releaseInfo": "2021-09-13",
+      "poster": "https://image.tmdb.org/t/p/w500/xJvTO2fLOQWwJlQ4MAt7rP8Yno0.jpg",
+      "background": "https://image.tmdb.org/t/p/w1280/z97rfiQ57Onqng3r4NomSBJRN0H.jpg",
+      "communityRating": 6.649,
+      "ratingSource": "TMDB",
+      "voteCount": 338
+    },
+    {
+      "id": "tmdb:61345",
+      "type": "series",
+      "name": "Z Nation",
+      "description": "Three years after the zombie virus has gutted the country, a team of everyday heroes must transport the only known survivor of the plague from New York to California, where the last functioning viral lab waits for his blood.",
+      "year": 2014,
+      "releaseInfo": "2014-09-12",
+      "poster": "https://image.tmdb.org/t/p/w500/gXfeDMkEcHoYBvtkbU11g3F81b.jpg",
+      "background": "https://image.tmdb.org/t/p/w1280/pYErfWWb52zq9QQFoZ0Qeoo5Yz.jpg",
+      "communityRating": 7.253,
+      "ratingSource": "TMDB",
+      "voteCount": 1002
+    },
+    {
+      "id": "tmdb:90972",
+      "type": "series",
+      "name": "Station Eleven",
+      "description": "The survivors of a devastating flu attempt to rebuild and reimagine the world anew – while holding on to the best of what’s been lost.",
+      "year": 2021,
+      "releaseInfo": "2021-12-16",
+      "poster": "https://image.tmdb.org/t/p/w500/xWlhMOzRxUpu4uzkWcDQOaESCE.jpg",
+      "background": "https://image.tmdb.org/t/p/w1280/kiiPOuzjyIe793tgGsM5j5DaRxb.jpg",
+      "communityRating": 7.022,
+      "ratingSource": "TMDB",
+      "voteCount": 477
+    },
+    {
+      "id": "tmdb:61664",
+      "type": "series",
+      "name": "Sense8",
+      "description": "One gunshot, one death, one moment out of time that irrevocably links eight minds in disparate parts of the world, putting them in each other's lives, each other's secrets, and in terrible danger. Ordinary people suddenly reborn as \"Sensates.\"",
+      "year": 2015,
+      "releaseInfo": "2015-06-05",
+      "poster": "https://image.tmdb.org/t/p/w500/kmyvlQ9QKzgdZY31rXaUlgCnzrB.jpg",
+      "background": "https://image.tmdb.org/t/p/w1280/d6JYL53xISzfqz6HhvaKWTDcOUZ.jpg",
+      "communityRating": 7.701,
+      "ratingSource": "TMDB",
+      "voteCount": 1978
+    },
+    {
+      "id": "tmdb:94305",
+      "type": "series",
+      "name": "The Walking Dead: World Beyond",
+      "description": "A heroic group of teens sheltered from the dangers of the post-apocalyptic world receive a message that inspires them to leave the safety of the only home they have ever known and embark on a cross-country journey to find the one man who can possibly save the world.",
+      "year": 2020,
+      "releaseInfo": "2020-10-04",
+      "poster": "https://image.tmdb.org/t/p/w500/6HanIV2hTLE2w7A5bI1KJb3bTL7.jpg",
+      "background": "https://image.tmdb.org/t/p/w1280/vlxHVv236ehbde3qXc5R1ewAn4B.jpg",
+      "communityRating": 7.311,
+      "ratingSource": "TMDB",
+      "voteCount": 1239
+    }
+  ]
+}
