@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, CheckCircle, FileText } from "lucide-react";
 import { desktopBridge } from "@/lib/desktop/bridge";
 import { useAppUpdate } from "@/components/desktop/app-update-provider";
 import { appReleasesUrl } from "@/lib/app-update-notes";
@@ -27,13 +27,7 @@ export function AppUpdates() {
         : "");
 
     return <section className={styles.section} aria-label="About Navigator">
-        <div className="flex flex-wrap items-center gap-x-2">
-            <h2>Navigator {status?.version ?? version}</h2>
-            {status?.available && <Button type="button" variant="ghost" size="xs" className="text-muted-foreground hover:text-foreground"
-                aria-haspopup="dialog" onClick={event => openUpdate(event.currentTarget, "installed")}>
-                Release notes
-            </Button>}
-        </div>
+        <h2>Navigator {status?.version ?? version}</h2>
         {status?.available ? <Field orientation="horizontal">
             <FieldContent><FieldLabel htmlFor="automatic-app-updates">Download updates automatically</FieldLabel></FieldContent>
             <Switch id="automatic-app-updates" checked={status.automatic}
@@ -44,6 +38,11 @@ export function AppUpdates() {
                 aria-haspopup={offered ? "dialog" : undefined}
                 onClick={event => offered ? openUpdate(event.currentTarget) : requestUpdate("prepare")}>
                 {activity ? <ActivityTextShimmer>{activity}</ActivityTextShimmer> : action}
+            </Button>}
+            {status?.available && <Button type="button" variant="outline" size="sm"
+                aria-haspopup="dialog" onClick={event => openUpdate(event.currentTarget, "installed")}>
+                <FileText className="text-muted-foreground" data-icon="inline-start" aria-hidden="true" />
+                Release notes
             </Button>}
             <Button asChild variant={status?.available ? "ghost" : "outline"} size="sm">
                 <a draggable={false} className={externalLink.link} href={appReleasesUrl} target="_blank" rel="noreferrer">
@@ -57,6 +56,11 @@ export function AppUpdates() {
                 </a>
             </Button>
         </div>
-        {status && <p role="status" className={feedback ? styles.feedback : "sr-only"}>{announcement}</p>}
+        {status && <p role="status" className={state === "current" ? `${styles.feedback} flex items-center gap-1.5` : feedback ? styles.feedback : "sr-only"}>
+            {state === "current" ? <>
+                <CheckCircle className="size-3.5 shrink-0 text-[var(--success)]" aria-hidden="true" />
+                {announcement}
+            </> : announcement}
+        </p>}
     </section>;
 }

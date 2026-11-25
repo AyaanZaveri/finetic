@@ -22,6 +22,7 @@ for (const platform of ['windows', 'macos']) {
         '@/lib/desktop/bridge': { desktopBridge: () => bridge },
         '@/components/desktop/app-update-provider': updateContext,
         '@/components/ui/button': { Button: 'Button' }, '@/components/github-icon': { GitHubIcon: 'GitHubIcon' },
+        'lucide-react': { ArrowUpRight: 'ArrowUpRight', CheckCircle: 'CheckCircle', FileText: 'FileText' },
         '@/components/external-link-reveal.module.css': { link: 'external-link', arrow: 'external-arrow' },
         '@/components/arc/switch/switch': { Switch: 'Switch' },
         '@/components/motion-primitives/activity-text-shimmer': { ActivityTextShimmer: 'Shimmer' },
@@ -100,9 +101,11 @@ for (const platform of ['windows', 'macos']) {
     status('current');
     tree = settingsTree();
     const feedback = find(tree, 'p').find(node => node.props.role === 'status');
-    assert.equal(feedback.props.className, 'feedback');
-    assert.equal(feedback.props.children, 'You’re up to date.');
-    const installedNotes = find(tree, 'Button').find(button => button.props.children === 'Release notes');
+    assert.match(feedback.props.className, /\bfeedback\b/);
+    assert.ok(feedback.props.children.props.children.includes('You’re up to date.'));
+    assert.equal(find(feedback, 'CheckCircle')[0].props['aria-hidden'], 'true');
+    const installedNotes = find(tree, 'Button').find(button => Array.isArray(button.props.children) && button.props.children.includes('Release notes'));
+    assert.equal(find(installedNotes, 'FileText')[0].props['aria-hidden'], 'true');
     installedNotes.props.onClick({ currentTarget: {} });
     assert.equal(find(renderProvider(), 'AppUpdateDialog')[0].props.view, 'installed');
     status('error', { available: false, message: 'Couldn’t check for updates.' });
