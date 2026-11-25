@@ -27,6 +27,7 @@ export function MediaCard({
   subtitleContent,
   titleLines = 1,
   revealArtwork = true,
+  onRemovalIntent,
 }: {
   item: MediaItem;
   continueWatching?: boolean;
@@ -34,6 +35,7 @@ export function MediaCard({
   subtitleContent?: React.ReactNode;
   titleLines?: 1 | 2;
   revealArtwork?: boolean;
+  onRemovalIntent?: (_animate: boolean) => (() => void) | undefined;
 }) {
   const { playMedia, setIsPlayerVisible } = usePlaybackActions();
   const originalTitleId = item.seriesId || (item.type === "series" ? parseSeriesRouteId(item.id).seriesId : item.id);
@@ -144,7 +146,7 @@ export function MediaCard({
   };
 
   return (
-    <MediaCardMenu item={item} continueWatching={continueWatching} detailsHref={linkHref} onPlay={playCard} onResolvedId={resolveHistoryId}>
+    <MediaCardMenu item={item} continueWatching={continueWatching} detailsHref={linkHref} onPlay={playCard} onResolvedId={resolveHistoryId} onRemovalIntent={onRemovalIntent}>
     <div
       data-continue-watching={continueWatching || undefined}
       data-reveal-artwork={revealArtwork || undefined}

@@ -24,9 +24,10 @@ import glass from "@/components/arc/floating-surface.module.css";
 export type CardPlayback = { fromBeginning: boolean; titleId: string; videoId?: string; resumePosition?: number };
 
 /** Use the existing card as the trigger, without another hit target or tab stop. */
-export function MediaCardMenu({ item, continueWatching, detailsHref, onPlay, onResolvedId, children }: {
+export function MediaCardMenu({ item, continueWatching, detailsHref, onPlay, onResolvedId, onRemovalIntent, children }: {
     item: MediaItem; continueWatching: boolean; detailsHref: string;
     onPlay: (_playback: CardPlayback) => Promise<void>; onResolvedId?: (_id: string) => void; children: ReactElement;
+    onRemovalIntent?: (_animate: boolean) => (() => void) | undefined;
 }) {
     const router = useRouter();
     const queries = useStreamQueries();
@@ -41,6 +42,7 @@ export function MediaCardMenu({ item, continueWatching, detailsHref, onPlay, onR
     const returnFocus = useRef<HTMLElement | null>(null);
     const suppressClick = useRef(false);
     const touchInvocation = useRef(false);
+    const pointerSelection = useRef(false);
     const originalTitleId = item.seriesId || (item.type === "series" ? parseSeriesRouteId(item.id).seriesId : item.id);
     const titleId = resolvedId || originalTitleId;
     const explicitVideoId = item.mediaSourceId || item.episodeId || (item.type === "series" && item.seasonNumber !== undefined && item.episodeNumber !== undefined
@@ -79,9 +81,15 @@ export function MediaCardMenu({ item, continueWatching, detailsHref, onPlay, onR
         if (!authenticated) { requestSignIn(); return; }
         await onPlay({ fromBeginning, titleId, videoId, resumePosition: fromBeginning ? 0 : resumePosition });
     });
-    const clearResume = async (save: () => Promise<boolean>) => {
-        if (queries) await removeContinueWatchingCard(queries.client, queries.scope, item, save);
-        else if (!await save()) throw new Error("Could not update Continue Watching");
+    const clearResume = async (save: () => Promise<boolean>, animate = false) => {
+        const cancelMotion = queries ? onRemovalIntent?.(animate) : undefined;
+        try {
+            if (queries) await removeContinueWatchingCard(queries.client, queries.scope, item, save);
+            else if (!await save()) throw new Error("Could not update Continue Watching");
+        } catch (error) {
+            cancelMotion?.();
+            throw error;
+        }
         window.dispatchEvent(new CustomEvent(WATCH_HISTORY_CHANGED, { detail: { id: titleId } }));
     };
     const actions = [
@@ -92,16 +100,16 @@ export function MediaCardMenu({ item, continueWatching, detailsHref, onPlay, onR
         ...(authenticated && (item.type === "movie" || isEpisode) ? [{
             id: "watched", label: isEpisode ? `Mark episode as ${status.watched ? "unwatched" : "watched"}` : `Mark as ${status.watched ? "unwatched" : "watched"}`,
             icon: status.watched ? Eye : Check, disabled: !status.known || reading,
-            run: () => act(async () => {
+            run: (animate = false) => act(async () => {
                 const save = () => status.toggle(item.showName || item.name);
                 // Changing the watched flag for the current video clears its resume position.
-                if (continueWatching) await clearResume(save);
+                if (continueWatching) await clearResume(save, animate);
                 else if (!await save()) throw new Error("Watch status failed");
             }),
         }] : []),
         ...(authenticated && continueWatching && (item.type === "movie" || item.type === "series") ? [{
             id: "remove", label: "Remove from Continue Watching", icon: X,
-            run: () => act(() => clearResume(() => removeFromContinueWatching({ id: titleId, type: item.type as "movie" | "series", videoId }))),
+            run: (animate = false) => act(() => clearResume(() => removeFromContinueWatching({ id: titleId, type: item.type as "movie" | "series", videoId }), animate)),
         }] : []),
     ];
 
@@ -147,7 +155,9 @@ export function MediaCardMenu({ item, continueWatching, detailsHref, onPlay, onR
                     <ContextMenuLabel className="truncate">{item.showName || item.name}{episodeLabel ? ` · ${episodeLabel}` : ""}</ContextMenuLabel>
                     {actions.map(({ id, label, icon: Icon, disabled, run }) => <Fragment key={id}>
                         {id === "remove" && <ContextMenuSeparator />}
-                        <ContextMenuItem data-card-menu-item="" className="focus:bg-transparent" disabled={disabled || busy} onSelect={run} textValue={label}>
+                        <ContextMenuItem data-card-menu-item="" className="focus:bg-transparent" disabled={disabled || busy}
+                            onClick={event => { pointerSelection.current = event.detail > 0; }}
+                            onSelect={() => { const animate = pointerSelection.current; pointerSelection.current = false; return run(animate); }} textValue={label}>
                             <Icon aria-hidden="true" />{label}
                         </ContextMenuItem>
                     </Fragment>)}
@@ -161,7 +171,7 @@ export function MediaCardMenu({ item, continueWatching, detailsHref, onPlay, onR
                     <DrawerDescription>{episodeLabel || item.progressLabel || item.episodeTitle || "Choose an action"}</DrawerDescription>
                 </DrawerHeader>
                 <div className="flex min-h-0 flex-col overflow-y-auto p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-                    {actions.map(({ id, label, icon: Icon, disabled, run }) => <Button key={id} type="button" variant="ghost" className="min-h-12 w-full justify-start" disabled={disabled || busy} onClick={run}>
+                    {actions.map(({ id, label, icon: Icon, disabled, run }) => <Button key={id} type="button" variant="ghost" className="min-h-12 w-full justify-start" disabled={disabled || busy} onClick={event => run(event.detail > 0)}>
                         <Icon data-icon="inline-start" aria-hidden="true" />{label}
                     </Button>)}
                 </div>

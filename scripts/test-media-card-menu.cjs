@@ -14,7 +14,7 @@ class Element extends Node {
 }
 class MouseEvent { constructor(type, init) { this.type = type; Object.assign(this, init); } }
 const primitives = Object.fromEntries(['Root', 'Trigger', 'Portal', 'Positioner', 'Popup', 'Group', 'GroupLabel', 'Item', 'Separator'].map(key => [key, key]));
-function setup({ mobile = false, authenticated = true, continueWatching = true, type = 'series', known = true, reduced = false, override = {}, queries, saveRemoval, saveWatched } = {}) {
+function setup({ mobile = false, authenticated = true, continueWatching = true, type = 'series', known = true, reduced = false, override = {}, queries, saveRemoval, saveWatched, onRemovalIntent } = {}) {
     const h = hooks(), plays = [], routes = [], reads = [], toggles = [], errors = [], events = [];
     let signIns = 0;
     const item = { id: 'tt123', name: 'Show', type, ...(type === 'series' ? { mediaSourceId: 'tt123:1:2', seasonNumber: 1, episodeNumber: 2 } : {}),
@@ -38,7 +38,7 @@ function setup({ mobile = false, authenticated = true, continueWatching = true, 
         '@/components/arc/floating-surface.module.css': { surface: 'menu-glass' },
     }, { Node, Element, MouseEvent, CustomEvent: class { constructor(type, init) { this.type = type; Object.assign(this, init); } },
         window: { matchMedia: query => ({ matches: query.includes("hover: hover") ? !mobile : mobile }), dispatchEvent: event => events.push(event) } });
-    const render = () => h.render(MediaCardMenu, { item, continueWatching, detailsHref: '/series/tt123/1/2', onPlay: async input => plays.push(input), children: { type: 'div', props: {} } });
+    const render = () => h.render(MediaCardMenu, { item, continueWatching, detailsHref: '/series/tt123/1/2', onPlay: async input => plays.push(input), onRemovalIntent, children: { type: 'div', props: {} } });
     let tree;
     const refresh = () => { tree = render(); h.flush(); return tree; };
     const find = type => nodes(tree).find(node => node.type === type);
@@ -103,7 +103,9 @@ function setup({ mobile = false, authenticated = true, continueWatching = true, 
     const pending = () => client.getMutationCache().findAll({ mutationKey: continueWatchingRemovalKey(scope), status: 'pending' });
     let finishWatched, finishRemoval;
     client.setQueryData(queryKey, [episode]);
-    const failedWatch = setup({ queries: { client, scope }, saveWatched: () => new Promise(resolve => { finishWatched = resolve; }) });
+    const intents = [];
+    const onRemovalIntent = animate => { intents.push(animate); return () => intents.push('cancel'); };
+    const failedWatch = setup({ queries: { client, scope }, saveWatched: () => new Promise(resolve => { finishWatched = resolve; }), onRemovalIntent });
     failedWatch.open();
     const watching = failedWatch.action('Mark episode as watched').props.onSelect();
     assert.equal(pending()[0].state.variables, continueWatchingCardKey(episode), 'Marking the current episode hides its resume card before saving');
@@ -113,11 +115,21 @@ function setup({ mobile = false, authenticated = true, continueWatching = true, 
     assert.equal(pending().length, 0, 'Failure releases the optimistic removal');
     assert.deepEqual(client.getQueryData(queryKey), [episode], 'Failed actions preserve the original card in the cache');
     assert.equal(failedWatch.errors.length, 1);
+    assert.deepEqual(intents, [false, 'cancel'], 'Keyboard selection stays instant and failure cancels the pending visual');
 
-    const removingOnMobile = setup({ mobile: true, queries: { client, scope }, saveRemoval: () => new Promise(resolve => { finishRemoval = resolve; }) });
+    const pointerWatch = setup({ queries: { client, scope }, saveWatched: async () => false, onRemovalIntent });
+    pointerWatch.open();
+    const watchedItem = pointerWatch.action('Mark episode as watched');
+    watchedItem.props.onClick({ detail: 1 });
+    await watchedItem.props.onSelect();
+    assert.deepEqual(intents.slice(-2), [true, 'cancel'], 'Mouse selection animates the same optimistic removal');
+    pointerWatch.h.unmount();
+
+    const removingOnMobile = setup({ mobile: true, queries: { client, scope }, saveRemoval: () => new Promise(resolve => { finishRemoval = resolve; }), onRemovalIntent });
     removingOnMobile.open('touchstart');
     const mobileRemove = nodes(removingOnMobile.find('Drawer')).find(node => node.type === 'button' && node.props.children.includes('Remove from Continue Watching'));
-    const removing = mobileRemove.props.onClick();
+    const removing = mobileRemove.props.onClick({ detail: 1 });
+    assert.equal(intents.at(-1), true, 'Touch removal prepares motion before the optimistic mutation');
     assert.equal(pending()[0].state.variables, continueWatchingCardKey(episode), 'The drawer shares the optimistic removal');
     await tick();
     client.setQueryData(queryKey, [episode, newerEpisode]);

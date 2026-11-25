@@ -49,6 +49,51 @@ const frame = card.nodes.find(node => node.selector === '.frame');
 assert.ok(frame.nodes.some(node => node.prop === 'contain' && node.value === 'paint'), 'Each card must own a paint boundary for its positioned progress and logo layers');
 console.log('PASS: stable native carousel viewport, fully mounted cards and card paint boundaries.');
 
+// The motion controller is driven by an explicit card action, never by a
+// background query update. Commit the row before playing its visual exit.
+{
+  const fixture = hooks();
+  const calls = [];
+  const body = { isConnected: true };
+  const document = { body, activeElement: body, addEventListener() {}, removeEventListener() {} };
+  const { MediaSection: Row } = load('components/media-section.tsx', {
+    react: { ...React, ...fixture.react }, 'react/jsx-runtime': fixture.jsx,
+    '@/components/ui/card': { Card: 'Card', CardContent: 'CardContent' },
+    '@/components/carousel-action': { CarouselAction: 'CarouselAction' },
+    '@/components/media-card': { MediaCard: 'MediaCard' },
+    './media-section.module.css': { viewport: 'viewport', track: 'track' },
+    './addon-removal-motion': { createAddonRemovalMotion: () => ({
+      prepare: (key, animate) => { calls.push(['prepare', key, animate]); return animate ? () => calls.push(['play', key]) : undefined; },
+      cancel: () => calls.push(['cancel']),
+    }) },
+  }, { document, window: { matchMedia: () => ({ matches: false }), addEventListener() {}, removeEventListener() {} } });
+  const [a, b, c] = rowProps.mediaItems;
+  const render = items => fixture.render(Row, { ...rowProps, mediaItems: items });
+  const focus = [];
+  let tree = render([a, b, c]);
+  find(tree, node => node.type === 'li').forEach((node, index) => node.props.ref({
+    querySelector: () => ({ focus: options => focus.push([index, options.preventScroll]) }),
+  }));
+  find(tree, node => node.type === 'h2')[0].props.ref.current = { focus: () => focus.push(['heading']) };
+  fixture.flush();
+  calls.length = 0;
+  const cards = () => find(tree, node => node.type === 'MediaCard');
+  cards()[1].props.onRemovalIntent(true);
+  assert.equal(calls[0][0], 'prepare');
+  assert.equal(calls.length, 1, 'Capture before the query hides the card; do not play yet');
+  tree = render([a, c]); fixture.flush();
+  assert.equal(calls[1][0], 'play', 'A committed removal starts the prepared motion');
+  assert.deepEqual(focus, [[2, true]], 'The next surviving card receives focus without scrolling');
+  tree = render([a]); fixture.flush();
+  assert.equal(calls.filter(call => call[0] === 'play').length, 1, 'Background removals never animate');
+  const cancel = cards()[0].props.onRemovalIntent(true);
+  cancel();
+  tree = render([]); fixture.flush();
+  assert.equal(calls.filter(call => call[0] === 'play').length, 1, 'Failed pending removal cannot animate a later refresh');
+  fixture.unmount();
+  console.log('PASS: Continue Watching intent, commit, focus restoration, refresh and rollback gating.');
+}
+
 const frames = new Map();
 let frameId = 0, visibility, disconnected = 0;
 const listeners = new Map();

@@ -7,12 +7,15 @@ const ts = require('typescript');
 class Element {
   constructor(top = 0) {
     this.top = top;
+    this.left = 20;
+    this.width = 600;
+    this.height = 100;
     this.style = { setProperty(name, value) { this[name] = value; } };
     this.attributes = new Map([['id', 'original'], ['autofocus', '']]);
     this.children = [];
     this.calls = [];
   }
-  getBoundingClientRect() { return { left: 20, top: this.top, width: 600, height: 100 }; }
+  getBoundingClientRect() { return { left: this.left, top: this.top, width: this.width, height: this.height, right: this.left + this.width, bottom: this.top + this.height }; }
   cloneNode() { return new Element(this.top); }
   querySelectorAll() { return []; }
   removeAttribute(name) { this.attributes.delete(name); }
@@ -130,6 +133,30 @@ async function main() {
   assert.doesNotThrow(brokenPlay, 'Animation errors cannot undo a successful uninstall');
   assert.equal(body.children.length, 0);
   motion.cancel(); await tick();
+  // The horizontal rail waits until the optimistic removal commits and
+  // clips the inert exit snapshot to the native scroll viewport.
+  const viewport = new Element(10); viewport.left = 100; viewport.width = 440; viewport.height = 220;
+  const first = new Element(15), second = new Element(15);
+  first.left = 60; first.width = 320; second.left = 396; second.width = 320;
+  const cards = new Map([['first', first], ['second', second]]);
+  const railMotion = createAddonRemovalMotion(cards, { clipTo: () => viewport, deferAttachment: true });
+  const railExit = railMotion.prepare('first', true);
+  assert.equal(body.children.length, 0, 'No overlay is mounted before the removal commit');
+  cards.delete('first'); second.left = 60;
+  railExit();
+  const clippedHost = body.children[0], clippedVisual = clippedHost.children[0];
+  assert.equal(clippedHost.style.overflow, 'hidden');
+  assert.equal(clippedHost.style.left, '100px');
+  assert.equal(clippedHost.style.width, '440px');
+  assert.equal(clippedVisual.style.left, '-40px', 'Partially visible cards remain clipped');
+  assert.equal(second.calls[0].frames[0].transform, 'translate(336px, 0px)');
+  railMotion.cancel();
+  assert.equal(body.children.length, 0, 'Scrolling or rollback can immediately release the overlay');
+  const cancelledExit = railMotion.prepare('second', true);
+  railMotion.cancel(); cancelledExit();
+  assert.equal(body.children.length, 0, 'A cancelled deferred removal never attaches its snapshot');
+  second.left = 600;
+  assert.equal(railMotion.prepare('second', true), undefined, 'A fully offscreen card never creates an exit visual');
   console.log('PASS: pointer-only removal, concurrent exit/FLIP, inert snapshots, retargeting, reduced motion, cancellation, last-row cleanup, and unsupported browsers');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

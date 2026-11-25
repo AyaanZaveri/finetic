@@ -23,7 +23,11 @@ function snapshot(source: HTMLElement): HTMLElement {
     return clone;
 }
 
-export function createAddonRemovalMotion(rows: Map<string, HTMLLIElement>) {
+export function createAddonRemovalMotion(rows: Map<string, HTMLLIElement>, options?: {
+    /** A rail can clip cards at its scroll viewport and wait for the removal commit. */
+    clipTo?: () => HTMLElement | null;
+    deferAttachment?: boolean;
+}) {
     const animations = new Set<Animation>();
     let overlay: HTMLDivElement | undefined;
     let generation = 0;
@@ -53,10 +57,12 @@ export function createAddonRemovalMotion(rows: Map<string, HTMLLIElement>) {
         const rect = before.get(id);
         cancel();
         if (!source || !rect || typeof source.animate !== "function") return;
+        const clip = options?.clipTo?.()?.getBoundingClientRect();
+        if (clip && (rect.right <= clip.left || rect.left >= clip.right || rect.bottom <= clip.top || rect.top >= clip.bottom)) return;
         const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         const visual = snapshot(source);
         Object.assign(visual.style, {
-            position: "absolute", left: `${rect.left}px`, top: `${rect.top}px`,
+            position: "absolute", left: `${rect.left - (clip?.left ?? 0)}px`, top: `${rect.top - (clip?.top ?? 0)}px`,
             width: `${rect.width}px`, height: `${rect.height}px`, margin: "0",
             transform: "none", pointerEvents: "none", boxSizing: "border-box",
         });
@@ -64,14 +70,19 @@ export function createAddonRemovalMotion(rows: Map<string, HTMLLIElement>) {
         host.inert = true;
         host.setAttribute("aria-hidden", "true");
         Object.assign(host.style, { position: "fixed", inset: "0", pointerEvents: "none", zIndex: "10" });
+        if (clip) Object.assign(host.style, {
+            inset: "auto", left: `${clip.left}px`, top: `${clip.top}px`,
+            width: `${clip.width}px`, height: `${clip.height}px`, overflow: "hidden",
+        });
         host.append(visual);
-        document.body.append(host);
+        if (!options?.deferAttachment) document.body.append(host);
         overlay = host;
         const transaction = generation;
 
         return () => {
             if (transaction !== generation) return;
             try {
+                if (options?.deferAttachment) document.body.append(host);
                 if (!reduced) for (const [key, element] of rows) {
                     const old = before.get(key);
                     if (!old) continue;

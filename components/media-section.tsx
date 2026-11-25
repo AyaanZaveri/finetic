@@ -7,6 +7,8 @@ import { MediaCard } from "@/components/media-card";
 import { Play, ChevronLeft, ChevronRight } from "lucide-react";
 import { observeCarouselControls } from "@/lib/media/carousel-controls";
 import { warmCarouselArtwork } from "@/lib/media/carousel-artwork";
+import { continueWatchingCardKey } from "@/lib/media/continue-watching-query";
+import { createAddonRemovalMotion } from "./addon-removal-motion";
 import styles from "./media-section.module.css";
 import type { MediaItem } from "@/types/stremio";
 
@@ -28,6 +30,67 @@ export function MediaSection({
   cardSubtitles,
 }: MediaSectionProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const rows = useRef(new Map<string, HTMLLIElement>());
+  const [removalMotion] = useState(() => createAddonRemovalMotion(rows.current, {
+    clipTo: () => viewportRef.current, deferAttachment: true,
+  }));
+  const removal = useRef<{ key: string; index: number; play?: () => void } | undefined>(undefined);
+  const previousKeys = useRef("");
+  const rowKeys = React.useMemo(() => continueWatching ? mediaItems.map(continueWatchingCardKey) : [], [continueWatching, mediaItems]);
+  const rowIdentity = JSON.stringify(rowKeys);
+
+  const prepareRemoval = (key: string, index: number, animate: boolean) => {
+    const transaction = { key, index, play: undefined as (() => void) | undefined };
+    removal.current = transaction;
+    try { transaction.play = removalMotion.prepare(key, animate); }
+    catch { removalMotion.cancel(); }
+    return () => {
+      if (removal.current === transaction) {
+        removal.current = undefined;
+        removalMotion.cancel();
+      }
+    };
+  };
+
+  useLayoutEffect(() => {
+    if (!continueWatching) return;
+    const pending = removal.current;
+    if (pending && !rowKeys.includes(pending.key)) {
+      removal.current = undefined;
+      pending.play?.();
+      // The old card is no longer a valid return-focus target. Do not steal
+      // focus from an element the user has already moved to.
+      if (document.activeElement === document.body || !document.activeElement?.isConnected) {
+        const nextKey = rowKeys[Math.min(pending.index, rowKeys.length - 1)];
+        const next = nextKey ? rows.current.get(nextKey)?.querySelector<HTMLElement>("a[href]") : null;
+        (next ?? headingRef.current)?.focus({ preventScroll: true });
+      }
+    } else if (previousKeys.current !== rowIdentity) {
+      removalMotion.cancel();
+      if (pending) pending.play = undefined;
+    }
+    previousKeys.current = rowIdentity;
+  }, [continueWatching, rowIdentity, rowKeys, removalMotion]);
+
+  useEffect(() => {
+    if (!continueWatching) return;
+    const cancel = () => {
+      removalMotion.cancel();
+      if (removal.current) removal.current.play = undefined;
+    };
+    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    window.addEventListener("resize", cancel);
+    if (typeof document !== "undefined") document.addEventListener("scroll", cancel, true);
+    preference.addEventListener?.("change", cancel);
+    return () => {
+      window.removeEventListener("resize", cancel);
+      if (typeof document !== "undefined") document.removeEventListener("scroll", cancel, true);
+      preference.removeEventListener?.("change", cancel);
+      removal.current = undefined;
+      removalMotion.cancel();
+    };
+  }, [continueWatching, removalMotion]);
   const hasItems = mediaItems.length > 0;
   const [position, setPosition] = useState({ overflow: false, start: true, end: true });
   useLayoutEffect(() => {
@@ -57,7 +120,7 @@ export function MediaSection({
   return (
     <section aria-label={sectionName} className="relative z-10 mb-8">
       <div className="flex items-center justify-between gap-3 mb-4">
-        <h2 className="min-w-0 text-xl sm:text-2xl font-semibold text-foreground font-poppins">
+        <h2 ref={headingRef} tabIndex={continueWatching ? -1 : undefined} className="min-w-0 text-xl sm:text-2xl font-semibold text-foreground font-poppins">
           {sectionName}
         </h2>
         {position.overflow && <div className="flex shrink-0 items-center gap-2">
@@ -89,6 +152,11 @@ export function MediaSection({
               <li
                 key={continueWatching ? `${item.type}:${item.id}` : `${item.type}:${item.id}:${item.addonName ?? "unknown"}:${item.catalogName ?? "unknown"}:${index}`}
                 data-continue-watching-index={continueWatching ? index : undefined}
+                ref={continueWatching ? element => {
+                  const key = rowKeys[index];
+                  if (element) rows.current.set(key, element);
+                  else rows.current.delete(key);
+                } : undefined}
                 className="flex-shrink-0"
               >
                 <MediaCard
@@ -96,6 +164,7 @@ export function MediaSection({
                   continueWatching={continueWatching}
                   revealArtwork={revealArtwork}
                   subtitleContent={cardSubtitles?.[index]}
+                  onRemovalIntent={continueWatching ? animate => prepareRemoval(rowKeys[index], index, animate) : undefined}
                 />
               </li>
             ))}
