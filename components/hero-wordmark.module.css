@@ -1,9 +1,10 @@
 .root {
   --wordmark-max-height: calc(var(--hero-wordmark-height, 7rem) * 1.35);
   display: grid;
-  height: var(--wordmark-max-height);
+  height: var(--hero-wordmark-box-height, var(--wordmark-max-height));
+  max-height: var(--wordmark-max-height);
   min-width: 0;
-  place-items: center;
+  place-items: var(--hero-wordmark-align, center) center;
 }
 /* Compact marks need more height to carry similar visual weight.
    Wide marks retain their larger limit for lettering with tall flourishes. */
@@ -18,7 +19,8 @@
   max-width: 100%;
   max-height: 100%;
   overflow: hidden;
-  transform: scale(.875);
+  transform-origin: var(--hero-wordmark-origin, center);
+  transform: scale(var(--hero-wordmark-scale, .875));
 }
 .root[data-ready] .artwork {
   visibility: visible;
@@ -28,7 +30,7 @@
   .artwork { transition-duration: 100ms; }
 }
 .root[data-dense] .artwork {
-  transform: scale(.72);
+  transform: scale(var(--hero-wordmark-dense-scale, .72));
 }
 .image {
   position: absolute;

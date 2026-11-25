@@ -5,3 +5,43 @@
 @media (prefers-reduced-transparency: reduce) {
   .seasonTrigger { --select-trigger-surface: var(--background); }
 }
+
+/* Keep the horizontal episode carousel on phones so 16:9 stills and metadata
+   stay proportional and the next card peeks in from the trailing edge. */
+@media (width < 48rem) {
+  .root { margin-top: 0; }
+  .seasonHeader {
+    margin-bottom: 1rem;
+    padding-inline: 0;
+  }
+  .carouselControls { display: none; }
+  .seasonSelect { width: min(12rem, 100%); }
+  .episodeScroll {
+    width: auto;
+    margin-left: calc(-1 * max(1rem, env(safe-area-inset-left, 0px)));
+    margin-right: calc(-1 * max(1rem, env(safe-area-inset-right, 0px)));
+    border-radius: 0;
+  }
+  .episodeScroll :global([data-slot="scroll-area-viewport"]) {
+    overscroll-behavior-x: contain;
+  }
+  .episodeTrack {
+    gap: .875rem;
+    margin-bottom: 0;
+    padding-left: max(1rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
+  }
+  .episodeTrack > * { margin-inline: 0; }
+  .placeholderTrack {
+    margin-left: calc(-1 * max(1rem, env(safe-area-inset-left, 0px)));
+    margin-right: calc(-1 * max(1rem, env(safe-area-inset-right, 0px)));
+    margin-bottom: 0;
+    padding-left: max(1rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
+    gap: .875rem;
+  }
+  .episodeCard,
+  .placeholderCard {
+    width: min(17rem, 76vw);
+  }
+}

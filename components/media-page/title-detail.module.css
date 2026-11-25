@@ -1,0 +1,234 @@
+/* The phone overview has one artwork plane and one identity. Desktop and the
+   individual episode route retain their established layout. */
+.posterFallback, .loadingActions { display: none; }
+
+@media (width < 48rem) {
+    .page:has(.overview), .loadingPage {
+        --media-content-overlap: 0rem;
+        --media-content-top-padding: 0rem;
+    }
+
+    .page:has(.overview) .hero, .loadingPage .hero {
+        height: clamp(18rem, 96vw, 25rem);
+    }
+
+    /* Keep the faces visible above the logo, then fade into the body. */
+    .page:has(.overview) .hero::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        pointer-events: none;
+        background: linear-gradient(to bottom, rgb(0 0 0 / .44), transparent 32%);
+    }
+
+    .page:has(.overview) .hero[data-artwork="none"] {
+        height: calc(var(--app-header-height, 3.75rem) + 1rem);
+    }
+    .page:has(.overview) .hero[data-artwork="none"]::after { display: none; }
+
+    .page:has(.overview) .hero[data-artwork="poster"] {
+        height: clamp(18rem, 90vw, 24rem);
+    }
+
+    .page:has(.overview) .posterFallback {
+        display: block;
+        position: absolute;
+        inset: 0;
+    }
+
+    .posterFallback > * {
+        width: 100%;
+        height: 100%;
+        border-radius: 0;
+        object-fit: cover;
+        object-position: center 35%;
+    }
+
+    .page:has(.overview) .hero[data-artwork="poster"] .wordmark,
+    .page:has(.overview) .hero[data-artwork="none"] .wordmark {
+        display: none;
+    }
+
+    .page:has(.overview) .wordmark {
+        top: auto;
+        bottom: 1.5rem;
+        left: max(1rem, env(safe-area-inset-left, 0px));
+        right: max(1rem, env(safe-area-inset-right, 0px));
+        place-items: end center;
+    }
+
+    .page:has(.overview) .wordmark > * {
+        width: min(84%, 20rem);
+        --hero-wordmark-height: 4.5rem;
+        --hero-wordmark-box-height: auto;
+        --hero-wordmark-align: end;
+        --hero-wordmark-origin: bottom center;
+        --hero-wordmark-scale: 1;
+        --hero-wordmark-dense-scale: .84;
+    }
+
+    .page:has(.overview) .wordmark img {
+        filter: drop-shadow(0 2px 10px rgb(0 0 0 / .55));
+    }
+
+    .page:has(.overview) .content {
+        padding-left: max(1rem, env(safe-area-inset-left, 0px));
+        padding-right: max(1rem, env(safe-area-inset-right, 0px));
+        padding-bottom: 1.5rem;
+    }
+
+    .sectionGutter {
+        padding-left: max(1rem, env(safe-area-inset-left, 0px));
+        padding-right: max(1rem, env(safe-area-inset-right, 0px));
+    }
+
+    .overview .poster { display: none; }
+
+    .overview .identity {
+        align-items: stretch;
+        gap: 1rem;
+        margin-block-end: .5rem;
+        text-align: center;
+    }
+
+    .overview .heading {
+        font-size: clamp(1.75rem, 8vw, 2.125rem);
+        line-height: 1.16;
+        letter-spacing: -.025em;
+    }
+
+    /* Keep the text title in the same lower-hero slot as a wordmark. The
+       heading remains in document flow so an unusually long title can grow
+       below the artwork instead of overlapping the metadata. */
+    .page:has(.hero[data-artwork]:not([data-artwork="none"])) .heading {
+        margin-block-start: -6rem;
+        margin-block-end: -.25rem;
+        min-height: 6rem;
+        display: grid;
+        place-items: end center;
+        padding-bottom: .75rem;
+    }
+
+    :global(html.dark) .page:has(.hero[data-artwork]:not([data-artwork="none"])) .heading {
+        text-shadow: 0 2px 12px rgb(0 0 0 / .65);
+    }
+
+    /* The heading stays accessible to assistive technology. If a logo is
+       missing, still decoding, or fails, the readable title remains visible. */
+    :global(html.dark) .page:has(.hero[data-artwork="backdrop"] .wordmark [data-ready] img) .heading {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        min-height: 0;
+        display: block;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .overview .metadata {
+        justify-content: center;
+        gap: .5rem;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .overview [data-media-play-actions] {
+        width: 100%;
+        margin-top: 0;
+        gap: .75rem;
+    }
+
+    .overview [data-media-play-actions] > button:first-child {
+        flex: 1 1 9rem;
+        min-height: 3rem;
+        white-space: normal;
+        border-radius: 9999px;
+    }
+
+    .overview [data-media-play-actions] > button:not(:first-child) {
+        min-width: 3rem;
+        min-height: 3rem;
+        border-radius: 9999px;
+    }
+
+    .overview .details { gap: 1.25rem; }
+
+    .overview .credits {
+        gap: .625rem 1rem;
+        font-size: .8125rem;
+    }
+
+    .overview .credits dt { font-weight: 400; }
+    .overview .credits dd { color: var(--muted-foreground); }
+
+    .synopsisText {
+        font-size: .9375rem;
+        line-height: 1.55;
+        text-wrap: pretty;
+    }
+
+    .synopsisPanel {
+        overflow: hidden;
+    }
+
+    .synopsisPanel[data-clamped] .synopsisText {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 3;
+        overflow: hidden;
+    }
+
+    .synopsisPanel[data-measuring] {
+        max-height: 4.36rem;
+    }
+
+    .loadingPage .hero {
+        background: linear-gradient(to bottom, var(--muted) 0%, var(--background) 100%);
+    }
+    .loadingPage .content { padding-top: 0; }
+    .loadingPage .loadingActions { display: flex; gap: .5rem; width: 100%; }
+    .message { padding-top: calc(var(--app-header-height, 3.5rem) + 1rem); }
+    .loadingPage .poster { display: none; }
+    .loadingPage .identity { align-items: center; }
+
+    .recommendationSkeleton {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .75rem;
+    }
+    .recommendationSkeleton > * { width: 100%; }
+    .recommendationSkeletonControls { display: none; }
+}
+
+@media (width < 22.5rem) {
+    .recommendationSkeleton { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.synopsisButton { display: none; }
+@media (min-width: 48rem) {
+    .synopsisPanel { height: auto !important; overflow: visible; }
+}
+@media (width < 48rem) {
+    .synopsis .synopsisButton {
+        display: inline-flex;
+        align-items: center;
+        min-height: 2.75rem;
+        margin-block: -.375rem -.625rem;
+        padding: 0;
+        color: var(--muted-foreground);
+        font-size: .8125rem;
+        font-weight: 600;
+        touch-action: manipulation;
+        cursor: pointer;
+    }
+}
+
+/* On a light surface, keep the heading legible rather than putting white title
+   lettering into the light end of the artwork fade. */
+@media (width < 48rem) {
+    :global(html:not(.dark)) .page:has(.overview) .wordmark { display: none; }
+
+}

@@ -16,7 +16,7 @@ import { ShuffleEpisodeButton } from "@/components/media-page/shuffle-episode-bu
 import { useAccountAccess } from "@/contexts/account-context";
 import { useSeriesOverviewPlayback } from "@/components/series-overview-playback";
 
-export function MediaPlayButton({ media, episodes }: { media: MediaToPlay; episodes?: ResumeEpisode[] }) {
+export function MediaPlayButton({ media, episodes, previewProgress }: { media: MediaToPlay; episodes?: ResumeEpisode[]; previewProgress?: ResumeProgress | null }) {
     const { authenticated, requestSignIn } = useAccountAccess();
     const { playMedia } = usePlaybackActions();
     const id = media.seriesId || media.id;
@@ -28,7 +28,7 @@ export function MediaPlayButton({ media, episodes }: { media: MediaToPlay; episo
     const key = `${media.type}:${id}:${sourceId || "overview"}`;
     const [saved, setSaved] = useState<{ key: string; progress: ResumeProgress | null } | null>(null);
     useEffect(() => {
-        if (!authenticated || sharedProgress) return;
+        if (!authenticated || sharedProgress || previewProgress !== undefined) return;
         let cancelled = false;
         let generation = 0;
         const load = () => {
@@ -52,21 +52,21 @@ export function MediaPlayButton({ media, episodes }: { media: MediaToPlay; episo
             window.removeEventListener(WATCH_HISTORY_CHANGED, refresh);
             window.removeEventListener("focus", refresh);
         };
-    }, [id, sourceId, key, media.type, authenticated, sharedProgress]);
+    }, [id, sourceId, key, media.type, authenticated, sharedProgress, previewProgress]);
 
-    const checkingProgress = overviewPlayback?.pending ?? saved?.key !== key;
-    const target = overviewPlayback?.target ?? resumePlaybackTarget(media, checkingProgress ? {
+    const checkingProgress = previewProgress !== undefined ? false : overviewPlayback?.pending ?? saved?.key !== key;
+    const target = overviewPlayback?.target ?? resumePlaybackTarget(media, previewProgress !== undefined ? previewProgress : checkingProgress ? {
         resumePositionTicks: media.resumePositionTicks, videoId: sourceId,
     } : saved?.progress ?? null, episodes);
     const metadataIntent = useMetadataIntent(target);
-    const warm = () => { if (authenticated) { preloadPlayer(); metadataIntent.start(); } };
+    const warm = () => { if (authenticated && previewProgress === undefined) { preloadPlayer(); metadataIntent.start(); } };
     const resume = typeof target.resumePositionTicks === "number" && target.resumePositionTicks > 0;
     const context = overview && target.mediaSourceId
         ? `S${String(target.seasonNumber).padStart(2, "0")}E${String(target.episodeNumber).padStart(2, "0")}`
         : resume ? `from ${formatResumePosition(target.resumePositionTicks!)}` : "";
 
     return (
-        <div className="mt-3 flex max-w-full flex-wrap items-center gap-2">
+        <div data-media-play-actions="" className="mt-3 flex max-w-full flex-wrap items-center gap-2">
             <Button
                 type="button"
                 variant="media-primary"
@@ -75,7 +75,7 @@ export function MediaPlayButton({ media, episodes }: { media: MediaToPlay; episo
                 disabled={authenticated && checkingProgress}
                 aria-busy={(authenticated && checkingProgress) || undefined}
                 aria-label={!authenticated ? `Sign in to play ${media.name}` : `${resume ? "Resume" : "Play"} ${media.name}${context ? ` ${context}` : ""}`}
-                onClick={() => authenticated ? playMedia(target) : requestSignIn()}
+                onClick={() => authenticated ? previewProgress === undefined && playMedia(target) : requestSignIn()}
             >
                 <Play aria-hidden="true" data-icon="inline-start" className="size-4 fill-current" />
                 <span>
@@ -93,7 +93,7 @@ export function MediaPlayButton({ media, episodes }: { media: MediaToPlay; episo
                             className="shrink-0 rounded-full"
                             aria-label="Play from start"
                             disabled={checkingProgress}
-                            onClick={() => playMedia({ ...target, resumePositionTicks: 0 })}
+                            onClick={() => { if (previewProgress === undefined) playMedia({ ...target, resumePositionTicks: 0 }); }}
                         >
                             <RotateCw aria-hidden="true" strokeWidth={2.5} className="size-4" />
                         </Button>
@@ -104,7 +104,7 @@ export function MediaPlayButton({ media, episodes }: { media: MediaToPlay; episo
             {authenticated && (media.type === "movie" || (media.type === "series" && sourceId)) && (
                 <WatchToggleButton key={key} media={media} />
             )}
-            {authenticated && overview && <ShuffleEpisodeButton key={id} media={media} episodes={episodes} />}
+            {authenticated && overview && <ShuffleEpisodeButton key={id} media={media} episodes={episodes} preview={previewProgress !== undefined} />}
         </div>
     );
 }

@@ -55,7 +55,7 @@ const backdropCss = postcss.parse(fs.readFileSync('components/media-page/backdro
 const pageSurface = backdropCss.nodes.find(node => node.type === 'rule' && node.selector === '.page');
 const background = pageSurface.nodes.find(node => node.prop === 'background' || node.prop === 'background-color')?.value;
 assert.equal(background, 'var(--background)', 'Media pages must mask the overscroll backing under body text even when its visibility update is late');
-for (const file of ['app/(main)/movie/[id]/page.tsx', 'app/(main)/series/[id]/layout.tsx', 'components/media-page/loading.tsx']) {
+for (const file of ['components/media-page/movie-details-view.tsx', 'components/media-page/series-details-frame.tsx', 'components/media-page/loading.tsx']) {
   assert.ok(fs.readFileSync(file, 'utf8').includes('backdropStyles.page'), `${file}: media content and loading states must share the opaque page surface`);
 }
 console.log('PASS: movie, series and loading surfaces mask the overscroll backing independently of scroll-event timing');

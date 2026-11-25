@@ -58,10 +58,10 @@ async function run() {
     });
     const media = { id: 'show', seriesId: 'show', type: 'series', name: 'Show', streamUrl: 'https://old-stream.test',
         resumePositionTicks: 999, mediaSourceId: 'show:1:1', backdropUrl: '/show-backdrop' };
-    const render = rows => { cursor = 0; return ShuffleEpisodeButton({ media, episodes: rows }); };
+    const render = (rows, preview = false) => { cursor = 0; return ShuffleEpisodeButton({ media, episodes: rows, preview }); };
     const button = tree => tree.props.children[0].props.children[0].props.children;
     const firstTree = render(episodes);
-    assert.equal(button(firstTree).props.variant, 'secondary');
+    assert.equal(button(firstTree).props.variant, 'media-secondary');
     assert.equal(button(firstTree).props.size, 'icon-lg');
     assert.equal(button(firstTree).props['aria-label'], 'Shuffle episodes');
     assert.equal(firstTree.props.children[0].props.delayDuration, 600);
@@ -77,6 +77,10 @@ async function run() {
     assert.equal(played[0].resumePositionTicks, 0);
     assert.equal(played[0].streamUrl, undefined, 'Fetch the chosen episode’s own stream');
     assert.equal(played[0].backdropUrl, media.backdropUrl);
+
+    await button(render(undefined, true)).props.onClick();
+    assert.equal(played.length, 1, 'The workbench does not launch playback');
+    assert.equal(lookups.length, 0, 'The workbench does not request account data');
 
     await button(render(undefined)).props.onClick();
     assert.deepEqual(lookups, ['show'], 'Server fallback handles missing overview metadata');
@@ -106,6 +110,8 @@ async function run() {
             if (name === 'react') return { useState: () => [null, () => {}], useEffect() {} };
             if (name === '@/lib/media/resume-playback') return resume;
             if (name === '@/components/series-overview-playback') return { useSeriesOverviewPlayback: () => null };
+            if (name === '@/contexts/account-context') return { useAccountAccess: () => ({ authenticated: true, requestSignIn() {} }) };
+            if (name === '@/components/metadata-preload') return { useMetadataIntent: () => ({ start() {}, cancel() {} }) };
             if (name === '@/contexts/MediaPlayerContext') return { usePlaybackActions: () => ({ playMedia() {} }) };
             return new Proxy({}, { get: (_, key) => key });
         },

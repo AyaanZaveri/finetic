@@ -31,6 +31,8 @@ async function main() {
     const movieDeps = { ...dependencies,
         '@/app/actions': { fetchMediaDetails: async () => title },
         '@/components/media-page/backdrop-transition.module.css': {},
+        '@/components/media-page/title-detail.module.css': {},
+        '@/components/media-page/title-synopsis': { TitleSynopsis: 'synopsis' },
     };
     for (const [module, name] of [
         ['playback-page-provider', 'PlaybackPageProvider'], ['media-actions', 'MediaActions'],
@@ -41,11 +43,17 @@ async function main() {
         ['media-page/play-button', 'MediaPlayButton'],
     ]) movieDeps[`@/components/${module}`] = { [name]: name };
     const movie = load('app/(main)/movie/[id]/page.tsx', movieDeps);
-    assertTMDB(await movie.default({ params: Promise.resolve({ id: title.id }) }));
+    const movieView = load('components/media-page/movie-details-view.tsx', movieDeps);
+    const page = await movie.default({ params: Promise.resolve({ id: title.id }) });
+    const movieProps = page.props.children.props;
+    assert.equal(movieProps.movie, title);
+    assertTMDB(movieView.MovieDetailsView(movieProps));
     const series = load('app/(main)/series/[id]/page.tsx', {
         ...movieDeps, './_shared/series-data': { getSeriesLayoutData: async () => ({ show: { ...title, type: 'series' }, regularSeasonCount: 2 }) },
     });
-    assertTMDB(await series.default({ params: Promise.resolve({ id: title.id }) }));
+    const seriesPage = await series.default({ params: Promise.resolve({ id: title.id }) });
+    const seriesView = load('components/media-page/series-overview-view.tsx', movieDeps);
+    assertTMDB(seriesView.SeriesOverviewView(seriesPage.props));
     const episode = load('components/media-page/episode-details-view.tsx', {
         ...dependencies, './detail-artwork.module.css': {}, './media-rating-badge': { MediaRatingBadge },
     });

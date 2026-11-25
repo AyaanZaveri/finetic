@@ -9,7 +9,7 @@ import { getRandomEpisodeForSeries } from "@/app/actions/tv-shows";
 import { pickRandomEpisode, type ShuffleEpisode } from "@/lib/media/shuffle-episode";
 import type { MediaToPlay } from "@/lib/atoms";
 
-export function ShuffleEpisodeButton({ media, episodes }: { media: MediaToPlay; episodes?: ShuffleEpisode[] }) {
+export function ShuffleEpisodeButton({ media, episodes, preview = false }: { media: MediaToPlay; episodes?: ShuffleEpisode[]; preview?: boolean }) {
     const { playMedia } = usePlaybackActions();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -34,7 +34,7 @@ export function ShuffleEpisodeButton({ media, episodes }: { media: MediaToPlay; 
                         aria-busy={loading || undefined}
                         disabled={loading}
                         onClick={async () => {
-                            if (pending.current) return;
+                            if (preview || pending.current) return;
                             pending.current = true;
                             setLoading(true);
                             setError(null);

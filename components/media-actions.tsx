@@ -33,13 +33,14 @@ import { SignInForStreams } from "@/components/sign-in-for-streams";
 interface MediaActionsProps {
   media?: MediaItem;
   movie?: MediaItem;
+  preview?: boolean;
   streamSelection?: { currentUrl: string | null; onSelect(_stream: StremioStream): void };
 }
 
 
 const RESOLUTION_FILTERS = ["2160p", "1080p", "720p"] as const;
 
-export function MediaActions({ media, movie, streamSelection }: MediaActionsProps) {
+export function MediaActions({ media, movie, streamSelection, preview = false }: MediaActionsProps) {
   const { authenticated } = useAccountAccess();
   const activeMedia = media ?? movie;
   const queries = useStreamQueries();
@@ -54,7 +55,7 @@ export function MediaActions({ media, movie, streamSelection }: MediaActionsProp
   const [loading, setLoading] = useState(false);
   const [streamError, setStreamError] = useState(false);
   const [streamRetry, setStreamRetry] = useState(0);
-  const [hasCheckedStreams, setHasCheckedStreams] = useState(initialStreams?.complete ?? false);
+  const [hasCheckedStreams, setHasCheckedStreams] = useState(preview || (initialStreams?.complete ?? false));
   const [pendingAddons, setPendingAddons] = useState(0);
   const [totalAddons, setTotalAddons] = useState(initialStreams?.total ?? 0);
   const [streamSearchQuery, setStreamSearchQuery] = useState("");
@@ -66,7 +67,7 @@ export function MediaActions({ media, movie, streamSelection }: MediaActionsProp
   const resumePositionTicks = savedProgress?.key === progressKey ? savedProgress.position : activeMedia?.resumePositionTicks;
 
   useEffect(() => {
-    if (!authenticated || !libraryItemId || switchingStream) return;
+    if (preview || !authenticated || !libraryItemId || switchingStream) return;
     let cancelled = false;
 
     void (async () => {
@@ -82,10 +83,10 @@ export function MediaActions({ media, movie, streamSelection }: MediaActionsProp
     return () => {
       cancelled = true;
     };
-  }, [libraryItemId, targetVideoId, progressKey, activeType, authenticated, switchingStream]);
+  }, [libraryItemId, targetVideoId, progressKey, activeType, authenticated, switchingStream, preview]);
 
   useEffect(() => {
-    if (!authenticated || !activeId || !activeType) return;
+    if (preview || !authenticated || !activeId || !activeType) return;
     let cancelled = false;
     setStreamError(false);
 
@@ -107,7 +108,7 @@ export function MediaActions({ media, movie, streamSelection }: MediaActionsProp
       if (!cancelled) { console.error("Failed to fetch streams:", error); setStreamError(true); setLoading(false); setHasCheckedStreams(true); }
     });
     return () => { cancelled = true; unsubscribe(); lease?.release(); };
-  }, [activeId, activeType, queries, authenticated, streamRetry, switchingStream]);
+  }, [activeId, activeType, queries, authenticated, streamRetry, switchingStream, preview]);
 
   if (!activeMedia) return null;
   if (!authenticated) return <SignInForStreams />;

@@ -2,7 +2,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 (async()=>{
  const {compile}=await import('@tailwindcss/node');
- const files=['components/ui/button.tsx','app/(main)/series/[id]/layout.tsx'];
+ const files=['components/ui/button.tsx','components/media-page/series-details-frame.tsx'];
  const sources=files.map(file=>fs.readFileSync(file,'utf8'));
  const candidates=sources.flatMap(source=>[...source.matchAll(/"([^"\n]+)"/g)].flatMap(match=>match[1].split(/\s+/)));
  const compiler=await compile('@import "tailwindcss";',{base:process.cwd(),onDependency(){}});

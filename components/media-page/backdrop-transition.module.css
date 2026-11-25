@@ -148,3 +148,13 @@
         top: calc(var(--app-header-height, calc(3.75rem + var(--navigator-safe-top, env(safe-area-inset-top, 0px)))) - .5rem);
     }
 }
+
+
+/* Match the desktop progressive blur and multi-stop fade while keeping the
+   upper third of the phone hero clear for faces. */
+@media (width < 48rem) {
+    .page:has([data-title-overview]) .transition {
+        height: 65%;
+    }
+    .page:has([data-title-overview]) .artwork { object-position: center 38%; }
+}

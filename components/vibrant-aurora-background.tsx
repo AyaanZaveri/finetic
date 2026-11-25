@@ -19,7 +19,7 @@ interface VibrantAuroraBackgroundProps {
 
 export function VibrantAuroraBackground({
     backdropUrl, posterUrl,
-    className = "fixed inset-0 z-0 pointer-events-none",
+    className = "fixed inset-0 z-[3] pointer-events-none",
     amplitude = 0.8, blend = 0.4, opacity = 0.3,
 }: VibrantAuroraBackgroundProps) {
     const register = useAuroraRegistration();

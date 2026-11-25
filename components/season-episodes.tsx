@@ -43,6 +43,9 @@ interface SeasonEpisodesProps {
   showId: string;
   prefetchedVideos?: StremioVideo[];
   initialSeasons?: Season[];
+  /** All episodes and seasons are supplied, including a possible empty result. */
+  prefetchedComplete?: boolean;
+  previewPlayback?: boolean;
   currentSeasonNumber?: number;
   currentEpisodeNumber?: number;
   hasEpisodeRoute?: boolean;
@@ -134,23 +137,25 @@ function episodesToSeasons(episodes: Episode[]): Season[] {
 
 export function SeasonEpisodesPlaceholder({ hasEpisodeRoute = false }: { hasEpisodeRoute?: boolean }) {
   return (
-    <LoadingPlaceholder className="mt-3">
-      <div className="mb-6 flex items-center justify-between gap-4 px-1">
+    <LoadingPlaceholder className={`${styles.root} mt-3`} data-episode-overview={!hasEpisodeRoute || undefined}>
+      <div className={`${styles.seasonHeader} mb-6 flex items-center justify-between gap-4 px-1`}>
         <Skeleton className="h-9 w-48 max-w-full" />
-        <div className="flex gap-2">
+        <div className={`${styles.carouselControls} flex gap-2`}>
           <Skeleton className="size-8 rounded-full" />
           <Skeleton className="size-8 rounded-full" />
         </div>
       </div>
       <div
-        className={`flex gap-4 overflow-hidden px-1 ${hasEpisodeRoute ? "mb-4" : "mb-8"}`}
+        className={`${styles.placeholderTrack} flex gap-4 overflow-hidden px-1 ${hasEpisodeRoute ? "mb-4" : "mb-8"}`}
       >
         {[1, 2, 3, 4, 5].map((item) => (
-          <div key={item} className="w-72 shrink-0 space-y-3 py-2">
+          <div key={item} className={`${styles.placeholderCard} w-72 shrink-0 space-y-3 py-2`}>
             <Skeleton className="aspect-video w-full rounded-lg" />
-            <Skeleton className="h-5 w-full" />
-            <Skeleton className="h-4 w-5/6" />
-            <Skeleton className="h-6 w-16" />
+            <div className="space-y-3">
+              <Skeleton className="h-5 w-full" />
+              <Skeleton className="h-4 w-5/6" />
+              <Skeleton className="h-6 w-16" />
+            </div>
           </div>
         ))}
       </div>
@@ -162,6 +167,8 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
   showId,
   prefetchedVideos,
   initialSeasons,
+  prefetchedComplete = false,
+  previewPlayback = false,
   currentSeasonNumber,
   currentEpisodeNumber,
   hasEpisodeRoute = !!currentEpisodeNumber,
@@ -180,7 +187,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
     [prefetchedEpisodes, initialSeasons]
   );
 
-  const hasPrefetchedSeasons = prefetchedSeasons.length > 0;
+  const hasPrefetchedSeasons = prefetchedComplete || prefetchedSeasons.length > 0;
   const initialSeasonState = hasPrefetchedSeasons
     ? {
         seasons: prefetchedSeasons,
@@ -191,7 +198,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
       }
     : getInitialSeasonState(showId, currentSeasonNumber);
 
-  const initialEpisodes = hasPrefetchedEpisodes
+  const initialEpisodes = hasPrefetchedEpisodes || prefetchedComplete
     ? initialSeasonState.selectedSeason === null
       ? []
       : prefetchedEpisodes.filter(
@@ -205,7 +212,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
   );
   const [loading, setLoading] = useState(initialSeasonState.loading);
   const [episodes, setEpisodes] = useState<Episode[]>(initialEpisodes);
-  const [episodesLoading, setEpisodesLoading] = useState(initialSeasonState.selectedSeason !== null && initialEpisodes.length === 0);
+  const [episodesLoading, setEpisodesLoading] = useState(!prefetchedComplete && initialSeasonState.selectedSeason !== null && initialEpisodes.length === 0);
   const [episodeError, setEpisodeError] = useState<string | null>(null);
   const [episodeRetry, setEpisodeRetry] = useState(0);
   const resumePosition = safeResumePosition(progress?.resumePositionTicks, progress?.totalDuration, true);
@@ -304,9 +311,9 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
     const seasonEpisodes = prefetchedEpisodes.filter(episode => episode.season === selectedSeason);
     // Embedded add-on metadata can have titles and dates without TMDB stills.
     // Keep it visible, but resolve the selected season instead of treating it as complete.
-    if (seasonEpisodes.length > 0 && seasonEpisodes.every(episode =>
+    if (prefetchedComplete || (seasonEpisodes.length > 0 && seasonEpisodes.every(episode =>
       episode.thumbnail || (episode.released && Date.parse(episode.released) > Date.now())
-    )) {
+    ))) {
       setEpisodes(seasonEpisodes);
       setEpisodesLoading(false);
       return;
@@ -352,7 +359,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
       cancelled = true;
       request?.release();
     };
-  }, [showId, selectedSeason, hasPrefetchedEpisodes, prefetchedEpisodes, episodeRetry]);
+  }, [showId, selectedSeason, hasPrefetchedEpisodes, prefetchedEpisodes, episodeRetry, prefetchedComplete]);
 
   useLayoutEffect(() => {
     if (selectedSeason !== currentSeasonNumber) {
@@ -410,9 +417,9 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
   }
 
   return (
-    <div className="mt-3">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4 px-1">
-        <div className="w-48 min-w-0 max-w-full">
+    <div data-episode-overview={!hasEpisodeRoute || undefined} className={`${styles.root} mt-3`}>
+      <div className={`${styles.seasonHeader} mb-6 flex flex-wrap items-center justify-between gap-4 px-1`}>
+        <div className={`${styles.seasonSelect} w-48 min-w-0 max-w-full`}>
           <Select
             label="Season"
             className={styles.seasonTrigger}
@@ -426,7 +433,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
             }))}
           />
         </div>
-        {!episodesLoading && carouselPosition.overflow && <div className="ms-auto flex shrink-0 items-center gap-2">
+        {!episodesLoading && carouselPosition.overflow && <div className={`${styles.carouselControls} ms-auto flex shrink-0 items-center gap-2`}>
           <CarouselAction
             size="icon-sm"
             aria-label="Scroll left"
@@ -448,14 +455,14 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
 
       {episodesLoading ? (
         <LoadingPlaceholder>
-          <ScrollArea className="w-full whitespace-nowrap -ml-3">
+          <ScrollArea className={`${styles.episodeScroll} w-full whitespace-nowrap -ml-3`}>
             <div
               ref={scrollContentRef}
-              className={`flex w-max space-x-4 ${episodesBottomSpacingClass} px-4`}
+              className={`${styles.episodeTrack} flex w-max space-x-4 ${episodesBottomSpacingClass} px-4`}
             >
               {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="shrink-0 w-72">
-                  <div className="space-y-3 py-2">
+                <div key={i} className={`${styles.episodeCard} shrink-0 w-72`}>
+                  <div className={`${styles.episodeBody} space-y-3 py-2`}>
                     <div className={`${artworkStyles.surface} relative aspect-video rounded-lg overflow-hidden bg-muted`}>
                       <Skeleton className="w-full h-full" />
                     </div>
@@ -483,10 +490,10 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
           No episodes found for this season
         </div>
       ) : (
-        <ScrollArea className="w-full rounded-md -ml-3">
+        <ScrollArea className={`${styles.episodeScroll} w-full rounded-md -ml-3`}>
           <div
             ref={scrollContentRef}
-            className={`flex w-max space-x-4 ${episodesBottomSpacingClass} px-4`}
+            className={`${styles.episodeTrack} flex w-max space-x-4 ${episodesBottomSpacingClass} px-4`}
           >
             {episodes.map((episode) => {
               const saved = progress && (episode.id === progress.videoId ||
@@ -501,6 +508,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
                   } : episode}
                   showId={showId}
                   onSelect={handleEpisodeSelection}
+                  previewPlayback={previewPlayback}
                   isActive={
                     selectedSeason === currentSeasonNumber &&
                     episode.season === currentSeasonNumber &&
@@ -525,17 +533,20 @@ const EpisodeCard = React.memo(function EpisodeCard({
   episode,
   showId,
   onSelect,
+  previewPlayback = false,
   isActive = false,
 }: {
   episode: Episode;
   showId: string;
   onSelect: (event: React.MouseEvent<HTMLAnchorElement>, key: string) => void;
   isActive?: boolean;
+  previewPlayback?: boolean;
 }) {
   const { playMedia } = usePlaybackActions();
   const handlePlay = (event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
+    if (previewPlayback) return;
     void playMedia({
       id: showId,
       name: episode.title || "Episode " + episode.episode,
@@ -577,7 +588,8 @@ const EpisodeCard = React.memo(function EpisodeCard({
 
   return (
     <div
-      className={cardStyles.card + " relative shrink-0 w-72 group"}
+      className={cardStyles.card + " " + styles.episodeCard + " relative shrink-0 w-72 group"}
+      data-upcoming={isUpcoming || undefined}
       data-episode-id={episode.id}
       data-episode-key={episodeKey}
     >
@@ -589,7 +601,7 @@ const EpisodeCard = React.memo(function EpisodeCard({
         onClick={event => onSelect(event, episodeKey)}
         aria-current={isActive || undefined}
       >
-        <div className="space-y-3 py-2">
+        <div className={`${styles.episodeBody} space-y-3 py-2`}>
           {/* Episode Thumbnail */}
           <div
             data-episode-artwork=""
@@ -635,7 +647,7 @@ const EpisodeCard = React.memo(function EpisodeCard({
           </div>
 
           {/* Episode Info */}
-          <div className="space-y-2">
+          <div className={`${styles.episodeInfo} space-y-2`}>
             <h3 className="font-semibold text-base leading-tight line-clamp-2 group-hover:text-primary transition-colors break-words pt-1">
               {episode.title || "Untitled episode"}
             </h3>
@@ -660,7 +672,7 @@ const EpisodeCard = React.memo(function EpisodeCard({
         </div>
       </IntentLink>
       {!isUpcoming && (
-        <div className={cardStyles.playOverlay + " absolute inset-x-0 top-2 aspect-video flex items-center justify-center rounded-lg"}>
+        <div className={cardStyles.playOverlay + " " + styles.episodePlayOverlay + " absolute inset-x-0 top-2 aspect-video flex items-center justify-center rounded-lg"}>
           <button
             type="button"
             aria-label={"Play " + (episode.title || "Episode " + episode.episode)}

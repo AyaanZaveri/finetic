@@ -88,7 +88,7 @@ export function CastScrollArea({ cast }: { cast: CastMember[] }) {
         <section aria-labelledby={headingId} className="relative z-10">
             <div className="mb-4 flex items-center justify-between gap-3">
                 <h2 id={headingId} className="font-poppins text-xl font-semibold text-foreground sm:text-2xl">Cast</h2>
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="hidden shrink-0 items-center gap-2 md:flex">
                     <CarouselAction size="icon-sm" aria-label="Scroll cast left" disabled={position.start} onClick={() => scroll(-1)}>
                         <ChevronLeft className="size-4" />
                     </CarouselAction>
@@ -97,10 +97,10 @@ export function CastScrollArea({ cast }: { cast: CastMember[] }) {
                     </CarouselAction>
                 </div>
             </div>
-            <div ref={viewport} onScroll={updatePosition} tabIndex={0} role="region" aria-label="Cast members" className="overflow-x-auto overscroll-x-contain rounded-lg pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/22">
-                <ul className="flex w-max gap-6">
+            <div ref={viewport} onScroll={updatePosition} tabIndex={0} role="region" aria-label="Cast members" className="-mx-4 overflow-x-auto overscroll-x-contain pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/22 md:mx-0 md:rounded-lg">
+                <ul className="flex w-max gap-4 px-4 md:gap-6 md:px-0">
                     {cast.map((member) => (
-                        <li key={member.id} className="w-28 shrink-0 text-center motion-safe:transition-[scale] motion-safe:duration-150 motion-safe:ease-[var(--ease-out)] motion-safe:has-[>a:active]:scale-[0.98]">
+                        <li key={member.id} className="w-24 shrink-0 text-center motion-safe:transition-[scale] motion-safe:duration-150 motion-safe:ease-[var(--ease-out)] motion-safe:has-[>a:active]:scale-[0.98] sm:w-28">
                             <CastProfile member={member} />
                             {member.role && <CastRole role={member.role} name={member.name} />}
                         </li>
@@ -113,7 +113,7 @@ export function CastScrollArea({ cast }: { cast: CastMember[] }) {
 
 function CastProfile({ member }: { member: CastMember }) {
     const content = <>
-        <Avatar className="mx-auto size-24 outline outline-1 -outline-offset-1 outline-black/5 dark:outline-transparent">
+        <Avatar className="mx-auto size-20 outline outline-1 -outline-offset-1 outline-black/5 dark:outline-transparent sm:size-24">
             {member.image && <AvatarImage src={member.image} alt="" loading="lazy" className="object-cover object-center" />}
             <AvatarFallback aria-hidden="true" className="text-2xl font-medium text-muted-foreground">
                 {member.name.trim().split(/\s+/u).slice(0, 2).map((part) => Array.from(part)[0]).join("")}
