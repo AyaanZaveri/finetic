@@ -50,7 +50,7 @@ assert.equal(new URL(logoSampleSource(fullSizeArtwork, 'https://navigator.test')
 
 // A one-pixel software canvas exercises the real painter's compositing at the
 // logo center. The fixed logo stays at y=8 while artwork/fade scroll underneath.
-function reading({ top = 0, background = 255, fade = false, imageOpacity = 1, tint = false } = {}) {
+function reading({ top = 0, background = 255, fade = false, imageOpacity = 1, tint = false, artworkColor = [30,30,30,1], heroScrim = false } = {}) {
     let pixel = [0, 0, 0];
     function color(cssColor) {
         if (cssColor === 'transparent') return [0, 0, 0, 0];
@@ -65,17 +65,20 @@ function reading({ top = 0, background = 255, fade = false, imageOpacity = 1, ti
     const context = {
         canvas: { width: 1, height: 1 }, globalAlpha: 1, fillStyle: '',
         clearRect() {}, save() {}, restore() {}, scale() {}, translate() {},
-        createLinearGradient(_x, y, _x2, bottom) {
-            return { y, bottom, stops: [], addColorStop(position, value) { this.stops.push({ position, color: color(value) }); } };
+        createLinearGradient(x, y, x2, bottom) {
+            return { x, y, x2, bottom, stops: [], addColorStop(position, value) { this.stops.push({ position, color: color(value) }); } };
         },
         fillRect(x, y, width, height) {
             if (point.x < x || point.x >= x + width || point.y < y || point.y >= y + height) return;
             if (typeof this.fillStyle === 'string') blend(color(this.fillStyle), this.globalAlpha);
             else {
                 const gradient = this.fillStyle;
-                const fraction = Math.max(0, Math.min(1, (point.y - gradient.y) / (gradient.bottom - gradient.y)));
-                const a = gradient.stops[0].color, b = gradient.stops.at(-1).color;
-                blend(a.map((value, i) => value + (b[i] - value) * fraction), this.globalAlpha);
+                const dx = gradient.x2 - gradient.x, dy = gradient.bottom - gradient.y;
+                const fraction = Math.max(0, Math.min(1, ((point.x - gradient.x) * dx + (point.y - gradient.y) * dy) / (dx * dx + dy * dy)));
+                const right = gradient.stops.findIndex(stop => stop.position >= fraction);
+                const a = gradient.stops[Math.max(0, right === -1 ? gradient.stops.length - 1 : right - 1)], b = gradient.stops[right === -1 ? gradient.stops.length - 1 : right];
+                const t = (fraction - a.position) / (b.position - a.position || 1);
+                blend(a.color.map((value, i) => value + (b.color[i] - value) * t), this.globalAlpha);
             }
         },
         drawImage(image, _sx, _sy, _sw, _sh, x, y, width, height) {
@@ -84,9 +87,10 @@ function reading({ top = 0, background = 255, fade = false, imageOpacity = 1, ti
     };
     const rect = { left: 0, top, width: 100, height: 100 };
     const overlays = fade ? [{ rect, background: css, opacity: 1 }] : [];
+    if (heroScrim) overlays.push({ rect, opacity: 1, background: 'linear-gradient(96deg, rgba(6, 10, 12, 0.84) 0%, rgba(6, 10, 12, 0.6) 36%, rgba(6, 10, 12, 0.2) 64%, transparent 84%), linear-gradient(to top, rgba(6, 10, 12, 0.78) 0%, rgba(6, 10, 12, 0.34) 44%, transparent 74%)' });
     if (tint) overlays.push({ rect: {left:0,top:0,width:100,height:100}, background: css, opacity: .12 });
     paintLogoBackdrop(context, {left:0,top:0,width:16,height:16}, `rgb(${background}, ${background}, ${background})`, {
-        image: { naturalWidth: 100, naturalHeight: 100, color: [30,30,30,1] }, rect, opacity: imageOpacity, objectPosition: '50% 50%',
+        image: { naturalWidth: 100, naturalHeight: 100, color: artworkColor }, rect, opacity: imageOpacity, objectPosition: '50% 50%',
     }, overlays);
     return contrast.chooseLogoTreatment(new Uint8ClampedArray([...pixel,255]), {
         light: [54,204,176,255], dark: [17,135,119,255], deep: [7,84,73,255], neutral: [244,251,249,255],
@@ -100,4 +104,6 @@ assert.equal(reading({ top: -70, fade: true }), 'deep', 'The fade to white must 
 assert.equal(reading({ top: -94 }), 'deep', 'Partially exposed page background must be sampled too');
 assert.equal(reading({ top: -120 }), 'deep', 'Once artwork leaves, sample the actual white page');
 assert.equal(reading({ top: -120, background: 0 }), 'light', 'A black page retains the brighter logo');
+assert.equal(reading({ artworkColor: [240, 240, 240, 1] }), 'deep', 'Bright raw artwork needs a dark logo');
+assert.equal(reading({ artworkColor: [240, 240, 240, 1], heroScrim: true }), 'light', 'Home hero scrims darken bright artwork underneath the logo');
 console.log('PASS: local compositing, theme-independent artwork contrast, scroll fades, partial overlap, page color, and origin-clean sample URLs');

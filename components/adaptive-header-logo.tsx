@@ -58,13 +58,14 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
             return image;
         });
 
-        function schedule() {
+        function scheduleFor(duration: number) {
             // Allow the 120ms tone confirmation and 240ms crossfade to settle.
             // Actual animated canvas frames have their own bounded wake signal.
-            settleUntil = performance.now() + 360;
-            motionUntil = settleUntil;
+            settleUntil = Math.max(settleUntil, performance.now() + duration);
+            motionUntil = Math.max(motionUntil, performance.now() + duration);
             wake();
         }
+        function schedule() { scheduleFor(360); }
 
         function canvasUpdated() {
             // Keep the last animated frame long enough to confirm its tone,
@@ -165,8 +166,12 @@ export function AdaptiveHeaderLogo({ adaptive }: { adaptive: boolean }) {
             }
         }
 
-        const changes = new MutationObserver(schedule);
-        changes.observe(scope, { childList: true, subtree: true, attributes: true, attributeFilter: ["src", "srcset"] });
+        const changes = new MutationObserver(records => {
+            // Hero artwork dissolves for 600ms; sample the final pixels long
+            // enough to confirm the new contrast, even for cached layers.
+            scheduleFor(records.some(record => record.attributeName === "data-hero-backdrop-active") ? 840 : 360);
+        });
+        changes.observe(scope, { childList: true, subtree: true, attributes: true, attributeFilter: ["src", "srcset", "data-artwork-state", "data-artwork-revealing", "data-hero-backdrop-active"] });
         const surfaceChanges = new MutationObserver(schedule);
         header?.querySelectorAll("[data-progressive-blur-layer], [data-header-tint]").forEach(layer =>
             surfaceChanges.observe(layer, { attributes: true, attributeFilter: ["style", "class"] }));
