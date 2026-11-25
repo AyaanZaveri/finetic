@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1024 1024">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: url(#linear-gradient-2);
+      }
+
+      .cls-1, .cls-2 {
+        opacity: .53;
+      }
+
+      .cls-3 {
+        fill: #141414;
+        opacity: .38;
+      }
+
+      .cls-4 {
+        fill: url(#linear-gradient);
+      }
+
+      .cls-2 {
+        fill: url(#linear-gradient-3);
+      }
+    </style>
+    <linearGradient id="linear-gradient" x1="124.62" y1="383.23" x2="730.43" y2="733" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#89b4fa"/>
+      <stop offset=".81" stop-color="#cba6f7"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient-2" x1="328.76" y1="371.98" x2="417.32" y2="371.98" gradientUnits="userSpaceOnUse">
+      <stop offset=".56" stop-color="#000" stop-opacity="0"/>
+      <stop offset=".96" stop-color="#000" stop-opacity=".82"/>
+      <stop offset="1" stop-color="#000"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient-3" y1="652.02" y2="652.02" xlink:href="#linear-gradient-2"/>
+  </defs>
+  <path class="cls-4" d="M825.04,467.65l-328.72-200.53c-16.01-9.77-36.12-10.14-52.47-.95-16.37,9.18-26.52,26.54-26.52,45.3v55.85l-164.23-100.19c-16.02-9.77-36.13-10.14-52.49-.95-16.36,9.18-26.52,26.54-26.52,45.3v401.05c0,18.76,10.17,36.12,26.52,45.3,7.89,4.44,16.66,6.65,25.43,6.65,9.39,0,18.77-2.55,27.06-7.59l164.23-100.19v55.83c0,18.76,10.15,36.12,26.52,45.3,7.89,4.44,16.66,6.65,25.43,6.65,9.39,0,18.77-2.55,27.05-7.59l328.72-200.54c15.58-9.5,24.88-26.08,24.88-44.34s-9.31-34.84-24.88-44.34ZM417.32,593.31l-189.15,115.39v-393.42l189.15,115.39v162.64ZM471.42,708.7v-393.42l322.44,196.71-322.44,196.71Z"/>
+  <path class="cls-3" d="M228.17,315.29v393.42l189.15-115.39v63.37l-164.23,100.19c-8.29,5.04-17.68,7.59-27.06,7.59-8.77,0-17.53-2.21-25.43-6.65-16.36-9.18-26.52-26.54-26.52-45.3v-401.05c0-18.76,10.17-36.12,26.52-45.3,16.36-9.18,36.47-8.81,52.49.95l164.23,100.19v63.36l-189.15-115.39Z"/>
+  <polygon class="cls-1" points="328.76 376.65 417.32 430.67 417.32 367.31 328.76 313.28 328.76 376.65"/>
+  <polygon class="cls-2" points="328.76 647.33 417.32 593.31 417.32 656.69 328.76 710.72 328.76 647.33"/>
+</svg>

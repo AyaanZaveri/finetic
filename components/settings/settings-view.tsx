@@ -3,7 +3,8 @@ import { useStreamQueries } from "@/components/stream-query-provider";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Cerebras, Gemini, Groq, Ollama, OpenAI, OpenRouter } from "@lobehub/icons";
-import { Eye, EyeOff, KeyRound, Link2, Cpu } from "lucide-react";
+import { ArrowUpRight, Eye, EyeOff, KeyRound, Link2, Cpu } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { OpenCodeIcon } from "@/components/opencode-icon";
 import { useCatalogModels } from "./use-catalog-models";
@@ -25,6 +26,7 @@ import {
     FieldError,
     FieldGroup,
     FieldLabel,
+    FieldTitle,
 } from "@/components/ui/field";
 import {
     type AIProvider,
@@ -52,6 +54,7 @@ import { CONNECTION_CREDENTIALS_EVENT } from "@/lib/browser-connection-credentia
 import { createOptimisticToggle } from "@/lib/optimistic-toggle";
 import type { SettingsCategory } from "@/lib/settings-navigation";
 import styles from "@/app/(main)/settings/settings.module.css";
+import externalLink from "@/components/external-link-reveal.module.css";
 
 // Configuration fields are not sign-in credentials. Keep browser history and
 // password managers out of these controls, including model search inputs.
@@ -853,13 +856,34 @@ function NavigatorSettings() {
     </>;
 }
 
+const skipTimingProviders = [
+    { name: "TheIntroDB", href: "https://theintrodb.org", logo: "/logo/credits/theintrodb.svg" },
+    { name: "IntroDB", href: "https://introdb.app", logo: "/logo/credits/introdb.svg" },
+    { name: "SkipDB", href: "https://skipdb.tv/license", logo: "/logo/credits/skipdb.png" },
+];
+
 export function SettingsView({ category }: { category: SettingsCategory }) {
     switch (category) {
     case "about":
         return <><AppUpdates />
             <section aria-labelledby="settings-credits" className={styles.section}>
             <h2 id="settings-credits">Credits and licenses</h2>
-            <p className={styles.credits}>Skip timings from <a draggable={false} href="https://theintrodb.org" target="_blank" rel="noreferrer">TheIntroDB</a>, <a draggable={false} href="https://introdb.app" target="_blank" rel="noreferrer">IntroDB</a>, and <a draggable={false} href="https://skipdb.tv" target="_blank" rel="noreferrer">SkipDB</a> (<a draggable={false} href="https://skipdb.tv/license" target="_blank" rel="noreferrer">ODbL license</a>).</p>
+            <Field aria-labelledby="skip-timing-credits" className="gap-2">
+                <FieldTitle id="skip-timing-credits">Skip timings</FieldTitle>
+                <div className="flex flex-wrap items-center gap-1">
+                    {skipTimingProviders.map(provider => <Button key={provider.name} asChild variant="ghost" size="sm">
+                            <a draggable={false} className={externalLink.link} href={provider.href} target="_blank" rel="noreferrer">
+                                <Image src={provider.logo} width={20} height={20} className="size-5 shrink-0 rounded-sm object-contain" alt="" unoptimized data-icon="inline-start" />
+                                <span className="inline-flex items-center">
+                                    {provider.name}
+                                    <span className={externalLink.arrow} aria-hidden="true">
+                                        <ArrowUpRight className="size-4" strokeWidth={2} absoluteStrokeWidth />
+                                    </span>
+                                </span>
+                            </a>
+                        </Button>)}
+                </div>
+            </Field>
             </section>
         </>;
     case "playback":
