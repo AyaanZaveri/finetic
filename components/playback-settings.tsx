@@ -97,7 +97,7 @@ export function PlaybackSettings() {
         <Field orientation="horizontal">
           <FieldContent>
             <FieldLabel htmlFor="continue-watching-prefetch">Preload Continue Watching</FieldLabel>
-            <FieldDescription id="continue-watching-prefetch-description">Find streams before you resume.</FieldDescription>
+            <FieldDescription id="continue-watching-prefetch-description">Find streams before you resume</FieldDescription>
           </FieldContent>
           <Switch id="continue-watching-prefetch" aria-describedby="continue-watching-prefetch-description" checked={playbackPreferences.continueWatchingPrefetch}
             onCheckedChange={continueWatchingPrefetch => updatePlaybackPreferences({ continueWatchingPrefetch })} />
@@ -105,7 +105,7 @@ export function PlaybackSettings() {
         {!desktop && <Field orientation="horizontal">
           <FieldContent>
             <FieldLabel htmlFor="automatic-web-stream">Automatically find a playable stream</FieldLabel>
-            <FieldDescription id="automatic-web-stream-description">Try another stream if playback fails or the audio is unsupported.</FieldDescription>
+            <FieldDescription id="automatic-web-stream-description">Try another stream if playback fails or the audio is unsupported</FieldDescription>
           </FieldContent>
           <Switch id="automatic-web-stream" aria-describedby="automatic-web-stream-description" checked={playbackPreferences.autoSelectWebStream}
             onCheckedChange={autoSelectWebStream => updatePlaybackPreferences({ autoSelectWebStream })} />
@@ -114,7 +114,7 @@ export function PlaybackSettings() {
     </section>
     {desktop ? (desktop.platform === "macos" || desktop.platform === "windows") && <section aria-labelledby="playback-video" className={styles.section}>
       <h2 id="playback-video">Native HDR</h2>
-      <p className={styles.description}>HDR turns on for supported videos and displays.</p>
+      <p className={styles.description}>HDR turns on for supported videos and displays</p>
       {(desktop.capabilities?.nativeHdrPeak || desktop.capabilities?.macHdrPeak) && <FieldGroup className="min-w-0 gap-6">
         <Field orientation="horizontal">
           <FieldContent>
@@ -125,14 +125,14 @@ export function PlaybackSettings() {
             onCheckedChange={automatic => updatePlaybackPreferences({ nativeHdrPeakNits: automatic ? null : 1000 })} />
         </Field>
         {!automaticNativePeak && <NumberField id="native-hdr-peak-nits" label="Native HDR peak brightness" suffix=" nits"
-          description="Set a tone-mapping target within your display’s HDR range."
+          description="Set a tone-mapping target within your display’s HDR range"
           min={203} max={10000} step={1} buttonStep={50} largeStep={100} size="sm"
           value={playbackPreferences.nativeHdrPeakNits ?? 1000}
           onValueChange={nativeHdrPeakNits => updatePlaybackPreferences({ nativeHdrPeakNits })} />}
       </FieldGroup>}
     </section> : <section aria-labelledby="playback-video" className={styles.section}>
       <h2 id="playback-video">Video and HDR</h2>
-      <p className={styles.description}>Changes apply to the next video.</p>
+      <p className={styles.description}>Changes apply to the next video</p>
       <FieldGroup className="min-w-0 gap-6">
         <Field orientation="horizontal">
           <FieldContent>
@@ -144,7 +144,7 @@ export function PlaybackSettings() {
         <Field orientation="horizontal">
           <FieldContent>
             <FieldLabel htmlFor="webgpu-native-decoding">Browser decoding with WebGPU</FieldLabel>
-            <FieldDescription id="webgpu-native-decoding-description">Experimental. Requires HDR output to be off and a supported audio format.</FieldDescription>
+            <FieldDescription id="webgpu-native-decoding-description">Experimental. Turn off HDR output and use a supported audio format.</FieldDescription>
           </FieldContent>
           <Switch id="webgpu-native-decoding" aria-describedby="webgpu-native-decoding-description" checked={playbackPreferences.nativeWebGpuDecoding}
             disabled={!playbackPreferences.webGpuPlayback || playbackPreferences.hdrOutput}

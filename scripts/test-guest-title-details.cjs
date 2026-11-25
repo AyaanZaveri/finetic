@@ -56,6 +56,7 @@ async function main() {
         '@/components/ui/empty': {}, '@/components/ui/loading-placeholder': {}, '@/components/ui/skeleton': {},
         '@/components/motion-primitives/activity-text-shimmer': { ActivityTextShimmer: 'shimmer' },
         'lucide-react': {}, '@/components/arc/search-field/search-field': {}, '@/components/arc/chip-group/chip-group': {},
+        '@/components/stream-actions-menu': { StreamActionsMenu: 'stream-actions-menu' },
         './media-actions.module.css': {}, '@/components/stream-summary': {},
     });
     assert.equal(h.render(ui.MediaActions, { media: title }).type, 'sign-in-for-streams');

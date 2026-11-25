@@ -126,7 +126,7 @@ const NavigatorMessageRow = memo(function NavigatorMessageRow({ row, duration, i
   const showCancelled = turn.cancelled && turn.statusMessageId === message.id;
   const stoppedStatus = showCancelled ? (
     <div className="mt-2 px-2 text-sm text-muted-foreground" role="status">
-      <p>Stopped — this request is incomplete. Partial results have been kept.</p>
+      <p>Request stopped. Partial results are still available.</p>
       <button type="button" className="mt-1 cursor-pointer underline underline-offset-4 disabled:opacity-50" disabled={isBusy} onClick={() => turn.user && onRetryRequest?.(turn.user.id)} draggable={false}>Retry request</button>
     </div>
   ) : null;

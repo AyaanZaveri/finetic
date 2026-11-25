@@ -8,7 +8,7 @@ export const groups = [
         { id: "movie", label: "Movie toolbar" },
         { id: "playing", label: "Auto-hide controls" },
         { id: "playback-stats", label: "Stats for nerds" },
-        { id: "up-next", label: "Up Next" },
+        { id: "up-next", label: "Up next" },
         { id: "chapters", label: "Chapter drawer" },
     ] },
     { title: "Track loading", states: [

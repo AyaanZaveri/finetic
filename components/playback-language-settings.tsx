@@ -45,7 +45,7 @@ export function PlaybackLanguageSettings({ kind }: { kind: "audio" | "subtitles"
       <Field><Select id="preferred-subtitle-type" label="Subtitle type" value={preferences.subtitleMode}
         options={[{ value: "normal", label: "Normal subtitles" }, { value: "forced", label: "Forced subtitles only" }]}
         onValueChange={value => update({ subtitleMode: value === "forced" ? "forced" : "normal" })} />
-        {preferences.subtitleMode === "forced" && <FieldDescription>Foreign dialogue and on-screen text only.</FieldDescription>}
+        {preferences.subtitleMode === "forced" && <FieldDescription>Foreign dialogue and on-screen text only</FieldDescription>}
       </Field>
       <Field orientation="horizontal">
         <FieldContent>

@@ -57,7 +57,7 @@ export function PlayerUpNext({ next, thumbnail, seconds, timerRunning = true, on
         if (counting) cancelRef.current?.focus({ preventScroll: true });
     }, [counting]);
     return (
-        <section data-player-up-next="" data-player-native-glass="" data-player-hdr-glass="" aria-label="Up Next"
+        <section data-player-up-next="" data-player-native-glass="" data-player-hdr-glass="" aria-label="Up next"
             className={`${floatingSurface.surface} absolute end-4 z-[var(--layer-player-feedback)] w-[min(27.5rem,calc(100%_-_2rem))] rounded-xl border border-border/50 p-2 text-popover-foreground shadow-lg`}
             onKeyDown={event => {
                 if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onCancel(); }
@@ -72,7 +72,7 @@ export function PlayerUpNext({ next, thumbnail, seconds, timerRunning = true, on
                 <div className={`min-w-0 flex-1 p-2 ${thumbnail ? "ps-0" : ""}`}>
                     <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
-                            <p className="text-xs text-muted-foreground">Up Next</p>
+                            <p className="text-xs text-muted-foreground">Up next</p>
                             <p id={titleId} className="mt-0.5 break-words text-base font-semibold leading-snug">{next.title}</p>
                         </div>
                         {counting && <UpNextCountdown seconds={seconds} running={timerRunning} />}

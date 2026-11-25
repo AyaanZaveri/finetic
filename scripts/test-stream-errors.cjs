@@ -55,10 +55,10 @@ const visibleText = node => Array.isArray(node) ? node.map(visibleText).join('')
     h.unmount(); h = hooks(); attempts = 0; released = 0;
     render(); await tick(); let tree = render();
     assert.equal(find(tree, node => node.type === 'EmptyTitle')[0].props.children, 'Could not load streams');
-    find(tree, node => node.type === 'button' && node.props.children === 'Retry')[0].props.onClick();
+    find(tree, node => node.type === 'button' && node.props.children === 'Try again')[0].props.onClick();
     render(); await tick(); tree = render();
     assert.equal(attempts, 2); assert.equal(invalidations, 1); assert.equal(released, 1);
-    assert.equal(find(tree, node => node.type === 'EmptyTitle')[0].props.children, 'No streams crawled out of hiding', 'A successful empty retry must clear the previous error');
+    assert.equal(find(tree, node => node.type === 'EmptyTitle')[0].props.children, 'No streams found', 'A successful empty retry must clear the previous error');
     const fileUrl = 'https://media.example.com/episode.mkv?token=signed';
     const streams = [
         { url: fileUrl, title: '4K', behaviorHints: { filename: 'Episode.mkv' } },

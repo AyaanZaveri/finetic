@@ -131,7 +131,7 @@ export function PlayerPlaybackStats({ open, obscured = false, videoRef, onClose,
         style={position ? { left: position.x, top: position.y } : undefined}
         className={`${floatingSurface.surface} ${styles.panel} absolute top-3 z-[var(--layer-player-stats)] pointer-events-auto flex flex-col overflow-hidden rounded-xl border border-border text-[0.8125rem] leading-normal text-popover-foreground ${position ? "" : "end-3"}`}>
         <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-0.5 px-3 py-2">
-            <span id={moveInstructionsId} className="sr-only">Use arrow keys to move the stats panel.</span>
+            <span id={moveInstructionsId} className="sr-only">Use the arrow keys to move the stats panel</span>
             <h2 tabIndex={0} aria-describedby={moveInstructionsId}
                 className="flex min-h-7 flex-1 cursor-grab touch-none select-none items-center gap-1.5 rounded-sm text-sm font-semibold leading-tight active:cursor-grabbing focus-visible:outline-2 focus-visible:outline-ring"
                 onPointerDown={event => {
@@ -222,7 +222,7 @@ export function PlayerPlaybackStats({ open, obscured = false, videoRef, onClose,
                         </dl>,
                     }]} />
                 </div>}
-            </> : <p className="text-muted-foreground">Waiting for playback data.</p>}
+            </> : <p className="text-muted-foreground">Waiting for playback data…</p>}
         </div>
     </section>;
 }

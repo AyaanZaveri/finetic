@@ -303,7 +303,7 @@ function EpisodeChoices({ client, playing, season, onSelect }: {
                         <EmptyTitle>Couldn’t load episodes</EmptyTitle>
                     </EmptyHeader>
                     <EmptyContent>
-                        <Button type="button" variant="secondary" size="sm" onClick={() => void refetch()}>Retry</Button>
+                        <Button type="button" variant="secondary" size="sm" onClick={() => void refetch()}>Try again</Button>
                     </EmptyContent>
                 </Empty>
             )}

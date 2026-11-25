@@ -112,7 +112,7 @@ export function PlayerSubtitles({ mediaRef, sourceKey, native, tracks, requested
                 {label}{option.value === `external:${requestedExternal}` && <span className={styles.summary}><ActivityTextShimmer style={{ font: "inherit" }}>Loading…</ActivityTextShimmer></span>}
               </DropdownMenuRadioItem>)}</>}
           </DropdownMenuRadioGroup>
-          {!embedded.length && !external.length && <p className={styles.empty}>No subtitle tracks available.</p>}
+          {!embedded.length && !external.length && <p className={styles.empty}>No subtitle tracks available</p>}
         </ScrollArea>
         <DropdownMenuSeparator />
         <DropdownMenuItem data-slot="media-player-subtitle-timing" aria-haspopup="dialog"

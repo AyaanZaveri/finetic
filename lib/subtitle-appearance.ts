@@ -2,7 +2,7 @@ export const SUBTITLE_SIZES = [
   { value: "small", label: "Small" },
   { value: "standard", label: "Standard" },
   { value: "large", label: "Large" },
-  { value: "extra-large", label: "Extra Large" },
+  { value: "extra-large", label: "Extra large" },
 ] as const;
 export const SUBTITLE_OUTLINES = [
   { value: "thin", label: "Thin" },

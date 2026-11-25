@@ -256,7 +256,7 @@ export function MediaActions({ media, movie, streamSelection }: MediaActionsProp
                 hideLabel
                 value={streamSearchQuery}
                 onValueChange={setStreamSearchQuery}
-                placeholder="Find the least broken stream..."
+                placeholder="Search streams…"
                 autoComplete="off"
               />
             </div>
@@ -365,23 +365,23 @@ export function MediaActions({ media, movie, streamSelection }: MediaActionsProp
                   ? "Your filters were a little too powerful"
                   : streamError ? "Could not load streams"
                   : totalAddons === 0 ? "No stream add-ons connected"
-                  : "No streams crawled out of hiding"}
+                  : "No streams found"}
               </EmptyTitle>
               <EmptyDescription>
                 {loading
-                  ? "More addons are still loading. Try adjusting your search or resolution filters."
+                  ? "More add-ons are loading. Try a different search or filter."
                   : normalizedSearchQuery || hasActiveFilters
-                  ? "Loosen the search/filters a bit and you should find the least broken stream."
+                  ? "Try a different search or filter"
                   : streamError ? "Your add-ons could not complete this lookup. Try again."
-                  : totalAddons === 0 ? "Connect a stream add-on in Settings to find sources."
-                  : "Your add-ons returned no streams for this episode or title."}
+                  : totalAddons === 0 ? "Install a stream add-on on the Add-ons page"
+                  : "Your add-ons returned no streams. Try another title or check your add-ons."}
               </EmptyDescription>
             </EmptyHeader>
             {!loading && !normalizedSearchQuery && !hasActiveFilters && (streamError || totalAddons > 0) && (
               <Button variant="secondary" size="sm" onClick={() => {
                 queries?.invalidate({ id: activeId!, type: activeType! });
                 setStreamRetry(value => value + 1);
-              }}>Retry</Button>
+              }}>Try again</Button>
             )}
           </Empty>
         )}

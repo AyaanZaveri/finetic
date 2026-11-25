@@ -58,7 +58,7 @@ export function StreamListCard({
         title="No streams found"
         icon={Radio}
         description={
-          result.error || result.message || "No playable streams available"
+          result.error || result.message || "Try another title or check your add-ons"
         }
       />
     );
@@ -82,7 +82,7 @@ export function StreamListCard({
             </ResultBadge>
             {result.addonCount != null && (
               <ResultBadge>
-                {result.addonCount} addon{result.addonCount === 1 ? "" : "s"}
+                {result.addonCount} add-on{result.addonCount === 1 ? "" : "s"}
               </ResultBadge>
             )}
           </>

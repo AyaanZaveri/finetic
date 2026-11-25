@@ -89,7 +89,7 @@ export function EpisodeStreamsRouteAware({
 
   if (!episodeMedia) {
     return failedKey === key ? <div role="alert" className="mt-6 flex items-center gap-3 text-sm text-muted-foreground">
-      <span>Couldn’t load stream options.</span><Button variant="secondary" size="sm" onClick={() => { setFailedKey(null); setRetry(value => value + 1); }}>Retry</Button>
+      <span>Couldn’t load stream options</span><Button variant="secondary" size="sm" onClick={() => { setFailedKey(null); setRetry(value => value + 1); }}>Try again</Button>
     </div> : null;
   }
 

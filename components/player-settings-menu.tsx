@@ -61,7 +61,7 @@ export function PlayerSettingsMenu({ speed, speeds, onSpeedChange, quality, subt
     <DropdownMenuSubContent data-player-native-glass="" container={portalContainer} aria-label={row.label}
       className={row.label === "Subtitles" ? styles.subtitleMenu : undefined}>
       <DropdownMenuOptions value={row.value} onValueChange={row.onChange} options={row.options} separateFirst={row.label === "Subtitles"} />
-      {row.label === "Subtitles" && row.options.length === 1 && <p className={styles.empty}>No subtitle tracks available.</p>}
+      {row.label === "Subtitles" && row.options.length === 1 && <p className={styles.empty}>No subtitle tracks available</p>}
     </DropdownMenuSubContent>
   </DropdownMenuSub>)}
   </>;

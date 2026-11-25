@@ -48,7 +48,7 @@ export function SubtitleSettings() {
       <Field>
         <Slider label="Position from bottom" value={subtitlePosition} onValueChange={setSubtitlePosition}
           min={SUBTITLE_POSITION.min} max={SUBTITLE_POSITION.max} step={1} largeStep={5} format={value => `${value}%`} />
-        <FieldDescription>Captions set to appear at the top stay there.</FieldDescription>
+        <FieldDescription>Captions set to appear at the top stay there</FieldDescription>
       </Field>
       <div className="flex"><Button type="button" variant="ghost" size="sm" onClick={resetSubtitleAppearance}
         disabled={subtitleSize === "standard" && subtitleOutline === "thin" && subtitleWeight === "medium" && subtitleColor === "white" && subtitlePosition === SUBTITLE_POSITION.default}>
