@@ -59,7 +59,8 @@ export function ContinueWatchingSection() {
     </section>;
     const visible = pendingRemovals.length ? data.filter(item => !pendingRemovals.includes(continueWatchingCardKey(item))) : data;
     const items = visible.slice(0, 20);
-    const artwork = items[0] ? mediaArtwork(items[0]) : null;
+    if (items.length === 0) return null;
+    const artwork = mediaArtwork(items[0]);
     return <>
         {artwork && <HomeInitialPalette primary={artwork.background} fallback={artwork.poster} />}
         <ContinueWatchingWarmup items={items}><MediaSection sectionName="Continue Watching" mediaItems={items} continueWatching revealArtwork
