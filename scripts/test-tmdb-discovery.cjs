@@ -238,7 +238,7 @@ async function main() {
     await assert.rejects(tmdb.searchTMDBMedia('Example'), /TMDB read access token/);
     assert.equal(requests.length, beforeMissing, 'Missing credentials must not fall back to add-ons');
     token = 'private-test-token'; status = 429;
-    await assert.rejects(tmdb.searchTMDBMedia('Example'), /rate limiting/);
+    await assert.rejects(tmdb.searchTMDBMedia('Example'), /request limit/);
     status = 401;
     await assert.rejects(tmdb.searchTMDBMedia('Example'), /rejected the access token/);
     status = 200; block = true;

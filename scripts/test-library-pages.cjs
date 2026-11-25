@@ -47,10 +47,12 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
   const jobs = new Map();
   const addon = { transportUrl: 'https://addon.test', manifest: { catalogs: Array.from({ length: 6 }, (_, i) => ({ id: String(i), type: 'movie' })) } };
   const actions = load('app/actions/media.ts', {
+    'server-only': {},
+    '@/lib/server/metadata-cache': {}, '@/lib/server/metadata-identity': {}, '@/lib/server/catalog-cache': {}, '@/lib/server/media-artwork': { resolveArtworkList: async items => items },
     '@/lib/server/auth': { getAuthData: async () => ({ authKey: 'fixture-only' }) },
     '@/lib/server/outbound-fetch': { outboundFetch: 'fixture-fetch' },
     '@/lib/media/playback-details': load('lib/media/playback-details.ts'),
-    './auth': { getInstalledAddons: async () => [addon] }, './tv-shows': {}, '@/lib/artwork': { mediaArtwork: () => ({}) }, '@/lib/tmdb-artwork': {}, '@/lib/media-description': {}, '@/lib/stremio-watched': {},
+    './auth': { getInstalledAddons: async () => [addon] }, './tv-shows': {}, '@/lib/artwork': { mediaArtwork: () => ({}), publicArtworkUrl: () => undefined }, '@/lib/tmdb-artwork': {}, '@/lib/media-description': {}, '@/lib/stremio-watched': {},
   }, { AbortController, AbortSignal, fetch: url => new Promise(resolve => {
     active++; peak = Math.max(peak, active);
     jobs.set(url, () => { active--; resolve({ ok: true, json: async () => ({ metas: [{ id: url, type: 'movie', name: url }] }) }); });

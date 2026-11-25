@@ -124,7 +124,7 @@ async function DiscoverySections() {
     if (results.every(result => result.status === "error")) return <HomeCatalogsUnavailable />;
     return <>
       <HomeCatalogSectionsLazy initialSections={[]} initialRows={rows} remainingEntries={[]} batchSize={CATALOG_BATCH_SIZE} />
-      <p className="relative z-10 py-4 text-xs text-muted-foreground">Movie and TV data by Cinemeta.</p>
+      <p className="relative z-10 py-4 text-xs text-muted-foreground">Movie and TV data by Cinemeta</p>
     </>;
   }
   const { rows, region } = getTMDBHomeRows();

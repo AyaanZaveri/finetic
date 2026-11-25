@@ -25,7 +25,7 @@ const { default: Page } = load('app/(main)/search/page.tsx', {
     '@/components/search-section-loading': { SearchSectionLoading: 'loading' },
     '@/lib/discovery': { searchDiscovery: async (query, _signal, type, page) => {
         calls.push({ query, type, page });
-        if (fail) throw new Error('Add your TMDB read access token in Settings → TMDB.');
+        if (fail) throw new Error('Add a TMDB read access token in Connection settings');
         return { provider: 'TMDB', results: type === 'movie' ? [movie, extra] : type === 'series' ? [show] : type === 'person' ? [person] : [show, person, movie],
             totalPages: 3, totalResults: type ? 41 : 82 };
     } },

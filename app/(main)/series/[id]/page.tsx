@@ -120,6 +120,6 @@ export default async function SeriesOverviewPage({
       redirect("/login");
     }
     console.error("Error loading show overview:", error);
-    return <div className="p-4">Error loading show. Please try again.</div>;
+    return <div className="p-4">Couldn’t load this show. Reload to try again.</div>;
   }
 }

@@ -81,7 +81,7 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
                     <Button asChild variant="ghost" size="md"><a draggable={false} href={person.sourceUrl} target="_blank" rel="noopener noreferrer" aria-label="TMDB (opens in a new tab)" className={styles.brandLink}><span aria-hidden="true"><TmdbIcon size={30} className="size-auto" /></span><span className="sr-only"> (opens in a new tab)</span></a></Button>
                 </div>
                 <div className={styles.biography}>
-                    {biography ? <p>{expandable ? biography.slice(0, breakAt) : biography}</p> : <p>No biography is available on TMDB.</p>}
+                    {biography ? <p>{expandable ? biography.slice(0, breakAt) : biography}</p> : <p>No biography available on TMDB</p>}
                     <div className={styles.disclosures}><Accordion size="sm" flush defaultOpen={-1} items={[
                         ...(expandable ? [{ title: `More about ${person.name}`, content: <p>{biography!.slice(breakAt).trim()}</p> }] : []),
                         ...(person.aliases.length ? [{ title: "Also known as", content: <p>{person.aliases.join(" · ")}</p> }] : []),

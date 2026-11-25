@@ -29,6 +29,7 @@ const section = key => ({ key, sectionName: `Catalog ${key}`, mediaItems: [{ id:
         ...viewDependencies,
         '@/app/actions/auth': { getUser: async () => ({ _id: 'fixture' }), getInstalledAddons: () => addons.promise },
         '@/app/actions/media': { fetchCatalogItems: (_type, id) => catalogWork.get(id) },
+        '@/lib/discovery': { hasTMDBDiscovery: async () => { throw new Error('Expected installed add-on catalogs'); }, cinemetaHomeRows: () => { throw new Error('Expected installed add-on catalogs'); } },
         '@/lib/tmdb-discovery': { getTMDBHomeRows: () => { throw new Error('Expected installed add-on catalogs'); } },
         '@/app/components/auth-error-handler': { AuthErrorHandler: React.Fragment },
         '@/components/home-catalog-sections-lazy': { HomeCatalogSectionsLazy },
@@ -68,7 +69,7 @@ const section = key => ({ key, sectionName: `Catalog ${key}`, mediaItems: [{ id:
     await tick(); await tick();
     assert.ok(html.includes('Catalog Fast'), 'A healthy row reaches the stream while another provider is still pending');
     assert.ok(!html.includes('Catalog Slow'));
-    assert.ok(html.includes('Could not load this catalog.'), 'A failed feed stays local to its own row');
+    assert.ok(html.includes('Couldn’t load this catalog'), 'A failed feed stays local to its own row');
     slow.resolve(section('slow').mediaItems); await completed;
     assert.ok(html.includes('Catalog Slow'));
     const saved = section('tmdb-saved');

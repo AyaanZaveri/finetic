@@ -59,7 +59,7 @@ export function PersonFilmography({ id, items }: { id: number; items: PersonCred
                 </li>;
             })}
         </ul>
-        {!source.total && <div className={styles.message}><p>No credits are listed on TMDB for this selection.</p>
+        {!source.total && <div className={styles.message}><p>No credits listed on TMDB for this selection</p>
             {type !== "all" && <Button variant="outline" onClick={() => change("all", sort)}>Show all credits</Button>}
         </div>}
         {source.hasMore && <div ref={sentinel} className={styles.loadStatus}>

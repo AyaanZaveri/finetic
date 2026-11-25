@@ -28,12 +28,12 @@ function InitialCatalogRow({ row, saved }: { row: InitialHomeCatalog; saved?: Ho
     {saved && <CachedCatalogRow section={saved} />}
     <section className="relative z-10 mb-8">
       {!saved && <h2 className="mb-4 text-xl sm:text-2xl font-semibold">{row.sectionName}</h2>}
-      <p role="alert" className="mb-3 text-sm text-muted-foreground">Could not load this catalog.</p>
+      <p role="alert" className="mb-3 text-sm text-muted-foreground">Couldn’t load this catalog</p>
       <Button variant="outline" disabled={!row.retry} onClick={() => {
         controller.current?.abort();
         controller.current = new AbortController();
         setRetry({ owner: row.result, result: retryInitialHomeCatalog(row, controller.current.signal) });
-      }}>Retry</Button>
+      }}>Try again</Button>
     </section>
   </>;
   const section = result.section;
@@ -44,7 +44,7 @@ function InitialCatalogRow({ row, saved }: { row: InitialHomeCatalog; saved?: Ho
     <MediaSection sectionName={section.sectionName} mediaItems={section.mediaItems} />
   </> : <section className="relative z-10 mb-8">
     <h2 className="mb-4 text-xl sm:text-2xl font-semibold">{row.sectionName}</h2>
-    <p className="text-sm text-muted-foreground">No titles available in this catalog.</p>
+    <p className="text-sm text-muted-foreground">No titles available in this catalog</p>
   </section>;
 }
 
@@ -218,12 +218,12 @@ export function HomeCatalogSectionsLazy({ initialSections, initialRows, remainin
             </Suspense> : section ? <MediaSection sectionName={section.sectionName} mediaItems={section.mediaItems} />
               : state?.status === "error" ? <section className="relative z-10 mb-8">
                 <h2 className="mb-4 text-xl sm:text-2xl font-semibold">{entry.sectionName}</h2>
-                <p role="alert" className="mb-3 text-sm text-muted-foreground">Could not load this catalog.</p>
-                <Button variant="outline" disabled={Boolean(requestRef.current)} onClick={() => void loadEntries([entry])}>Retry</Button>
+                <p role="alert" className="mb-3 text-sm text-muted-foreground">Couldn’t load this catalog</p>
+                <Button variant="outline" disabled={Boolean(requestRef.current)} onClick={() => void loadEntries([entry])}>Try again</Button>
               </section>
               : state?.status === "ready" ? <section className="relative z-10 mb-8">
                 <h2 className="mb-4 text-xl sm:text-2xl font-semibold">{entry.sectionName}</h2>
-                <p className="text-sm text-muted-foreground">No titles available in this catalog.</p>
+                <p className="text-sm text-muted-foreground">No titles available in this catalog</p>
               </section>
               : <HomeCatalogSkeleton />}
           </div>

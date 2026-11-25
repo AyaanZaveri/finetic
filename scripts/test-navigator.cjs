@@ -376,7 +376,7 @@ async function main() {
   tmdbToken = 'tmdb-test-token';
   tmdbStatus = 429;
   const limitedSearch = await tools.searchMedia.execute({ query: 'Example' }, { toolCallId: 'limited', messages: [] });
-  assert.match(limitedSearch.error, /rate limiting/);
+  assert.match(limitedSearch.error, /request limit/);
   tmdbStatus = 200;
   const validated = await ai.validateUIMessages({ messages: [...payload.messages, first], tools });
   const converted = await ai.convertToModelMessages(validated, { tools, ignoreIncompleteToolCalls: true });

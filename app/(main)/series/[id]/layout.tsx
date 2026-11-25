@@ -26,7 +26,7 @@ async function SimilarShows({ showId }: { showId: string }) {
 
   return (
     <div className="mt-6 px-4 md:px-10">
-      <MediaSection sectionName="More Like This" mediaItems={items} />
+      <MediaSection sectionName="More like this" mediaItems={items} />
     </div>
   );
 }
@@ -131,6 +131,6 @@ export default async function SeriesLayout({
       redirect("/login");
     }
     console.error("Error loading show layout:", error);
-    return <div className="p-4">Error loading show. Please try again.</div>;
+    return <div className="p-4">Couldn’t load this show. Reload to try again.</div>;
   }
 }

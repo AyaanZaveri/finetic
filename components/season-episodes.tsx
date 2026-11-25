@@ -476,8 +476,8 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
       ) : episodes.length === 0 ? (
         episodeError === `${showId}:${selectedSeason}` ? (
           <div role="alert" className="mb-4 flex items-center gap-3 text-sm text-muted-foreground">
-            <span>Couldn’t load this season.</span>
-            <Button variant="secondary" size="sm" onClick={() => setEpisodeRetry(value => value + 1)}>Retry</Button>
+            <span>Couldn’t load this season</span>
+            <Button variant="secondary" size="sm" onClick={() => setEpisodeRetry(value => value + 1)}>Try again</Button>
           </div>
         ) : <div className="text-muted-foreground">
           No episodes found for this season
@@ -637,7 +637,7 @@ const EpisodeCard = React.memo(function EpisodeCard({
           {/* Episode Info */}
           <div className="space-y-2">
             <h3 className="font-semibold text-base leading-tight line-clamp-2 group-hover:text-primary transition-colors break-words pt-1">
-              {episode.title || "Untitled Episode"}
+              {episode.title || "Untitled episode"}
             </h3>
 
             {episode.overview && (

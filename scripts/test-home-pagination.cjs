@@ -123,7 +123,7 @@ function harness(count = 100) {
   const failed = harness(2); await failed.settle();
   failed.answer(0, 500); await failed.settle();
   assert.equal(failed.requests.length, 1, 'Errors do not retry in a loop');
-  assert.equal(failed.buttons[0].props.children, 'Retry', 'Only failed catalogs expose a retry button');
+  assert.equal(failed.buttons[0].props.children, 'Try again', 'Only failed catalogs expose a retry button');
   failed.retry(); failed.retry(); await failed.settle();
   assert.equal(failed.requests.length, 2, 'Rapid Retry clicks cannot overlap');
   assert.equal(failed.requests[1].entries[0].key, '0');

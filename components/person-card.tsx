@@ -27,7 +27,7 @@ export function PersonCard({ name, id }: PersonCardProps) {
 
       <div className="text-center space-y-1">
         <h3 className="font-medium text-foreground line-clamp-2 text-sm leading-tight">
-          {name || "Unknown Person"}
+          {name || "Unknown person"}
         </h3>
       </div>
     </div>

@@ -61,7 +61,7 @@ export function ContinueWatchingSection() {
         </div>
     </section>;
     if (!data) return <section className="relative z-10 mb-8"><h2 className="mb-4 text-xl sm:text-2xl font-semibold">Continue Watching</h2>
-        <p role="alert" className="text-sm text-muted-foreground">Could not load Continue Watching.</p>
+        <p role="alert" className="text-sm text-muted-foreground">Couldn’t load Continue Watching</p>
         <Button type="button" variant="outline" size="sm" onClick={() => { void refetch(); }} className="mt-2">Try again</Button>
     </section>;
     const visible = pendingRemovals.length ? data.filter(item => !pendingRemovals.includes(continueWatchingCardKey(item))) : data;

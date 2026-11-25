@@ -17,7 +17,7 @@ function first(value: string | string[] | undefined) {
 async function SearchResults({ query }: { query: string }) {
     let peopleAvailable = true;
     let initialResults: SearchResultSet | undefined;
-    let failure = "Search is unavailable. Please try again.";
+    let failure = "Search is unavailable. Try again.";
     try {
         const [movie, series, all, person] = await Promise.all([
             searchDiscovery(query, undefined, "movie", 1),
@@ -31,7 +31,7 @@ async function SearchResults({ query }: { query: string }) {
         if (error instanceof Error && error.message) failure = error.message;
     }
     if (!initialResults) return <Empty role="alert" className={styles.empty}>
-        <EmptyHeader><EmptyTitle>Search couldn’t load</EmptyTitle><EmptyDescription>{failure}</EmptyDescription></EmptyHeader>
+        <EmptyHeader><EmptyTitle>Couldn’t load search results</EmptyTitle><EmptyDescription>{failure}</EmptyDescription></EmptyHeader>
         <div className={styles.emptyActions}><SearchRetryButton /><Button asChild variant="outline"><Link draggable={false} href="/settings/connections">Connection settings</Link></Button></div>
     </Empty>;
     return <SearchResultsView key={query} query={query} initialResults={initialResults} peopleAvailable={peopleAvailable} />;
@@ -46,7 +46,7 @@ export default async function Search({ searchParams }: {
         <div className={styles.page}>
             <div className={styles.content}>
                 <SearchPageHeading query={query.length > 300 ? "" : query} />
-                {query.length > 300 ? <p role="alert">Enter up to 300 characters.</p> : query ? (
+                {query.length > 300 ? <p role="alert">Enter up to 300 characters</p> : query ? (
                     <Suspense key={query} fallback={<SearchSectionLoading />}>
                         <SearchResults query={query} />
                     </Suspense>
@@ -54,7 +54,7 @@ export default async function Search({ searchParams }: {
                     <Empty className={styles.empty}><EmptyHeader>
                         <EmptyMedia variant="icon"><SearchIcon aria-hidden="true" /></EmptyMedia>
                         <EmptyTitle>Search movies, TV shows, and people</EmptyTitle>
-                        <EmptyDescription>Enter a title or person’s name in the search above, or browse for something new.</EmptyDescription>
+                        <EmptyDescription>Search for a title or person, or browse titles</EmptyDescription>
                     </EmptyHeader><Button asChild variant="secondary"><Link draggable={false} href="/">Browse titles</Link></Button></Empty>
                 )}
             </div>

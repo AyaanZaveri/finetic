@@ -73,12 +73,12 @@ export function LibraryMediaList({ initialPage, addonUrl }: LibraryMediaListProp
         const timer = setTimeout(async () => {
             try {
                 const response = await fetch(`/api/library?${params}`, { signal: controller.signal, cache: "no-store" });
-                if (!response.ok) throw new Error("Couldn't load this page. Try again.");
+                if (!response.ok) throw new Error("Couldn’t load this page");
                 const result = await response.json() as LibraryPageData;
                 controller.signal.throwIfAborted();
                 setLoaded({ key: requestKey, data: result });
             } catch (cause) {
-                if (!controller.signal.aborted) setError({ key: requestKey, message: cause instanceof Error ? cause.message : "Couldn't load this page." });
+                if (!controller.signal.aborted) setError({ key: requestKey, message: cause instanceof Error ? cause.message : "Couldn’t load this page" });
             }
         }, new URLSearchParams(loaded.key).get("q") === searchQuery ? 0 : 150);
         return () => { clearTimeout(timer); controller.abort(); };
@@ -101,7 +101,7 @@ export function LibraryMediaList({ initialPage, addonUrl }: LibraryMediaListProp
                 <div className="relative flex-1 max-w-sm">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                     <Input
-                        placeholder="Search media..."
+                        placeholder="Search this library…"
                         value={searchQuery}
                         onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
                         maxLength={300}
@@ -158,13 +158,14 @@ export function LibraryMediaList({ initialPage, addonUrl }: LibraryMediaListProp
                                         variant="outline"
                                         size="sm"
                                         onClick={handleReroll}
+                                        aria-label="Shuffle titles"
                                         className="gap-2"
                                     >
                                         <Dices className="h-4 w-4" />
                                     </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                    <p>Reroll</p>
+                                    <p>Shuffle titles</p>
                                 </TooltipContent>
                             </Tooltip>
                         </TooltipProvider>
@@ -192,7 +193,7 @@ export function LibraryMediaList({ initialPage, addonUrl }: LibraryMediaListProp
                 </nav>}
             </div>
             {error?.key === requestKey && <div role="alert" className="flex items-center gap-3 text-sm text-destructive">
-                <span>{error.message}</span><Button variant="secondary" size="sm" onClick={() => { setError(null); setRetry(value => value + 1); }}>Retry</Button>
+                <span>{error.message}</span><Button variant="secondary" size="sm" onClick={() => { setError(null); setRetry(value => value + 1); }}>Try again</Button>
             </div>}
 
             {data.totalRecordCount === 0 && !busy && (
@@ -201,12 +202,12 @@ export function LibraryMediaList({ initialPage, addonUrl }: LibraryMediaListProp
                         <div className="text-muted-foreground text-lg mb-2">
                             {searchQuery
                                 ? "No matching items found"
-                                : "No items found"}
+                                : "Nothing on the shelves yet"}
                         </div>
                         <div className="text-muted-foreground text-sm">
                             {searchQuery
-                                ? `No media items match "${searchQuery}".`
-                                : "This library appears to be empty."}
+                                ? `No media items match “${searchQuery}”`
+                                : "Try another catalog"}
                         </div>
                     </div>
                 </div>

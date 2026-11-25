@@ -41,7 +41,7 @@ const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream
   assert.equal((await cancelledSearch).status, 503);
   assert.equal(upstream.aborted, true, 'Replaced queries cancel the TMDB request');
   const unavailable = GET(new Request('http://app/api/search/suggestions?q=test'));
-  await tick(); fail(Error('Add your TMDB read access token in Settings → TMDB.'));
+  await tick(); fail(Error('Add a TMDB read access token in Connection settings'));
   assert.match((await (await unavailable).json()).error, /TMDB read access token/);
 
   const encoder = new TextEncoder();

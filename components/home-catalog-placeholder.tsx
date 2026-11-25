@@ -31,8 +31,8 @@ export function HomeCatalogsUnavailable() {
     const router = useRouter();
     return <>
         <section className="relative z-10 mb-4 flex items-center gap-3">
-            <p role="status" className="text-sm text-muted-foreground">Could not refresh catalogs.</p>
-            <Button type="button" variant="outline" size="sm" onClick={() => router.refresh()}>Retry</Button>
+            <p role="status" className="text-sm text-muted-foreground">Couldn’t refresh catalogs</p>
+            <Button type="button" variant="outline" size="sm" onClick={() => router.refresh()}>Try again</Button>
         </section>
         {catalogs.map(({ data }) => <CachedCatalogRow key={data.key} section={data} />)}
     </>;

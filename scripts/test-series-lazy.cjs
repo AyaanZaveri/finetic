@@ -213,11 +213,11 @@ const episode = (season, number = 1) => ({ id: `tmdb:20:${season}:${number}`, ti
   assert.deepEqual(uiRequests.map(row => row.season), [20, 0], 'Missing prefetched stills resolve only the selected season');
   assert.equal(uiRequests[0].released, true);
   find(tree, node => node.type === 'Select')[0].props.onValueChange('1'); render(); await tick(); tree = render();
-  const retryButton = find(tree, node => node.type === 'Button' && node.props.children === 'Retry')[0];
+  const retryButton = find(tree, node => node.type === 'Button' && node.props.children === 'Try again')[0];
   assert.ok(retryButton, 'Season failures expose recovery rather than old-season cards');
   assert.equal(find(tree, node => node.props?.children === 'No episodes found for this season').length, 0);
   failedSeason = -1; retryButton.props.onClick(); render(); await tick(); tree = render();
-  assert.equal(find(tree, node => node.type === 'Button' && node.props.children === 'Retry').length, 0);
+  assert.equal(find(tree, node => node.type === 'Button' && node.props.children === 'Try again').length, 0);
   assert.equal(uiRequests.at(-1).season, 1);
   h.unmount();
   console.log('PASS: lightweight overview/counts, single-episode headers without season requests, explicit specials, shared/retryable reads, auth, cancellation and on-demand season browsing.');

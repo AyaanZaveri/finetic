@@ -69,7 +69,7 @@ try {
         assert.ok(titleMs < 700, `${path}: title blocked for ${Math.round(titleMs)}ms`);
         assert.ok(performance.now() - start >= 1100, `${path}: slow services were not exercised`);
         assert.equal(html.includes('width:50%'), hasProgress, `${path}: detail artwork should not show a progress overlay`);
-        assert.ok(html.includes('More Like This'), `${path}: recommendations did not stream`);
+        assert.ok(html.includes('More like this'), `${path}: recommendations did not stream`);
         console.log(`${path}: title ${Math.round(titleMs)}ms; slow extras streamed separately`);
     }
 

@@ -51,7 +51,7 @@ async function SimilarMovies({ movieId }: { movieId: string }) {
 
   return (
     <div className="mt-6 px-4 md:px-10">
-      <MediaSection sectionName="More Like This" mediaItems={similarItems} />
+      <MediaSection sectionName="More like this" mediaItems={similarItems} />
     </div>
   );
 }
@@ -225,6 +225,6 @@ export default async function Movie({
       redirect("/login");
     }
     console.error("Error loading movie:", error);
-    return <div className="p-4">Error loading movie. Please try again.</div>;
+    return <div className="p-4">Couldn’t load this movie. Reload to try again.</div>;
   }
 }

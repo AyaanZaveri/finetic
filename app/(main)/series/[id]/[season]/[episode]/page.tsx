@@ -28,7 +28,7 @@ async function LoadedEpisodeDetails({ params }: EpisodePageProps) {
       redirect("/login");
     }
     console.error("Error loading episode on series page:", error);
-    return <div className="p-4">Error loading episode. Please try again.</div>;
+    return <div className="p-4">Couldn’t load this episode. Reload to try again.</div>;
   }
 
   if (!episodeData) {

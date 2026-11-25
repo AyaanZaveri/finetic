@@ -69,7 +69,7 @@ export function tmdbImage(path?: string | null, size = "w500") {
 async function request<T>(path: string, params: Params = {}, signal?: AbortSignal): Promise<T> {
     signal?.throwIfAborted();
     const token = await getTMDBToken();
-    if (!token) throw new Error("Add your TMDB read access token in Settings → TMDB to search titles and people.");
+    if (!token) throw new Error("Add a TMDB read access token in Connection settings to search titles and people");
     const query = new URLSearchParams({ language: "en-US" });
     for (const [key, value] of Object.entries(params)) if (value !== undefined) query.set(key, String(value));
     try {
@@ -80,10 +80,10 @@ async function request<T>(path: string, params: Params = {}, signal?: AbortSigna
             signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
             next: { revalidate: /^(search|trending|discover)\//.test(path) ? 3600 : 86400 },
         });
-        if (response.status === 401 || response.status === 403) throw new Error("TMDB rejected the access token. Update it in Settings → TMDB.");
-        if (response.status === 429) throw new Error("TMDB is rate limiting requests. Please try again shortly.");
+        if (response.status === 401 || response.status === 403) throw new Error("TMDB rejected the access token. Update it in Connection settings.");
+        if (response.status === 429) throw new Error("TMDB has reached its request limit. Try again shortly.");
         if (response.status === 404) throw new Error("This title, person, or episode was not found on TMDB.");
-        if (!response.ok) throw new Error("TMDB could not complete this lookup. Please try again.");
+        if (!response.ok) throw new Error("TMDB couldn’t complete this lookup. Try again.");
         return await response.json() as T;
     } catch (error) {
         signal?.throwIfAborted();
@@ -136,14 +136,14 @@ export function getTMDBHomeRows(only?: ReadonlySet<string>, signal?: AbortSignal
     const configuredRegion = process.env.TMDB_WATCH_REGION?.trim().toUpperCase();
     const region = configuredRegion && /^[A-Z]{2}$/.test(configuredRegion) ? configuredRegion : "US";
     const feeds: { key: string; name: string; path: string; type: TMDBMediaType; params?: Params }[] = [
-        { key: "trending-movies", name: "Trending Movies", path: "trending/movie/week", type: "movie" },
-        { key: "trending-series", name: "Trending TV Shows", path: "trending/tv/week", type: "series" },
+        { key: "trending-movies", name: "Trending movies", path: "trending/movie/week", type: "movie" },
+        { key: "trending-series", name: "Trending TV shows", path: "trending/tv/week", type: "series" },
         { key: "netflix-movies", name: `Popular on Netflix • Movies • ${region}`, path: "discover/movie", type: "movie",
             params: { with_watch_providers: 8, watch_region: region, with_watch_monetization_types: "flatrate", sort_by: "popularity.desc" } },
         { key: "netflix-series", name: `Popular on Netflix • TV Shows • ${region}`, path: "discover/tv", type: "series",
             params: { with_watch_providers: 8, watch_region: region, with_watch_monetization_types: "flatrate", sort_by: "popularity.desc" } },
-        { key: "top-rated-movies", name: "Top Rated Movies", path: "movie/top_rated", type: "movie" },
-        { key: "top-rated-series", name: "Top Rated TV Shows", path: "tv/top_rated", type: "series" },
+        { key: "top-rated-movies", name: "Top-rated movies", path: "movie/top_rated", type: "movie" },
+        { key: "top-rated-series", name: "Top-rated TV shows", path: "tv/top_rated", type: "series" },
     ];
     const rows = feeds.filter(feed => !only || only.has(`tmdb-${feed.key}`)).map(feed => ({
         key: `tmdb-${feed.key}`, sectionName: feed.name,

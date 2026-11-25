@@ -96,8 +96,8 @@ export function SearchResultsView({ query, initialResults, peopleAvailable = tru
         {!source.results.length && <Empty className={styles.empty}>
             <EmptyHeader>
                 <EmptyMedia variant="icon"><SearchIcon aria-hidden="true" /></EmptyMedia>
-                <EmptyTitle>{total > 0 ? "No results for this type" : "No matching results"}</EmptyTitle>
-                <EmptyDescription>{total > 0 ? "Choose another result type." : "Try another title, name, or spelling in the search above."}</EmptyDescription>
+                <EmptyTitle>{total > 0 ? "No results for this type" : "Nothing made the cut"}</EmptyTitle>
+                <EmptyDescription>{total > 0 ? "Choose another result type" : "Try another title, name, or spelling"}</EmptyDescription>
             </EmptyHeader>
             <div className={styles.emptyActions}>
                 {filter !== "all" && <Button variant="outline" onClick={() => changeType("all")}>Show all types</Button>}

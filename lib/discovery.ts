@@ -13,7 +13,7 @@ export function cinemetaHomeRows(only?: ReadonlySet<string>, signal?: AbortSigna
     return (["movie", "series"] as const).flatMap(type => {
         const key = `cinemeta-${type}`;
         if (only && !only.has(key)) return [];
-        const sectionName = type === "movie" ? "Popular Movies" : "Popular TV Shows";
+        const sectionName = type === "movie" ? "Popular movies" : "Popular TV shows";
         const result = cinemetaCatalog(type, undefined, signal).then((items): HomeCatalogResult => ({
             status: "ready", section: { key, sectionName, mediaItems: items.slice(0, 20) },
         })).catch((): HomeCatalogResult => ({ status: "error" }));
