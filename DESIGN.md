@@ -211,6 +211,10 @@ CSS timings from `@components/arc/foundation.css` run at 120ms (`--duration-inst
 
 Write short, calm labels that name the action: “Sign in to play”, “Skip intro”, and “Reset to defaults”. Use sentence case for controls and messages, existing category names for navigation, and original capitalization for titles. Use “Continue Watching”, “Ask Navigator”, “Add-ons”, “Audio”, “Subtitles”, and “Streams” where the product uses them. Keep title metadata compact, such as `2026` and `2h 39m`. Use plain units in settings and tabular time during playback. Describe the current state and offer a specific next action when an empty result or error can be resolved. Use the existing delayed `LoadingPlaceholder` for brief waits and preserve accessible status text. See `@components/ui/loading-placeholder.tsx` and `@components/navigator/request-error.tsx`.
 
+Omit terminal periods from headings, button labels, short toasts, standalone instructions, and status messages (“Key saved”, “Complete sign-in in your browser”). Use sentence punctuation for longer explanations and messages with multiple sentences, including error recovery instructions. Use a single ellipsis character for activity in progress (“Loading models…”). Keep errors specific and actionable. Use “sign in” and “sign out” for account actions, and “add-on” and “add-ons” for installed Stremio extensions. Preserve external product names, URLs, and supplied content.
+
+Navigator can be quietly playful in low-stakes moments. A light, dry joke is welcome in an empty filter result, such as “Your filters were a little too powerful”, when the supporting text gives a clear next step. Keep settings, playback failures, account errors, and destructive actions direct and reassuring. Do not remove existing personality just to make the copy uniform.
+
 ## Components
 
 | Use | Implementation |
