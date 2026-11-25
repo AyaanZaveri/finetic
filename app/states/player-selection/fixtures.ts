@@ -16,6 +16,7 @@ export const groups = [
         { id: "fetching-audio", label: "Fetching audio" },
     ] },
     { title: "Subtitle timing", states: timingStates },
+    { title: "Audio timing", states: [{ id: "audio-delay", label: "Audio delay" }] },
     { title: "Episodes", states: [
         { id: "episodes", label: "Playing episode" },
         { id: "episode-single", label: "One episode" },

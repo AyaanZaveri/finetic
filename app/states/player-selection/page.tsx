@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChevronDown, CornerDownRight, Loader2 } from "lucide-react";
+import { DesktopTracks } from "@/components/desktop/tracks";
 import { BrowserPlayerGlass } from "@/components/browser-player-glass";
 import { PlayerSelectionControls } from "@/components/player-selection-controls";
 import { PlayerControlBar } from "@/components/player-control-bar";
@@ -46,6 +47,7 @@ function keyboardCommand(event: KeyboardEvent) {
 
 function Stage({ id }: { id: StateId }) {
     const timing = timingStates.find(state => state.id === id);
+    const audioTiming = id === "audio-delay";
     const sample = timing ? narratedSample : silentSample;
     const [data] = useState(() => fixtures(id));
     const [episode, setEpisode] = useState({
@@ -57,8 +59,8 @@ function Stage({ id }: { id: StateId }) {
     const [statsOpen, setStatsOpen] = useState(statsDemo);
     const [captions, setCaptions] = useState(timing?.available ?? false);
     const [subtitleSize, setSubtitleSize] = useState<SubtitleSize>("standard");
-    const [timingOpen, setTimingOpen] = useState(Boolean(timing));
-    const [delay, setDelay] = useState<number>(timing?.seconds ?? 0);
+    const [timingOpen, setTimingOpen] = useState(Boolean(timing) || audioTiming);
+    const [delay, setDelay] = useState<number>(timing?.seconds ?? (audioTiming ? 0.3 : 0));
     const [upNextOpen, setUpNextOpen] = useState(id === "up-next");
     const stage = useRef<HTMLDivElement>(null);
     const video = useRef<HTMLVideoElement>(null);
@@ -81,7 +83,7 @@ function Stage({ id }: { id: StateId }) {
     }, [id]);
 
     const episodeTitle = data.episodes(episode.season).find(item => item.episode === episode.episode)?.title ?? "The Golden Child";
-    const title = timing ? "Along the Ridge" : movie ? "Palm Springs" : episodeTitle;
+    const title = timing || audioTiming ? "Along the Ridge" : movie ? "Palm Springs" : episodeTitle;
     const next = data.episodes(episode.season).find(item => item.episode > episode.episode) ?? null;
     const selectEpisode = (item: Episode) => {
         if (video.current) video.current.currentTime = 0;
@@ -110,14 +112,14 @@ function Stage({ id }: { id: StateId }) {
             <PlayerSubtitleLayer mediaRef={video} lookup={timing ? time => narrationSubtitleAt(time - timing.drift) : subtitleAt}
                 delay={delay} native={false} enabled={captions}
                 size={subtitleSize} position={12} />
-            <SubtitleTimingPopover container={video.current?.closest<HTMLElement>('[data-slot="media-player"]')}
+            <SubtitleTimingPopover mode={audioTiming ? "audio" : "subtitle"} container={video.current?.closest<HTMLElement>('[data-slot="media-player"]')}
                 open={timingOpen && duration > 0} onOpenChange={setTimingOpen} seconds={delay} onChange={setDelay}
-                available={captions && (timing?.available ?? true)} mediaRef={video} sourceKey={sample} />
+                available={audioTiming || (captions && (timing?.available ?? true))} mediaRef={video} sourceKey={sample} />
             <PlayerPlaybackStats open={statsOpen} obscured={timingOpen && duration > 0} videoRef={video} onClose={() => setStatsOpen(false)} />
             {upNextOpen && next && <PlayerUpNext next={next} thumbnail={next.thumbnail} seconds={5} timerRunning={false}
                 onPlay={() => selectEpisode(next)} onCancel={() => setUpNextOpen(false)} />}
             <PlayerControlBar title={title} previewSource={sample}
-                episode={movie ? undefined : { showTitle: timing ? "Trail Notes" : "Brooklyn Nine-Nine", season: episode.season, episodeNumber: episode.episode }}
+                episode={movie ? undefined : { showTitle: timing || audioTiming ? "Trail Notes" : "Brooklyn Nine-Nine", season: episode.season, episodeNumber: episode.episode }}
                 releaseYear={movie ? 2020 : undefined}
                 endTime={<PlayerEndTime duration={duration} mediaRef={video} />}
                 nextEpisode={!movie && <PlayerNextEpisode next={next} advancing={false} onAdvance={() => { if (next) selectEpisode(next); }} />}>
@@ -134,10 +136,12 @@ function Stage({ id }: { id: StateId }) {
                         onEpisodeSelect={selectEpisode}
                         onStreamSelect={stream => { const url = stream.url || stream.externalUrl; if (url) setSource(url); }} />
                 </AccountContext.Provider>
+                {audioTiming && <DesktopTracks mediaRef={video} sourceKey={sample}
+                    timing={{ seconds: delay, open: timingOpen, onOpen: () => setTimingOpen(true), onClose: () => setTimingOpen(false) }} />}
                 <PlayerSubtitles mediaRef={video} sourceKey={sample} native={false}
                     tracks={[{ src: "workbench-captions", label: "English", language: "en", active: captions }]}
                     onTrackChange={track => setCaptions(Boolean(track))}
-                    timing={{ seconds: delay, open: timingOpen, onOpen: () => setTimingOpen(true), onClose: () => setTimingOpen(false) }} />
+                    timing={{ seconds: audioTiming ? 0 : delay, open: timingOpen && !audioTiming, onOpen: () => { if (!audioTiming) setTimingOpen(true); }, onClose: () => setTimingOpen(false) }} />
                 <PlayerVideoFit mediaRef={video} sourceKey={sample} />
                 <MediaPlayerSettings stats={{ open: statsOpen, onOpenChange: open => {
                     if (open) setTimingOpen(false);
