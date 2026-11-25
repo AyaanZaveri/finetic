@@ -52,7 +52,7 @@ let ContinueWatchingSection = loadSection(h);
 const tree=h.render(ContinueWatchingSection);h.flush();
 const nodes=node=>!node||typeof node!=='object'?[]:[node,...[node.props?.children].flat(Infinity).flatMap(nodes)];
 const row=nodes(tree).find(node=>node.type==='row');
-assert.equal(row.props.revealArtwork,false,'Returning home does not replay cached artwork and logo fades');
+assert.equal(row.props.revealArtwork,true,'A newly mounted cached row fades its artwork like an episode card');
 assert.equal(row.props.cardSubtitles[0],undefined,'Known captions do not fetch metadata');
 const caption=row.props.cardSubtitles[1];
 assert.equal(caption.type(caption.props),'2014','Missing captions resolve separately from the row');
@@ -76,11 +76,11 @@ assert.ok(nodes(h.render(ContinueWatchingSection)).some(node => node.type === 's
 h.flush();
 resumeResult = { ...resumeResult, data: cachedItems, dataUpdatedAt: 1, isPending: false };
 const restored = nodes(h.render(ContinueWatchingSection));
-assert.equal(restored.find(node => node.type === 'row').props.revealArtwork, false);
+assert.equal(restored.find(node => node.type === 'row').props.revealArtwork, true);
 resumeResult = { ...resumeResult, data: [{ ...cachedItems[0], progressPercent: 25 }], dataUpdatedAt: Date.now() + 1 };
 const refreshedRow = nodes(h.render(ContinueWatchingSection));
-assert.equal(refreshedRow.find(node => node.type === 'row').props.revealArtwork, false,
-    'Refreshing an asynchronously restored snapshot must not restart the artwork fades');
+assert.equal(refreshedRow.find(node => node.type === 'row').props.revealArtwork, true,
+    'Refreshing a restored snapshot retains the same reveal policy and stable card keys');
 assert.equal(refreshedRow.find(node => node.type === 'row').props.mediaItems[0].progressPercent, 25);
 assert.ok(!refreshedRow.some(node => node.type === 'skeleton'));
 h.unmount();

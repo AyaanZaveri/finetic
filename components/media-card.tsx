@@ -92,18 +92,27 @@ export function MediaCard({
   const imageSrcSet = continueWatching && imageUrl === backdrop && artwork.background?.startsWith("https://image.tmdb.org/t/p/")
     ? ([300, 780, 1280] as const).map(width => `${backdropVariantUrl(artwork.background, width)} ${width}w`).join(", ") : undefined;
   const [failedLogo, setFailedLogo] = useState<string | null>(null);
-  const [loadedLogo, setLoadedLogo] = useState<{ src: string; late: boolean } | null>(null);
-  const pendingLogo = useRef<string | null>(null);
-  const finishLogo = useCallback((late: boolean) => {
+  const [loadedLogo, setLoadedLogo] = useState<string | null>(null);
+  const logoDecode = useRef<{ image: HTMLImageElement; src: string } | null>(null);
+  const finishLogo = useCallback((image: HTMLImageElement) => {
     const src = artwork.logo;
-    if (src) setLoadedLogo(previous => previous?.src === src ? previous : { src, late });
+    if (!src || !image.naturalWidth) return;
+    if (logoDecode.current?.image === image && logoDecode.current.src === src) return;
+    const attempt = { image, src };
+    logoDecode.current = attempt;
+    const ready = () => {
+      if (logoDecode.current === attempt && image.naturalWidth > 0) setLoadedLogo(src);
+    };
+    // A load event can precede pixel decoding. The wordmark must stay hidden
+    // until it can actually paint, including when the URL was already cached.
+    if (typeof image.decode === "function") {
+      void image.decode().then(ready, () => { if (image.complete) ready(); });
+    } else ready();
   }, [artwork.logo]);
   const attachLogo = useCallback((image: HTMLImageElement | null) => {
-    // Cached logos can finish before React attaches the load listener.
-    if (!image || !artwork.logo) return;
-    if (!image.complete) pendingLogo.current = artwork.logo;
-    else if (image.naturalWidth > 0) finishLogo(pendingLogo.current === artwork.logo);
-  }, [artwork.logo, finishLogo]);
+    if (!image) { logoDecode.current = null; return; }
+    if (image.complete && image.naturalWidth > 0) finishLogo(image);
+  }, [finishLogo]);
   const [pressed, setPressed] = useState(false);
   const subtitle = continueWatching
     ? item.progressLabel ||
@@ -156,7 +165,7 @@ export function MediaCard({
     <MediaCardMenu item={item} continueWatching={continueWatching} detailsHref={linkHref} onPlay={playCard} onResolvedId={resolveHistoryId} onRemovalIntent={onRemovalIntent}>
     <div
       data-continue-watching={continueWatching || undefined}
-      data-reveal-artwork={revealArtwork || undefined}
+      data-reveal-artwork={continueWatching || revealArtwork || undefined}
       onPointerEnter={event => {
         if (event.pointerType !== "mouse" || !window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
         warmOnIntent();
@@ -196,7 +205,7 @@ export function MediaCard({
           <div className={`${styles.artworkBounds} absolute inset-0`}>
             {imageUrl ? (
               <ArtworkImage
-                reveal={revealArtwork ? true : "late"}
+                reveal={continueWatching || revealArtwork ? true : "late"}
                 src={imageUrl}
                 srcSet={imageSrcSet}
                 sizes={continueWatching ? "320px" : undefined}
@@ -215,8 +224,7 @@ export function MediaCard({
           </div>
 
           {continueWatching && artwork.logo && failedLogo !== artwork.logo ? (
-            <div data-logo-ready={loadedLogo?.src === artwork.logo ? "" : undefined}
-              data-logo-late={loadedLogo?.src === artwork.logo && loadedLogo.late ? "" : undefined}
+            <div data-logo-ready={loadedLogo === artwork.logo ? "" : undefined}
               className={`${styles.wordmark} absolute inset-0 z-25 pointer-events-none flex items-center justify-center px-6`}>
               <img
                 ref={attachLogo}
@@ -224,8 +232,8 @@ export function MediaCard({
                 loading="lazy"
                 decoding="async"
                 fetchPriority="low"
-                onLoad={() => finishLogo(true)}
-                onError={() => setFailedLogo(artwork.logo!)}
+                onLoad={event => finishLogo(event.currentTarget)}
+                onError={() => { logoDecode.current = null; setFailedLogo(artwork.logo!); }}
                 alt=""
                 aria-hidden="true"
                 className="max-h-[36%] max-w-[78%] w-auto object-contain drop-shadow-[0_4px_14px_rgba(0,0,0,0.95)]"

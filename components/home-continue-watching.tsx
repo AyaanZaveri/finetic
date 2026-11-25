@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useMutationState, useQuery } from "@tanstack/react-query";
 import { fetchResumeItems, fetchResumeMovieYear } from "@/app/actions/media";
-import { continueWatchingCardKey, continueWatchingKey, continueWatchingOptions, continueWatchingRemovalKey } from "@/lib/media/continue-watching-query";
+import { continueWatchingCardKey, continueWatchingOptions, continueWatchingRemovalKey } from "@/lib/media/continue-watching-query";
 import { WATCH_HISTORY_CHANGED } from "@/lib/watch-history";
 import { useStreamQueries } from "@/components/stream-query-provider";
 import { ContinueWatchingWarmup } from "@/components/continue-watching-warmup";
@@ -23,14 +23,7 @@ function ResumeMovieYear({ id, scope }: { id: string; scope: string }) {
 export function ContinueWatchingSection() {
     const queries = useStreamQueries();
     const scope = queries?.scope ?? "anonymous";
-    const [hadCachedItems] = useState(() => Boolean(queries?.client.getQueryData(continueWatchingKey(scope))));
-    const [mountedAt] = useState(Date.now);
-    const { data, dataUpdatedAt, isPending, refetch } = useQuery(continueWatchingOptions(scope, fetchResumeItems));
-    const [firstReveal, setFirstReveal] = useState<boolean>();
-    const revealArtwork = firstReveal ?? (!hadCachedItems && dataUpdatedAt >= mountedAt);
-    // A snapshot can arrive after mount. Its cards must keep their reveal policy
-    // when the live response updates them.
-    if (firstReveal === undefined && data?.length) setFirstReveal(revealArtwork);
+    const { data, isPending, refetch } = useQuery(continueWatchingOptions(scope, fetchResumeItems));
     const pendingRemovals = useMutationState({
         filters: { mutationKey: continueWatchingRemovalKey(scope), exact: true, status: "pending" },
         select: mutation => mutation.state.variables,
@@ -69,7 +62,7 @@ export function ContinueWatchingSection() {
     const artwork = items[0] ? mediaArtwork(items[0]) : null;
     return <>
         {artwork && <HomeInitialPalette primary={artwork.background} fallback={artwork.poster} />}
-        <ContinueWatchingWarmup items={items}><MediaSection sectionName="Continue Watching" mediaItems={items} continueWatching revealArtwork={revealArtwork}
+        <ContinueWatchingWarmup items={items}><MediaSection sectionName="Continue Watching" mediaItems={items} continueWatching revealArtwork
             cardSubtitles={items.map(item => item.type === "movie" && !item.year && !item.releaseInfo
                 ? <ResumeMovieYear key={item.id} id={item.id} scope={scope} /> : undefined)} />
         </ContinueWatchingWarmup>

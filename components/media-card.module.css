@@ -25,7 +25,8 @@
   box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--shadow-artwork);
 }
 
-/* Don't float a decoded logo over artwork that is still downloading. */
+/* Match the title-page wordmark: keep one stable opacity transition, and
+   only reveal when both the decoded logo and its artwork are ready. */
 .wordmark {
   visibility: hidden;
   opacity: 0;
@@ -33,22 +34,13 @@
 .frame:has(.artwork[data-artwork-state="ready"]) .wordmark[data-logo-ready] {
   visibility: visible;
   opacity: 1;
+  transition: opacity 300ms var(--ease-out);
 }
-.card[data-reveal-artwork] .frame:has(.artwork[data-artwork-state="ready"]) .wordmark[data-logo-ready],
-.frame:has(.artwork[data-artwork-state="ready"]) .wordmark[data-logo-ready][data-logo-late],
-.frame:has(.artwork[data-artwork-revealing]) .wordmark[data-logo-ready] {
-  animation: wordmark-reveal 300ms var(--ease-out) backwards;
+@starting-style {
+  .frame:has(.artwork[data-artwork-state="ready"]) .wordmark[data-logo-ready] { opacity: 0; }
 }
-
-@keyframes wordmark-reveal {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .card[data-reveal-artwork] .frame:has(.artwork[data-artwork-state="ready"]) .wordmark[data-logo-ready],
-  .frame:has(.artwork[data-artwork-state="ready"]) .wordmark[data-logo-ready][data-logo-late],
-  .frame:has(.artwork[data-artwork-revealing]) .wordmark[data-logo-ready] { animation-duration: 100ms; }
+  .frame:has(.artwork[data-artwork-state="ready"]) .wordmark[data-logo-ready] { transition-duration: 100ms; }
 }
 
 .playOverlay {
