@@ -67,16 +67,19 @@ function releaseHighlightsFromPage(root: Node) {
 
 export async function githubReleaseNotes(version: string, signal: AbortSignal) {
     const tag = `release-v${version}`;
-    const init = { redirect: "error", signal } as const;
+    // GitHub redirects old repository names to the new name or repository ID.
+    // The shared fetch guard bounds redirects, validates public addresses and disallows HTTPS downgrades.
+    const init = { redirect: "follow", signal } as const;
     try {
         const response = await outboundFetch(`${releasesApi}/tags/${tag}`, {
             ...init, headers: apiHeaders,
         }, { timeoutMs: 3500, maxBytes: 256 * 1024 });
         if (response.ok) {
             const data = await response.json();
-            if (data?.tag_name === tag && data.draft === false && typeof data.body === "string") return releaseHighlights(data.body);
-        } else if (response.status === 404) {
-            return "";
+            if (data?.tag_name === tag && data.draft === false && typeof data.body === "string") {
+                const notes = releaseHighlights(data.body);
+                if (notes) return notes;
+            }
         }
     } catch {
         // The public release page works without an API token or API quota.
@@ -90,7 +93,7 @@ async function listReleaseNotesFromApi(inRange: (_version: string) => boolean, t
     const releases: ReleaseNotes[] = [];
     for (let page = 1; ; page++) {
         const response = await outboundFetch(`${releasesApi}?per_page=100&page=${page}`, {
-            headers: apiHeaders, redirect: "error", signal,
+            headers: apiHeaders, redirect: "follow", signal,
         }, { timeoutMs: 3500, maxBytes: 2 * 1024 * 1024 });
         if (!response.ok) break;
         const entries = await response.json();
@@ -108,7 +111,7 @@ async function listReleaseNotesFromPages(inRange: (_version: string) => boolean,
     const releases: ReleaseNotes[] = [];
     for (let page = 1; ; page++) {
         const response = await outboundFetch(page === 1 ? appReleasesUrl : `${appReleasesUrl}?page=${page}`, {
-            redirect: "error", signal,
+            redirect: "follow", signal,
         }, { timeoutMs: 4500, maxBytes: 1024 * 1024 });
         if (!response.ok) break;
         let hasNextPage = false;
@@ -127,6 +130,17 @@ async function listReleaseNotesFromPages(inRange: (_version: string) => boolean,
 }
 
 export async function githubReleaseHistory(since: string, target: string, signal: AbortSignal): Promise<ReleaseHistory> {
+    const [sinceMajor, sinceMinor, sincePatch] = since.split(".").map(Number);
+    const [targetMajor, targetMinor, targetPatch] = target.split(".").map(Number);
+    if (sinceMajor === targetMajor && sinceMinor === targetMinor && targetPatch === sincePatch + 1) {
+        // A one-patch update needs only the target tag, not every release in the repository.
+        try {
+            const notes = await githubReleaseNotes(target, signal);
+            if (notes) return { releases: [{ version: target, notes }], complete: true };
+        } catch {
+            signal.throwIfAborted();
+        }
+    }
     const historySignal = AbortSignal.any([signal, AbortSignal.timeout(10_000)]);
     const inRange = (version: string) => releaseVersionPattern.test(version)
         && compareReleaseVersions(version, since) > 0 && compareReleaseVersions(version, target) <= 0;

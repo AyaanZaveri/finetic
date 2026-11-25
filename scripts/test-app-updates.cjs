@@ -165,12 +165,14 @@ async function checkReleaseNotes() {
     const releaseSection = (version, notes, badge = '') => `<section data-release-anchor="release-release-v${version}">${badge}
         <div class="markdown-body" data-test-selector="body-content"><h3>Fixes</h3><ul><li>${notes}</li></ul></div></section>`;
     let rateLimited = false;
+    let tagMissing = false;
+    let publicTagUnavailable = false;
     let publicListUnavailable = false;
     const { githubReleaseNotes, githubReleaseHistory } = load('lib/server/github-release-notes.ts', {
         'server-only': {},
         './outbound-fetch': { outboundFetch: async (url, options) => {
             urls.push(url);
-            assert.equal(options.redirect, 'error');
+            assert.equal(options.redirect, 'follow', 'GitHub repository rename redirects use the bounded public fetch guard');
             if (url === listPage(1)) {
                 if (rateLimited) return new Response(null, { status: 403 });
                 return Response.json([releaseEntry('0.6.9', 'Installed'), releaseEntry('0.6.13', 'Better seeking'),
@@ -189,6 +191,7 @@ async function checkReleaseNotes() {
                 + releaseSection('0.6.11', 'Preview', '<span class="Label Label--warning">Pre-release</span>')
                 + releaseSection('0.6.10', 'Better playback') + releaseSection('0.6.9', 'Installed'));
             if (url === releaseApi) {
+                if (tagMissing) return new Response(null, { status: 404 });
                 if (rateLimited) return new Response(null, { status: 403 });
                 return Response.json({ tag_name: tag, draft: false, body: [
                     '# Navigator 0.6.13', '### New features and improvements', '- Better seeking',
@@ -196,6 +199,7 @@ async function checkReleaseNotes() {
                 ].join('\n\n') });
             }
             assert.equal(url, releasePage);
+            if (publicTagUnavailable) return new Response(null, { status: 404 });
             return new Response(`<div class="markdown-body" data-test-selector="body-content">
                 <h3>New features and improvements</h3>
                 <ul><li><strong>Seek controls.</strong> Use the saved intervals &amp; labels.</li></ul>
@@ -233,6 +237,18 @@ async function checkReleaseNotes() {
     const partial = await GET(rangeRequest());
     assert.equal(partial.headers.get('cache-control'), 'no-store');
     assert.deepEqual(await partial.json(), { complete: false, releases: [{ version: '0.6.13', notes }] });
+    urls.splice(0);
+    tagMissing = true;
+    const adjacent = await GET(new Request(`${url}0.6.13&since=0.6.12`));
+    assert.deepEqual(await adjacent.json(), { complete: true, releases: [{ version: '0.6.13', notes }] },
+        'A temporarily missing GitHub API entry must not hide a published release’s notes');
+    assert.deepEqual(urls.splice(0), [releaseApi, releasePage], 'Adjacent updates should not scan the migrated release history');
+    assert.deepEqual(await (await GET(request())).json(), { notes }, 'Exact release notes also recover from API 404');
+    assert.deepEqual(urls.splice(0), [releaseApi, releasePage]);
+    publicTagUnavailable = true;
+    const unavailable = await GET(request());
+    assert.equal(unavailable.status, 404);
+    assert.equal(unavailable.headers.get('cache-control'), 'no-store', 'Do not cache an upstream publication failure');
     console.log('PASS: exact notes and paginated release history, version range and order, prerelease filtering, GitHub public fallback and partial recovery.');
 }
 
