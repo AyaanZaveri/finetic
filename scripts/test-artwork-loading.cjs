@@ -200,6 +200,19 @@ assert.equal(overscroll.source, '', 'Failed hero removes overscroll artwork');
 assert.equal(backdropHooks.render(BackdropImage, { ...backdropProps, backdropImage: '/new-hero.jpg' }).type, 'artwork-image');
 backdropHooks.unmount();
 
+const { AvatarImage } = load('components/ui/avatar.tsx', {
+  react: React, 'react/jsx-runtime': require('react/jsx-runtime'),
+  '@radix-ui/react-avatar': { Image: 'radix-avatar-image' },
+  '@/components/artwork-image': { ArtworkImage: 'artwork-image' },
+  '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') },
+});
+const avatar = AvatarImage({ src: '/portrait.jpg', alt: 'Person' });
+assert.equal(avatar.props.src, '/portrait.jpg', 'Keep the Radix avatar preloader and error fallback');
+assert.equal(avatar.props.asChild, true);
+assert.equal(avatar.props.children.type, 'artwork-image');
+assert.equal(avatar.props.children.props.waitForDecode, true, 'Cast and add-on avatars use the actual decoded-image fade');
+assert.equal(avatar.props.children.props.style.backgroundColor, 'transparent', 'Preserve transparent icons');
+
 // A real decode can finish long after load. Keep the wordmark hidden until
 // the decode resolves, deduplicate ref/load notifications and ignore stale work.
 (async () => {

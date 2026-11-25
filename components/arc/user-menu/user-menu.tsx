@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactNode, Ref } from "react";
 import { createPortal } from "react-dom";
 import BoringAvatar from "boring-avatars";
@@ -9,6 +9,7 @@ import type { PanInfo, Transition, Variants } from "motion/react";
 import { ChevronDown, LoaderCircle, LogOut, Monitor, Moon, Sun, SunMoon } from "lucide-react";
 import { motionTokens } from "../lib/motion-tokens";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
+import { ArtworkImage } from "@/components/artwork-image";
 import styles from "./user-menu.module.css";
 import SegmentedControl from "../segmented-control/segmented-control";
 
@@ -107,6 +108,7 @@ export function PresenceDot({ status, className }: { status: UserStatus | "offli
 
 function Portrait({ user }: { user: UserMenuUser }) {
   const [failed, setFailed] = useState<string>();
+  const unavailable = useCallback(() => setFailed(user.avatarSrc), [user.avatarSrc]);
   if (!user.avatarSrc || failed === user.avatarSrc) {
     // Navigator keeps its username-seeded marble image inside Arc's Face.
     return <BoringAvatar
@@ -117,8 +119,8 @@ function Portrait({ user }: { user: UserMenuUser }) {
       colors={["#064e3b", "#059669", "#34d399", "#99f6e4", "#0d9488"]}
     />;
   }
-  // eslint-disable-next-line @next/next/no-img-element -- registry components stay framework agnostic; pass optimized URLs as avatarSrc and avatarSrcSet.
-  return <img className={styles.portrait} src={user.avatarSrc} srcSet={user.avatarSrcSet} alt="" decoding="async" draggable={false} onError={() => setFailed(user.avatarSrc)} />;
+  return <ArtworkImage className={styles.portrait} src={user.avatarSrc} srcSet={user.avatarSrcSet} alt="" decoding="async" draggable={false}
+    reveal="late" waitForDecode fallbackText="" onUnavailable={unavailable} />;
 }
 
 function Face({ user, status, size }: { user: UserMenuUser; status?: UserStatus; size: "sm" | "md" }) {

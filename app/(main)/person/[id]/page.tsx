@@ -67,7 +67,7 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
     return <div className={styles.page}>
         <HomeInitialPalette primary={person.poster} resetInteraction />
         <header className={styles.profile}>
-            <ArtworkImage src={person.poster} alt={person.name} fallbackText="Photo unavailable" width={300} height={450} className={styles.portrait} reveal={false} />
+            <ArtworkImage src={person.poster} alt={person.name} fallbackText="Photo unavailable" width={300} height={450} className={styles.portrait} waitForDecode />
             <div className={styles.copy}>
                 {person.department && <p className={styles.department}>{person.department}</p>}
                 <h1 className={styles.name}>{person.name}</h1>

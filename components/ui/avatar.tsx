@@ -4,6 +4,7 @@ import * as React from "react"
 import * as AvatarPrimitive from "@radix-ui/react-avatar"
 
 import { cn } from "@/lib/utils"
+import { ArtworkImage } from "@/components/artwork-image"
 
 function Avatar({
   className,
@@ -23,6 +24,8 @@ function Avatar({
 
 function AvatarImage({
   className,
+  asChild,
+  children,
   ...props
 }: React.ComponentProps<typeof AvatarPrimitive.Image>) {
   return (
@@ -30,8 +33,11 @@ function AvatarImage({
       data-slot="avatar-image"
       className={cn("aspect-square size-full", className)}
       {...props}
+      asChild
       draggable={false}
-    />
+    >
+      {asChild ? children : <ArtworkImage waitForDecode fallbackText="" style={{ backgroundColor: "transparent" }} />}
+    </AvatarPrimitive.Image>
   )
 }
 

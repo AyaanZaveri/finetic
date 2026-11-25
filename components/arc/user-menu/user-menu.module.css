@@ -45,6 +45,7 @@
 .face[data-size="sm"] { --face-size: 32px; --dot-size: 11px; }
 .face[data-size="md"] { --face-size: 34px; --dot-size: 10px; }
 .portrait { display: block; width: 100%; height: 100%; border-radius: var(--radius-pill); background: var(--surface-muted); object-fit: cover; object-position: 50% 15%; outline: 1px solid color-mix(in oklab, var(--foreground) 9%, transparent); outline-offset: -1px; user-select: none; }
+.portrait[data-artwork-state] { background-color: var(--surface-muted); }
 :global(html:not(.dark)) .portrait { outline-color: var(--artwork-edge); }
 .initials { display: grid; place-items: center; color: var(--text-secondary); font-size: calc(var(--face-size) * .36); font-weight: 500; line-height: 1; }
 .face .dot { position: absolute; right: -1px; bottom: -1px; box-shadow: 0 0 0 2px var(--presence-surface, var(--surface)); }

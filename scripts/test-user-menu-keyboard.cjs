@@ -20,6 +20,7 @@ const { UserMenu } = load('components/arc/user-menu/user-menu.tsx', {
   react: { ...menuHooks.react, useId: () => 'account', useSyncExternalStore: (_, get) => get() },
   'react/jsx-runtime': menuHooks.jsx, 'motion/react': motionMock,
   '../segmented-control/segmented-control': SegmentedControl,
+  '@/components/artwork-image': { ArtworkImage: 'artwork-image' },
   './user-menu.module.css': css,
 }, globals);
 const nodes = node => !node || typeof node !== 'object' ? [] : [node,
