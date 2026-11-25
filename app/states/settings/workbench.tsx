@@ -5,10 +5,11 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { SettingsShell } from "@/components/settings/settings-shell";
 import { SettingsView } from "@/components/settings/settings-view";
+import { AppUpdateProvider } from "@/components/desktop/app-update-provider";
 import { SettingsProvider } from "@/contexts/settings-context";
 import { SETTINGS_CATEGORIES, type SettingsCategory } from "@/lib/settings-navigation";
 import { installFixtures } from "./fixtures";
-import { groups, readState, settingsStateHref, states, type StateId } from "./states";
+import { groups, isReleaseNotesState, readState, settingsStateHref, states, type StateId } from "./states";
 import styles from "./states.module.css";
 
 const channel = "navigator-settings-workbench";
@@ -18,9 +19,10 @@ function commandFor(event: KeyboardEvent): Command | undefined {
     if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing) return;
     if (event.target instanceof Element &&
         event.target.closest("input, textarea, select, [contenteditable], [role=combobox], [role=listbox], [role=menu]")) return;
+    if (event.key.toLowerCase() === "h") return "hide";
+    if (event.target instanceof Element && event.target.closest("[role=dialog]")) return;
     if (event.key === "ArrowDown" || event.key === "ArrowRight") return "next";
     if (event.key === "ArrowUp" || event.key === "ArrowLeft") return "previous";
-    if (event.key.toLowerCase() === "h") return "hide";
 }
 
 function stageHref(id: StateId, scrollTop = 0) {
@@ -69,10 +71,12 @@ function Stage({ active, scrollTop }: { active: ReturnType<typeof readState>; sc
         const form = panel?.querySelector<HTMLInputElement>("#tmdb-read-access-token")?.form;
         const autoSave = id === "connections-saving" || id === "connections-save-error";
         const autoSignIn = id === "navigator-chatgpt-pending" || id === "navigator-chatgpt-error";
-        if (!panel || (!autoSave && !autoSignIn)) return;
+        const autoReleaseNotes = isReleaseNotesState(id);
+        if (!panel || (!autoSave && !autoSignIn && !autoReleaseNotes)) return;
+        const buttonLabel = autoReleaseNotes ? "Release notes" : "Continue with ChatGPT";
         const run = () => {
             const button = autoSave ? form?.querySelector<HTMLButtonElement>("button[type=submit]")
-                : Array.from(panel.querySelectorAll("button")).find(button => button.textContent?.includes("Continue with ChatGPT"));
+                : Array.from(panel.querySelectorAll("button")).find(button => button.textContent?.includes(buttonLabel));
             if (!button || button.disabled) return;
             observer.disconnect();
             if (autoSave) form?.requestSubmit(button);
@@ -100,15 +104,17 @@ function Stage({ active, scrollTop }: { active: ReturnType<typeof readState>; sc
         event.preventDefault();
         select("connections-unconfigured");
     }}>
-        <SettingsProvider>
-            <SettingsShell navigation={{
-                category,
-                href: category => stageHref(defaultState(category)),
-                select: category => { if (category !== active.category) select(defaultState(category)); },
-            }}>
-                <SettingsView category={category} />
-            </SettingsShell>
-        </SettingsProvider>
+        <AppUpdateProvider>
+            <SettingsProvider>
+                <SettingsShell navigation={{
+                    category,
+                    href: category => stageHref(defaultState(category)),
+                    select: category => { if (category !== active.category) select(defaultState(category)); },
+                }}>
+                    <SettingsView category={category} />
+                </SettingsShell>
+            </SettingsProvider>
+        </AppUpdateProvider>
     </main>;
 }
 
