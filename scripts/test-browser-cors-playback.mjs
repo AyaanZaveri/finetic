@@ -14,7 +14,9 @@ const servers = [];
 const requests = [];
 const session = 'navigator-cors-playback';
 const browser = process.env.CHROME_PATH || '/usr/bin/google-chrome';
-const cli = (args, options = {}) => run('agent-browser', ['--session', session, ...args], { timeout: 60_000, ...options });
+const browserArgs = ['--session', session, '--headed', '--executable-path', browser, '--args',
+  '--enable-unsafe-webgpu,--enable-unsafe-swiftshader,--use-angle=swiftshader,--autoplay-policy=no-user-gesture-required'];
+const cli = (args, options = {}) => run('agent-browser', [...browserArgs, ...args], { timeout: 60_000, ...options });
 async function listen(handler) {
   const server = createServer(handler);
   servers.push(server);
@@ -68,6 +70,7 @@ try {
       const prefs = gpu => localStorage.setItem('navigator-playback-preferences', JSON.stringify({ webGpuPlayback: gpu }));
       async function playback(name, url, gpu, corsFallback) {
         document.querySelector('#result').textContent = 'Testing ' + name;
+        await fetch('/progress', { method: 'POST', body: name });
         prefs(gpu);
         check(canUseWebGpu(url) === gpu, name + ': requested engine is unavailable');
         const session = createWebVideoSession(url);
@@ -113,10 +116,13 @@ try {
       main().then(() => ({ ok: true, results }), error => ({ ok: false, error: String(error.stack || error), results })).then(result => {
         document.querySelector('#result').textContent = JSON.stringify(result);
         window.finished = true;
+        return fetch('/result', { method: 'POST', body: JSON.stringify(result) });
       });
     `, resolveDir: process.cwd(), loader: 'js' }, bundle: true, format: 'esm', platform: 'browser', write: false,
   });
   const runtimeRoot = resolve('public/webgpu-player');
+  let report;
+  const reported = new Promise(resolve => { report = resolve; });
   const app = await listen(async (req, res) => {
     const url = new URL(req.url, 'http://fixture');
     if (url.pathname === '/') {
@@ -124,12 +130,20 @@ try {
         <script>
           window.addEventListener('error', event => {
             if (window.finished) return;
-            document.querySelector('#result').textContent = JSON.stringify({ ok: false, error: event.error?.stack || event.message || 'Failed to load browser test module' });
+            const result = JSON.stringify({ ok: false, error: event.error?.stack || event.message || 'Failed to load browser test module' });
+            document.querySelector('#result').textContent = result;
             window.finished = true;
+            fetch('/result', { method: 'POST', body: result });
           });
         </script><script type="module" src="/bundle.js" onerror="window.dispatchEvent(new ErrorEvent('error', {message: 'Failed to load browser test module'}))"></script>`);
     } else if (url.pathname === '/bundle.js') {
       res.writeHead(200, { 'Content-Type': 'text/javascript' }).end(outputFiles[0].contents);
+    } else if (req.method === 'POST' && (url.pathname === '/result' || url.pathname === '/progress')) {
+      let body = '';
+      for await (const chunk of req) body += chunk;
+      res.writeHead(204).end();
+      if (url.pathname === '/progress') console.log('Testing:', body);
+      else report(JSON.parse(body));
     } else if (url.pathname === '/api/playback/source') {
       // Stand-in for the authenticated app endpoint: only resolve our fixture.
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ url: cdn + '/file.mp4?case=webgpu' }));
@@ -142,19 +156,22 @@ try {
       } catch { res.writeHead(404).end(); }
     } else res.writeHead(404).end();
   });
-  await cli(['--headed', '--executable-path', browser, '--args', '--enable-unsafe-webgpu,--enable-unsafe-swiftshader,--use-angle=swiftshader,--autoplay-policy=no-user-gesture-required', 'open', app]);
+  const opened = await cli(['open', app]);
+  console.log(opened.stdout, opened.stderr);
+  let timer;
+  let result;
   try {
-    await cli(['wait', '--fn', 'window.finished === true'], { env: { ...process.env, AGENT_BROWSER_DEFAULT_TIMEOUT: '90000' }, timeout: 100_000 });
+    result = await Promise.race([reported, new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('Browser fixture did not report a result')), 90_000);
+    })]);
   } catch (error) {
-    for (const command of [['get', 'text', '#result'], ['console'], ['errors']]) {
+    for (const command of [['get', 'url'], ['get', 'text', '#result'], ['console'], ['errors']]) {
       const diagnostics = await cli(command).catch(e => ({ stdout: e.stdout, stderr: e.stderr }));
       console.log(command.join(' '), diagnostics.stdout, diagnostics.stderr);
     }
     console.log('Media requests:', requests);
     throw error;
-  }
-  const { stdout } = await cli(['get', 'text', '#result']);
-  const result = JSON.parse(stdout.trim());
+  } finally { clearTimeout(timer); }
   console.log(JSON.stringify(result, null, 2));
   assert.equal(result.ok, true, result.error);
   for (const test of ['redirect', 'direct-mp4', 'webgpu', 'probe', 'missing']) {
