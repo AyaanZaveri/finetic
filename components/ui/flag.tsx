@@ -68,7 +68,7 @@ export function Flag({ language, className = "", size = 16 }: FlagProps) {
       <div
         className={`inline-block bg-gray-300 rounded-sm ${className}`}
         style={{ width: size, height: size * 0.75 }}
-        title="No Language"
+        title="No language"
       />
     );
   }

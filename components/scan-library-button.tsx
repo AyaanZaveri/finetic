@@ -20,7 +20,7 @@ export function ScanLibraryButton({
 }: ScanLibraryButtonProps) {
   return (
     <Button
-      onClick={() => toast.info("Library scanning is not available with Stremio.")}
+      onClick={() => toast.info("Library scanning is not available with Stremio")}
       variant={variant}
       size={size}
       className={className}

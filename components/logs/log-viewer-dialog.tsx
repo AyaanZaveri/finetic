@@ -110,8 +110,8 @@ export function LogViewerDialog({
         setIsInitialLoad(false);
       }
     } catch (error) {
-      console.error("Failed to load log content:", error);
-      toast.error("Failed to load log content");
+      console.error("Couldn’t load log content. Try again.:", error);
+      toast.error("Couldn’t load log content. Try again.");
     } finally {
       if (isInitial) {
         setIsLoading(false);
@@ -121,7 +121,7 @@ export function LogViewerDialog({
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(logContent);
-    toast.success("Log content copied to clipboard");
+    toast.success("Log copied");
   };
 
   const downloadLog = () => {
@@ -189,7 +189,7 @@ export function LogViewerDialog({
           <div className="relative flex-1">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search logs..."
+              placeholder="Search logs…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-8"
@@ -225,7 +225,7 @@ export function LogViewerDialog({
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin" />
-                <span className="ml-2">Loading log content...</span>
+                <span className="ml-2">Loading log content…</span>
               </div>
             ) : (
               <pre data-selectable-text="" className="text-xs font-mono whitespace-pre-wrap break-words">
