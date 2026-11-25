@@ -63,6 +63,7 @@ try {
         requestAnimationFrame(sample);
     });
     await page.goto('http://127.0.0.1:3000/states/artwork-reveal');
+    assert.equal(new URL(page.url()).pathname, '/states/artwork-reveal', 'The dev-only fixture must not redirect to another route');
     await page.locator('[data-hydrated="true"]').waitFor();
     const releaseImage = async key => {
         const end = Date.now() + 12000;
