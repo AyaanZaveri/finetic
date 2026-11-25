@@ -870,7 +870,7 @@ export function SettingsView({ category }: { category: SettingsCategory }) {
             <h2 id="settings-credits">Credits and licenses</h2>
             <Field aria-labelledby="skip-timing-credits" className="gap-2">
                 <FieldTitle id="skip-timing-credits">Skip timings</FieldTitle>
-                <div className="flex flex-wrap items-center gap-1">
+                <div className="flex flex-wrap items-center gap-2">
                     {skipTimingProviders.map(provider => <Button key={provider.name} asChild variant="outline" size="sm">
                             <a draggable={false} className={externalLink.link} href={provider.href} target="_blank" rel="noreferrer">
                                 <Image src={provider.logo} width={20} height={20} className="size-5 shrink-0 rounded-sm object-contain" alt="" unoptimized data-icon="inline-start" />

@@ -46,7 +46,7 @@ export function AppUpdates() {
             </Button>}
             <Button asChild variant={status?.available ? "ghost" : "outline"} size="sm">
                 <a draggable={false} className={externalLink.link} href={appReleasesUrl} target="_blank" rel="noreferrer">
-                    <GitHubIcon className="size-[15px]" data-icon="inline-start" />
+                    <GitHubIcon className="size-4" data-icon="inline-start" />
                     <span className="inline-flex items-center">
                         GitHub releases
                         <span className={externalLink.arrow} aria-hidden="true">
