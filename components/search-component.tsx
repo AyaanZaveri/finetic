@@ -16,9 +16,10 @@ import { scheduleRoutePrefetch } from "@/lib/route-prefetch";
 interface SearchBarProps {
   className?: string;
   initialQuery?: string;
+  compact?: boolean;
 }
 
-export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps) {
+export function SearchBar({ className = "", initialQuery = "", compact = false }: SearchBarProps) {
     const [searchQuery, setSearchQuery] = useState(initialQuery.trim());
     const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -133,6 +134,7 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
 
     // Global keyboard shortcut
     useEffect(() => {
+        if (compact) return;
         const handleGlobalKeyDown = (event: KeyboardEvent) => {
             if (
                 event.key === "/" &&
@@ -150,7 +152,7 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
         };
         document.addEventListener("keydown", handleGlobalKeyDown);
         return () => document.removeEventListener("keydown", handleGlobalKeyDown);
-    }, []);
+    }, [compact]);
 
     const handleQueryChange = (query: string) => {
         skipNextSuggestSearchRef.current = false;
@@ -213,8 +215,8 @@ export function SearchBar({ className = "", initialQuery = "" }: SearchBarProps)
             onSubmit={handleSearch}
             emptyHint={searchError || "Try another title or name, or press Enter to see all results"}
             expandedWidth={576}
-            persistent
-            anchor="start"
+            persistent={!compact}
+            anchor={compact ? "end" : "start"}
         />
     );
 }

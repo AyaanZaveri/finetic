@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AdaptiveHeaderLogo } from "@/components/adaptive-header-logo";
 import { useTheme } from "next-themes";
-import { Home, LogIn, Puzzle, Settings } from "lucide-react";
+import { ArrowLeft, Home, LogIn, Puzzle, Settings } from "lucide-react";
 import { useAccountAccess } from "@/contexts/account-context";
 import { logout } from "@/app/actions";
 import { useIsPlayerVisible } from "@/contexts/MediaPlayerContext";
@@ -20,7 +20,7 @@ import { ProgressiveBlur } from "@/components/motion-primitives/progressive-blur
 
 const subscribe = () => () => {};
 
-function ProfileMenu({ email }: { email: string }) {
+function ProfileMenu({ email, onSignOut = logout }: { email: string; onSignOut?: typeof logout }) {
     const router = useRouter();
     const [shortcutModifier] = useNavigatorShortcut();
     const { theme, setTheme } = useTheme();
@@ -41,12 +41,32 @@ function ProfileMenu({ email }: { email: string }) {
                     { label: "App settings", icon: <Settings size={16} aria-hidden="true" />, onSelect: () => desktopBridge()?.send({ type: "settings" }) },
                 ] : []),
             ]}
-            onSignOut={logout}
+            onSignOut={onSignOut}
         />
     );
 }
 
-export function AppHeader({ email }: { email: string; overlay?: boolean }) {
+const phoneQuery = "(width < 48rem)";
+function subscribePhone(notify: () => void) {
+    const query = window.matchMedia(phoneQuery);
+    query.addEventListener("change", notify);
+    return () => query.removeEventListener("change", notify);
+}
+function HeaderSearch({ detail }: { detail: boolean }) {
+    const phone = useSyncExternalStore(subscribePhone, () => window.matchMedia(phoneQuery).matches, () => false);
+    const compact = detail && phone;
+    return <SearchBar key={compact ? "compact" : "full"} compact={compact} />;
+}
+
+function DetailBackButton() {
+    const router = useRouter();
+    return <Button variant="ghost" size="icon" className={`${styles.detailBack} size-11 rounded-full`} aria-label="Go back"
+        onClick={() => window.history.length > 1 ? router.back() : router.push("/")}>
+        <ArrowLeft aria-hidden="true" className="size-5" />
+    </Button>;
+}
+
+export function AppHeader({ email, overlay = false, onSignOut }: { email: string; overlay?: boolean; onSignOut?: typeof logout }) {
     const { authenticated, requestSignIn } = useAccountAccess();
     const isPlayerVisible = useIsPlayerVisible();
     const headerRef = useRef<HTMLElement>(null);
@@ -94,25 +114,26 @@ export function AppHeader({ email }: { email: string; overlay?: boolean }) {
     if (isPlayerVisible) return null;
 
     return (
-        <header ref={headerRef} data-window-drag-region="" className={`${styles.header} relative col-start-1 row-start-1 z-[var(--layer-header)] shrink-0 pl-[max(var(--page-gutter),env(safe-area-inset-left),var(--window-controls-inset,0px))] pr-[max(var(--page-gutter),env(safe-area-inset-right),var(--window-controls-right-inset,0px))]`}>
+        <header ref={headerRef} data-detail-header={overlay || undefined} data-window-drag-region="" className={`${styles.header} relative col-start-1 row-start-1 z-[var(--layer-header)] shrink-0 pl-[max(var(--page-gutter),env(safe-area-inset-left),var(--window-controls-inset,0px))] pr-[max(var(--page-gutter),env(safe-area-inset-right),var(--window-controls-right-inset,0px))]`}>
             <div ref={surfaceRef} className={styles.surface} aria-hidden="true">
                 <ProgressiveBlur direction="top" blurLayers={6} blurIntensity={2.4} className={styles.blur} />
                 <div data-header-tint="" className={styles.tint} />
             </div>
             <nav aria-label="Main navigation" className={`${styles.navigation} flex min-w-0 items-center gap-3`}>
-                <Button asChild variant="ghost" size="icon" className="size-11 rounded-md p-0 hover:bg-transparent dark:hover:bg-transparent">
+                <Button asChild variant="ghost" size="icon" className={`${styles.home} size-11 rounded-md p-0 hover:bg-transparent dark:hover:bg-transparent`}>
                     <Link href="/" aria-label="Navigator home" draggable={false}>
                         <AdaptiveHeaderLogo adaptive />
                     </Link>
                 </Button>
+                {overlay && <DetailBackButton />}
                 <div className="min-w-0 flex-1 sm:max-w-xl">
                     <Suspense fallback={<div className="h-11 rounded-xl bg-muted" />}>
-                        <SearchBar />
+                        <HeaderSearch detail={overlay} />
                     </Suspense>
                 </div>
                 <div className={`${styles.profile} flex h-11 shrink-0 items-center justify-center gap-3`}>
                     <DesktopUpdateButton />
-                    {authenticated ? <ProfileMenu email={email} /> : (
+                    {authenticated ? <ProfileMenu email={email} onSignOut={onSignOut} /> : (
                         <Button variant="outline" className="max-sm:size-11 max-sm:p-0" onClick={requestSignIn} aria-label="Sign in">
                             <LogIn data-icon="inline-start" aria-hidden="true" />
                             <span className="hidden sm:inline">Sign in</span>
