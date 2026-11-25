@@ -76,24 +76,26 @@ const resumeProps = { ...posterProps, continueWatching: true, item: {
   logo: 'https://image.tmdb.org/t/p/original/logo.png',
 } };
 const findResumeImage = (props) => nodes(resumeHooks.render(resumeCard.MediaCard, props)).find(node => node.type === 'artwork-image');
-assert.equal(findResumeImage({ ...resumeProps, revealArtwork: false }).props.reveal, 'late',
-  'Cached resume metadata suppresses only already-loaded artwork, not newly arriving pixels');
+assert.equal(findResumeImage({ ...resumeProps, revealArtwork: false }).props.reveal, true,
+  'Continue Watching uses the same first-paint reveal as episode cards, including cached metadata');
 const cachedLogoProps = { ...resumeProps, revealArtwork: false };
 const logo = () => nodes(resumeHooks.render(resumeCard.MediaCard, cachedLogoProps)).find(node => node.type === 'img');
 const wordmark = () => nodes(resumeHooks.render(resumeCard.MediaCard, cachedLogoProps)).find(node => node.props?.className?.includes('wordmark'));
 logo().props.ref({ complete: false, naturalWidth: 0 });
 assert.equal(wordmark().props['data-logo-ready'], undefined, 'The wordmark stays hidden while its image loads');
-logo().props.onLoad();
-assert.equal(wordmark().props['data-logo-late'], '', 'A delayed wordmark on a cached card must still reveal');
-logo().props.ref({ complete: true, naturalWidth: 500 });
-assert.equal(wordmark().props['data-logo-late'], '', 'Reattaching a decoded wordmark does not interrupt its fade');
+const loadedLogo = { complete: true, naturalWidth: 500 };
+logo().props.onLoad({ currentTarget: loadedLogo });
+assert.equal(wordmark().props['data-logo-ready'], '', 'A delayed wordmark on a cached card must still reveal');
+logo().props.ref(loadedLogo);
+assert.equal(wordmark().props['data-logo-ready'], '', 'Reattaching a decoded wordmark does not interrupt its fade');
 const warmLogoProps = { ...cachedLogoProps, item: { ...cachedLogoProps.item, logo: 'https://image.tmdb.org/t/p/original/warm-logo.png' } };
 const warmLogo = () => nodes(resumeHooks.render(resumeCard.MediaCard, warmLogoProps)).find(node => node.type === 'img');
-warmLogo().props.ref({ complete: true, naturalWidth: 500 });
-warmLogo().props.onLoad();
+const warmImage = { complete: true, naturalWidth: 500 };
+warmLogo().props.ref(warmImage);
+warmLogo().props.onLoad({ currentTarget: warmImage });
 const warmWordmark = nodes(resumeHooks.render(resumeCard.MediaCard, warmLogoProps)).find(node => node.props?.className?.includes('wordmark'));
 assert.equal(warmWordmark.props['data-logo-ready'], '');
-assert.equal(warmWordmark.props['data-logo-late'], undefined, 'An already-complete logo does not replay motion');
+assert.equal(warmWordmark.props['data-logo-ready'], '', 'A cached logo has the same ready state as a new logo');
 assert.match(findResumeImage(resumeProps).props.srcSet, /w780\/wide.jpg 780w/);
 findResumeImage(resumeProps).props.onUnavailable();
 const resumePoster = findResumeImage(resumeProps);
@@ -169,3 +171,36 @@ assert.ok(pending.nodes.some(node => node.prop === 'opacity' && node.value === '
 assert.ok(css.nodes.some(node => node.selector === '.reveal' && node.nodes.some(decl => decl.prop === 'animation' && /300ms/.test(decl.value))), 'Use a finite 300ms reveal');
 assert.ok(css.nodes.some(node => node.type === 'atrule' && node.params === '(prefers-reduced-motion: reduce)'), 'Keep the reveal gentle with reduced motion');
 console.log('PASS: source changes, stale events, immediate load, pre-hydration cache hits, failures and missing images.');
+
+// A real decode can finish long after load. Keep the wordmark hidden until
+// the decode resolves, deduplicate ref/load notifications and ignore stale work.
+(async () => {
+  const fixture = hooks();
+  const { MediaCard } = load('components/media-card.tsx', {
+    ...dependencies, react: { ...React, ...fixture.react }, 'react/jsx-runtime': fixture.jsx,
+    '@/lib/artwork': load('lib/artwork.ts'),
+    '@/components/artwork-image': { ArtworkImage: 'artwork-image' },
+  });
+  const render = (props = resumeProps) => nodes(fixture.render(MediaCard, props));
+  const getImage = props => render(props).find(node => node.type === 'img');
+  const getWordmark = props => render(props).find(node => node.props?.className?.includes('wordmark'));
+  let finish, calls = 0;
+  const image = { complete: true, naturalWidth: 500, decode: () => { calls++; return new Promise(resolve => { finish = resolve; }); } };
+  getImage().props.ref(image);
+  getImage().props.onLoad({ currentTarget: image });
+  assert.equal(calls, 1, 'Ref and load share one decode');
+  assert.equal(getWordmark().props['data-logo-ready'], undefined, 'Load alone cannot expose the undecoded logo');
+  finish(); await Promise.resolve();
+  assert.equal(getWordmark().props['data-logo-ready'], '', 'Decoded logo can start the opacity transition');
+  let finishOld;
+  const oldProps = { ...resumeProps, item: { ...resumeProps.item, logo: 'https://image.tmdb.org/t/p/original/old.png' } };
+  const nextProps = { ...resumeProps, item: { ...resumeProps.item, logo: 'https://image.tmdb.org/t/p/original/new.png' } };
+  const oldImage = { complete: true, naturalWidth: 500, decode: () => new Promise(resolve => { finishOld = resolve; }) };
+  const oldRef = getImage(oldProps).props.ref;
+  oldRef(oldImage); oldRef(null);
+  getImage(nextProps).props.ref({ complete: true, naturalWidth: 500 });
+  finishOld(); await Promise.resolve();
+  assert.equal(getWordmark(nextProps).props['data-logo-ready'], '', 'A stale decode cannot replace the current logo');
+  fixture.unmount();
+  console.log('PASS: decoded logo readiness, duplicate notification protection and stale decode cancellation');
+})().catch(error => { console.error(error); process.exitCode = 1; });

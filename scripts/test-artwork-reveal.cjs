@@ -52,8 +52,7 @@ let mac;
 card.walkRules(rule => { if (rule.selector === ':global(html[data-native-platform="macos"]) .card[data-continue-watching] .artwork') mac = rule; });
 assert.equal(mac.nodes.find(node => node.prop === '--artwork-opacity')?.value, '0.65');
 assert.equal(mac.nodes.find(node => node.prop === 'opacity'), undefined, 'No platform selector can override the shared pending opacity');
-assert.ok(card.nodes.some(node => node.type === 'atrule' && node.name === 'keyframes' && node.params === 'wordmark-reveal'), 'Cached wordmarks need a first-paint animation');
-assert.ok(card.nodes.some(node => node.type === 'rule' && node.selector.includes('[data-logo-late]') && node.selector.includes('[data-artwork-revealing]') &&
-  node.nodes.some(declaration => declaration.prop === 'animation' && declaration.value.includes('wordmark-reveal'))),
-  'Late wordmarks and late backdrops both trigger the existing fade');
-console.log('PASS: pre-layout cache reveal, macOS opacity endpoint, pending opacity, and cached wordmark animation');
+const ready = card.nodes.find(node => node.type === 'rule' && node.selector.includes('[data-logo-ready]'));
+assert.equal(ready.nodes.find(node => node.prop === 'transition').value, 'opacity 300ms var(--ease-out)', 'Wordmarks use the title-page opacity transition');
+assert.ok(card.nodes.some(node => node.type === 'atrule' && node.name === 'starting-style'), 'First-paint logos also fade');
+console.log('PASS: artwork readiness, macOS opacity endpoint, pending opacity, and wordmark transition');
