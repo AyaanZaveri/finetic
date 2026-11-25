@@ -4,7 +4,7 @@
     <title>Navigator for macOS</title>
     <language>en</language>
     <item>
-      <title>Navigator 0.6.14</title>
+      <title>Navigator 0.6.15</title>
       <description>&lt;!doctype html&gt;
 &lt;html lang=&quot;en&quot;&gt;
 &lt;head&gt;
@@ -23,11 +23,11 @@ p { margin: 0; }
 &lt;body&gt;&lt;p&gt;Update Navigator, then reopen it with your existing sign-in and settings.&lt;/p&gt;&lt;/body&gt;
 &lt;/html&gt;</description>
       <sparkle:minimumSystemVersion>13.5</sparkle:minimumSystemVersion>
-      <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.6.14/Navigator-0.6.14-macos-arm64.zip"
-        sparkle:version="0.6.14" sparkle:shortVersionString="0.6.14"
-        sparkle:edSignature="Vyz8cG9Q8LKyKjk8Vk3FvMZyvKwlmDwvGN2s0Exqwqdcl+RRlqGJrvN9924pFVs4Byv/3gzTDkuq6lxwqhY6Cw==" length="96636506" type="application/octet-stream" />
+      <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.6.15/Navigator-0.6.15-macos-arm64.zip"
+        sparkle:version="0.6.15" sparkle:shortVersionString="0.6.15"
+        sparkle:edSignature="IBLx2IbQMXEhEfP5dLmUsKFMxbDAOvBogQ02VzbTWWINk5ZkgT12kOyEZWkHkli5WT5+ItMF757UPBFMojawBQ==" length="96636513" type="application/octet-stream" />
       <sparkle:deltas>
-        <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.6.14/Navigator-0.6.14-macos-arm64-from-0.6.13.delta" sparkle:version="0.6.14" sparkle:deltaFrom="0.6.13" sparkle:edSignature="tJ9y7UItZJ2EPGBCEWzBJS3kzC4CW3bB94q2GtEKbAUT8CDcq7A4Fwd4aSGzv6KgA2qAYz10W20T2DCWurDnCg==" length="1421454" type="application/octet-stream" />
+        <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.6.15/Navigator-0.6.15-macos-arm64-from-0.6.14.delta" sparkle:version="0.6.15" sparkle:deltaFrom="0.6.14" sparkle:edSignature="LdWB+fxZlZqlFyxKUsIM6Mf+XjLI1+y1BcQ0V/pvA167pgDxSDucdfJdtY0OhYT8+kcnc9t25OBhqdPzw2olCA==" length="827114" type="application/octet-stream" />
       </sparkle:deltas>
     </item>
   </channel>
