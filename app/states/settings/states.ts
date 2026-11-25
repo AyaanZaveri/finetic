@@ -62,10 +62,19 @@ export const groups = {
         ["about-downloading", "Downloading update"],
         ["about-ready", "Ready to restart"],
         ["about-error", "Update failed"],
+        ["about-release-notes", "Release notes"],
+        ["about-release-notes-long", "Long release notes"],
+        ["about-release-notes-loading", "Release notes loading"],
+        ["about-release-notes-empty", "No release notes"],
+        ["about-release-notes-error", "Release notes failed"],
     ],
 } as const satisfies Record<SettingsCategory, readonly (readonly [string, string])[]>;
 
 export type StateId = typeof groups[SettingsCategory][number][0];
+
+export function isReleaseNotesState(id: StateId) {
+    return id.startsWith("about-release-notes");
+}
 
 export const states = (Object.keys(groups) as SettingsCategory[]).flatMap(category =>
     groups[category].map(([id, label]) => ({ category, id, label })));

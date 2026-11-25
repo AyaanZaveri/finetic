@@ -3,7 +3,8 @@ import * as webSearch from "@/app/actions/web-search-settings";
 import type { DesktopBridge, NativeMessage, UpdateStatus } from "@/lib/desktop/bridge";
 import { KEYBOARD_SEEK_SECONDS, PLAYBACK_PREFERENCES_KEY, type PlaybackPreferences } from "@/lib/media/playback-preferences";
 import type { ModelsDevModel } from "@/lib/models-dev";
-import type { StateId } from "./states";
+import { installedVersion, releaseVersion } from "../app-updates/fixtures";
+import { isReleaseNotesState, type StateId } from "./states";
 
 const artworkToken = "fixture-tmdb-read-access-token";
 const webSearchKey = "fixture-tinyfish-api-key";
@@ -51,12 +52,32 @@ const updateStates: Partial<Record<StateId, UpdateStatus["state"]>> = {
     "about-ready": "ready", "about-error": "error",
 };
 
+const releaseNotes = [
+    "- **Playback controls.** Choose separate skip intervals for the left and right arrow keys.",
+    "- **Subtitle timing.** Adjust subtitle sync during playback without leaving the player.",
+    "- **Desktop updates.** Review the changes in your installed version from Settings.",
+];
+
+const longReleaseNotes = [
+    ...releaseNotes,
+    "- **Audio and subtitles.** Choose preferred languages and keep them across episodes.",
+    "- **Subtitle appearance.** Adjust the size, position, weight, and color of captions.",
+    "- **Episode continuation.** Play the next episode automatically when the current episode ends.",
+    "- **Stream selection.** Review available streams and choose a different source from the player.",
+    "- **HDR playback.** Configure display preferences on supported devices.",
+    "- **Search.** Find movies, series, and people from the same search field.",
+    "- **Settings navigation.** Related preferences are grouped into separate categories.",
+    "- **Playback recovery.** Retry interrupted streams without losing your saved position.",
+    "- **Keyboard controls.** Navigate player menus and settings using the keyboard.",
+];
+
 function fixtureBridge(id: StateId): DesktopBridge | undefined {
-    const updates = updateStates[id];
+    const updates = isReleaseNotesState(id) ? "current" : updateStates[id];
     const nativePlayback = id.startsWith("playback-native");
     if (!updates && !nativePlayback && id !== "playback-mobile") return undefined;
     let status: UpdateStatus = {
-        type: "update-status", version: "0.6.10", state: updates ?? "idle",
+        type: "update-status", version: installedVersion, state: updates ?? "idle",
+        nextVersion: updates && ["available", "downloading", "ready"].includes(updates) ? releaseVersion : null,
         available: id !== "about-portable", automatic: true,
         message: id === "about-error" ? "Couldn’t download the update. Try again." : undefined,
     };
@@ -162,6 +183,16 @@ export function installFixtures(id: StateId) {
         const [resource, init] = args;
         const url = new URL(resource instanceof Request ? resource.url : String(resource), window.location.href);
         if (url.origin !== location.origin) return previousFetch(resource, init);
+        if (url.pathname === "/api/updates/release-notes") {
+            if (id === "about-release-notes-loading") return pending();
+            if (id === "about-release-notes-error") return Response.json({ notes: "" }, { status: 502 });
+            if (id === "about-release-notes-empty") return Response.json({ notes: "" }, { status: 404 });
+            if (url.searchParams.has("since")) return Response.json({ complete: true, releases: [
+                { version: releaseVersion, notes: releaseNotes.join("\n") },
+                { version: "0.6.12", notes: longReleaseNotes.slice(3, 6).join("\n") },
+            ] });
+            return Response.json({ notes: (id === "about-release-notes-long" ? longReleaseNotes : releaseNotes).join("\n") });
+        }
         const actionId = new Headers(init?.headers).get("Next-Action");
         if (actionId && url.pathname === "/states/settings") {
             const [argument] = typeof init?.body === "string" ? JSON.parse(init.body) as unknown[] : [];
