@@ -167,7 +167,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [ollamaBaseUrl, setOllamaBaseUrlState] = useState<string>(
     "http://localhost:11434"
   );
-  const [ollamaModel, setOllamaModelState] = useState<string>("phi3");
+  const [ollamaModel, setOllamaModelState] = useState<string>("");
   const [groqModel, setGroqModelState] = useState<string>("llama3-8b-8192");
   const [openrouterModel, setOpenrouterModelState] = useState<string>(
     "qwen/qwen3-coder:free"

@@ -28,6 +28,9 @@ function mount() {
 }
 storage.set(preferences.PLAYBACK_PREFERENCES_KEY, '{"keyboardSeekSeconds":15}');
 let settings = mount();
+assert.equal(settings.value.ollamaModel, '', 'New Ollama configurations must not select a model automatically');
+settings.value.setOllamaModel('phi3'); settings.render(); settings = mount();
+assert.equal(settings.value.ollamaModel, 'phi3', 'Preserve an explicitly saved model');
 assert.equal(settings.value.playbackPreferences.keyboardSeekBackwardSeconds, 15);
 assert.equal(settings.value.playbackPreferences.keyboardSeekForwardSeconds, 15);
 settings.value.updatePlaybackPreferences({ keyboardSeekBackwardSeconds: 5 }); settings.render(); settings = mount();

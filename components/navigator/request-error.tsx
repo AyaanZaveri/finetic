@@ -8,10 +8,11 @@ export function NavigatorRequestError({ error, busy, onRetry }: { error: Error; 
     const setup = /api key|api_key|AI endpoint|AI provider|stable session/i.test(error.message)
         && /required|requires|missing|configured|expired|rejected|unsupported|check.*settings/i.test(error.message);
     const chatGPTSetup = /ChatGPT/.test(error.message) && /in Settings|Navigator Desktop/.test(error.message);
+    const modelSetup = /Ollama model.*in Settings/i.test(error.message);
     const chatGPTLimit = error.message.startsWith("ChatGPT usage limit reached");
     const missing = /required|requires|missing|not configured/i.test(error.message);
     const title = chatGPTLimit ? "ChatGPT usage limit reached"
-        : setup || chatGPTSetup ? missing ? "Set up Navigator" : "Check Navigator settings"
+        : setup || chatGPTSetup || modelSetup ? missing ? "Set up Navigator" : "Check Navigator settings"
             : "Could not complete this request";
     return <div role="alert" className="mx-2 flex min-w-0 flex-col items-start gap-3 rounded-xl border border-border px-4 py-3">
         <div className="min-w-0 space-y-1">
@@ -21,7 +22,7 @@ export function NavigatorRequestError({ error, busy, onRetry }: { error: Error; 
                 : error.message}</p>
         </div>
         {chatGPTLimit ? <Button asChild variant="outline" size="sm"><a href={CHATGPT_USAGE_URL} target="_blank" rel="noreferrer">Manage usage</a></Button>
-            : setup || chatGPTSetup ? <Button asChild variant="outline" size="sm"><Link href="/settings/navigator">Open settings</Link></Button>
+            : setup || chatGPTSetup || modelSetup ? <Button asChild variant="outline" size="sm"><Link href="/settings/navigator">Open settings</Link></Button>
                 : <Button type="button" variant="outline" size="sm" disabled={busy} onClick={onRetry}>Try again</Button>}
     </div>;
 }

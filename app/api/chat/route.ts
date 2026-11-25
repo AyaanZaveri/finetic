@@ -103,7 +103,7 @@ export async function POST(req: Request) {
             chatGPTModel,
             geminiModel = "gemini-flash-lite-latest",
             ollamaBaseUrl = "http://localhost:11434",
-            ollamaModel = "phi3",
+            ollamaModel = "",
             ollamaApiKey,
             groqModel = "llama3-8b-8192",
             openrouterModel = "qwen/qwen3-coder:free",
@@ -123,7 +123,12 @@ export async function POST(req: Request) {
         usingChatGPT = aiProvider === "openai" && openaiAuthMethod === "chatgpt";
         if (usingChatGPT) requireChatGPTOrigin(req);
         if (aiProvider === "openai" && !usingChatGPT) outboundUrl(openaiBaseUrl, { provider: true });
-        if (aiProvider === "ollama") outboundUrl(ollamaBaseUrl, { provider: true });
+        if (aiProvider === "ollama") {
+            if (typeof ollamaModel !== "string" || !ollamaModel.trim()) {
+                return new Response("An Ollama model is required. Choose a model in Settings.", { status: 400 });
+            }
+            outboundUrl(ollamaBaseUrl, { provider: true });
+        }
         if (aiProvider === "openai" && !usingChatGPT && openaiBaseUrl !== OPENAI_DEFAULT_BASE_URL && !openaiApiKey) {
             return new Response("A custom AI endpoint requires its own API key in Settings.", { status: 400 });
         }
@@ -229,7 +234,7 @@ export async function POST(req: Request) {
                     baseURL: ollamaBaseUrl, fetch: providerFetch,
                     headers: ollamaApiKey?.trim() ? { Authorization: `Bearer ${ollamaApiKey.trim()}` } : undefined,
                 });
-                model = ollamaProvider(ollamaModel);
+                model = ollamaProvider(ollamaModel.trim());
                 break;
             }
             case "groq":

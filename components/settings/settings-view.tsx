@@ -3,7 +3,7 @@ import { useStreamQueries } from "@/components/stream-query-provider";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Cerebras, Gemini, Groq, Ollama, OpenAI, OpenRouter } from "@lobehub/icons";
-import { ArrowUpRight, Eye, EyeOff, KeyRound, Link2, Cpu } from "lucide-react";
+import { ArrowUpRight, Eye, EyeOff, KeyRound, Link2, Hexagon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { OpenCodeIcon } from "@/components/opencode-icon";
@@ -117,7 +117,7 @@ function SettingsInput({ id, label, value, onValueChange, placeholder, descripti
                     aria-describedby={description ? `${id}-description` : undefined}
                 />
                 <InputGroupAddon align="inline-start">
-                    {type === "url" ? <Link2 aria-hidden="true" /> : <Cpu aria-hidden="true" />}
+                    {type === "url" ? <Link2 aria-hidden="true" /> : <Hexagon aria-hidden="true" />}
                 </InputGroupAddon>
             </InputGroup>
             {description && <FieldDescription id={`${id}-description`}>{description}</FieldDescription>}
@@ -652,7 +652,7 @@ function NavigatorSettings() {
             loading: geminiModelsProvider === undefined || isLoadingGeminiModels, error: geminiModelsError,
         },
         ollama: {
-            value: ollamaModel, onValueChange: setOllamaModel, placeholder: "phi3",
+            value: ollamaModel, onValueChange: setOllamaModel, placeholder: "model:tag",
             description: <a draggable={false} href="https://ollama.com/search?c=tools" target="_blank" rel="noopener noreferrer">Browse Ollama models</a>,
         },
         groq: {

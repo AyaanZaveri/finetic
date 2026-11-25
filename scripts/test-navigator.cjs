@@ -750,10 +750,15 @@ async function main() {
   assert.equal(compatibleSettings.at(-1).supportsStructuredOutputs, true, 'Compatible endpoints must receive json_schema for structured tool planning, not unstructured json_object');
 
   for (const apiKey of [' hosted-key ', '']) {
-    await readResponse(await POST(request({ ...payload, aiProvider: 'ollama', ollamaBaseUrl: 'https://hosted.example', ollamaApiKey: apiKey, pathname: '/', currentMedia: null, messages: [user('ollama-auth-' + !!apiKey, 'hello')] })));
+    await readResponse(await POST(request({ ...payload, aiProvider: 'ollama', ollamaModel: 'fixture-model', ollamaBaseUrl: 'https://hosted.example', ollamaApiKey: apiKey, pathname: '/', currentMedia: null, messages: [user('ollama-auth-' + !!apiKey, 'hello')] })));
     assert.equal(ollamaSettings.at(-1).baseURL, 'https://hosted.example');
     assert.equal(ollamaSettings.at(-1).headers?.Authorization, apiKey ? 'Bearer hosted-key' : undefined, 'Hosted Ollama sends the optional key; local Ollama needs no Authorization header');
   }
+  const beforeMissingModel = ollamaSettings.length;
+  const missingModel = await POST(request({ ...payload, aiProvider: 'ollama', ollamaModel: ' ', ollamaBaseUrl: 'https://hosted.example', pathname: '/', currentMedia: null, messages: [user('ollama-unconfigured', 'hello')] }));
+  assert.equal(missingModel.status, 400);
+  assert.match(await missingModel.text(), /Choose a model in Settings/);
+  assert.equal(ollamaSettings.length, beforeMissingModel);
 
   // Real track discovery must start providers concurrently and retain provider ordering.
   overrides['./auth'] = { getInstalledAddons: async () => [

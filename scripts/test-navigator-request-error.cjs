@@ -10,6 +10,10 @@ for(const message of ['OpenAI API key is required for OpenAI provider. Please se
  const html=renderToStaticMarkup(React.createElement(NavigatorRequestError,{error:Error(message),busy:false,onRetry(){}}));
  assert.match(html,/Open settings/);assert.match(html,/href="\/settings\/navigator"/);assert.match(html,/role="alert"/);assert.doesNotMatch(html,/Try again|underline|OpenAI|Gemini/);
 }
+const missingModel = renderToStaticMarkup(React.createElement(NavigatorRequestError,{error:Error('An Ollama model is required. Choose a model in Settings.'),busy:false,onRetry(){}}));
+assert.match(missingModel,/Choose a model in Settings/);
+assert.match(missingModel,/href="\/settings\/navigator"/);
+assert.doesNotMatch(missingModel,/API key|Try again/);
 const retry=NavigatorRequestError({error:Error('Connection interrupted'),busy:true,onRetry(){}});
 assert.equal(retry.props.children[1].props.disabled,true);
 assert.equal(retry.props.children[1].props.children,'Try again');
