@@ -67,8 +67,8 @@ jobs:
       - name: Download pinned playback libraries
         if: matrix.libmpv != ''
         run: node scripts/fetch-desktop-libs.mjs
-      - name: Verify the real mpv audio-delay property (no playback)
+      - name: Verify mpv audio delay and loaded-session commands
         if: matrix.libmpv != ''
         env:
           NAVIGATOR_TEST_LIBMPV: ${{ github.workspace }}/${{ matrix.libmpv }}
-        run: cargo test --manifest-path desktop/Cargo.toml --locked audio_delay_libmpv_property -- --ignored --nocapture
+        run: cargo test --manifest-path desktop/Cargo.toml --locked audio_delay_ -- --ignored --nocapture
