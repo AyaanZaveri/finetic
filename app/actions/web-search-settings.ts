@@ -15,9 +15,9 @@ export async function getWebSearchSettings() {
 const cookieOptions = () => ({ path: "/", httpOnly: true, secure: cookieRequiresHttps(), sameSite: "lax" as const, maxAge: 365 * 24 * 60 * 60 });
 
 export async function saveWebSearchKey(input: string) {
-    if (!await getUser()) return { success: false as const, error: "Sign in again to save a TinyFish key." };
+    if (!await getUser()) return { success: false as const, error: "Sign in again to save your TinyFish key" };
     const key = typeof input === "string" ? input.trim() : "";
-    if (!key || key.length > 2048 || !/^[\x21-\x7e]+$/.test(key)) return { success: false as const, error: "Enter a valid TinyFish API key." };
+    if (!key || key.length > 2048 || !/^[\x21-\x7e]+$/.test(key)) return { success: false as const, error: "Enter a valid TinyFish API key" };
     try {
         await searchTinyfish("The Movie Database", "Verify the web search connection for Navigator settings", key);
         (await cookies()).set(TINYFISH_KEY_COOKIE, key, cookieOptions());
@@ -28,14 +28,14 @@ export async function saveWebSearchKey(input: string) {
 }
 
 export async function removeWebSearchKey() {
-    if (!await getUser()) return { success: false as const, error: "Sign in again to remove the TinyFish key." };
+    if (!await getUser()) return { success: false as const, error: "Sign in again to remove your TinyFish key" };
     (await cookies()).delete(TINYFISH_KEY_COOKIE);
     return { success: true as const, ...await getWebSearchSettings() };
 }
 
 export async function setWebSearchEnabled(enabled: boolean) {
-    if (!await getUser()) return { success: false as const, error: "Sign in again to change web search." };
-    if (typeof enabled !== "boolean") return { success: false as const, error: "Choose whether to enable web search." };
+    if (!await getUser()) return { success: false as const, error: "Sign in again to change web search" };
+    if (typeof enabled !== "boolean") return { success: false as const, error: "Choose whether to enable web search" };
     (await cookies()).set(WEB_SEARCH_COOKIE, enabled ? "1" : "0", cookieOptions());
     return { success: true as const, ...await getWebSearchSettings() };
 }

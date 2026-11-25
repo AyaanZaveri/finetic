@@ -53,7 +53,7 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
                     pendingLink.current = false;
                     setLink(null);
                     setLinking(false);
-                    setError("This sign-in link expired. Please try again.");
+                    setError("This sign-in link expired. Start again.");
                     return;
                 }
             } catch { /* A temporary connection failure can recover on the next poll. */ }
@@ -82,7 +82,7 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
             if (active.current) {
                 pendingLink.current = false;
                 setLinking(false);
-                setError("Couldn't open Stremio. Please try again or use your email and password.");
+                setError("Couldn’t open Stremio. Try again or use your email and password.");
             }
         }
     }
@@ -95,14 +95,14 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
         setError("");
         try {
             if (!await authenticateUser(email.trim(), password)) {
-                setError("Couldn't sign in. Check your Stremio email and password and try again.");
+                setError("Couldn’t sign in. Check your Stremio email and password.");
                 return;
             }
             setPassword("");
             toast.success("Signed in to Stremio");
             onSuccess();
         } catch {
-            setError("Couldn't reach Stremio. Please try again.");
+            setError("Couldn’t reach Stremio. Try again.");
         } finally {
             pending.current = false;
             setSubmitting(false);
@@ -118,7 +118,7 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
                 {linking && !link ? <ActivityTextShimmer>Connecting to Stremio…</ActivityTextShimmer> : "Sign in with Stremio"}
             </Button>
             {link && <div className="flex flex-col items-center gap-2 text-center text-sm">
-                <p role="status" className="text-balance text-muted-foreground">Finish signing in in the Stremio window.</p>
+                <p role="status" className="text-balance text-muted-foreground">Complete sign-in in the Stremio window</p>
                 <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
                     <a draggable={false} href={link.link} target="_blank" rel="noreferrer" className="font-medium text-foreground underline-offset-4 hover:underline">Open Stremio</a>
                     <button type="button" className="font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" onClick={() => { popup.current?.close(); pendingLink.current = false; setLink(null); setLinking(false); }} draggable={false}>Cancel</button>

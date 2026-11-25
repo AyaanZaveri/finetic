@@ -55,7 +55,7 @@ export function AccountProvider({ authenticated, children }: { authenticated: bo
                         <DrawerContent className={`${styles.surface} [--drawer-inset:0.5rem] after:hidden`} finalFocus={returnFocus}>
                             <DrawerHeader className="p-6 pb-0">
                                 <DrawerTitle>Sign in</DrawerTitle>
-                                <DrawerDescription>Use Stremio or an email and password to continue.</DrawerDescription>
+                                <DrawerDescription>Sign in through Stremio or enter your email and password</DrawerDescription>
                             </DrawerHeader>
                             <div className="p-6">
                                 <LoginForm onSuccess={() => { setOpen(false); router.refresh(); }} />
@@ -67,7 +67,7 @@ export function AccountProvider({ authenticated, children }: { authenticated: bo
                         <DialogContent className={`${styles.surface} max-h-[calc(100dvh-2rem)] overflow-y-auto gap-6 p-6 sm:max-w-[440px]`} finalFocus={returnFocus}>
                             <DialogHeader className="pr-8">
                                 <DialogTitle>Sign in</DialogTitle>
-                                <DialogDescription>Use Stremio or an email and password to continue.</DialogDescription>
+                                <DialogDescription>Sign in through Stremio or enter your email and password</DialogDescription>
                             </DialogHeader>
                             <LoginForm onSuccess={() => { setOpen(false); router.refresh(); }} />
                         </DialogContent>

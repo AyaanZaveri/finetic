@@ -220,7 +220,7 @@ function WebSearchSettings({ variant }: { variant: "preference" | "connection" }
                     setState(value);
                 }
             })
-                .catch(() => { if (active && version === loadVersion.current && !wasPending && !toggleQueue.current?.isPending()) setError("Couldn’t load web search settings."); })
+                .catch(() => { if (active && version === loadVersion.current && !wasPending && !toggleQueue.current?.isPending()) setError("Couldn’t load web search settings. Reload to try again."); })
                 .finally(() => { if (active) setLoading(false); });
         };
         void load();
@@ -236,7 +236,7 @@ function WebSearchSettings({ variant }: { variant: "preference" | "connection" }
             setState(stateRef.current);
             if (operation === "save") persistKey(key.trim());
             if (operation === "remove") persistKey("");
-            setStatus(operation === "save" ? "Key saved." : operation === "remove" ? "Key removed." : "");
+            setStatus(operation === "save" ? "Key saved" : operation === "remove" ? "Key removed" : "");
         } catch { setError("Couldn’t update web search. Try again."); }
         finally { setPending(false); }
     }
@@ -311,7 +311,7 @@ function ArtworkSettings() {
             }
             setState(result);
             if (operation === "save" || operation === "remove") persistToken(operation === "save" ? token.trim() : "");
-            setStatus(operation === "save" ? "Token saved." : operation === "remove" ? "Token removed." : "Metadata provider saved.");
+            setStatus(operation === "save" ? "Token saved" : operation === "remove" ? "Token removed" : "Metadata provider saved");
         } catch {
             showError("Couldn’t save the setting. Check your connection and try again.");
         } finally { setPending(null); }
@@ -323,7 +323,7 @@ function ArtworkSettings() {
             <Select id="metadata-provider" label="Metadata provider" value={state.provider}
                 disabled={loading || !!pending}
                 aria-describedby={providerError ? "metadata-provider-error" : undefined}
-                description={state.configured ? "Choose the source for browsing, search, and title details."
+                description={state.configured ? "Choose the source for browsing, search, and title details"
                     : "Connect a TMDB token to use TMDB. Cinemeta works without a token."}
                 options={[
                     { value: "auto", label: "Automatic" },
@@ -591,7 +591,7 @@ function NavigatorSettings() {
             </DialogHeader>
             <DialogFooter>
                 <Button asChild variant="outline"><a href={CHATGPT_USAGE_URL} target="_blank" rel="noreferrer">Manage usage</a></Button>
-                <Button type="button" onClick={chatGPT.dismissWelcome}>Got it</Button>
+                <Button type="button" onClick={chatGPT.dismissWelcome}>Done</Button>
             </DialogFooter>
         </DialogContent>
     </Dialog>
@@ -629,12 +629,12 @@ function NavigatorSettings() {
                         <FieldContent className="gap-1">
                             <FieldTitle id="chatgpt-account-title">ChatGPT account</FieldTitle>
                             <FieldDescription role="status">
-                                {chatGPT.pending ? "Finish signing in in your browser." :
+                                {chatGPT.pending ? "Complete sign-in in your browser" :
                                     chatGPT.connection?.signedIn ? <>
-                                        {chatGPT.connection.email || "Signed in to ChatGPT"}.{" "}
-                                        {chatGPT.connection.planEnabled ? (usingChatGPT ? "Using ChatGPT plan." : "ChatGPT plan connected.") : "ChatGPT plan usage needs permission."}
-                                    </> : chatGPT.connection?.email ? `Signed out of ${chatGPT.connection.email}.` :
-                                        "Use your ChatGPT plan for eligible Ask Navigator requests."}
+                                        {chatGPT.connection.email || "Signed in to ChatGPT"}{" · "}
+                                        {chatGPT.connection.planEnabled ? (usingChatGPT ? "Using ChatGPT plan" : "ChatGPT plan connected") : "Permission needed to use your ChatGPT plan"}
+                                    </> : chatGPT.connection?.email ? `Signed out of ${chatGPT.connection.email}` :
+                                        "Use your ChatGPT plan for eligible Ask Navigator requests"}
                             </FieldDescription>
                             {chatGPT.error && <FieldError role="alert">{chatGPT.error}</FieldError>}
                             {chatGPT.warning && <FieldDescription role="status">{chatGPT.warning}{" "}

@@ -60,7 +60,7 @@ export async function startStremioSignIn() {
     });
     return { success: true as const, attempt, link: `https://link.stremio.com/${encodeURIComponent(code)}`, expiresAt: Date.now() + 300_000 };
   } catch {
-    return { success: false as const, error: "Couldn't open Stremio. Please try again or use your email and password." };
+    return { success: false as const, error: "Couldn’t open Stremio. Try again or use your email and password." };
   }
 }
 

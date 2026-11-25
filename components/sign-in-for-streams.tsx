@@ -15,7 +15,7 @@ export function SignInForStreams() {
                 </EmptyMedia>
                 <EmptyHeader className="max-w-md gap-1">
                     <EmptyTitle>Connect your Stremio account</EmptyTitle>
-                    <EmptyDescription>Sign in to load your add-ons and see available streams.</EmptyDescription>
+                    <EmptyDescription>Sign in to load streams from your add-ons</EmptyDescription>
                 </EmptyHeader>
             </div>
             <Button className="bg-foreground text-background hover:bg-foreground/90" onClick={requestSignIn}>

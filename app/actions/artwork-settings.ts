@@ -24,12 +24,12 @@ export async function getArtworkSettings(): Promise<ArtworkSettingsState> {
 }
 
 export async function saveMetadataProvider(provider: MetadataProvider): Promise<ArtworkSettingsResult> {
-    if (!await getUser()) return { success: false, error: "Sign in again to change the metadata provider." };
+    if (!await getUser()) return { success: false, error: "Sign in again to change the metadata provider" };
     if (provider !== "auto" && provider !== "tmdb" && provider !== "cinemeta") {
-        return { success: false, error: "Choose a supported metadata provider." };
+        return { success: false, error: "Choose a supported metadata provider" };
     }
     const [jar, token] = await Promise.all([cookies(), getTMDBToken()]);
-    if (provider === "tmdb" && !token) return { success: false, error: "Connect TMDB to use it as your metadata provider." };
+    if (provider === "tmdb" && !token) return { success: false, error: "Connect TMDB to use it as your metadata provider" };
     jar.set(METADATA_PROVIDER_COOKIE, provider, {
         path: "/", httpOnly: true, secure: cookieRequiresHttps(), sameSite: "lax",
         maxAge: 365 * 24 * 60 * 60,
@@ -39,10 +39,10 @@ export async function saveMetadataProvider(provider: MetadataProvider): Promise<
 }
 
 export async function saveArtworkToken(input: string): Promise<ArtworkSettingsResult> {
-    if (!await getUser()) return { success: false, error: "Sign in again to save an artwork token." };
+    if (!await getUser()) return { success: false, error: "Sign in again to save your TMDB token" };
     const token = typeof input === "string" ? input.trim() : "";
     if (!token || token.length > 2048 || !/^[\x21-\x7e]+$/.test(token)) {
-        return { success: false, error: "Enter your TMDB API Read Access Token." };
+        return { success: false, error: "Enter your TMDB read access token" };
     }
     try {
         const response = await fetch("https://api.themoviedb.org/3/authentication", {
@@ -51,7 +51,7 @@ export async function saveArtworkToken(input: string): Promise<ArtworkSettingsRe
             signal: AbortSignal.timeout(5000),
         });
         if (response.status === 401 || response.status === 403) {
-            return { success: false, error: "TMDB didn’t accept this token. Copy the API Read Access Token from your TMDB settings." };
+            return { success: false, error: "TMDB didn’t accept this token. Copy the read access token from your TMDB settings." };
         }
         if (!response.ok || (await response.json()).success !== true) {
             return { success: false, error: "Couldn’t verify the token with TMDB. Try again in a moment." };
@@ -68,7 +68,7 @@ export async function saveArtworkToken(input: string): Promise<ArtworkSettingsRe
 }
 
 export async function removeArtworkToken(): Promise<ArtworkSettingsResult> {
-    if (!await getUser()) return { success: false, error: "Sign in again to remove the artwork token." };
+    if (!await getUser()) return { success: false, error: "Sign in again to remove your TMDB token" };
     (await cookies()).delete(TMDB_TOKEN_COOKIE);
     revalidatePath("/", "layout");
     return { success: true, configured: !!await getTMDBToken(), personal: false, provider: await getMetadataProvider() };

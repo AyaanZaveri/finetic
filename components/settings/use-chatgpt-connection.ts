@@ -13,7 +13,7 @@ type Status = {
 async function read<T>(url: string, options?: Parameters<typeof fetch>[1]): Promise<T> {
     const response = await fetch(url, { cache: "no-store", ...options });
     const data = await response.json().catch(() => null);
-    if (!response.ok || !data) throw new Error(data?.error || "Could not reach the ChatGPT connection. Try again.");
+    if (!response.ok || !data) throw new Error(data?.error || "Couldn’t reach ChatGPT. Try again.");
     return data;
 }
 
@@ -25,7 +25,7 @@ function action<T>(body: Record<string, unknown>, signal?: AbortSignal) {
 }
 
 function message(error: unknown) {
-    return error instanceof Error ? error.message : "Could not reach the ChatGPT connection. Try again.";
+    return error instanceof Error ? error.message : "Couldn’t reach ChatGPT. Try again.";
 }
 
 export function useChatGPTConnection(enabled: boolean, selected: boolean) {
@@ -88,7 +88,7 @@ export function useChatGPTConnection(enabled: boolean, selected: boolean) {
         void action<{ models: ModelsDevModel[] }>({ action: "models" }, controller.signal).then(
             ({ models }) => {
                 if (!controller.signal.aborted) setCatalog({ revision, models,
-                    error: models.length ? undefined : "No models are available for this ChatGPT account." });
+                    error: models.length ? undefined : "No models available for this ChatGPT account" });
             },
             failure => {
                 if (!controller.signal.aborted) setCatalog({ revision, models: [], error: message(failure) });
