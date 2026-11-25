@@ -14,7 +14,10 @@ export function HomePaletteProvider({ children }: { children: ReactNode }) {
     // Keep the snapshot and the layout-owned canvas across the navigation.
     useLayoutEffect(() => { scene.navigate(); }, [scene, pathname]);
     useEffect(() => { scene.start(); return () => scene.stop(); }, [scene]);
-    return <HomePaletteContext.Provider value={scene}>{children}</HomePaletteContext.Provider>;
+    // Home has its own scroll/hover controller. Do not send hidden dot-field
+    // requests to the same latest-only palette worker while it owns Home.
+    const dotsEnabled = pathname !== "/" && pathname !== "/states/home-hero";
+    return <HomePaletteContext.Provider value={dotsEnabled ? scene : null}>{children}</HomePaletteContext.Provider>;
 }
 
 export function useHomePaletteScene() { return useContext(HomePaletteContext); }

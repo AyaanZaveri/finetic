@@ -1,5 +1,5 @@
 import { cinemetaHomeRows, hasTMDBDiscovery } from "@/lib/discovery";
-import { getMetadataProvider } from "@/lib/server/metadata-provider";
+import { getMetadataProvider, type MetadataProvider } from "@/lib/server/metadata-provider";
 import { fetchCatalogItems } from "@/app/actions/media";
 import { getInstalledAddons, getUser } from "@/app/actions/auth";
 import { getTMDBHomeRows } from "@/lib/tmdb-discovery";
@@ -7,11 +7,15 @@ import { AuthErrorHandler } from "@/app/components/auth-error-handler";
 import { HomeCatalogSectionsLazy } from "@/components/home-catalog-sections-lazy";
 import { ContinueWatchingSection } from "@/components/home-continue-watching";
 import { HomeCatalogsPending, HomeCatalogsUnavailable } from "@/components/home-catalog-placeholder";
+import { HomeHero, HomeHeroPending } from "@/components/home-hero";
+import { selectHomeHeroItems } from "@/lib/home-hero";
+import { enrichHomeHeroItems } from "@/lib/server/home-hero";
 import { createHash } from "node:crypto";
 import type { HomeCatalogEntry, HomeCatalogSection, InitialHomeCatalog } from "@/lib/home-catalogs";
 import { CATALOG_BATCH_SIZE, INITIAL_CATALOG_COUNT } from "@/lib/home-catalogs";
 import type { StremioAddonCatalog } from "@/types/stremio";
 import { Suspense } from "react";
+import homeStyles from "./home-page.module.css";
 
 function formatTypeLabel(type: string): string {
   return type
@@ -88,15 +92,45 @@ async function loadCatalogSections(entries: HomeCatalogEntry[]): Promise<HomeCat
   );
 }
 
-async function CatalogSectionsBootstrap({
-  catalogEntriesPromise,
-}: {
-  catalogEntriesPromise: Promise<HomeCatalogEntry[] | null>;
-}) {
-  const catalogEntries = await catalogEntriesPromise;
-  if (!catalogEntries?.length) return <DiscoverySections />;
-  const preferredProvider = await getMetadataProvider();
+type DiscoveryPlan =
+  | { source: "cinemeta"; rows: InitialHomeCatalog[] }
+  | { source: "tmdb"; rows: InitialHomeCatalog[]; region: string };
 
+type HomeDataPlan =
+  | {
+      kind: "addons";
+      preferredProvider: MetadataProvider;
+      initialRows: InitialHomeCatalog[];
+      remainingEntries: HomeCatalogEntry[];
+      discovery: DiscoveryPlan | null;
+    }
+  | {
+      kind: "discovery";
+      preferredProvider: MetadataProvider;
+      discovery: DiscoveryPlan;
+    };
+
+async function buildDiscoveryPlan(): Promise<DiscoveryPlan> {
+  if (!await hasTMDBDiscovery()) {
+    return { source: "cinemeta", rows: cinemetaHomeRows() };
+  }
+  const { rows, region } = getTMDBHomeRows();
+  return { source: "tmdb", rows, region };
+}
+
+async function prepareHomeData(
+  catalogEntriesPromise: Promise<HomeCatalogEntry[] | null> | null,
+): Promise<HomeDataPlan> {
+  const catalogEntries = catalogEntriesPromise ? await catalogEntriesPromise : null;
+  if (!catalogEntries?.length) {
+    const [preferredProvider, discovery] = await Promise.all([
+      getMetadataProvider().catch(() => "auto" as const),
+      buildDiscoveryPlan(),
+    ]);
+    return { kind: "discovery", preferredProvider, discovery };
+  }
+
+  const preferredProvider = await getMetadataProvider();
   const initialEntries = catalogEntries.slice(0, INITIAL_CATALOG_COUNT);
   const remainingEntries = catalogEntries.slice(INITIAL_CATALOG_COUNT);
   const initialRows: InitialHomeCatalog[] = initialEntries.map(entry => ({
@@ -105,53 +139,114 @@ async function CatalogSectionsBootstrap({
     result: loadCatalogSections([entry]).then(sections => ({ status: "ready" as const, section: sections[0] ?? null }))
       .catch(() => ({ status: "error" as const })),
   }));
+  const discovery = preferredProvider !== "auto" ? await buildDiscoveryPlan() : null;
+
+  return { kind: "addons", preferredProvider, initialRows, remainingEntries, discovery };
+}
+
+async function DiscoverySections({
+  discoveryPromise,
+  getDiscovery,
+}: {
+  discoveryPromise?: Promise<DiscoveryPlan>;
+  getDiscovery?: () => Promise<DiscoveryPlan>;
+} = {}) {
+  const discovery = discoveryPromise
+    ? await discoveryPromise
+    : getDiscovery
+      ? await getDiscovery()
+      : await buildDiscoveryPlan();
+  if (discovery.source === "cinemeta") {
+    const results = await Promise.all(discovery.rows.map(row => row.result));
+    if (results.every(result => result.status === "error")) return <HomeCatalogsUnavailable />;
+    return <>
+      <HomeCatalogSectionsLazy initialSections={[]} initialRows={discovery.rows} remainingEntries={[]} batchSize={CATALOG_BATCH_SIZE} />
+      <p className="relative z-10 py-4 text-xs text-muted-foreground">Movie and TV data by Cinemeta</p>
+    </>;
+  }
+  return <>
+    <HomeCatalogSectionsLazy initialSections={[]} initialRows={discovery.rows} remainingEntries={[]} batchSize={CATALOG_BATCH_SIZE} />
+    <p className="relative z-10 py-4 text-xs text-muted-foreground">
+      Movie and TV data by <a draggable={false} href="https://www.themoviedb.org" target="_blank" rel="noreferrer" className="underline underline-offset-4">TMDB</a>.
+      {" "}Streaming availability by <a draggable={false} href="https://www.justwatch.com" target="_blank" rel="noreferrer" className="underline underline-offset-4">JustWatch</a> ({discovery.region}).
+    </p>
+  </>;
+}
+
+async function HomeCatalogsBootstrap({ getPlan }: { getPlan: () => Promise<HomeDataPlan> }) {
+  const plan = await getPlan();
+  if (plan.kind === "discovery") {
+    return <DiscoverySections discoveryPromise={Promise.resolve(plan.discovery)} />;
+  }
 
   return <>
-    {preferredProvider !== "auto" && <DiscoverySections />}
+    {plan.discovery && <DiscoverySections discoveryPromise={Promise.resolve(plan.discovery)} />}
     <HomeCatalogSectionsLazy
       initialSections={[]}
-      initialRows={initialRows}
-      remainingEntries={remainingEntries}
+      initialRows={plan.initialRows}
+      remainingEntries={plan.remainingEntries}
       batchSize={CATALOG_BATCH_SIZE}
     />
   </>;
 }
 
-async function DiscoverySections() {
-  if (!await hasTMDBDiscovery()) {
-    const rows = cinemetaHomeRows();
-    const results = await Promise.all(rows.map(row => row.result));
-    if (results.every(result => result.status === "error")) return <HomeCatalogsUnavailable />;
-    return <>
-      <HomeCatalogSectionsLazy initialSections={[]} initialRows={rows} remainingEntries={[]} batchSize={CATALOG_BATCH_SIZE} />
-      <p className="relative z-10 py-4 text-xs text-muted-foreground">Movie and TV data by Cinemeta</p>
-    </>;
-  }
-  const { rows, region } = getTMDBHomeRows();
-  return <>
-    <HomeCatalogSectionsLazy initialSections={[]} initialRows={rows} remainingEntries={[]} batchSize={CATALOG_BATCH_SIZE} />
-    <p className="relative z-10 py-4 text-xs text-muted-foreground">
-      Movie and TV data by <a draggable={false} href="https://www.themoviedb.org" target="_blank" rel="noreferrer" className="underline underline-offset-4">TMDB</a>.
-      {" "}Streaming availability by <a draggable={false} href="https://www.justwatch.com" target="_blank" rel="noreferrer" className="underline underline-offset-4">JustWatch</a> ({region}).
-    </p>
-  </>;
+async function HomeHeroBootstrap({ getPlan }: { getPlan: () => Promise<HomeDataPlan> }) {
+  const plan = await getPlan();
+  const sourceRows = (plan.kind === "discovery"
+    ? plan.discovery.rows
+    : plan.discovery?.rows ?? plan.initialRows
+  ).slice(0, 2);
+
+  if (!sourceRows.length) return null;
+
+  const settled = await Promise.allSettled(sourceRows.map(row => row.result));
+  const sources = settled.flatMap((entry) => {
+    if (entry.status !== "fulfilled" || entry.value.status !== "ready" || !entry.value.section?.mediaItems.length) {
+      return [];
+    }
+    return [{
+      items: entry.value.section.mediaItems,
+    }];
+  });
+
+  const candidates = selectHomeHeroItems(sources, 6);
+  if (!candidates.length) return null;
+
+  const heroItems = await enrichHomeHeroItems(candidates, plan.preferredProvider);
+  return <HomeHero items={heroItems} />;
 }
 
 export default async function Home() {
   const user = await getUser();
   const catalogEntriesPromise = user ? buildCatalogEntries().catch(() => null) : null;
+  let planPromise: Promise<HomeDataPlan> | null = null;
+  const getPlan = () => {
+    if (!planPromise) {
+      planPromise = prepareHomeData(catalogEntriesPromise);
+    }
+    return planPromise;
+  };
 
   return (
     <AuthErrorHandler>
-      <div data-home-page className="relative px-[var(--page-gutter)] pt-3 pb-8 max-w-full overflow-hidden">
+      <div data-home-page className={homeStyles.page}>
         <h1 className="sr-only">Home</h1>
-        {user && <ContinueWatchingSection />}
+        <Suspense fallback={<HomeHeroPending />}>
+          <HomeHeroBootstrap getPlan={getPlan} />
+        </Suspense>
+        <div className={homeStyles.rows}>
+          {user && <ContinueWatchingSection />}
 
-        {catalogEntriesPromise ? (
-          <Suspense fallback={<HomeCatalogsPending />}>
-            <CatalogSectionsBootstrap catalogEntriesPromise={catalogEntriesPromise} />
-          </Suspense>
-        ) : <Suspense fallback={<HomeCatalogsPending />}><DiscoverySections /></Suspense>}
+          {catalogEntriesPromise ? (
+            <Suspense fallback={<HomeCatalogsPending />}>
+              <HomeCatalogsBootstrap getPlan={getPlan} />
+            </Suspense>
+          ) : (
+            <Suspense fallback={<HomeCatalogsPending />}>
+              <DiscoverySections getDiscovery={() => getPlan().then(plan => (plan.kind === "discovery" ? plan.discovery : buildDiscoveryPlan()))} />
+            </Suspense>
+          )}
+        </div>
       </div>
     </AuthErrorHandler>
   );
