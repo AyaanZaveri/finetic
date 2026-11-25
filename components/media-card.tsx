@@ -164,6 +164,9 @@ export function MediaCard({
   return (
     <MediaCardMenu item={item} continueWatching={continueWatching} detailsHref={linkHref} onPlay={playCard} onResolvedId={resolveHistoryId} onRemovalIntent={onRemovalIntent}>
     <div
+      data-home-aurora-card=""
+      data-aurora-primary={imageUrl}
+      data-aurora-fallback={imageUrl ? (continueWatching ? artwork.poster : artwork.background) : undefined}
       data-continue-watching={continueWatching || undefined}
       data-reveal-artwork={continueWatching || revealArtwork || undefined}
       onPointerEnter={event => {
@@ -198,7 +201,7 @@ export function MediaCard({
       <IntentLink href={linkHref} scroll={false} draggable={false}
         className={`${styles.detailsLink} absolute inset-0 z-10`}
         aria-label={`View details for ${item.name || "Untitled"}`} />
-      <div className={`${styles.surface} relative w-full ${continueWatching ? "aspect-video" : "aspect-[2/3]"}`}
+      <div data-home-aurora-artwork="" className={`${styles.surface} relative w-full ${continueWatching ? "aspect-video" : "aspect-[2/3]"}`}
         data-pressed={pressed || undefined}>
         <div className={`${styles.frame} absolute inset-0 overflow-hidden`}>
           {/* Definite bounds keep WebKit image heights inside the poster frame. */}
