@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             browser: chromium
           - os: windows-2025
             browser: chromium
@@ -31,6 +31,7 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           persist-credentials: false
+          fetch-depth: 5
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: 26.7.0
@@ -39,17 +40,28 @@ jobs:
       - name: Install browser test driver
         shell: bash
         run: |
-          npm install --prefix "$RUNNER_TEMP/reveal-test" --no-save playwright@1.56.1
+          npm install --prefix "$RUNNER_TEMP/reveal-test" --no-save playwright@1.65.1
           echo "PLAYWRIGHT_ENTRY=$RUNNER_TEMP/reveal-test/node_modules/playwright/index.mjs" >> "$GITHUB_ENV"
-          if [ "$RUNNER_OS" = Linux ]; then
-            node "$RUNNER_TEMP/reveal-test/node_modules/playwright/cli.js" install --with-deps "$ARTWORK_BROWSER"
-          else
-            node "$RUNNER_TEMP/reveal-test/node_modules/playwright/cli.js" install "$ARTWORK_BROWSER"
+          if [ "$ARTWORK_BROWSER" = webkit ]; then
+            node "$RUNNER_TEMP/reveal-test/node_modules/playwright/cli.js" install webkit
           fi
+      - name: Measure the current main implementation before the fix
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          ARTWORK_CAPTURE_DIR: artwork-before
+          ARTWORK_EXPECT_BASELINE: '1'
+        run: |
+          git restore --source=e85167b -- components/media-card.tsx components/media-card.module.css components/home-continue-watching.tsx
+          node node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3000 > artwork-before-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true; wait "$server_pid" 2>/dev/null || true; git restore --source=HEAD -- components/media-card.tsx components/media-card.module.css components/home-continue-watching.tsx' EXIT
+          curl -fsS --retry 30 --retry-connrefused --retry-delay 2 --max-time 100 --output /dev/null http://127.0.0.1:3000/states/artwork-reveal
+          node scripts/verify-artwork-reveal-browser.mjs
       - name: Run actual card reveal and frame sampling
         shell: bash
         run: |
-          npm run dev -- --hostname 127.0.0.1 --port 3000 > artwork-server.log 2>&1 &
+          node node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3000 > artwork-server.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
           curl -fsS --retry 30 --retry-connrefused --retry-delay 2 --max-time 100 --output /dev/null http://127.0.0.1:3000/states/artwork-reveal
@@ -60,5 +72,7 @@ jobs:
           name: artwork-reveal-${{ matrix.os }}-${{ matrix.browser }}
           path: |
             artwork-server.log
+            artwork-before-server.log
+            artwork-before/
             artwork-browser-captures/
           retention-days: 3
