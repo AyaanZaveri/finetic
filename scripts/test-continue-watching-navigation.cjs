@@ -48,11 +48,13 @@ async function navigate(emptyProvider) {
             '@/app/actions': { fetchPlaybackProgress: async () => null },
             '@/components/ui/empty': Object.fromEntries(['Empty', 'EmptyDescription', 'EmptyHeader', 'EmptyMedia', 'EmptyTitle'].map(key => [key, key])),
             '@/components/ui/loading-placeholder': { LoadingPlaceholder: 'placeholder' },
+            '@/components/motion-primitives/activity-text-shimmer': { ActivityTextShimmer: 'shimmer' },
             '@/components/ui/skeleton': { Skeleton: 'skeleton' },
             '@/components/arc/search-field/search-field': { SearchField: 'search' },
             '@/components/arc/chip-group/chip-group': { ChipGroup: 'chips' },
             './media-actions.module.css': {},
             '@/components/stream-summary': { StreamSummary: 'summary' },
+            '@/components/stream-actions-menu': { StreamActionsMenu: 'stream-actions-menu' },
             '@/components/ui/button': { Button: 'button' },
             '@/components/sign-in-for-streams': { SignInForStreams: 'sign-in' },
         });

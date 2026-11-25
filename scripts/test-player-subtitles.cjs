@@ -20,6 +20,7 @@ function mount(native) {
  const {PlayerSubtitles}=load('components/player-subtitles.tsx',{
   react:host.react,'react/jsx-runtime':host.jsx,'@/components/ui/button':{Button:'Button'},
   '@/components/ui/scroll-area':{ScrollArea:'ScrollArea'},
+  '@/components/motion-primitives/activity-text-shimmer':{ActivityTextShimmer:'shimmer'},
   '@/components/ui/media-player':{MediaPlayerTooltip:'MediaPlayerTooltip'},
   '@/components/arc/dropdown-menu/dropdown-menu':Object.fromEntries(names.map(n=>[n,n])),
   '@/lib/media/track-label':labels,'./player-subtitles.module.css':{},
@@ -74,7 +75,9 @@ assert.equal(native.opened,1,'Normal menu dismissal must not open timing');
 native.props.requestedSrc=native.props.tracks[0].src;
 assert.equal(find(native.render(),'DropdownMenuRadioGroup')[0].props.value,'external:0','Requested track is selected during download');
 assert.equal(find(native.render(),'DropdownMenuRadioItem').find(n=>n.props.value==='external:0').props['aria-busy'],true);
+assert.equal(find(native.render(),'shimmer').length,1);
 native.props.requestedSrc=null;
+assert.equal(find(native.render(),'shimmer').length,0);
 native.props.tracks[1].active=true;
 assert.equal(find(native.render(),'DropdownMenuRadioGroup')[0].props.value,'external:1');
 native.controller.tracks=[];native.events.get('emptied')();

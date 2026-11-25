@@ -10,8 +10,9 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
+import { ActivityTextShimmer } from "@/components/motion-primitives/activity-text-shimmer";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, Search, SearchX, X } from "lucide-react";
+import { Search, SearchX, X } from "lucide-react";
 import { usePlaybackActions } from "@/contexts/MediaPlayerContext";
 import { fetchPlaybackProgress } from "@/app/actions";
 import { SearchField } from "@/components/arc/search-field/search-field";
@@ -215,14 +216,11 @@ export function MediaActions({ media, movie, streamSelection }: MediaActionsProp
       ? `${(sizeInBytes / 1024 ** 3).toFixed(2)} GB`
       : null;
 
-  const showStreamLoader = isAddonLoading || (switchingStream && (loading || !hasCheckedStreams));
-  const streamStatus = showStreamLoader ? (
-    <>
-      <Loader2 aria-hidden="true" className="size-3.5 animate-spin motion-reduce:animate-none" />
-      {isAddonLoading
-        ? <span>{pendingAddons} add-on{pendingAddons === 1 ? "" : "s"} loading</span>
-        : <span className="sr-only">Loading streams</span>}
-    </>
+  const showStreamLoader = switchingStream && (loading || !hasCheckedStreams);
+  const streamStatus = isAddonLoading ? (
+    <ActivityTextShimmer style={{ font: "inherit" }}>{pendingAddons} add-on{pendingAddons === 1 ? "" : "s"} loading</ActivityTextShimmer>
+  ) : showStreamLoader ? (
+    <ActivityTextShimmer style={{ font: "inherit" }}>Finding streams…</ActivityTextShimmer>
   ) : hasCheckedStreams || streams.length > 0 ? (
     <span>{filteredStreams.length} stream{filteredStreams.length === 1 ? "" : "s"}{switchingStream ? "" : " found"}</span>
   ) : null;

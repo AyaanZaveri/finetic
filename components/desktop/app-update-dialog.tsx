@@ -6,6 +6,7 @@ import ReactMarkdown from "react-markdown";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/account-ui/dialog";
 import surface from "@/components/account-ui/surface.module.css";
 import { Button } from "@/components/ui/button";
+import { ActivityTextShimmer } from "@/components/motion-primitives/activity-text-shimmer";
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GitHubIcon } from "@/components/github-icon";
@@ -64,7 +65,9 @@ export function AppUpdateDialog({ status, view, open, triggerRef, onClose, reque
             finalFocus={triggerRef}>
             <DialogHeader className="pr-8">
                 <DialogTitle>{since ? `What’s new since Navigator ${since}` : version ? `What’s new in Navigator ${version}` : "Navigator update"}</DialogTitle>
-                <DialogDescription aria-live="polite">{description}</DialogDescription>
+                <DialogDescription aria-live="polite">
+                    {!installed && pending ? <ActivityTextShimmer style={{ font: "inherit" }}>{description}</ActivityTextShimmer> : description}
+                </DialogDescription>
             </DialogHeader>
             <div className="min-h-0 overflow-y-auto overscroll-contain pe-3 text-muted-foreground"
                 tabIndex={since && history?.releases.length ? 0 : undefined} aria-label={since ? "Release notes by version" : undefined}

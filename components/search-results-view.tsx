@@ -10,6 +10,7 @@ import { HomeInitialPalette } from "@/components/home-palette-provider";
 import { mediaArtwork } from "@/lib/artwork";
 import { SearchTypeFilters } from "@/components/search-page-controls";
 import { Button } from "@/components/ui/button";
+import { ActivityTextShimmer } from "@/components/motion-primitives/activity-text-shimmer";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { searchMediaFilter, searchPageUrl, type SearchResultSet } from "@/lib/search-presentation";
 import { createSearchResultsStore } from "@/lib/search-results";
@@ -108,7 +109,7 @@ export function SearchResultsView({ query, initialResults, peopleAvailable = tru
             <Button variant="outline" onClick={() => void store.loadMore(filter, true)}>Try again</Button>
         </div>}
         {hasMore && !source.error && <div ref={sentinel} className={styles.loadStatus}>
-            <p role="status">{source.loading ? "Loading more results…" : ""}</p>
+            <p role="status">{source.loading && <ActivityTextShimmer>Loading more results…</ActivityTextShimmer>}</p>
             <Button variant="ghost" disabled={source.loading} className={automatic ? "sr-only focus:not-sr-only" : undefined}
                 onClick={() => void store.loadMore(filter)}>Load more results</Button>
         </div>}

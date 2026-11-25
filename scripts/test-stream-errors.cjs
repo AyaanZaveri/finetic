@@ -34,6 +34,7 @@ const visibleText = node => Array.isArray(node) ? node.map(visibleText).join('')
         '@/components/ui/empty': Object.fromEntries(['Empty', 'EmptyDescription', 'EmptyHeader', 'EmptyMedia', 'EmptyTitle'].map(name => [name, name])),
         '@/components/ui/button': { Button: 'button' },
         '@/components/ui/loading-placeholder': { LoadingPlaceholder: 'loading' },
+        '@/components/motion-primitives/activity-text-shimmer': { ActivityTextShimmer: 'shimmer' },
         '@/components/ui/skeleton': { Skeleton: 'skeleton' },
         '@/components/arc/search-field/search-field': { SearchField: 'search' },
         '@/components/arc/chip-group/chip-group': { ChipGroup: 'chips' },
@@ -48,7 +49,9 @@ const visibleText = node => Array.isArray(node) ? node.map(visibleText).join('')
     const drawer = { currentUrl: null, onSelect() {} };
     const initialDrawer = render(drawer);
     assert.equal(find(initialDrawer, node => node.type === 'InputGroupInput').length, 1, 'Show stream search before the first snapshot');
-    assert.match(visibleText(find(initialDrawer, node => node.props.role === 'status')[0]), /Loading streams/);
+    const initialStatus = find(initialDrawer, node => node.props.role === 'status')[0];
+    assert.match(visibleText(initialStatus), /Finding streams/);
+    assert.equal(find(initialStatus, node => node.type === 'shimmer').length, 1);
     h.unmount(); h = hooks(); attempts = 0; released = 0;
     render(); await tick(); let tree = render();
     assert.equal(find(tree, node => node.type === 'EmptyTitle')[0].props.children, 'Could not load streams');
@@ -82,10 +85,12 @@ const visibleText = node => Array.isArray(node) ? node.map(visibleText).join('')
     const endAddon = find(tree, node => node.type === 'InputGroupAddon' && node.props.align === 'inline-end')[0];
     const status = find(endAddon, node => node.props.role === 'status')[0];
     assert.match(visibleText(status), /1 add-on loading/);
+    assert.equal(find(status, node => node.type === 'shimmer').length, 1);
     find(tree, node => node.type === 'InputGroupInput')[0].props.onChange({ target: { value: '2160p' } });
     publishStreams(streams);
     tree = render(drawer);
     assert.equal(visibleText(find(tree, node => node.props.role === 'status')[0]), '1 stream');
+    assert.equal(find(tree, node => node.type === 'shimmer').length, 0);
     find(tree, node => node.props['aria-label'] === 'Clear search')[0].props.onClick();
     assert.equal(visibleText(find(render(drawer), node => node.props.role === 'status')[0]), '3 streams');
     publishStreams([], 0, 0);

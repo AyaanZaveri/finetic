@@ -8,17 +8,24 @@ function all(node) {
 async function main() {
     const h = hooks();
     const calls = [];
-    let complete, successes = 0;
+    let complete, completeLink, successes = 0;
+    const popupUrls = [];
     const form = load('components/login-form.tsx', {
         react: { ...h.react, useId: () => 'signin' }, 'react/jsx-runtime': h.jsx,
-        '@/app/actions/auth': { authenticateUser: (email, password) => { calls.push({ email, password }); return new Promise(resolve => { complete = resolve; }); } },
+        '@/app/actions/auth': {
+            authenticateUser: (email, password) => { calls.push({ email, password }); return new Promise(resolve => { complete = resolve; }); },
+            startStremioSignIn: () => new Promise(resolve => { completeLink = resolve; }),
+        },
         '@/components/ui/button': { Button: 'button' },
+        '@/components/motion-primitives/activity-text-shimmer': { ActivityTextShimmer: 'shimmer' },
         '@/components/account-ui/input': { Input: 'input' },
         '@/components/account-ui/label': { Label: 'label' },
         '@/components/account-ui/separator': { Separator: 'separator' },
         '@/components/ui/field': Object.fromEntries(['Field', 'FieldError', 'FieldGroup', 'FieldLabel'].map(name => [name, name])),
         '@/components/ui/input-group': Object.fromEntries(['InputGroup', 'InputGroupAddon', 'InputGroupButton', 'InputGroupInput'].map(name => [name, name])),
         'lucide-react': {}, sonner: { toast: { success() {} } },
+    }, {
+        window: { open: () => ({ location: { replace: url => popupUrls.push(url) }, close() {} }) },
     }).LoginForm;
     const render = () => h.render(form, { onSuccess: () => successes++ });
     let tree = render();
@@ -34,9 +41,11 @@ async function main() {
     assert.equal(calls[0].email, 'user@example.com');
     tree = render();
     assert.equal(find('signin-password').props.disabled, true);
+    assert.equal(all(tree).find(node => node.type === 'shimmer').props.children, 'Signing in…');
     complete(false); await submit;
     tree = render();
     assert.equal(find('signin-error').props.role, 'alert');
+    assert.equal(all(tree).some(node => node.type === 'shimmer'), false);
     assert.equal(successes, 0);
     find('signin-password').props.onChange({ target: { value: 'correct-password' } });
     tree = render();
@@ -45,6 +54,16 @@ async function main() {
     tree = render();
     assert.equal(find('signin-password').props.value, '', 'Successful sign-in clears the password');
     assert.equal(successes, 1);
+    const connecting = all(tree).find(node => node.type === 'button' && node.props.type === 'button').props.onClick();
+    tree = render();
+    assert.equal(all(tree).find(node => node.type === 'shimmer').props.children, 'Connecting to Stremio…');
+    completeLink({ success: true, link: 'https://stremio.test/sign-in', attempt: 'fixture', expiresAt: Date.now() + 60_000 });
+    await connecting;
+    tree = render();
+    assert.deepEqual(popupUrls, ['https://stremio.test/sign-in']);
+    assert.equal(all(tree).some(node => node.type === 'shimmer'), false, 'Instructions stay static while waiting for the user');
+    assert.ok(all(tree).some(node => node.props.role === 'status'));
+    h.unmount();
 
     const dialogHooks = hooks();
     let refreshes = 0, focused = 0;

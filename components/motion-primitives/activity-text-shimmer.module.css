@@ -1,4 +1,6 @@
 .text {
+    --activity-shimmer-base: var(--muted-foreground);
+    --activity-shimmer-highlight: var(--foreground);
     display: inline-block;
     min-width: 0;
     font-size: .875rem;
@@ -6,14 +8,22 @@
     font-weight: 500;
     color: var(--muted-foreground);
 }
+:global([data-slot="button"]) > .text {
+    --activity-shimmer-base: currentColor;
+    --activity-shimmer-highlight: color-mix(in srgb, currentColor 80%, transparent);
+    color: inherit;
+    font: inherit;
+}
 @supports (background-clip: text) or (-webkit-background-clip: text) {
     .text {
-        background-image: linear-gradient(90deg, var(--muted-foreground) 35%, var(--foreground) 50%, var(--muted-foreground) 65%);
+        background-image: linear-gradient(90deg, var(--activity-shimmer-base) 35%, var(--activity-shimmer-highlight) 50%, var(--activity-shimmer-base) 65%);
         background-size: 200% 100%;
+        background-position: 150% center;
+        background-repeat: repeat-x;
         background-clip: text;
         -webkit-background-clip: text;
-        color: transparent;
-        animation: activity-text-shimmer 1.4s linear infinite;
+        -webkit-text-fill-color: transparent;
+        animation: activity-text-shimmer 1.4s linear 180ms infinite;
     }
 }
 @keyframes activity-text-shimmer {
@@ -24,6 +34,6 @@
     .text {
         animation: none;
         background-image: none;
-        color: var(--muted-foreground);
+        -webkit-text-fill-color: currentColor;
     }
 }

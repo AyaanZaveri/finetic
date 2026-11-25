@@ -61,6 +61,7 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
     }
     const { SearchResultsView } = load('components/search-results-view.tsx', {
         ...ui, react: { ...React, ...h.react, useSyncExternalStore: (_subscribe, get) => get() }, './search-page.module.css': css,
+        '@/components/motion-primitives/activity-text-shimmer': { ActivityTextShimmer: 'shimmer' },
         'next/navigation': { useSearchParams: () => params },
     }, { Error, URLSearchParams, IntersectionObserver: Observer,
         fetch: (url, options) => new Promise(resolve => requests.push({ url, options, resolve })),
@@ -93,8 +94,10 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
     assert.equal(requests.length, 1, 'A visible sentinel fetches exactly once');
     assert.equal(new URL(requests[0].url, 'http://app').searchParams.get('page'), '2');
     render(); assert.equal(all(tree).find(node => node.type === 'ul').props['aria-busy'], true);
+    assert.equal(all(tree).filter(node => node.type === 'shimmer').length, 1);
     requests[0].resolve({ ok: true, json: async () => ({ results: [movie, extra], totalPages: 3, totalResults: 82 }) });
     await tick(); render();
+    assert.equal(all(tree).filter(node => node.type === 'shimmer').length, 0);
     assert.deepEqual(visibleIds(tree), ['tmdb:20', '7', 'tmdb:123', 'tmdb:99'], 'Append in native order without duplicates');
     assert.ok(rows(tree).every(row => originalItems.includes(row.props.children.props.item)), 'Existing card metadata remains stable');
     const palette = all(tree).find(node => node.type === 'palette').props.primary;

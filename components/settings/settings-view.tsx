@@ -270,7 +270,9 @@ function WebSearchSettings({ variant }: { variant: "preference" | "connection" }
                         onValueChange={value => { setKey(value); setError(null); setStatus(""); }} keyUrl="https://agent.tinyfish.ai/api-keys" keyLinkLabel="Get a TinyFish key"
                         disabled={loading || pending} error={error} />
                     <div className="flex flex-wrap items-center gap-1">
-                        <Button type="submit" variant="outline" size="sm" disabled={loading || pending || !key.trim()}>{pending ? "Updating…" : "Save key"}</Button>
+                        <Button type="submit" variant="outline" size="sm" disabled={loading || pending || !key.trim()} aria-busy={pending || undefined}>
+                            {pending ? <ActivityTextShimmer>Updating…</ActivityTextShimmer> : "Save key"}
+                        </Button>
                         {(state.personal || key) && <Button type="button" variant="ghost" size="sm" disabled={loading || pending} onClick={() => void update("remove")}>Remove key</Button>}
                     </div>
                 </FieldGroup>
@@ -357,8 +359,12 @@ function ArtworkSettings() {
                         error={error}
                     />
                     <div className="flex flex-wrap items-center gap-1">
-                        <Button type="submit" variant="outline" size="sm" disabled={loading || !!pending || !token.trim()}>{pending === "save" ? "Checking token…" : "Save token"}</Button>
-                        {(state.personal || token) && <Button type="button" variant="ghost" size="sm" disabled={loading || !!pending} onClick={() => void update("remove")}>{pending === "remove" ? "Removing…" : "Remove token"}</Button>}
+                        <Button type="submit" variant="outline" size="sm" disabled={loading || !!pending || !token.trim()} aria-busy={pending === "save" || undefined}>
+                            {pending === "save" ? <ActivityTextShimmer>Checking token…</ActivityTextShimmer> : "Save token"}
+                        </Button>
+                        {(state.personal || token) && <Button type="button" variant="ghost" size="sm" disabled={loading || !!pending} aria-busy={pending === "remove" || undefined} onClick={() => void update("remove")}>
+                            {pending === "remove" ? <ActivityTextShimmer>Removing…</ActivityTextShimmer> : "Remove token"}
+                        </Button>}
                     </div>
                     <p role="status" className={styles.feedback}>{status}</p>
                 </FieldGroup>
@@ -401,7 +407,7 @@ function SettingsSelect({ id, label, value, onValueChange, options, description,
             />
             {(loading || description) && (
                 <FieldDescription id={`${id}-description`} role="status">
-                    {loading ? "Loading available models…" : description}
+                    {loading ? <ActivityTextShimmer style={{ font: "inherit" }}>Loading available models…</ActivityTextShimmer> : description}
                 </FieldDescription>
             )}
             {error && <FieldError id={`${id}-error`}>{error}</FieldError>}
@@ -474,7 +480,7 @@ function ModelCombobox({ id, value, onValueChange, options, description, loading
             />
             {(loading || description) && (
                 <FieldDescription id={`${id}-description`} role="status">
-                    {loading ? "Loading available models…" : description}
+                    {loading ? <ActivityTextShimmer style={{ font: "inherit" }}>{description ?? "Loading available models…"}</ActivityTextShimmer> : description}
                 </FieldDescription>
             )}
             {error && <FieldError id={`${id}-error`}>{error}</FieldError>}

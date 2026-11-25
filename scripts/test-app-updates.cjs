@@ -262,6 +262,7 @@ async function checkReleaseNotesDialog() {
         '@/components/account-ui/surface.module.css': {}, '@/components/external-link-reveal.module.css': {},
         '@/components/ui/button': { Button: 'Button' }, '@/components/github-icon': { GitHubIcon: 'GitHubIcon' },
         '@/components/ui/loading-placeholder': { LoadingPlaceholder: 'LoadingPlaceholder' }, '@/components/ui/skeleton': { Skeleton: 'Skeleton' },
+        '@/components/motion-primitives/activity-text-shimmer': { ActivityTextShimmer: 'Shimmer' },
     }, { fetch: async url => {
         requests.push(url);
         const data = url.includes('&since=') ? { complete: true, releases: [
@@ -284,6 +285,12 @@ async function checkReleaseNotesDialog() {
     assert.equal(find(installed, 'DialogTitle')[0].props.children, 'What’s new in Navigator 0.6.11');
     assert.equal(find(installed, 'Markdown')[0].props.children, 'Installed changes');
     assert.deepEqual(requests, ['/api/updates/release-notes?version=0.6.13&since=0.6.11', '/api/updates/release-notes?version=0.6.11']);
+    for (const [state, label] of [['checking', 'Checking for updates…'], ['downloading', 'Downloading update…'], ['installing', 'Restarting Navigator…']]) {
+        const pending = dialog.render(AppUpdateDialog, { ...props, view: 'update', status: { ...props.status, state } });
+        assert.equal(find(pending, 'Shimmer').length, 1, 'A single progress label animates');
+        assert.equal(find(pending, 'Shimmer')[0].props.children, label);
+    }
+    assert.equal(find(dialog.render(AppUpdateDialog, { ...props, view: 'update' }), 'Shimmer').length, 0);
     dialog.unmount();
 }
 

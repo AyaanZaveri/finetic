@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/account-ui/input";
 import { Label } from "@/components/account-ui/label";
 import { Separator } from "@/components/account-ui/separator";
-import { Loader2 } from "lucide-react";
+import { ActivityTextShimmer } from "@/components/motion-primitives/activity-text-shimmer";
 import { toast } from "sonner";
 
 type StremioLink = Extract<Awaited<ReturnType<typeof startStremioSignIn>>, { success: true }>;
@@ -111,12 +111,11 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
 
     return (
         <div className="flex flex-col gap-4">
-            <Button type="button" variant="outline" size="sm" className="h-10 w-full justify-center gap-2 bg-transparent" disabled={busy} onClick={signInWithStremio}>
-                {linking ? <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                    // Official asset: github.com/Stremio/stremio-brand
-                    // eslint-disable-next-line @next/next/no-img-element
-                    : <img src="/logo/stremio.svg" alt="" aria-hidden="true" className="size-4 shrink-0" />}
-                Sign in with Stremio
+            <Button type="button" variant="outline" size="sm" className="h-10 w-full justify-center gap-2 bg-transparent" disabled={busy} aria-busy={linking && !link || undefined} onClick={signInWithStremio}>
+                {/* Official asset: github.com/Stremio/stremio-brand */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/logo/stremio.svg" alt="" aria-hidden="true" className="size-4 shrink-0" />
+                {linking && !link ? <ActivityTextShimmer>Connecting to Stremio…</ActivityTextShimmer> : "Sign in with Stremio"}
             </Button>
             {link && <div className="flex flex-col items-center gap-2 text-center text-sm">
                 <p role="status" className="text-balance text-muted-foreground">Finish signing in in the Stremio window.</p>
@@ -146,9 +145,8 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
                         onChange={event => { setPassword(event.target.value); setError(""); }} />
                 </div>
                 {error && <p id={`${id}-error`} role="alert" className="text-sm text-destructive">{error}</p>}
-                <Button type="submit" size="sm" className="h-10 w-full justify-center gap-2" disabled={busy}>
-                    {submitting ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
-                    Sign in
+                <Button type="submit" size="sm" className="h-10 w-full justify-center gap-2" disabled={busy} aria-busy={submitting || undefined}>
+                    {submitting ? <ActivityTextShimmer>Signing in…</ActivityTextShimmer> : "Sign in"}
                 </Button>
             </form>
             <p className="text-center text-sm text-muted-foreground">

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { CaptionsOff, Subtitles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ActivityTextShimmer } from "@/components/motion-primitives/activity-text-shimmer";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MediaPlayerTooltip } from "@/components/ui/media-player";
 import {
@@ -108,7 +109,7 @@ export function PlayerSubtitles({ mediaRef, sourceKey, native, tracks, requested
             {external.length > 0 && <><DropdownMenuSeparator /><DropdownMenuLabel className={styles.heading}>External</DropdownMenuLabel>
               {external.map(({ label, ...option }) => <DropdownMenuRadioItem key={option.value} {...option}
                 aria-busy={option.value === `external:${requestedExternal}` || undefined}>
-                {label}{option.value === `external:${requestedExternal}` && <span className={styles.summary}>Loading…</span>}
+                {label}{option.value === `external:${requestedExternal}` && <span className={styles.summary}><ActivityTextShimmer style={{ font: "inherit" }}>Loading…</ActivityTextShimmer></span>}
               </DropdownMenuRadioItem>)}</>}
           </DropdownMenuRadioGroup>
           {!embedded.length && !external.length && <p className={styles.empty}>No subtitle tracks available.</p>}

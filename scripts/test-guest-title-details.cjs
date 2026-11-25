@@ -54,6 +54,7 @@ async function main() {
         '@/lib/media/fetch-playback-streams': { createPlaybackStreamRequest: () => { personalReads++; throw Error('Guest stream lookup'); } },
         '@/lib/media/playback-context': {}, '@/lib/media/playback-details': {},
         '@/components/ui/empty': {}, '@/components/ui/loading-placeholder': {}, '@/components/ui/skeleton': {},
+        '@/components/motion-primitives/activity-text-shimmer': { ActivityTextShimmer: 'shimmer' },
         'lucide-react': {}, '@/components/arc/search-field/search-field': {}, '@/components/arc/chip-group/chip-group': {},
         './media-actions.module.css': {}, '@/components/stream-summary': {},
     });
