@@ -3,7 +3,6 @@ import { createWebVideoSession } from "./web-video-preload";
 import { acquirePlaybackProbe } from "./playback-probe-lock";
 import type { WebGpuVideo } from "./webgpu-video";
 import type { StremioStream } from "@/types/stremio";
-import { getWebPlaybackElement } from "@/lib/media/playback-source";
 import { installAudioLanguagePreference, preferredAudioTrack } from "@/lib/media/audio-language";
 import { metadataAudioSupport } from "@/lib/media/stream-codecs";
 import type { StreamMetadata } from "@/lib/media/stream-metadata";
@@ -26,6 +25,7 @@ export function verifyMediaElementPlayback(
   timeoutMs = WEB_STREAM_CHECK_TIMEOUT_MS,
   metadata?: Promise<StreamMetadata | undefined>,
   trackOptions: { preferredAudioLanguage?: string; onAudioLanguage?: (_language: string) => void } = {},
+  disposeSession?: () => void,
 ): Promise<Playability> {
   return new Promise((resolve) => {
     let settled = false;
@@ -42,7 +42,7 @@ export function verifyMediaElementPlayback(
       video.removeEventListener("error", onError);
       video.removeEventListener("timeupdate", inspect);
       video.removeEventListener("loadeddata", inspect);
-      video.removeEventListener("loadedmetadata", inspect);
+      video.removeEventListener("loadedmetadata", onMetadata);
       video.removeEventListener("playing", onPlaying);
       captured?.removeEventListener("addtrack", onTracksChanged);
       for (const track of observedTracks) {
@@ -51,10 +51,13 @@ export function verifyMediaElementPlayback(
         track.removeEventListener("ended", inspect);
       }
       for (const track of captured?.getTracks() || []) track.stop();
-      try { video.pause(); } catch { /* noop */ }
-      video.removeAttribute("src");
-      try { video.load(); } catch { /* noop */ }
-      video.remove();
+      if (disposeSession) disposeSession();
+      else {
+        try { video.pause(); } catch { /* noop */ }
+        video.removeAttribute("src");
+        try { video.load(); } catch { /* noop */ }
+        video.remove();
+      }
     };
     const finish = (result: Playability) => {
       if (settled) return;
@@ -79,6 +82,14 @@ export function verifyMediaElementPlayback(
     };
     const onTracksChanged = () => { watchTracks(); inspect(); };
     const onPlaying = () => { playing = true; inspect(); };
+    const onMetadata = () => {
+      // A failed initial play promise may precede the media error event.
+      // The retry loads the same element; restart the muted probe if needed.
+      if (video.dataset?.browserCorsFallback !== undefined && video.paused) {
+        void video.play().catch(() => {});
+      }
+      inspect();
+    };
     function inspect() {
       if (settled || signal.aborted) return;
       const decoder = (video.nativeEl ?? video) as ProbeVideo;
@@ -130,7 +141,7 @@ export function verifyMediaElementPlayback(
     video.addEventListener("error", onError);
     video.addEventListener("timeupdate", inspect);
     video.addEventListener("loadeddata", inspect);
-    video.addEventListener("loadedmetadata", inspect);
+    video.addEventListener("loadedmetadata", onMetadata);
     video.addEventListener("playing", onPlaying);
     // Cached metadata may describe a different default/selected track. Give
     // actual playback evidence the whole probe window to override a negative.
@@ -144,7 +155,11 @@ export function verifyMediaElementPlayback(
     }).catch(() => { /* Missing metadata is inconclusive, not no-audio evidence. */ });
     Promise.resolve().then(() => settled ? undefined : video.play()).then(() => {
       if (!settled) onPlaying();
-    }, () => finish("unknown"));
+    }, error => {
+      // A session-level fallback can recover from these rejections. Its final
+      // error event or the bounded probe deadline decides the outcome.
+      if (!disposeSession || !["NotSupportedError", "AbortError"].includes(error?.name)) finish("unknown");
+    });
   });
 }
 
@@ -156,58 +171,30 @@ export async function probeStreamPlayability(
   if (!src || options.signal.aborted || typeof document === "undefined"
     || Object.keys(stream.behaviorHints?.proxyHeaders?.request || {}).length) return "unknown";
 
-  if (canUseWebGpu(src)) {
-    const deadline = AbortSignal.timeout(options.timeoutMs ?? WEB_STREAM_CHECK_TIMEOUT_MS);
-    const signal = AbortSignal.any([options.signal, deadline]);
-    const release = await acquirePlaybackProbe(signal);
-    if (!release) return "unknown";
-    // The session uses the same engine and same-file fallback as visible playback.
-    // A layout box is required for the GPU presenter, even in a hidden probe.
-    const host = document.createElement("div");
-    host.style.cssText = "position:fixed;left:-4px;top:-4px;width:2px;height:2px;pointer-events:none;";
-    host.setAttribute("aria-hidden", "true");
-    let session: ReturnType<typeof createWebVideoSession> | undefined;
-    try {
-      session = createWebVideoSession(src);
-      const video = session.video;
-      video.muted = true;
-      video.tabIndex = -1;
-      video.style.cssText = "width:2px;height:2px;";
-      host.append(video); document.body.append(host);
-      return await verifyMediaElementPlayback(video, signal, options.timeoutMs ?? WEB_STREAM_CHECK_TIMEOUT_MS, options.metadata, options);
-    } finally { session?.dispose(); host.remove(); release(); }
-  }
-
-  let video: ProbeVideo;
-  if (getWebPlaybackElement(src) === "mux") {
-    try {
-      // Match the application's Mux-backed playback path for HLS/MP4.
-      await import("@mux/mux-video");
-      if (options.signal.aborted) return "unknown";
-      const mux = document.createElement("mux-video") as ProbeVideo;
-      video = mux;
-    } catch {
-      // Do not use playlist fetching or native-HLS metadata as proof.
-      return "unknown";
-    }
-  } else {
-    video = document.createElement("video") as ProbeVideo;
-  }
-  video.preload = "auto";
-  video.crossOrigin = "anonymous";
-  video.playsInline = true;
-  video.muted = true;
-  video.setAttribute("playsinline", "");
-  video.setAttribute("muted", "");
-  video.setAttribute("disable-tracking", "");
-  video.setAttribute("aria-hidden", "true");
-  video.tabIndex = -1;
-  // Keep probes connected for media engines that require it, without showing
-  // five miniature players or making them keyboard/screen-reader targets.
-  video.style.cssText = "position:fixed;width:1px;height:1px;clip-path:inset(100%);pointer-events:none;";
-  document.body.append(video);
-  const removeLanguagePreference = installAudioLanguagePreference(video, options.preferredAudioLanguage);
-  const result = verifyMediaElementPlayback(video, options.signal, options.timeoutMs ?? WEB_STREAM_CHECK_TIMEOUT_MS, options.metadata, options);
-  if (!options.signal.aborted) video.src = src;
-  return result.finally(removeLanguagePreference);
+  const gpu = canUseWebGpu(src);
+  const signal = gpu ? AbortSignal.any([options.signal, AbortSignal.timeout(options.timeoutMs ?? WEB_STREAM_CHECK_TIMEOUT_MS)]) : options.signal;
+  const release = gpu ? await acquirePlaybackProbe(signal) : () => {};
+  if (!release) return "unknown";
+  // Always use the visible player's session, including its same-file CORS retry.
+  // A layout box is required for the GPU presenter, even in a hidden probe.
+  const host = document.createElement("div");
+  host.style.cssText = "position:fixed;left:-4px;top:-4px;width:2px;height:2px;pointer-events:none;";
+  host.setAttribute("aria-hidden", "true");
+  let session: ReturnType<typeof createWebVideoSession> | undefined;
+  let removeLanguagePreference: (() => void) | undefined;
+  const dispose = () => {
+    removeLanguagePreference?.(); removeLanguagePreference = undefined;
+    session?.dispose(); session = undefined;
+  };
+  try {
+    if (signal.aborted) return "unknown";
+    session = createWebVideoSession(src);
+    const video = session.video;
+    video.muted = true;
+    video.tabIndex = -1;
+    video.style.cssText = "width:2px;height:2px;";
+    host.append(video); document.body.append(host);
+    if (!gpu) removeLanguagePreference = installAudioLanguagePreference(video, options.preferredAudioLanguage);
+    return await verifyMediaElementPlayback(video, signal, options.timeoutMs ?? WEB_STREAM_CHECK_TIMEOUT_MS, options.metadata, options, dispose);
+  } finally { dispose(); host.remove(); release(); }
 }

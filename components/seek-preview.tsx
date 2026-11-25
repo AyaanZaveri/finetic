@@ -189,7 +189,8 @@ function PreviewSource({ media, source, time, displayTime, duration, active: fal
     const unavailable = frame.time === displayBucket && frame.unavailable;
     const loading = rangeActive && !ready && !unavailable;
     const video = frame.video ? videoNode.current : media;
-    const videoRatio = video && "videoWidth" in video ? video.videoWidth / video.videoHeight : undefined;
+    const videoRatio = video && "videoWidth" in video && typeof video.videoWidth === "number"
+        && "videoHeight" in video && typeof video.videoHeight === "number" ? video.videoWidth / video.videoHeight : undefined;
     return (
         <div data-slot="media-player-seek-thumbnail" data-native-preview-provider={nativeFrames ? window.navigatorDesktop?.platform : undefined} aria-busy={loading} className="relative flex-none overflow-hidden rounded-lg" style={image ? undefined : previewFrameSize(videoRatio)}>
             {browserMode && !rangeMode && source && (muxPreview ? (

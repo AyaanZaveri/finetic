@@ -1,0 +1,49 @@
+name: Check browser media CORS fallback
+
+on:
+  push:
+    branches: [browser-media-cors-fallback]
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/browser-media-cors.yml
+      - lib/media/web-video-preload.ts
+      - lib/media/stream-playability.ts
+      - lib/media/webgpu-video.ts
+      - lib/media/webgpu-module.ts
+      - scripts/test-video-preload.cjs
+      - scripts/test-stream-playability.cjs
+      - scripts/test-browser-cors-playback.mjs
+
+permissions:
+  contents: read
+
+jobs:
+  browser-cors:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 26.7.0
+          cache: npm
+      - run: npm ci
+      - name: Test playback session, probe and WebGPU adapter
+        run: |
+          node scripts/test-video-preload.cjs
+          node scripts/test-stream-playability.cjs
+          node scripts/test-stream-metadata.cjs
+          node scripts/test-seek-preview-source.cjs
+          npm run test:webgpu
+          npx tsc --noEmit --incremental false
+      - name: Install test media and browser tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg xvfb
+          npm install -g agent-browser@0.31.1
+          google-chrome --version
+      - name: Play real MP4 with and without CORS in Chrome
+        run: xvfb-run -a node scripts/test-browser-cors-playback.mjs

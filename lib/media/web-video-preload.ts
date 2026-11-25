@@ -29,8 +29,42 @@ export function createWebVideoSession(url: string, speculative = false, startPos
     let core: Core | undefined;
     let teardown: typeof import("@mux/playback-core")["teardown"] | undefined;
     let disposed = false;
+    let removeCorsRetry: (() => void) | undefined;
     const startNative = (source = url) => {
         if (disposed) return;
+        removeCorsRetry?.();
+        // Direct media can play without CORS even when byte readers cannot.
+        // Keep CORS for the first attempt (pixel access and other features).
+        // Never retry an MSE/HLS/DASH engine as an opaque media request.
+        const isPlaylist = /\.(m3u8|mpd)(?:$|[?#/])/i.test(source);
+        const stopRetry = () => {
+            video.removeEventListener("error", retryWithoutCors, true);
+            video.removeEventListener("loadedmetadata", stopRetry);
+            removeCorsRetry = undefined;
+        };
+        const retryWithoutCors = (event: Event) => {
+            const code = video.error?.code;
+            if (disposed || isPlaylist || core?.engine || video.readyState >= 1
+                || video.crossOrigin === null || (code !== 2 && code !== 4)) return;
+            // The first error would otherwise trigger stream selection or a
+            // terminal player error before the same file gets another chance.
+            event.stopImmediatePropagation();
+            stopRetry();
+            const playing = !video.paused;
+            teardown?.(video, core);
+            core = undefined; teardown = undefined;
+            video.removeAttribute("src");
+            video.removeAttribute("crossorigin");
+            video.dataset.browserCorsFallback = "";
+            video.src = source;
+            video.load();
+            if (playing) void video.play().catch(() => {});
+        };
+        if (!isPlaylist) {
+            video.addEventListener("error", retryWithoutCors, true);
+            video.addEventListener("loadedmetadata", stopRetry);
+            removeCorsRetry = stopRetry;
+        }
         if (getWebPlaybackElement(source) === "mux") {
             teardown = teardownMux;
             core = initialize({ src: source, autoplay: false, preload: "auto", disableTracking: true,
@@ -76,7 +110,7 @@ export function createWebVideoSession(url: string, speculative = false, startPos
         },
         dispose() {
             if (disposed) return; disposed = true;
-            video.removeEventListener("progress", stop); detachGpu?.(); video.pause();
+            removeCorsRetry?.(); video.removeEventListener("progress", stop); detachGpu?.(); video.pause();
             teardown?.(video, core); video.removeAttribute("src"); video.load(); video.remove();
         },
     };

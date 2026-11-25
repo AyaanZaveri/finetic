@@ -56,12 +56,14 @@ const server = load('lib/server/desktop-video-preload.ts', { 'server-only': {} }
 
   class Video extends EventTarget {
     constructor(){super();this.className='';this.readyState=0;this.paused=true;this.currentTime=0;this.duration=1000;
-      this.seeking=false;this.buffered={length:1,start:()=>0,end:()=>100};this.attributes=new Map();this.loads=0;this.removed=false;}
+      this.seeking=false;this.buffered={length:1,start:()=>0,end:()=>100};this.attributes=new Map();this.dataset={};this.loads=0;this.removed=false;}
     load(){this.loads++;}pause(){this.paused=true;}remove(){this.removed=true;}
-    setAttribute(name,value){this.attributes.set(name,value);}removeAttribute(name){this.attributes.delete(name);}
+    setAttribute(name,value){this.attributes.set(name,value);}removeAttribute(name){this.attributes.delete(name);if(name==='crossorigin')this.crossOrigin=null;}
+    play(){this.paused=false;return Promise.resolve();}
   }
   const engines=[], videos=[], timers=new Map();let timerId=0;
   const fakeMux={initialize(props,video){
+    if (/\.mp4$/.test(props.src)) { video.src=props.src; return {}; }
     const config={maxBufferLength:30,maxMaxBufferLength:600,maxBufferSize:60e6,backBufferLength:Infinity,...props._hlsConfig};
     const engine={config,constructor:{DefaultConfig:{maxBufferLength:30,maxMaxBufferLength:600,maxBufferSize:60e6,backBufferLength:Infinity}},
       stops:0,starts:0,stopLoad(){this.stops++;},startLoad(){this.starts++;}};
@@ -145,6 +147,28 @@ const server = load('lib/server/desktop-video-preload.ts', { 'server-only': {} }
   assert.equal(embeddedEngines[3].video, hdr.video, 'HDR output uses the custom engine');
   hdr.dispose();
   gpuEnabled = false;
+
+  for (const direct of ['https://cdn.example/play/token', 'https://cdn.example/file.mp4']) {
+    const session = web.createWebVideoSession(direct);
+    const video = session.video;
+    let errors = 0;
+    video.addEventListener('error', () => errors++);
+    await video.play();
+    video.error = { code: 4 };
+    video.dispatchEvent(new Event('error'));
+    assert.equal(errors, 0, 'The first CORS-capable media failure must not escape to the player');
+    assert.equal(video.crossOrigin, null, 'Retry with the CORS attribute removed, not an empty string');
+    assert.equal(video.src, direct, 'Retry the exact same source');
+    assert.equal(video.paused, false, 'Preserve active playback intent');
+    video.dispatchEvent(new Event('error'));
+    assert.equal(errors, 1, 'A failed retry reaches normal error handling');
+    session.dispose();
+  }
+  const playlist = web.createWebVideoSession(url);
+  playlist.video.error = { code: 4 };
+  playlist.video.dispatchEvent(new Event('error'));
+  assert.equal(playlist.video.crossOrigin, 'anonymous', 'Do not retry HLS without CORS');
+  playlist.dispose();
 
   // The player wrapper attaches the retained element, preserving Media Chrome's
   // actual media ref and native event handlers through rerenders and cleanup.

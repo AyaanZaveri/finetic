@@ -5,11 +5,13 @@ const fs = require('node:fs');
 // source by compiling this small exported helper with the project's TypeScript.
 const ts = require('typescript');
 const vm = require('node:vm');
+let createSession;
 const source = fs.readFileSync(require.resolve('../lib/media/stream-playability.ts'), 'utf8');
 const js = ts.transpile(source, { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 });
 function localRequire(name) {
   if (name === './webgpu-module') return { canUseWebGpu: () => false };
-  if (name === './web-video-preload' || name === './playback-probe-lock') return {};
+  if (name === './web-video-preload') return { createWebVideoSession: (...args) => createSession(...args) };
+  if (name === './playback-probe-lock') return {};
   if (!name.startsWith('@/')) return require(name);
   const context = { exports: {}, require: localRequire, URL };
   vm.runInNewContext(ts.transpile(fs.readFileSync(name.slice(2) + '.ts', 'utf8'), { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }), context);
@@ -176,13 +178,27 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   v.play = function () {
     assert.equal(this.muted, true, 'Preview audio must not be audible');
     assert.equal(this.crossOrigin, 'anonymous', 'Probe and actual player must use the same CORS mode');
-    assert.ok(this.style.cssText.includes('clip-path'), 'Probe players must not appear in the UI');
+    assert.ok(this.style.cssText.includes('width:2px'), 'Probe players must not appear in the UI');
     this.webkitAudioDecodedByteCount = 10; this.webkitVideoDecodedByteCount = 10;
     this.fire('timeupdate'); return Promise.resolve();
   };
-  sandbox.document = { createElement() { return v; }, body: { append() {} } };
+  sandbox.document = { createElement() { return { style: {}, setAttribute() {}, append() {}, remove() {} }; }, body: { append() {} } };
+  createSession = () => { v.crossOrigin = 'anonymous'; return { video: v, dispose() { v.pause(); v.remove(); } }; };
   assert.equal(await sandbox.exports.probeStreamPlayability({ url: 'https://example.test/movie.mkv' }, { signal: c.signal }), 'supported');
   assert.equal(v.counts.pause, 1); assert.equal(v.counts.remove, 1);
+
+  v = fake(); c = new AbortController(); v.paused = true; v.dataset = {};
+  v.play = function () {
+    if (this.dataset.browserCorsFallback === undefined) return Promise.reject(Object.assign(new Error('CORS'), { name: 'NotSupportedError' }));
+    this.webkitAudioDecodedByteCount = 10; this.webkitVideoDecodedByteCount = 10;
+    this.fire('timeupdate'); return Promise.resolve();
+  };
+  const retried = sandbox.exports.probeStreamPlayability({ url: 'https://example.test/play/token' }, { signal: c.signal, timeoutMs: 100 });
+  await tick();
+  assert.equal(v.counts.remove, 0, 'Initial play rejection must not abandon a recoverable session');
+  v.dataset.browserCorsFallback = ''; v.fire('loadedmetadata');
+  assert.equal(await retried, 'supported', 'The stream probe can succeed after a non-CORS retry');
+  assert.equal(v.counts.remove, 1);
   await tick();
   console.log('stream-playability tests passed');
 })().catch(e => { console.error(e); process.exitCode = 1; });
