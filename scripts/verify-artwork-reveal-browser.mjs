@@ -48,7 +48,7 @@ try {
             entry.end = performance.now();
         };
         for (const name of ['animationstart', 'animationend', 'transitionrun', 'transitionend']) document.addEventListener(name, event => {
-            if (event.target.closest?.('[data-continue-watching-index]')) window.revealProbe.animation.push({ type: name, name: event.animationName || event.propertyName, time: performance.now(), card: event.target.closest('[data-continue-watching-index]').dataset.continueWatchingIndex });
+            if (event.target.closest?.('[data-continue-watching-index]')) window.revealProbe.animation.push({ type: name, name: event.animationName || event.propertyName, elapsed: event.elapsedTime, time: performance.now(), card: event.target.closest('[data-continue-watching-index]').dataset.continueWatchingIndex });
         }, true);
         function sample(time) {
             const cards = [...document.querySelectorAll('[data-continue-watching-index]')].map(card => {
@@ -65,6 +65,7 @@ try {
     await page.goto('http://127.0.0.1:3000/states/artwork-reveal');
     assert.equal(new URL(page.url()).pathname, '/states/artwork-reveal', 'The dev-only fixture must not redirect to another route');
     await page.locator('[data-hydrated="true"]').waitFor();
+    await page.bringToFront();
     const releaseImage = async key => {
         const end = Date.now() + 12000;
         while (!release.has(key) && Date.now() < end) await new Promise(resolve => setTimeout(resolve, 20));
@@ -80,6 +81,20 @@ try {
     });
     await Promise.all(['backdrop-d', 'logo-d'].map(releaseImage));
     await warm;
+    // macOS hosted VMs can take several seconds to settle after Next hydration.
+    // Only start the 300ms measurement once its animation clock is stable.
+    const calibration = await page.evaluate(() => new Promise(resolve => {
+        const start = performance.now();
+        let last = 0, consecutive = 0, longest = 0;
+        function tick(time) {
+            if (last) { const delta = time - last; longest = Math.max(longest, delta); consecutive = delta < 45 ? consecutive + 1 : 0; }
+            last = time;
+            if (consecutive >= 15 || time - start > 15000) resolve({ consecutive, longest });
+            else requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+    }));
+    console.log('Browser animation clock calibration:', JSON.stringify(calibration));
     await page.locator('[data-mount-row]').click();
     await page.locator('[data-continue-watching-index]').first().waitFor();
     // Logo first, backdrop first, and simultaneous arrival.
@@ -93,7 +108,7 @@ try {
     await page.locator('[data-refresh-row]').click();
     await page.waitForTimeout(500);
     const probe = await page.evaluate(() => window.revealProbe);
-    const report = { browser: process.env.ARTWORK_BROWSER, platform: process.platform, requests: Object.fromEntries(requests), errors, beforeRefresh, ...probe };
+    const report = { browser: process.env.ARTWORK_BROWSER, platform: process.platform, requests: Object.fromEntries(requests), errors, beforeRefresh, calibration, ...probe };
     const tests = [];
     for (let index = 0; index < 4; index++) {
         const frames = probe.frames.map(frame => ({ time: frame.time, ...frame.cards.find(card => card.index === index) })).filter(frame => frame.index === index);

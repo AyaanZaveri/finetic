@@ -14,10 +14,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-24.04
-            browser: chromium
-          - os: windows-2025
-            browser: chromium
           - os: macos-15
             browser: chromium
           - os: macos-15
