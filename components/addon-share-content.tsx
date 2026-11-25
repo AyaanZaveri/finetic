@@ -61,7 +61,7 @@ export function AddonShareContent({ addon, state, onCopy, open, onOpenChange, fi
                 </Button>}
                 <Description className="sr-only">Copy the manifest link to install this add-on in Stremio</Description>
             </Header>
-            <div className={`flex min-w-0 flex-col gap-6 ${isMobile ? "min-h-0 overflow-y-auto overscroll-contain p-6" : ""}`}>
+            <div className={`flex min-w-0 flex-col gap-6 ${isMobile ? "min-h-0 overflow-y-auto overscroll-contain p-6 pb-4" : ""}`}>
                 <AddonPreviewCard addon={addon} />
                 <div className="flex min-w-0 flex-col gap-4">
                     {"url" in state && <Field data-invalid={state.kind === "copy-error"}>

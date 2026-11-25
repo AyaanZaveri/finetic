@@ -184,7 +184,7 @@ export function AddAddonDialog() {
                         </Button>}
                         <ModalDescription className="sr-only">Install an add-on using its Stremio link</ModalDescription>
                     </ModalHeader>
-                    <form onSubmit={submit} className={`flex min-w-0 flex-col gap-6 ${isMobile ? "min-h-0 overflow-y-auto overscroll-contain p-6" : ""}`} aria-busy={pending || lookupPending}>
+                    <form onSubmit={submit} className={`flex min-w-0 flex-col gap-6 ${isMobile ? "min-h-0 overflow-y-auto overscroll-contain p-6 pb-4" : ""}`} aria-busy={pending || lookupPending}>
                         <FieldGroup>
                             <Field data-invalid={!!error}>
                                 <FieldLabel htmlFor={`${id}-link`} className="sr-only">Add-on link</FieldLabel>

@@ -57,7 +57,7 @@ export function AccountProvider({ authenticated, children }: { authenticated: bo
                                 <DrawerTitle>Sign in</DrawerTitle>
                                 <DrawerDescription>Sign in through Stremio or enter your email and password</DrawerDescription>
                             </DrawerHeader>
-                            <div className="p-6">
+                            <div className="min-h-0 overflow-y-auto overscroll-contain p-6 pb-4">
                                 <LoginForm onSuccess={() => { setOpen(false); router.refresh(); }} />
                             </div>
                         </DrawerContent>

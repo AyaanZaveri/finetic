@@ -170,7 +170,7 @@ export function MediaCardMenu({ item, continueWatching, detailsHref, onPlay, onR
                     <DrawerTitle>{item.showName || item.name}</DrawerTitle>
                     <DrawerDescription>{episodeLabel || item.progressLabel || item.episodeTitle || "Choose an action"}</DrawerDescription>
                 </DrawerHeader>
-                <div className="flex min-h-0 flex-col overflow-y-auto p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                <div className="flex min-h-0 flex-col overflow-y-auto overscroll-contain p-3 pb-2">
                     {actions.map(({ id, label, icon: Icon, disabled, run }) => <Button key={id} type="button" variant="ghost" className="min-h-12 w-full justify-start" disabled={disabled || busy} onClick={event => run(event.detail > 0)}>
                         <Icon data-icon="inline-start" aria-hidden="true" />{label}
                     </Button>)}

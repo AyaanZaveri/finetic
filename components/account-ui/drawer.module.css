@@ -1,0 +1,11 @@
+/* Floating sheets clear system chrome with their outer inset, not with a
+   second block of empty space beneath their last action. */
+.popup[data-swipe-direction="down"] {
+  --drawer-bottom-inset: max(var(--drawer-inset, 0px), var(--navigator-safe-bottom, env(safe-area-inset-bottom, 0px)));
+  --drawer-top-inset: max(var(--drawer-inset, 0px), var(--navigator-safe-top, env(safe-area-inset-top, 0px)));
+  --drawer-content-max-height: min(calc(100dvh - 6rem), calc(100dvh - var(--drawer-top-inset) - var(--drawer-bottom-inset)));
+  --closed-transform: translate3d(0, calc(100% + var(--drawer-bottom-inset) + 2px), 0);
+  margin-bottom: var(--drawer-bottom-inset);
+  margin-left: max(var(--drawer-inset, 0px), var(--navigator-safe-left, env(safe-area-inset-left, 0px)));
+  margin-right: max(var(--drawer-inset, 0px), var(--navigator-safe-right, env(safe-area-inset-right, 0px)));
+}

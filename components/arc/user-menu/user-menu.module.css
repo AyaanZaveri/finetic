@@ -134,7 +134,28 @@
 
 /* Below 640px the same content rises as a bottom sheet with larger rows. */
 .scrim { position: fixed; inset: 0; z-index: var(--layer-overlay); background: rgb(0 0 0 / .45); -webkit-backdrop-filter: blur(7px); backdrop-filter: blur(7px); -webkit-tap-highlight-color: transparent; }
-.sheet { --row: 44px; --inset: 8px; position: fixed; top: auto; right: max(8px, env(safe-area-inset-right, 0px)); bottom: 8px; left: max(8px, env(safe-area-inset-left, 0px)); z-index: var(--layer-overlay); width: auto; max-width: none; max-height: min(88dvh, calc(100dvh - max(8px, env(safe-area-inset-top, 0px)) - max(8px, env(safe-area-inset-bottom, 0px)))); overflow-y: auto; overscroll-behavior: contain; padding: 6px var(--inset) var(--inset); border: 1px solid var(--border); border-radius: 16px; }
+.sheet {
+  --row: 44px;
+  --inset: 8px;
+  --sheet-bottom-inset: max(var(--inset), var(--navigator-safe-bottom, env(safe-area-inset-bottom, 0px)));
+  --sheet-top-inset: max(var(--inset), var(--navigator-safe-top, env(safe-area-inset-top, 0px)));
+  position: fixed;
+  top: auto;
+  right: max(var(--inset), var(--navigator-safe-right, env(safe-area-inset-right, 0px)));
+  bottom: var(--sheet-bottom-inset);
+  left: max(var(--inset), var(--navigator-safe-left, env(safe-area-inset-left, 0px)));
+  z-index: var(--layer-overlay);
+  width: auto;
+  max-width: none;
+  max-height: min(88dvh, calc(100dvh - var(--sheet-top-inset) - var(--sheet-bottom-inset)));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px var(--inset) var(--inset);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+/* Installed Android shells may still include the old fixed 8px menu offset. */
+:global(html[data-native-engine="exoplayer"]) .sheet[data-slot="user-menu-sheet"][aria-modal="true"] { bottom: var(--sheet-bottom-inset); }
 .handle { display: block; width: 96px; height: 4px; margin: 2px auto 6px; border-radius: var(--radius-pill); background: var(--muted); cursor: grab; }
 .sheet .header { padding: 4px 8px 12px; }
 .sheet .item, .sheet .rowLabel { font-size: var(--text-base); }

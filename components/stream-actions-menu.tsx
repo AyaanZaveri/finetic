@@ -94,7 +94,7 @@ export function StreamActionsMenu({ label, url, downloadUrl, filename, children 
     <Drawer open={drawerOpen} onOpenChange={setDrawerOpen} showSwipeHandle>
       <DrawerContent className={`${accountSurface.surface} [--drawer-inset:0.5rem] after:hidden`} finalFocus={returnFocus}>
         <DrawerHeader><DrawerTitle>Stream actions</DrawerTitle><DrawerDescription>Choose an action</DrawerDescription></DrawerHeader>
-        <div className="flex min-h-0 flex-col overflow-y-auto p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="flex min-h-0 flex-col overflow-y-auto overscroll-contain p-3 pb-2">
           {downloadUrl && <Button type="button" variant="ghost" className="min-h-12 w-full justify-start" onClick={download}><Download data-icon="inline-start" aria-hidden="true" />Download</Button>}
           <Button type="button" variant="ghost" className="min-h-12 w-full justify-start" onClick={() => void copy()}><Copy data-icon="inline-start" aria-hidden="true" />Copy stream</Button>
         </div>
