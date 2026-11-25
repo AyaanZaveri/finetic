@@ -23,19 +23,3 @@
   padding: 4px;
   list-style: none;
 }
-
-@media (width < 48rem) {
-  [data-mobile-grid="true"] .viewport { overflow: visible; }
-  [data-mobile-grid="true"] .track {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: .875rem .75rem;
-    width: 100%;
-    padding: 0;
-  }
-  [data-mobile-grid="true"] .track > li { min-width: 0; }
-  [data-mobile-grid="true"] .track > li > * { width: 100%; }
-}
-@media (width < 22.5rem) {
-  [data-mobile-grid="true"] .track { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}

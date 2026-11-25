@@ -19,7 +19,6 @@ interface MediaSectionProps {
   continueWatching?: boolean;
   revealArtwork?: boolean;
   cardSubtitles?: React.ReactNode[];
-  mobileGrid?: boolean;
 }
 
 export function MediaSection({
@@ -29,7 +28,6 @@ export function MediaSection({
   continueWatching = false,
   revealArtwork = true,
   cardSubtitles,
-  mobileGrid = false,
 }: MediaSectionProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -120,7 +118,7 @@ export function MediaSection({
   };
 
   return (
-    <section data-mobile-grid={mobileGrid || undefined} aria-label={sectionName} className="relative z-10 mb-8">
+    <section aria-label={sectionName} className="relative z-10 mb-8">
       <div className="flex items-center justify-between gap-3 mb-4">
         <h2 ref={headingRef} tabIndex={continueWatching ? -1 : undefined} className="min-w-0 text-xl sm:text-2xl font-semibold text-foreground font-poppins">
           {sectionName}

@@ -194,17 +194,26 @@
     .loadingPage .poster { display: none; }
     .loadingPage .identity { align-items: center; }
 
+    /* Match the episode and cast rails: the heading stays inside the page
+       gutter while the scroll viewport bleeds to the device edges. */
+    .recommendationRail :global([data-media-row-viewport]),
     .recommendationSkeleton {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: .75rem;
+        width: auto;
+        margin-left: calc(-1 * max(1rem, env(safe-area-inset-left, 0px)));
+        margin-right: calc(-1 * max(1rem, env(safe-area-inset-right, 0px)));
     }
-    .recommendationSkeleton > * { width: 100%; }
-    .recommendationSkeletonControls { display: none; }
-}
 
-@media (width < 22.5rem) {
-    .recommendationSkeleton { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .recommendationRail :global([data-media-row-viewport]) > ul,
+    .recommendationSkeleton {
+        padding-left: max(1rem, env(safe-area-inset-left, 0px));
+        padding-right: max(1rem, env(safe-area-inset-right, 0px));
+    }
+
+    .recommendationSkeleton {
+        padding-block: 4px;
+    }
+    .recommendationSkeletonHeader { margin-bottom: 1rem; }
+    .recommendationSkeletonControls { display: none; }
 }
 
 .synopsisButton { display: none; }

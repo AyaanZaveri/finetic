@@ -20,7 +20,7 @@ import type { ReactNode } from "react";
 export function SimilarMoviesSkeleton() {
   return (
     <div className={`${titleStyles.sectionGutter} mt-6 px-4 md:px-10`}>
-      <div className="mb-6 flex items-center justify-between">
+      <div className={`${titleStyles.recommendationSkeletonHeader} mb-6 flex items-center justify-between`}>
         <Skeleton className="h-8 w-40 rounded" />
         <div className={`${titleStyles.recommendationSkeletonControls} flex gap-2`}>
           <Skeleton className="h-9 w-9 rounded-md" />
@@ -45,7 +45,7 @@ export function SimilarMoviesSkeleton() {
 
 export function SimilarMoviesSection({ items }: { items: MediaItem[] }) {
   if (!items.length) return null;
-  return <div className={`${titleStyles.sectionGutter} mt-6 px-4 md:px-10`}><MediaSection sectionName="More like this" mediaItems={items} mobileGrid /></div>;
+  return <div className={`${titleStyles.sectionGutter} ${titleStyles.recommendationRail} mt-6 px-4 md:px-10`}><MediaSection sectionName="More like this" mediaItems={items} /></div>;
 }
 
 export function MovieDetailsMessage({ kind }: { kind: "not-found" | "error" }) {

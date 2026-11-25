@@ -1,8 +1,7 @@
 import { SeriesDetailsFrame } from "@/components/media-page/series-details-frame";
-import titleStyles from "@/components/media-page/title-detail.module.css";
 import { MetadataPage as PlaybackPageProvider } from "@/components/metadata-hydration";
 import { CastSection } from "@/components/media-page/cast-section";
-import { MediaSection } from "@/components/media-section";
+import { SimilarMoviesSection } from "@/components/media-page/movie-details-view";
 import { redirect } from "next/navigation";
 import { SeriesEpisodesRouteAware } from "@/components/series-episodes-route-aware";
 import { SeriesOverviewPlaybackProvider } from "@/components/series-overview-playback";
@@ -17,13 +16,7 @@ import { fetchSimilarItems } from "@/app/actions";
 
 async function SimilarShows({ showId }: { showId: string }) {
   const items = await fetchSimilarItems(showId, "series", 12);
-  if (!items.length) return null;
-
-  return (
-    <div className={`${titleStyles.sectionGutter} mt-6 px-4 md:px-10`}>
-      <MediaSection sectionName="More like this" mediaItems={items} mobileGrid />
-    </div>
-  );
+  return <SimilarMoviesSection items={items} />;
 }
 
 export default async function SeriesLayout({
