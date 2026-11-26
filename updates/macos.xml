@@ -4,7 +4,7 @@
     <title>Navigator for macOS</title>
     <language>en</language>
     <item>
-      <title>Navigator 0.6.15</title>
+      <title>Navigator 0.7.0</title>
       <description>&lt;!doctype html&gt;
 &lt;html lang=&quot;en&quot;&gt;
 &lt;head&gt;
@@ -23,11 +23,11 @@ p { margin: 0; }
 &lt;body&gt;&lt;p&gt;Update Navigator, then reopen it with your existing sign-in and settings.&lt;/p&gt;&lt;/body&gt;
 &lt;/html&gt;</description>
       <sparkle:minimumSystemVersion>13.5</sparkle:minimumSystemVersion>
-      <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.6.15/Navigator-0.6.15-macos-arm64.zip"
-        sparkle:version="0.6.15" sparkle:shortVersionString="0.6.15"
-        sparkle:edSignature="IBLx2IbQMXEhEfP5dLmUsKFMxbDAOvBogQ02VzbTWWINk5ZkgT12kOyEZWkHkli5WT5+ItMF757UPBFMojawBQ==" length="96636513" type="application/octet-stream" />
+      <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.7.0/Navigator-0.7.0-macos-arm64.zip"
+        sparkle:version="0.7.0" sparkle:shortVersionString="0.7.0"
+        sparkle:edSignature="WLJHm5iG0ybAVhfAnqs9Bh5xd+nYejf447ESytC+jKp+Bmo9NMc/Kr58Q2NM+Pq7rJl5VsQFp/BvUav7r9wMCg==" length="96829729" type="application/octet-stream" />
       <sparkle:deltas>
-        <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.6.15/Navigator-0.6.15-macos-arm64-from-0.6.14.delta" sparkle:version="0.6.15" sparkle:deltaFrom="0.6.14" sparkle:edSignature="LdWB+fxZlZqlFyxKUsIM6Mf+XjLI1+y1BcQ0V/pvA167pgDxSDucdfJdtY0OhYT8+kcnc9t25OBhqdPzw2olCA==" length="827114" type="application/octet-stream" />
+        <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.7.0/Navigator-0.7.0-macos-arm64-from-0.6.15.delta" sparkle:version="0.7.0" sparkle:deltaFrom="0.6.15" sparkle:edSignature="Lm37A5PS+8+fA/VLEnlnKFEOBzhWye5h75Z0FOx8zRP/oQq7hQqiXUdclcG8ShJ/QTtH1aIsfujXGVJzY0DrCg==" length="1321630" type="application/octet-stream" />
       </sparkle:deltas>
     </item>
   </channel>
