@@ -54,6 +54,7 @@ function render(src = '/wide-logo.svg') {
     return { root: tree, artwork, image: logo };
 }
 const initial = render();
+assert.equal(initial.image.props.loading, "eager", "Wordmarks load even inside an inactive carousel panel");
 assert.equal(initial.root.props['data-ready'], undefined, 'Do not reveal the guessed wordmark size');
 const wordmarkCss = fs.readFileSync('components/hero-wordmark.module.css', 'utf8');
 assert.match(wordmarkCss, /\.artwork\s*\{[^}]*visibility:\s*hidden/s,

@@ -122,6 +122,25 @@ const heroItems = [
   },
 ];
 
+// All six slide assets must exist before the first selection or timer event.
+const fullCarousel = [
+  ...heroItems,
+  ...Array.from({ length: 4 }, (_, index) => ({
+    id: `tmdb:${20 + index}`, type: 'movie', name: `Featured ${index + 3}`,
+    background: backdrop(`slide-${index}`), logo: logo(`slide-${index}`),
+  })),
+];
+const initialCarousel = nodes(h.render(HomeHero, { items: fullCarousel }));
+const initialBackdrops = initialCarousel.filter(n => n.type === 'artwork-img');
+assert.equal(initialBackdrops.length, 6, 'Every responsive backdrop mounts on the initial render');
+assert.deepEqual(initialBackdrops.map(n => n.props.src), fullCarousel.map(item => item.background));
+assert.ok(initialBackdrops.every(n => n.props.loading === 'eager' && n.props.waitForDecode && n.props.srcSet));
+assert.deepEqual(initialBackdrops.map(n => n.props.fetchPriority), ['high', 'auto', 'auto', 'auto', 'auto', 'auto']);
+assert.deepEqual(initialCarousel.filter(n => n.type === 'hero-wordmark').map(n => n.props.src),
+  fullCarousel.flatMap(item => item.logo ? [item.logo] : []), 'Every wordmark mounts before its slide is selected');
+assert.equal(initialCarousel.filter(n => n.props?.className === 'copyPanel' && n.props.inert).length, 5,
+  'Preloaded title panels stay hidden from interaction and assistive technology');
+
 let tree = nodes(h.render(HomeHero, { items: heroItems }));
 const activeCopy = () => nodes(tree.find(n => n.props?.className === 'copyPanel' && n.props['data-active'] === 'true'));
 const activeTitle = () => activeCopy().find(n => n.type === 'h2').props.children;

@@ -41,8 +41,8 @@ export function HomeHero({ items }: { items: HomeHeroItem[] }) {
     const { playMedia, setIsPlayerVisible } = usePlaybackActions();
 
     const [selection, setSelection] = useState<{
-        index: number; displayed: number; visited: number[]; ready: string[]; progressVersions: Record<number, number>;
-    }>({ index: 0, displayed: 0, visited: [0], ready: [], progressVersions: {} });
+        index: number; displayed: number; ready: string[]; progressVersions: Record<number, number>;
+    }>({ index: 0, displayed: 0, ready: [], progressVersions: {} });
     const [failedLogos, setFailedLogos] = useState<string[]>([]);
     const [rotationOverride, setRotationOverride] = useState<boolean | null>(null);
     const [actionHovered, setActionHovered] = useState(false);
@@ -61,7 +61,6 @@ export function HomeHero({ items }: { items: HomeHeroItem[] }) {
     }, [count]);
     const requestedIndex = count > 0 ? ((selection.index % count) + count) % count : 0;
     const activeIndex = count > 0 ? ((selection.displayed % count) + count) % count : 0;
-    const visited = [...new Set([...selection.visited, activeIndex, requestedIndex])].filter((index) => index < count);
     const activeItem = count > 0 ? items[activeIndex] : null;
     const artwork = activeItem ? mediaArtwork(activeItem) : null;
     const running = rotating && pageVisible && heroVisible && !actionHovered && requestedIndex === activeIndex
@@ -81,32 +80,6 @@ export function HomeHero({ items }: { items: HomeHeroItem[] }) {
             : { id: "", name: "", type: "movie" },
     );
 
-    // Warm adjacent slide backdrops after mount so manual switching feels instant.
-    useEffect(() => {
-        if (count < 2 || typeof window === "undefined") return;
-        const neighbors = [
-            items[(activeIndex + 1) % count],
-            items[(activeIndex - 1 + count) % count],
-        ];
-        const images: HTMLImageElement[] = [];
-        for (const neighbor of neighbors) {
-            const url = mediaArtwork(neighbor).background;
-            if (!url) continue;
-            const image = new window.Image();
-            image.decoding = "async";
-            image.sizes = "100vw";
-            image.srcset = backdropSrcSet(url) ?? "";
-            image.src = url;
-            images.push(image);
-        }
-        return () => {
-            images.forEach((image) => {
-                image.srcset = "";
-                image.src = "";
-            });
-        };
-    }, [activeIndex, count, items]);
-
     const selectIndex = useCallback(
         (nextRaw: number) => {
             if (count < 2) return;
@@ -118,7 +91,6 @@ export function HomeHero({ items }: { items: HomeHeroItem[] }) {
                     ...previous,
                     index: nextIndex,
                     displayed: source && previous.ready.includes(source) ? nextIndex : previous.displayed,
-                    visited: [...new Set([...previous.visited, nextIndex])],
                     progressVersions: { ...previous.progressVersions, [nextIndex]: (previous.progressVersions[nextIndex] ?? 0) + 1 },
                 };
             });
@@ -236,8 +208,9 @@ export function HomeHero({ items }: { items: HomeHeroItem[] }) {
         >
             <div className={styles.stage} aria-hidden="true">
                 <div className={styles.backdropLayer}>
-                    {visited.map(index => {
-                        const item = items[index];
+                    {/* Mount all responsive images up front. Hidden slides keep their
+                        decoded artwork mounted instead of requesting it on selection. */}
+                    {items.map((item, index) => {
                         const source = mediaArtwork(item).background;
                         if (!source) return null;
                         return (
@@ -251,7 +224,8 @@ export function HomeHero({ items }: { items: HomeHeroItem[] }) {
                                     height={720}
                                     alt=""
                                     draggable={false}
-                                    fetchPriority={index === requestedIndex ? "high" : "auto"}
+                                    loading="eager"
+                                    fetchPriority={index === 0 ? "high" : "auto"}
                                     decoding="async"
                                     waitForDecode
                                     reveal={false}
@@ -284,7 +258,7 @@ export function HomeHero({ items }: { items: HomeHeroItem[] }) {
                     onFocusCapture={() => setRotationOverride(false)}
                 >
                     <div className={styles.copyStack}>
-                        {visited.map(index => renderTitleCopy(items[index], index))}
+                        {items.map(renderTitleCopy)}
                     </div>
 
                     <div className={styles.actions}>

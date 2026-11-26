@@ -28,6 +28,7 @@ export function VibrantLogo({
   return (
     <img
       draggable={false}
+      loading="eager"
       className={className}
       src={src}
       alt={alt}
