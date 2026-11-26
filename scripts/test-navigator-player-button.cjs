@@ -6,6 +6,7 @@ const { load, hooks } = require('./test-support/react-hooks.cjs');
 
 const host = hooks();
 let open = false;
+let preloads = 0;
 const { PlayerNavigatorButton } = load('components/player-navigator-button.tsx', {
   react: host.react, 'react/jsx-runtime': host.jsx,
   jotai: { useAtomValue: () => open },
@@ -14,6 +15,7 @@ const { PlayerNavigatorButton } = load('components/player-navigator-button.tsx',
   '@/components/ui/media-player': { MediaPlayerTooltip: 'Tooltip' },
   '@/hooks/use-navigator-shortcut': { useNavigatorShortcut: () => ['Ctrl', 'K'] },
   '@/lib/atoms': { isAIAskOpenAtom: 'open' },
+  '@/lib/preload-tools': { preloadNavigator: () => preloads++ },
 });
 function render() { return host.render(PlayerNavigatorButton, { onToggle: () => { open = !open; } }); }
 
@@ -56,6 +58,11 @@ const button = render().props.children;
 assert.equal(button.props.type, 'button');
 assert.equal(button.props.variant, 'player-control', 'Use the same button as adjacent player controls');
 assert.equal(button.props['aria-label'], 'Ask Navigator');
+assert.equal(preloads, 0, 'Rendering the control alone does not preload');
+button.props.onPointerEnter();
+button.props.onFocus();
+assert.equal(preloads, 2, 'Pointer and keyboard intent both preload Navigator');
+assert.equal(open, false, 'Preloading must not toggle the panel');
 assert.deepEqual(Array.from(render().props.shortcut), ['Ctrl', 'K']);
 
 // Render the real shared tooltip function without mounting a player or browser.

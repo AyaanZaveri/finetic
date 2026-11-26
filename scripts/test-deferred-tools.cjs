@@ -11,7 +11,7 @@ const { DeferredTools } = load('components/deferred-tools.tsx', {
     LazyTool.options = options; dynamicComponents.push(LazyTool); return LazyTool;
   } },
   jotai: { useAtomValue: atom => atom === 'player' ? playing : open,
-    useAtom: atom => atom === 'player' ? [playing, value => { playing = value; }] : [open, () => {}] },
+    useAtom: atom => atom === 'player' ? [playing, value => { playing = value; }] : [open, value => { open = value; }] },
   '@/lib/atoms': atoms,
   '@/components/navigator/launcher': { NavigatorLauncher: 'Launcher' },
   '@/lib/preload-tools': { preloadNavigator: () => preloads++ },
@@ -45,7 +45,19 @@ coldPlayer.props.children.props.onClick();
 assert.equal(playing, false, 'A delayed player chunk must still allow the user to cancel playback');
 playing = false;
 assert.equal(dynamicComponents[1].options.ssr, false);
-assert.equal(typeof dynamicComponents[1].options.loading, 'function', 'A cold AI chunk has immediate loading feedback');
+assert.equal(typeof dynamicComponents[1].options.loading, 'function', 'A cold AI chunk has browsing-specific loading feedback');
+const navigatorPending = dynamicComponents[1].options.loading;
+open = true;
+playing = true;
+assert.equal(navigatorPending(), null, 'Opening cold Navigator during playback must never flash the browsing launcher');
+playing = false;
+const coldNavigator = navigatorPending();
+const pendingLauncher = coldNavigator.props.children.props.children;
+assert.equal(pendingLauncher.props.busy, true, 'Browsing retains loading feedback while the panel loads');
+assert.equal(pendingLauncher.props.expanded, true);
+pendingLauncher.props.onClick();
+assert.equal(open, false, 'The browsing launcher still cancels a pending open');
+assert.equal(navigatorPending(), null, 'Closing before the chunk loads removes its fallback');
 
 const entrance = require('postcss').parse(require('node:fs').readFileSync('components/player-entrance.css', 'utf8'));
 entrance.walkRules(rule => {
@@ -56,24 +68,31 @@ entrance.walkRules(rule => {
 
 function warmup(platform, idleSupported = true) {
   const native = hooks(), pending = new Map();
-  let preloaded = 0, sequence = 0;
+  let preloaded = 0, navigatorPreloaded = 0, sequence = 0;
+  let playing = false, open = false, enabled = false;
   const schedule = fn => { pending.set(++sequence, fn); return sequence; };
   const cancel = id => pending.delete(id);
   const { DeferredTools: NativeTools } = load('components/deferred-tools.tsx', {
     react: native.react, 'react/jsx-runtime': native.jsx,
     'next/dynamic': { __esModule: true, default: () => function LazyTool() {} },
-    jotai: { useAtomValue: () => false, useAtom: () => [false, () => {}] },
+    jotai: { useAtomValue: atom => atom === 'player' ? playing : open, useAtom: () => [false, () => {}] },
     '@/lib/atoms': atoms,
     '@/components/navigator/launcher': { NavigatorLauncher: 'Launcher' },
-    '@/lib/preload-tools': { preloadNavigator() {}, preloadPlayer: () => preloaded++ },
+    '@/lib/preload-tools': { preloadNavigator: () => navigatorPreloaded++, preloadPlayer: () => preloaded++ },
     '@/lib/desktop/bridge': { desktopBridge: () => platform ? { platform } : undefined },
   }, { window: {
     ...(idleSupported ? { requestIdleCallback: schedule, cancelIdleCallback: cancel } : {}),
     setTimeout: schedule, clearTimeout: cancel,
   } });
-  native.render(NativeTools, { userId: 'native-user', navigatorEnabled: false, onToggleAIAsk() {} });
-  native.flush();
-  return { pending, native, get preloaded() { return preloaded; },
+  function update(state = {}) {
+    playing = state.playing ?? playing;
+    open = state.open ?? open;
+    enabled = state.enabled ?? enabled;
+    native.render(NativeTools, { userId: 'native-user', navigatorEnabled: enabled, onToggleAIAsk() {} });
+    native.flush();
+  }
+  update();
+  return { pending, native, update, get preloaded() { return preloaded; }, get navigatorPreloaded() { return navigatorPreloaded; },
     run() { const work = [...pending.values()]; pending.clear(); work.forEach(fn => fn()); } };
 }
 for (const platform of [undefined, 'ios']) {
@@ -93,4 +112,37 @@ for (const platform of ['android', 'windows', 'macos']) for (const idleSupported
   client.native.unmount();
   assert.equal(client.pending.size, 0, 'Unmounting cancels scheduled work, including Strict Mode replays');
 }
-console.log('PASS: cold tools stay unmounted, intent preload, first-open activation, stable close/reopen state, loading feedback and disabled Navigator.');
+for (const platform of [undefined, 'windows', 'macos']) for (const idleSupported of [true, false]) {
+  const client = warmup(platform, idleSupported);
+  client.run(); // Finish the independent player warmup first.
+  client.update({ enabled: true });
+  assert.equal(client.pending.size, 0, 'Browsing must not eagerly load Navigator');
+  client.update({ enabled: false, playing: true });
+  assert.equal(client.pending.size, 0, 'Disabled Navigator must not preload');
+  client.update({ enabled: true });
+  assert.equal(client.pending.size, 1, 'Playback schedules Navigator warmup');
+  assert.equal(client.navigatorPreloaded, 0, 'No synchronous import during playback open');
+  client.update({ playing: false });
+  assert.equal(client.pending.size, 0, 'Exiting playback cancels pending Navigator warmup');
+  client.update({ playing: true });
+  client.update({ enabled: false });
+  assert.equal(client.pending.size, 0, 'Disabling Navigator cancels pending warmup');
+  client.update({ enabled: true });
+  client.run();
+  assert.equal(client.navigatorPreloaded, 1);
+  client.update({ playing: false });
+  client.update({ playing: true });
+  client.update({ open: true });
+  assert.equal(client.pending.size, 0, 'Opening the panel cancels an unnecessary warmup');
+  client.update({ open: false });
+  client.update({ playing: false });
+  client.update({ playing: true });
+  assert.equal(client.pending.size, 0, 'An already requested Navigator does not need warmup on later playback');
+  client.native.unmount();
+  const unrequested = warmup(platform, idleSupported);
+  unrequested.run();
+  unrequested.update({ enabled: true, playing: true });
+  unrequested.native.unmount();
+  assert.equal(unrequested.pending.size, 0, 'Unmount cancels pending Navigator warmup');
+}
+console.log('PASS: deferred tool lifecycle, no cold Navigator launcher in playback, browsing loading feedback, intent and cancellable idle preloads.');

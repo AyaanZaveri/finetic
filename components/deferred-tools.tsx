@@ -45,6 +45,7 @@ export function DeferredTools({ userId, navigatorEnabled, onToggleAIAsk }: {
     const open = useAtomValue(isAIAskOpenAtom);
     const [playerRequested, setPlayerRequested] = useState(false);
     const [navigatorRequested, setNavigatorRequested] = useState(false);
+    const showNavigator = navigatorEnabled && (navigatorRequested || open);
     useEffect(() => {
         if (!["android", "windows", "macos"].includes(desktopBridge()?.platform ?? "")) return;
         // Warm the existing chunk while idle, before pointer intent or playback
@@ -57,21 +58,20 @@ export function DeferredTools({ userId, navigatorEnabled, onToggleAIAsk }: {
         return () => window.clearTimeout(timer);
     }, []);
     useEffect(() => {
-        if (!playing || !navigatorEnabled) return;
-        // The player's Navigator button has no pending UI, so warm the chunk
-        // once playback opens and the first toggle can render the panel directly.
+        if (!playing || !navigatorEnabled || showNavigator) return;
+        // Warm the chunk during playback to reduce the first-open delay.
+        // Once Navigator is requested, its dynamic import handles loading.
         if (typeof window.requestIdleCallback === "function") {
             const idle = window.requestIdleCallback(preloadNavigator, { timeout: 3000 });
             return () => window.cancelIdleCallback(idle);
         }
         const timer = window.setTimeout(preloadNavigator, 1000);
         return () => window.clearTimeout(timer);
-    }, [playing, navigatorEnabled]);
+    }, [playing, navigatorEnabled, showNavigator]);
     // These one-way latches preserve player cleanup and chat history after first
     // use. Conditional render-time state adjustment avoids an extra effect commit.
     if (playing && !playerRequested) setPlayerRequested(true);
     if (navigatorEnabled && open && !navigatorRequested) setNavigatorRequested(true);
-    const showNavigator = navigatorEnabled && (navigatorRequested || open);
     return <>
         {navigatorEnabled && !playing && !showNavigator && <div data-navigator-focus-ui="" className="pointer-events-none fixed inset-x-0 bottom-4 z-[var(--layer-navigator)] flex justify-center px-4">
             <div className="pointer-events-auto mb-0 sm:mb-1"><NavigatorLauncher onClick={onToggleAIAsk} onIntent={preloadNavigator} /></div>
