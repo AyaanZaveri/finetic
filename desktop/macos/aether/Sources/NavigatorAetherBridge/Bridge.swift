@@ -3,7 +3,7 @@ import AVFoundation
 import AetherEngine
 import Foundation
 
-typealias EventCallback = @convention(c) (UnsafeMutableRawPointer?, UnsafePointer<UInt8>?, Int) -> Void
+public typealias EventCallback = @convention(c) (UnsafeMutableRawPointer?, UnsafePointer<UInt8>?, Int) -> Void
 
 /// The native shell calls these entry points exclusively on the AppKit thread.
 /// The loaded library stays resident for the process lifetime.
@@ -389,9 +389,10 @@ final class PlaybackBridge {
 
 // The C ABI is synchronous and only called from Tao's AppKit event thread.
 // Isolation belongs on the entry point itself; C callers cannot hop actors.
+// Public visibility retains the exported C symbols in optimized dylibs.
 @MainActor
 @_cdecl("navigator_aether_create")
-func create(_ parent: UnsafeMutableRawPointer?, _ callback: EventCallback, _ context: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer? {
+public func create(_ parent: UnsafeMutableRawPointer?, _ callback: EventCallback, _ context: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer? {
     precondition(Thread.isMainThread)
     guard let parent else { return nil }
     let view = Unmanaged<NSView>.fromOpaque(parent).takeUnretainedValue()
@@ -401,7 +402,7 @@ func create(_ parent: UnsafeMutableRawPointer?, _ callback: EventCallback, _ con
 
 @MainActor
 @_cdecl("navigator_aether_command")
-func command(_ handle: UnsafeMutableRawPointer?, _ bytes: UnsafePointer<UInt8>?, _ count: Int) {
+public func command(_ handle: UnsafeMutableRawPointer?, _ bytes: UnsafePointer<UInt8>?, _ count: Int) {
     precondition(Thread.isMainThread)
     guard let handle, let bytes, count > 0, count <= 131072 else { return }
     Unmanaged<PlaybackBridge>.fromOpaque(handle).takeUnretainedValue().command(Data(bytes: bytes, count: count))
@@ -409,7 +410,7 @@ func command(_ handle: UnsafeMutableRawPointer?, _ bytes: UnsafePointer<UInt8>?,
 
 @MainActor
 @_cdecl("navigator_aether_destroy")
-func destroy(_ handle: UnsafeMutableRawPointer?) {
+public func destroy(_ handle: UnsafeMutableRawPointer?) {
     precondition(Thread.isMainThread)
     guard let handle else { return }
     Unmanaged<PlaybackBridge>.fromOpaque(handle).takeRetainedValue().close()
