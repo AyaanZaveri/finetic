@@ -29,9 +29,33 @@ function Tooltip({
 }
 
 function TooltipTrigger({
+  onFocus,
+  onPointerMove,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
-  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />
+  return (
+    <TooltipPrimitive.Trigger
+      data-slot="tooltip-trigger"
+      {...props}
+      onFocus={event => {
+        onFocus?.(event)
+        const trigger = event.currentTarget
+        const modality = trigger.ownerDocument.documentElement.dataset.inputModality
+        // A tap can focus after pointerup, when Radix's press guard has reset.
+        if (modality === "pointer" || (modality !== "keyboard" && !trigger.matches(":focus-visible"))) {
+          event.preventDefault()
+        }
+      }}
+      onPointerMove={event => {
+        onPointerMove?.(event)
+        const view = event.currentTarget.ownerDocument.defaultView
+        // Radix already ignores native touch moves. Skip emulated hover too.
+        if (event.pointerType !== "touch" && !view?.matchMedia("(any-hover: hover)").matches) {
+          event.preventDefault()
+        }
+      }}
+    />
+  )
 }
 
 function TooltipContent({
