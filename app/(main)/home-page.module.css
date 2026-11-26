@@ -1,0 +1,23 @@
+.page {
+  position: relative;
+  max-width: 100%;
+  overflow: hidden;
+  padding-top: calc(var(--app-header-height, 5.25rem) + 0.75rem);
+  padding-bottom: 2rem;
+}
+
+.page:has([data-home-hero]) {
+  padding-top: 0;
+}
+
+.rows {
+  position: relative;
+  z-index: 10;
+  padding-inline: var(--page-gutter);
+}
+
+@media (min-width: 48rem) {
+  .page:has([data-home-hero]) .rows {
+    margin-top: -1.5rem;
+  }
+}

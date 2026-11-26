@@ -34,6 +34,10 @@ const section = key => ({ key, sectionName: `Catalog ${key}`, mediaItems: [{ id:
         '@/app/components/auth-error-handler': { AuthErrorHandler: React.Fragment },
         '@/components/home-catalog-sections-lazy': { HomeCatalogSectionsLazy },
         '@/components/home-continue-watching': { ContinueWatchingSection: () => React.createElement('section', null, 'Continue Watching') },
+        '@/components/home-hero': { HomeHero: () => null, HomeHeroPending: () => null },
+        '@/lib/server/home-hero': { enrichHomeHeroItems: async items => items },
+        '@/lib/server/metadata-provider': { getMetadataProvider: async () => 'auto' },
+        './home-page.module.css': { page: 'page', rows: 'rows' },
         '@/components/ui/loading-placeholder': { LoadingPlaceholder: delayedPlaceholder },
     });
     const output = new PassThrough(); let html = '';

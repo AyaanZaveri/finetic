@@ -126,7 +126,7 @@ export function AppHeader({ email, overlay = false, onSignOut }: { email: string
                     </Link>
                 </Button>
                 {overlay && <DetailBackButton />}
-                <div className="min-w-0 flex-1 sm:max-w-xl">
+                <div className="min-w-0 flex-1 sm:max-w-lg">
                     <Suspense fallback={<div className="h-11 rounded-xl bg-muted" />}>
                         <HeaderSearch detail={overlay} />
                     </Suspense>

@@ -17,6 +17,7 @@ import { desktopBridge } from "@/lib/desktop/bridge";
 import { AuroraProvider, PersistentAuroraBackground } from "@/components/aurora-provider";
 import { HomePaletteProvider } from "@/components/home-palette-provider";
 import { HomeGradientBackground } from "@/components/home-gradient-background";
+import { HomeAuroraController } from "@/components/home-aurora-controller";
 import { ScrollAreaRoot, ScrollAreaViewport, ScrollBar } from "@/components/ui/scroll-area";
 import styles from "./layout-content.module.css";
 import { useAccountAccess } from "@/contexts/account-context";
@@ -47,8 +48,9 @@ export function LayoutContent({ children, email, userId }: LayoutContentProps) {
         // page position while the episode carousel handles horizontal centering.
         viewportRef.current?.scrollTo({ top: 0, left: 0, behavior: "instant" });
     }, [scrollResetKey]);
-    const overlayHeader = /^\/(movie|series)(?:\/|$)/.test(pathname);
-    const showHomeGradient = pathname === "/" || /^\/(search|person|settings|addons)(?:\/|$)/.test(pathname);
+    const detailHeader = /^\/(movie|series)(?:\/|$)/.test(pathname);
+    const overlayHeader = detailHeader || pathname === "/";
+    const showHomeGradient = /^\/(search|person|settings|addons)(?:\/|$)/.test(pathname);
     const useEmeraldBackdrop = /^\/(settings|addons)(?:\/|$)/.test(pathname);
     const useSubduedBackdrop = useEmeraldBackdrop || /^\/person(?:\/|$)/.test(pathname);
     const [isAIAskOpen, setIsAIAskOpen] = useAtom(isAIAskOpenAtom);
@@ -95,16 +97,17 @@ export function LayoutContent({ children, email, userId }: LayoutContentProps) {
     return (
         <HomePaletteProvider><AuroraProvider>
             <DesktopTmdbSetupPrompt />
-            <div data-app-layout className="relative flex h-dvh flex-col overflow-hidden">
+            <div data-app-layout data-home-layout={pathname === "/" ? "" : undefined} className="relative flex h-dvh flex-col overflow-hidden">
                 <ScrollAreaRoot type="scroll" scrollHideDelay={900} asChild>
                     <div data-desktop-app-content data-playback-hidden={isPlayerVisible ? "" : undefined} inert={isPlayerVisible} className="relative grid min-h-0 min-w-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)]">
                         <a href="#page-content" className={styles.skipLink} onClick={event => {
                             event.preventDefault();
                             viewportRef.current?.focus({ preventScroll: true });
                         }}>Skip to content</a>
-                        <AppHeader email={email} overlay={overlayHeader} />
+                        <AppHeader email={email} overlay={detailHeader} />
                         <ScrollAreaViewport ref={viewportRef} id="page-content" role="main" aria-label="Page content" tabIndex={-1} data-page-scroll="" data-header-overlay={overlayHeader ? "true" : "false"} className={`${styles.viewport} relative z-[1] col-start-1 min-h-0 min-w-0 overscroll-contain pb-[env(safe-area-inset-bottom)] ${overlayHeader ? "row-start-1 row-span-2 [scroll-padding-top:calc(var(--app-header-height,5.25rem)+1rem)]" : "row-start-2 scroll-pt-4"}`}>
                             <PersistentAuroraBackground />
+                            {pathname === "/" && <HomeAuroraController />}
                             <HomeGradientBackground visible={showHomeGradient} emerald={useEmeraldBackdrop} subdued={useSubduedBackdrop} />
                             {children}
                         </ScrollAreaViewport>

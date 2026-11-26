@@ -10,6 +10,7 @@ interface VibrantLogoProps {
   width?: number;
   height?: number;
   onLoad?: ReactEventHandler<HTMLImageElement>;
+  onError?: () => void;
 }
 
 export function VibrantLogo({
@@ -19,6 +20,7 @@ export function VibrantLogo({
   width = 300,
   height = 96,
   onLoad,
+  onError,
 }: VibrantLogoProps) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   if (!src || failedSrc === src) return null;
@@ -32,7 +34,10 @@ export function VibrantLogo({
       width={width}
       height={height}
       onLoad={onLoad}
-      onError={() => setFailedSrc(src)}
+      onError={() => {
+        setFailedSrc(src);
+        onError?.();
+      }}
     />
   );
 }

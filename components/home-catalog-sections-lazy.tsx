@@ -104,6 +104,8 @@ export function HomeCatalogSectionsLazy({ initialSections, initialRows, remainin
     const observer = new ResizeObserver(update);
     observer.observe(scroller);
     observer.observe(list.parentElement || list);
+    const homePage = list.closest<HTMLElement>("[data-home-page]");
+    if (homePage && homePage !== list.parentElement) observer.observe(homePage);
     return () => observer.disconnect();
   }, []);
 

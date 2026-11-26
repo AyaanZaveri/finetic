@@ -42,6 +42,31 @@ export function verticalGradientStops(background: string) {
     return stops.length >= 2 ? reverse ? stops.reverse().map(stop => ({ ...stop, position: 1 - stop.position })) : stops : null;
 }
 
+/** CSS angles point clockwise from the top; the gradient line spans the
+ * projections of the box corners, even for a wide, shallow backdrop. */
+function linearGradientGeometry(background: string, rect: Rect) {
+    const match = /^linear-gradient\((.*)\)$/.exec(background);
+    if (!match) return null;
+    const args = gradientArguments(match[1]);
+    const direction = args[0].replace(/ in .+$/, "");
+    const degrees = /^([\d.+-]+)deg$/.exec(direction);
+    const cardinal: Record<string, number> = { "to top": 0, "to right": 90, "to bottom": 180, "to left": 270 };
+    let angle = 180;
+    if (degrees) { angle = Number(degrees[1]); args.shift(); }
+    else if (direction in cardinal) { angle = cardinal[direction]; args.shift(); }
+    else if (/^(to |[\d.-]+(?:deg|rad|turn|grad))/.test(direction)) return null;
+    const stops = args.map((arg, index) => {
+        const position = /^(.*)\s+([\d.-]+)%$/.exec(arg);
+        return { color: position ? position[1] : arg, position: position ? Number(position[2]) / 100 : index / (args.length - 1) };
+    });
+    if (stops.length < 2) return null;
+    const radians = angle * Math.PI / 180;
+    const dx = Math.sin(radians), dy = -Math.cos(radians);
+    const extent = (Math.abs(dx) * rect.width + Math.abs(dy) * rect.height) / 2;
+    const x = rect.left + rect.width / 2, y = rect.top + rect.height / 2;
+    return { x1: x - dx * extent, y1: y - dy * extent, x2: x + dx * extent, y2: y + dy * extent, stops };
+}
+
 /** Approximate the composed progressive blur at the logo, including its masks
  * and the header's scroll-driven opacity. Blur variances add when stacked. */
 export function logoBlurRadius(layers: LogoBlurLayer[], bounds: Rect): number {
@@ -76,20 +101,22 @@ function paintOverlays(context: CanvasRenderingContext2D, bounds: Rect, overlays
         const region = intersection(bounds, overlay.rect);
         const patch = region && (overlay.clip ? intersection(region, overlay.clip) : region);
         if (!patch || overlay.opacity <= 0) continue;
-        const stops = verticalGradientStops(overlay.background);
-        if (!stops) {
-            if (overlay.background.startsWith("linear-gradient(")) continue;
+        // CSS lists the topmost background first; Canvas paints back to front.
+        for (const background of gradientArguments(overlay.background).reverse()) {
+            const geometry = linearGradientGeometry(background, overlay.rect);
+            if (!geometry) {
+                if (/gradient\(/.test(background)) continue;
+                context.fillStyle = background;
+            } else {
+                const gradient = context.createLinearGradient(geometry.x1, geometry.y1, geometry.x2, geometry.y2);
+                try {
+                    for (const stop of geometry.stops) gradient.addColorStop(Math.max(0, Math.min(1, stop.position)), stop.color);
+                } catch { continue; }
+                context.fillStyle = gradient;
+            }
             context.globalAlpha = overlay.opacity;
-            context.fillStyle = overlay.background;
-        } else {
-            const gradient = context.createLinearGradient(0, overlay.rect.top, 0, overlay.rect.top + overlay.rect.height);
-            try {
-                for (const stop of stops) gradient.addColorStop(Math.max(0, Math.min(1, stop.position)), stop.color);
-            } catch { continue; }
-            context.globalAlpha = overlay.opacity;
-            context.fillStyle = gradient;
+            context.fillRect(patch.left, patch.top, patch.width, patch.height);
         }
-        context.fillRect(patch.left, patch.top, patch.width, patch.height);
     }
 }
 

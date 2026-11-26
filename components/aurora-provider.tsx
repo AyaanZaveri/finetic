@@ -16,6 +16,7 @@ interface SceneOptions {
 interface Scene extends SceneOptions {
   owner: symbol | null;
   colors: string[];
+  paletteRoute?: string;
   hasPalette: boolean;
   ready: boolean;
   failed: boolean;
@@ -36,6 +37,7 @@ export function AuroraProvider({ children }: { children: ReactNode }) {
             resolve(colors) {
                 setScene(current => current.owner !== owner ? current : {
                     ...current, colors: colors ?? current.colors,
+                    paletteRoute: colors ? current.route : current.paletteRoute,
                     hasPalette: Boolean(colors) || current.hasPalette, ready: true, failed: !colors,
                 });
             },
@@ -53,15 +55,17 @@ export function useAuroraRegistration() {
 }
 
 /** Lives in the persistent scrollport, above artwork and below page content. */
-export function PersistentAuroraBackground() {
+export function PersistentAuroraBackground({ homePreview = false }: { homePreview?: boolean } = {}) {
     const scene = useContext(CurrentScene);
     const pathname = usePathname();
     const playing = useAtomValue(isPlayerVisibleAtom);
     if (!scene) return null;
-    const eligible = /^\/(movie|series|person)(?:\/|$)/.test(pathname);
+    const home = pathname === "/" || homePreview;
+    const eligible = /^\/(movie|series|person)(?:\/|$)/.test(pathname)
+        || (home && scene.route === pathname && scene.paletteRoute === pathname && Boolean(scene.owner));
     const settled = scene.owner && scene.route === pathname && scene.ready;
     const opacity = eligible && scene.hasPalette && !scene.failed
-        ? scene.opacity * (settled ? 1 : 0.25) : 0;
+        ? scene.opacity * (settled || (home && scene.paletteRoute === pathname) ? 1 : 0.25) : 0;
     return <AuroraBackground
         colorStops={scene.colors}
         amplitude={scene.amplitude}

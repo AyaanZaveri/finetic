@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState, type ComponentPropsWithRef, type ComponentPropsWithoutRef } from "react";
+import { useCallback, useEffect, useRef, useState, type ComponentPropsWithRef, type ComponentPropsWithoutRef } from "react";
 import { Film } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useComposedRefs } from "@/lib/compose-refs";
@@ -13,6 +13,8 @@ type Props = Omit<ComponentPropsWithRef<"img">, "src"> & {
   reveal?: boolean | "late";
   /** Large backdrops start their reveal only when the decoded pixels can paint. */
   waitForDecode?: boolean;
+  /** Fires after decoded pixels are ready, including cached images. */
+  onReady?: () => void;
   onUnavailable?: () => void;
 };
 
@@ -27,13 +29,19 @@ export function ArtworkPlaceholder({ label = "Artwork unavailable", className, .
 /** Keep native image geometry; reveal loaded pixels over the card's surface. */
 export function ArtworkImage({
   src, srcSet, sizes, alt = "", className, style, width, height, ref,
-  onLoad, onError, onUnavailable, decoding = "async", fallbackText = "Artwork unavailable", reveal = true, waitForDecode = false, ...props
+  onLoad, onError, onReady, onUnavailable, decoding = "async", fallbackText = "Artwork unavailable", reveal = true, waitForDecode = false, ...props
 }: Props) {
   const key = JSON.stringify([src, srcSet, sizes]);
   const [result, setResult] = useState<{ key: string; state: "ready" | "error"; unseen?: boolean; late?: boolean } | null>(null);
   const pendingKey = useRef<string | null>(null);
   const decodeAttempt = useRef<{ key: string; image: HTMLImageElement; source: string } | null>(null);
   const state = !src ? "error" : result?.key === key ? result.state : "loading";
+  const notifiedKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (state !== "ready" || notifiedKey.current === key || !onReady) return;
+    notifiedKey.current = key;
+    onReady();
+  }, [key, state, onReady]);
 
   const markReady = useCallback((image: HTMLImageElement, late: boolean) => {
     const box = image.getBoundingClientRect?.();

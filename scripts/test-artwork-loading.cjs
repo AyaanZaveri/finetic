@@ -252,7 +252,8 @@ assert.equal(avatar.props.children.props.style.backgroundColor, 'transparent', '
   const { ArtworkImage } = load('components/artwork-image.tsx', {
     ...imageDependencies, react: { ...React, ...fixture.react }, 'react/jsx-runtime': fixture.jsx,
   }, { window: { innerHeight: 800, innerWidth: 1200 } });
-  const props = { src: '/continue-watching.jpg', waitForDecode: true };
+  let readyNotifications = 0;
+  const props = { src: '/continue-watching.jpg', waitForDecode: true, onReady: () => readyNotifications++ };
   const render = (value = props) => fixture.render(ArtworkImage, value);
   let finish, calls = 0;
   const image = { complete: true, naturalWidth: 780, src: props.src,
@@ -261,8 +262,14 @@ assert.equal(avatar.props.children.props.style.backgroundColor, 'transparent', '
   render().props.onLoad({ currentTarget: image });
   assert.equal(calls, 1, 'Ref and load must share the same backdrop decode');
   assert.equal(render().props['data-artwork-state'], 'loading', 'Do not start the fade on an undecoded image');
+  fixture.flush();
+  assert.equal(readyNotifications, 0, 'The hero cannot commit an undecoded image');
   finish(); await Promise.resolve();
   assert.equal(render().props['data-artwork-state'], 'ready');
+  fixture.flush();
+  assert.equal(readyNotifications, 1, 'Ready callback fires once after decoding');
+  render(); fixture.flush();
+  assert.equal(readyNotifications, 1, 'Rerenders do not notify the parent twice');
   assert.equal(render().props['data-artwork-revealing'], '', 'Decoded pixels trigger the reveal');
   let finishOld;
   const old = { ...props, src: '/old.jpg' }, next = { ...props, src: '/new.jpg' };

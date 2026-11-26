@@ -12,11 +12,13 @@ export function HeroWordmark({
   alt,
   movieName,
   className,
+  onError,
 }: {
   src: string;
   alt: string;
   movieName: string;
   className?: string;
+  onError?: () => void;
 }) {
   const logoSrc = artworkSampleUrl(src);
   const [analysis, setAnalysis] = useState<{
@@ -120,6 +122,7 @@ export function HeroWordmark({
             width={800}
             height={310}
             className="block size-full max-w-none object-contain"
+            onError={onError}
             onLoad={(event) => {
               const { naturalWidth, naturalHeight } = event.currentTarget;
               if (!naturalWidth || !naturalHeight) return;

@@ -4,7 +4,7 @@
   height: var(--hero-wordmark-box-height, var(--wordmark-max-height));
   max-height: var(--wordmark-max-height);
   min-width: 0;
-  place-items: var(--hero-wordmark-align, center) center;
+  place-items: var(--hero-wordmark-align, center) var(--hero-wordmark-justify, center);
 }
 /* Compact marks need more height to carry similar visual weight.
    Wide marks retain their larger limit for lettering with tall flourishes. */

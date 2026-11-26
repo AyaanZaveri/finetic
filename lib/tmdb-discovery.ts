@@ -26,11 +26,42 @@ interface TMDBTitleRecord {
     vote_average?: number;
     vote_count?: number;
     popularity?: number;
+    genre_ids?: number[];
     adult?: boolean;
     character?: string;
     job?: string;
     department?: string;
 }
+
+const TMDB_GENRE_NAMES: Record<number, string> = {
+    12: "Adventure",
+    14: "Fantasy",
+    16: "Animation",
+    18: "Drama",
+    27: "Horror",
+    28: "Action",
+    35: "Comedy",
+    36: "History",
+    37: "Western",
+    53: "Thriller",
+    80: "Crime",
+    99: "Documentary",
+    878: "Sci-Fi",
+    9648: "Mystery",
+    10402: "Music",
+    10749: "Romance",
+    10751: "Family",
+    10752: "War",
+    10759: "Action & Adventure",
+    10762: "Kids",
+    10763: "News",
+    10764: "Reality",
+    10765: "Sci-Fi & Fantasy",
+    10766: "Soap",
+    10767: "Talk",
+    10768: "War & Politics",
+    10770: "TV Movie",
+};
 interface TMDBPage<T> { results: T[]; page: number; total_pages: number; total_results: number }
 interface TMDBPersonRecord {
     id: number; name: string; profile_path?: string | null;
@@ -109,12 +140,16 @@ export async function tmdbIdForTitle(id: string, type: TMDBMediaType, signal?: A
 
 function titleResult(item: TMDBTitleRecord, type: TMDBMediaType) {
     const date = type === "movie" ? item.release_date : item.first_air_date;
+    const genres = Array.isArray(item.genre_ids)
+        ? [...new Set(item.genre_ids.map(id => TMDB_GENRE_NAMES[id]).filter((genre): genre is string => Boolean(genre)))]
+        : undefined;
     return {
         id: `tmdb:${item.id}`, tmdbId: item.id, source: "TMDB" as const, type,
         name: item.title || item.name || item.original_title || item.original_name || "Untitled",
         year: date ? Number(date.slice(0, 4)) || undefined : undefined,
         releaseInfo: date || undefined, description: item.overview || "", overview: item.overview || "",
         poster: tmdbImage(item.poster_path), background: tmdbImage(item.backdrop_path, "w1280"),
+        genres: genres?.length ? genres : undefined,
         communityRating: item.vote_count ? item.vote_average : undefined, ratingSource: "TMDB",
         voteCount: item.vote_count, popularity: item.popularity,
         sourceUrl: `https://www.themoviedb.org/${type === "movie" ? "movie" : "tv"}/${item.id}`,
