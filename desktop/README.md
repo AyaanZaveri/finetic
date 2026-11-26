@@ -754,9 +754,11 @@ AetherEngine manages HDR brightness through Apple's native presentation path.
 The Swift package is pinned in `macos/aether/Package.resolved`. Build it with
 Xcode 27 and Swift 6.4, the upstream supported toolchain. For development, set
 `NAVIGATOR_AETHER_BRIDGE` to the built dynamic library's absolute path.
-Release packaging includes the ad-hoc signed dynamic bridge and its FFmpeg frameworks
-under Contents/Frameworks while leaving the shell deployment target at macOS
-13.5. Older macOS versions do not load the Swift library.
+Release packaging builds the Swift framework on the Xcode 27 runner and
+verifies its same-commit archive before extracting it on the existing macOS 15
+shell runner. It includes the ad-hoc signed dynamic bridge and its FFmpeg
+frameworks under Contents/Frameworks while leaving the shell deployment target
+at macOS 13.5. Older macOS versions do not load the Swift library.
 
 AetherEngine uses a bounded temporary fMP4 segment cache and a separate source
 clock for subtitle cue timing. Seek previews use its timestamped cache-backed

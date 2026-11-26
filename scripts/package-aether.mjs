@@ -14,6 +14,43 @@ const tool = (name, args, inherit = false) => execFileSync(name, args, {
 });
 const exists = async path => { try { await access(path); return true; } catch { return false; } };
 
+async function verifyAetherFrameworks(frameworks) {
+  const library = join(frameworks, libraryName);
+  const dynamicFrameworks = (await readdir(frameworks)).filter(name => name.startsWith("Aether") && name.endsWith(".framework"));
+  if (!dynamicFrameworks.includes("AetherLibavcodec.framework")) throw new Error("Missing AetherEngine dynamic FFmpeg framework");
+  const files = [library, ...dynamicFrameworks.map(name => join(frameworks, name, name.slice(0, -".framework".length)))];
+  for (const file of files) {
+    for (const dependency of tool("otool", ["-L", file]).split("\n").slice(1)) {
+      const match = dependency.trim().match(/^@rpath\/(\S+)/);
+      if (match && !await exists(join(frameworks, match[1]))) throw new Error(`Unresolved AetherEngine dependency: ${match[1]}`);
+    }
+  }
+  const symbols = tool("nm", ["-gU", library]);
+  for (const name of ["navigator_aether_create", "navigator_aether_command", "navigator_aether_destroy"]) {
+    if (!symbols.includes(`_${name}`)) throw new Error(`Missing Aether bridge C entry point: ${name}`);
+  }
+  tool("codesign", ["--verify", "--strict", library], true);
+
+  for (const name of dynamicFrameworks) {
+    tool("codesign", ["--verify", "--strict", join(frameworks, name)], true);
+  }
+}
+
+export async function installPrebuiltAether(source, bundle, resources) {
+  // CI verifies the transport checksum and current source commit before this
+  // copy. Keep framework symlinks intact and verify signatures again locally.
+  const sourceFrameworks = join(source, "Frameworks");
+  const sourceResources = join(source, "Resources");
+  await verifyAetherFrameworks(sourceFrameworks);
+  if (!await exists(join(sourceResources, "licenses", "AetherEngine", "SOURCE.txt"))) {
+    throw new Error("Missing AetherEngine source and license manifest");
+  }
+  const frameworks = join(bundle, "Frameworks");
+  await cp(sourceFrameworks, frameworks, { recursive: true, verbatimSymlinks: true });
+  await cp(sourceResources, resources, { recursive: true, verbatimSymlinks: true });
+  await verifyAetherFrameworks(frameworks);
+}
+
 export async function embedAether(bundle, resources, { configuration = "release" } = {}) {
   const argumentsForBuild = ["build", "--package-path", packagePath, "-c", configuration, "--product", "NavigatorAetherBridge"];
   tool("swift", argumentsForBuild, true);
@@ -42,19 +79,8 @@ export async function embedAether(bundle, resources, { configuration = "release"
   if (!tool("otool", ["-l", library]).includes("path @loader_path (")) {
     tool("install_name_tool", ["-add_rpath", "@loader_path", library]);
   }
-  const files = [library, ...dynamicFrameworks.map(name => join(frameworks, name, name.slice(0, -".framework".length)))];
-  for (const file of files) {
-    for (const dependency of tool("otool", ["-L", file]).split("\n").slice(1)) {
-      const match = dependency.trim().match(/^@rpath\/(\S+)/);
-      if (match && !await exists(join(frameworks, match[1]))) throw new Error(`Unresolved AetherEngine dependency: ${match[1]}`);
-    }
-  }
-  const symbols = tool("nm", ["-gU", library]);
-  for (const name of ["navigator_aether_create", "navigator_aether_command", "navigator_aether_destroy"]) {
-    if (!symbols.includes(`_${name}`)) throw new Error(`Missing Aether bridge C entry point: ${name}`);
-  }
   tool("codesign", ["--force", "--sign", "-", library], true);
-  tool("codesign", ["--verify", "--strict", library], true);
+  await verifyAetherFrameworks(frameworks);
 
   // Preserve the exact upstream license/source notices with the package.
   const licenses = join(resources, "licenses", "AetherEngine");

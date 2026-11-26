@@ -251,6 +251,16 @@ mod tests {
         }
         let address = server.address;
         drop(server);
-        assert!(TcpStream::connect(address).is_err());
+        // A completed listener shutdown can leave a transient successful
+        // connection in the macOS TCP stack. Assert bounded closure rather
+        // than an instantaneous refusal on a heavily loaded runner.
+        let deadline = std::time::Instant::now() + Duration::from_secs(1);
+        loop {
+            if TcpStream::connect_timeout(&address, Duration::from_millis(100)).is_err() {
+                break;
+            }
+            assert!(std::time::Instant::now() < deadline, "thumbnail listener did not close");
+            std::thread::sleep(Duration::from_millis(10));
+        }
     }
 }

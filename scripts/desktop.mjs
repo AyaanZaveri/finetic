@@ -75,8 +75,12 @@ try {
         await cp(join(root, "licenses"), join(resources, "licenses"), { recursive: true });
         await collectThirdPartyNotices(join(root, "node_modules"), join(resources, "licenses", "npm"));
         if (mac) {
-            const { embedAether } = await import("./package-aether.mjs");
-            await embedAether(bundle, resources);
+            const { embedAether, installPrebuiltAether } = await import("./package-aether.mjs");
+            if (process.env.NAVIGATOR_AETHER_CONTENTS) {
+                await installPrebuiltAether(process.env.NAVIGATOR_AETHER_CONTENTS, bundle, resources);
+            } else {
+                await embedAether(bundle, resources);
+            }
             const { fetchSparkle } = await import("./fetch-sparkle.mjs");
             const sparkle = await fetchSparkle();
             await mkdir(join(bundle, "Frameworks"), { recursive: true });

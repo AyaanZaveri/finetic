@@ -50,9 +50,43 @@ env:
   NAVIGATOR_DELTA_BASE_TAG: ${{ inputs.delta_base_tag }}
 
 jobs:
-  macos:
+  # Aether's supported toolchain is newer than the shell's release linker.
+  # Build only the Swift library here and carry its verified bytes into the
+  # existing Apple Silicon packaging job.
+  macos-aether:
     if: inputs.platform == 'all' || inputs.platform == 'macos'
     runs-on: xcode-27
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 26.7.0
+      - name: Build and verify portable Aether frameworks
+        run: |
+          node scripts/package-aether.mjs "$RUNNER_TEMP/AetherContents" release
+          mkdir -p "$RUNNER_TEMP/aether-artifact"
+          ditto -c -k --sequesterRsrc --keepParent "$RUNNER_TEMP/AetherContents" "$RUNNER_TEMP/aether-artifact/AetherContents.zip"
+          cd "$RUNNER_TEMP/aether-artifact"
+          printf '%s\n' "$GITHUB_SHA" > SOURCE_COMMIT
+          shasum -a 256 AetherContents.zip > SHA256SUMS
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: Navigator-Aether-${{ github.sha }}
+          path: ${{ runner.temp }}/aether-artifact/*
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  macos:
+    if: inputs.platform == 'all' || inputs.platform == 'macos'
+    needs: macos-aether
+    runs-on: macos-15
+    permissions:
+      contents: read
+      actions: read
     timeout-minutes: 90
     env:
       MACOSX_DEPLOYMENT_TARGET: "13.5"
@@ -100,6 +134,17 @@ jobs:
         run: node scripts/prepare-update-base.mjs macos
         env:
           GH_TOKEN: ${{ github.token }}
+      - name: Download same-commit verified Aether library
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/aether-input"
+          gh run download "$GITHUB_RUN_ID" --name "Navigator-Aether-$GITHUB_SHA" --dir "$RUNNER_TEMP/aether-input"
+          cd "$RUNNER_TEMP/aether-input"
+          test "$(cat SOURCE_COMMIT)" = "$GITHUB_SHA"
+          shasum -a 256 -c SHA256SUMS
+          ditto -x -k AetherContents.zip "$RUNNER_TEMP/aether-input"
+          echo "NAVIGATOR_AETHER_CONTENTS=$RUNNER_TEMP/aether-input/AetherContents" >> "$GITHUB_ENV"
       - name: Build fresh frontend, native runtime and app archive
         run: npm run desktop:package
       - name: Verify packaged files and collect checksums
