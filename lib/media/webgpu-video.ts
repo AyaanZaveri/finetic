@@ -1,5 +1,6 @@
 import { loadWebGpuModule, type WebGpuAudioTrack, type WebGpuPlayer, type WebGpuStats } from "./webgpu-module";
 import { resolveWebGpuSource } from "./webgpu-source";
+import { isWebGpuSourceAccessFailure } from "./playback-error";
 import { createWebGpuSubtitles } from "./webgpu-subtitles";
 import { preferredAudioTrack } from "./audio-language";
 import { readPlaybackPreferences } from "./playback-preferences";
@@ -107,6 +108,7 @@ export function attachWebGpuVideo(video: WebGpuVideo, url: string, fallback: (_s
         cleanup();
         // Preserve a useful, URL-free cause when the browser reports a generic format error.
         video.dataset.webgpuFallback = reasonLabel;
+        if (isWebGpuSourceAccessFailure(reason)) video.dataset.webgpuSourceAccessFailed = "";
         if (initialMetadata) video.dataset.webgpuResuming = "";
         // Restore preferences before loading the same URL through Mux/native.
         video.volume = volume; video.muted = muted; video.playbackRate = rate;

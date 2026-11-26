@@ -2,6 +2,7 @@
 
 import { useCallback, useLayoutEffect, useRef, type ComponentProps, type Ref } from "react";
 import { toast } from "sonner";
+import { WEB_RECOVERY_TOAST_ID } from "@/lib/media/playback-error";
 import { createWebVideoSession, takeWebVideo, type WebVideoSession } from "@/lib/media/web-video-preload";
 
 type Props = ComponentProps<"video"> & { src: string; startPosition?: number };
@@ -72,7 +73,7 @@ export function WebPlaybackVideo(props: Props) {
             owned.video.addEventListener("webgpu-hdr-unavailable", reportHdr);
             removers.push(() => owned.video.removeEventListener("webgpu-hdr-unavailable", reportHdr));
             const reportSeekFallback = () => {
-                if (!cancelled) toast("WebGPU playback could not resume after seeking. Trying the browser player.");
+                if (!cancelled) toast("Switching to browser playback…", { id: WEB_RECOVERY_TOAST_ID });
             };
             owned.video.addEventListener("webgpu-seek-fallback", reportSeekFallback);
             removers.push(() => owned.video.removeEventListener("webgpu-seek-fallback", reportSeekFallback));

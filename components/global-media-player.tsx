@@ -13,6 +13,8 @@ import { BrowserPlayerGlass } from "@/components/browser-player-glass";
 import { PlayerLoadingStatus } from "@/components/player-loading-status";
 import { PlayerLoadingWordmark } from "@/components/player-loading-wordmark";
 import { usePlayerChapters } from "@/components/use-player-chapters";
+import { PlayerPlaybackError } from "@/components/player-playback-error";
+import { describePlaybackError, IN_HOUSE_PROXY_ENABLED, WEB_RECOVERY_TOAST_ID, type PlaybackError } from "@/lib/media/playback-error";
 import type { SkipSegment } from "@/lib/media/skip-segments";
 import { ClockedSkipSegments, PlayerSubtitleLayer, PlayerEndTime } from "@/components/player-clock-islands";
 import { parseSubtitleTextContent } from "@/lib/media/subtitle-content";
@@ -27,7 +29,7 @@ import { PlayerControlBar } from "@/components/player-control-bar";
 import { formatRuntime } from "@/lib/format-runtime";
 
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect, useMemo } from "react";
-import { preload } from "react-dom";
+import { flushSync, preload } from "react-dom";
 import { PlaybackWakeLock } from "@/components/playback-wake-lock";
 import { useRouter } from "next/navigation";
 import type { MediaItem, StremioStream } from "@/types/stremio";
@@ -85,7 +87,6 @@ import { createPlaybackReporter } from "@/lib/media/playback-reporter";
 interface GlobalMediaPlayerProps {
   onToggleAIAsk?: () => void;
 }
-const WEB_RECOVERY_TOAST_ID = "web-stream-recovery";
 
 export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const streamQueries = useStreamQueries();
@@ -110,7 +111,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     routedRequest.current = playbackRequest;
     router.push(playbackRequest.detailsPath, { scroll: false });
   }, [isPlayerVisible, playbackRequest, router]);
-  const { videoBitrate, subtitleSize, setSubtitleSize, subtitleOutline, subtitleWeight, subtitleColor, subtitlePosition, playbackPreferences } = useSettings();
+  const { videoBitrate, subtitleSize, setSubtitleSize, subtitleOutline, subtitleWeight, subtitleColor, subtitlePosition, playbackPreferences, updatePlaybackPreferences } = useSettings();
   const [preparedPlayback, setPreparedPlayback] = useState<{ request: MediaToPlay; media: MediaToPlay } | null>(null);
   const currentMedia = preparedPlayback && preparedPlayback.request === playbackRequest
     ? preparedPlayback.media : playbackRequest;
@@ -131,7 +132,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   const [nativePlayback] = useState(() => Boolean(desktopBridge()));
   useEffect(() => { recordDesktopStage("player-mounted"); }, []);
-  const [playbackError, setPlaybackError] = useState<string | null>(null);
+  const [playbackError, setPlaybackError] = useState<PlaybackError | null>(null);
   const interruptedPlaybackRef = useRef<{ generation: number; position: number } | null>(null);
   const [playerAttempt, setPlayerAttempt] = useState(0);
   const reportNavigatorPlayback = useCallback((state: "playing" | "error" | "closed", message?: string) => {
@@ -348,7 +349,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     if (nativePlayback || !playbackPreferencesRef.current.autoSelectWebStream || !currentMedia || !streamUrl || element !== videoRef.current) return false;
     failedStreamUrlsRef.current.add(streamUrl);
     const position = element.currentTime > 0 ? element.currentTime : currentMedia.resumePositionTicks;
-    toast("That stream failed. Trying another one…", { id: WEB_RECOVERY_TOAST_ID });
+    toast("Trying another stream…", { id: WEB_RECOVERY_TOAST_ID });
     // loadMedia advances the generation synchronously, deduplicating decoder errors.
     void loadMediaRef.current?.({
       ...currentMedia, streamUrl: undefined, requestHeaders: undefined,
@@ -381,19 +382,25 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     const error = element.error;
     if (!error || error.code === 1) return;
 
-    if (!nativePlayback && playbackPreferencesRef.current.autoSelectWebStream && currentMedia && streamUrl && error.code >= 2 && error.code <= 4) {
+    const gpuReason = nativePlayback ? undefined : element.dataset?.webgpuFallback;
+    const failure = describePlaybackError({
+      message: error.message,
+      gpuReason,
+      sourceAccessFailed: element.dataset?.webgpuSourceAccessFailed !== undefined,
+      source: playbackSource,
+      mediaFlowMode: playbackPreferencesRef.current.mediaFlowMode,
+    });
+    if (!failure.suggestInHouseProxy && !nativePlayback && playbackPreferencesRef.current.autoSelectWebStream
+      && currentMedia && streamUrl && error.code >= 2 && error.code <= 4) {
       tryNextWebStream(element);
       return;
     }
 
-    const gpuReason = !nativePlayback ? element.dataset?.webgpuFallback : undefined;
-    const message = gpuReason
-      ? `WebGPU playback failed (${gpuReason}). The browser could not play this file either.`
-      : error.message || "This stream could not be played.";
-    console.warn("Media player error:", { code: error.code, message });
-    setPlaybackError(message);
-    reportNavigatorPlayback("error", message);
-  }, [isPlayerVisible, nativePlayback, currentMedia, streamUrl, tryNextWebStream, reportNavigatorPlayback]);
+    toast.dismiss(WEB_RECOVERY_TOAST_ID);
+    console.warn("Media player error:", { code: error.code, gpuReason, message: failure.message });
+    setPlaybackError(failure);
+    reportNavigatorPlayback("error", failure.message);
+  }, [isPlayerVisible, nativePlayback, currentMedia, streamUrl, playbackSource, tryNextWebStream, reportNavigatorPlayback]);
 
   const maybeReportPeriodicProgress = useCallback(
     (timeSeconds: number, durationSeconds?: number) => {
@@ -524,7 +531,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       sendPlaybackUpdate("progress");
       if (tryNextWebStream(element)) return;
       const message = "This stream ended early. Try again to resume playback.";
-      setPlaybackError(message);
+      setPlaybackError({ message });
       reportNavigatorPlayback("error", message);
       return;
     }
@@ -755,8 +762,8 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     } catch (error) {
       if (!isCurrent()) return;
       const message = error instanceof Error ? error.message : "Could not load this stream. Try again.";
-      setPlaybackError(message);
-      if (fallback) toast.error(message, { id: WEB_RECOVERY_TOAST_ID });
+      setPlaybackError({ message });
+      if (fallback) toast.dismiss(WEB_RECOVERY_TOAST_ID);
       if (request.navigatorActionId) document.dispatchEvent(new CustomEvent(NAVIGATOR_PLAYBACK_EVENT, {
         detail: { actionId: request.navigatorActionId, state: "error", message },
       }));
@@ -788,11 +795,11 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   // Metadata and canplay aren't playback progress; only media-time movement is.
   useEffect(() => {
-    if (nativePlayback || !streamUrl || !playbackPreferencesRef.current.autoSelectWebStream) return;
+    if (nativePlayback || !streamUrl || playbackError || !playbackPreferencesRef.current.autoSelectWebStream) return;
     const element = videoRef.current;
     if (!element) return;
     return installWebStartupWatchdog(element, () => tryNextWebStream(element), document);
-  }, [nativePlayback, streamUrl, playerAttempt, tryNextWebStream, currentMedia?.resumePositionTicks]);
+  }, [nativePlayback, streamUrl, playerAttempt, playbackError, tryNextWebStream, currentMedia?.resumePositionTicks]);
 
   // Handle skip timestamp
   useEffect(() => {
@@ -954,6 +961,23 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     const size = stepSubtitleSize(subtitleSize, direction);
     if (size !== subtitleSize) setSubtitleSize(size);
   }, [subtitleSize, setSubtitleSize]);
+
+  const retryPlayback = (enableInHouseProxy = false) => {
+    if (!playbackRequest) return;
+    // Both stream probes and the player read the saved preference when retrying.
+    if (enableInHouseProxy) {
+      flushSync(() => updatePlaybackPreferences({ mediaFlowMode: "in-house" }));
+      toast.success(IN_HOUSE_PROXY_ENABLED);
+    }
+    setPlaybackError(null);
+    setVideoReady(false);
+    setPlayerAttempt(attempt => attempt + 1);
+    invalidatePlaybackWarmup(playbackRequest.streamRequest);
+    streamQueries?.invalidate({ id: playbackRequest.mediaSourceId || playbackRequest.id, type: playbackRequest.type });
+    const position = interruptedPlaybackRef.current?.position
+      ?? (enableInHouseProxy && currentTimeRef.current > 0 ? currentTimeRef.current : undefined);
+    void loadMedia(playbackRequest, false, position);
+  };
 
   if (!isPlayerVisible || !currentMedia) return null;
 
@@ -1168,17 +1192,8 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
                   initial={false}
                 >
                   {playbackError ? (
-                    <div className="flex flex-col items-start gap-3" role="alert">
-                      <p className="text-sm text-white">{playbackError}</p>
-                      <Button variant="secondary" onClick={() => {
-                        setPlaybackError(null);
-                        setVideoReady(false);
-                        setPlayerAttempt((attempt) => attempt + 1);
-                        invalidatePlaybackWarmup(playbackRequest?.streamRequest);
-                        if (playbackRequest) streamQueries?.invalidate({ id: playbackRequest.mediaSourceId || playbackRequest.id, type: playbackRequest.type });
-                        if (playbackRequest) void loadMedia(playbackRequest, false, interruptedPlaybackRef.current?.position);
-                      }}>Try again</Button>
-                    </div>
+                    <PlayerPlaybackError error={playbackError}
+                      onRetry={() => retryPlayback()} onEnableProxy={() => retryPlayback(true)} />
                   ) : (
                     <><Loader2 aria-hidden="true" className="size-4 animate-spin text-white/70 motion-reduce:animate-none" />
                     <PlayerLoadingStatus label={playbackPhaseLabels[playbackPhase]} /></>

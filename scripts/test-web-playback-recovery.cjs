@@ -2,6 +2,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
+const { randomUUID } = require('node:crypto');
+const { load, hooks: fixtureHooks } = require('./test-support/react-hooks.cjs');
 function languageRequire(name) {
     if (!['@/lib/media/audio-language', '@/lib/media/stream-release-info', '@/lib/media/stream-codecs', '@/lib/media/playback-limits', '@/lib/series-route'].includes(name)) return require(name);
     const context = { exports: {}, require: languageRequire };
@@ -12,6 +14,9 @@ function languageRequire(name) {
 }
 
 const React = require('react');
+const { PlayerPlaybackError } = load('components/player-playback-error.tsx', {
+    '@/components/ui/button': { Button: 'button' },
+});
 
 // Playback stream requests and the web startup watchdog use bounded timers.
 // Keep them available inside the VM used for utility modules as well.
@@ -23,7 +28,7 @@ function transpile(file) {
     }).outputText;
 }
 function utility(file) {
-    const context = { exports: {}, Error, URL, setTimeout, clearTimeout, AbortController, AbortSignal, require: languageRequire };
+    const context = { exports: {}, Error, URL, crypto: { randomUUID }, setTimeout, clearTimeout, AbortController, AbortSignal, require: languageRequire };
     vm.runInNewContext(transpile(file), context);
     return context.exports;
 }
@@ -44,6 +49,7 @@ function checkSiblingKeys(tree) {
 }
 class Media extends EventTarget {
     closest() { return null; }
+    dataset = {};
     error = null;
     currentTime = 0;
     duration = 600;
@@ -55,12 +61,31 @@ function harness({ native = false, automatic = false, autoSelectWebStream = true
     if (episodePosition !== undefined) request = { ...request, type: 'series', mediaSourceId: 'buddy:1:2', resumePositionTicks: episodePosition };
     let visible = true, dirty = true, index = 0, tree, renderedVideo, media, timerId = 0, streamFetches = 0, wallTime = 0;
     const slots = [], effects = [], timers = new Map(), events = [], toasts = [], published = [], routes = [];
+    const storage = new Map();
+    const localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) };
+    const preferences = load('lib/media/playback-preferences.ts', {}, { localStorage });
+    preferences.savePlaybackPreferences({ ...preferences.DEFAULT_PLAYBACK_PREFERENCES, autoSelectWebStream });
+    const settingsHost = fixtureHooks();
+    const settings = load('contexts/settings-context.tsx', {
+        react: settingsHost.react, 'react/jsx-runtime': settingsHost.jsx, '@/lib/media/playback-preferences': preferences,
+    }, { localStorage });
+    const renderSettings = () => settingsHost.render(settings.SettingsProvider, { children: null });
+    renderSettings(); settingsHost.flush(); renderSettings();
+    const settingUpdates = [];
+    const proxyRequests = [];
+    const proxySource = 'https://proxy.example/_token_fixture/proxy/stream/video.mkv';
+    const mediaFlow = load('lib/media/mediaflow-source.ts', { './playback-preferences': preferences }, {
+        URL, fetch: async (path, options) => {
+            proxyRequests.push({ path, body: JSON.parse(options.body), savedMode: preferences.readPlaybackPreferences().mediaFlowMode });
+            return Response.json({ url: proxySource });
+        },
+    });
     const streams = customStreams || [{ url: source, title: '2160p HEVC DTS REMUX' },
         { url: 'https://stream.example/best.mp4', title: '1080p H264 AAC' },
         { url: 'https://stream.example/next.mp4', title: '720p H264 AAC' }];
+    const dismissedToasts = [];
     const toast = (message, options) => toasts.push({ message, ...options });
-    toast.error = toast; toast.dismiss = noOpToast;
-    function noOpToast() {}
+    toast.error = toast; toast.success = toast; toast.dismiss = id => dismissedToasts.push(id);
     const noOp = () => {};
     const equal = (a, b) => a && b && a.length === b.length && a.every((value, i) => Object.is(value, b[i]));
     const hooks = {
@@ -90,6 +115,7 @@ function harness({ native = false, automatic = false, autoSelectWebStream = true
     const context = { exports: {}, Error, AbortController, Date: class extends Date { static now() { return wallTime; } }, console: { warn() {}, error() {} },
         setTimeout(callback, delay) { timers.set(++timerId, { callback, delay }); return timerId; },
         clearTimeout(id) { timers.delete(id); },
+        window: { dispatchEvent: noOp },
         document: { documentElement: { dataset: {} }, addEventListener: noOp, removeEventListener: noOp,
             dispatchEvent(event) { events.push(event.detail); } },
         CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } },
@@ -99,6 +125,11 @@ function harness({ native = false, automatic = false, autoSelectWebStream = true
                 routes.push({ path, options });
             } }) };
             if (name === 'react') return hooks;
+            if (name === 'react-dom') return { preload: noOp, flushSync(callback) {
+                callback();
+                settingUpdates.splice(0).forEach(update => update());
+                renderSettings();
+            } };
             if (name === 'jotai') return { useAtomValue: () => false };
             if (name === 'framer-motion') return { motion: new Proxy({}, { get: (_, tag) => tag }), AnimatePresence: 'animate-presence' };
             if (name === 'sonner') return { toast };
@@ -110,16 +141,22 @@ function harness({ native = false, automatic = false, autoSelectWebStream = true
                 setCurrentMediaWithSource: value => published.push(value), setCurrentTimestamp: noOp,
             }) };
             if (name === '@/contexts/settings-context') {
-                const { DEFAULT_PLAYBACK_PREFERENCES } = utility('lib/media/playback-preferences.ts');
-                return { useSettings: () => ({ playbackPreferences: DEFAULT_PLAYBACK_PREFERENCES }) };
+                return { useSettings: () => ({
+                    ...settings.useSettings(),
+                    updatePlaybackPreferences: patch => settingUpdates.push(() => settings.useSettings().updatePlaybackPreferences(patch)),
+                }) };
             }
-            if (name === '@/lib/media/subtitle-timing') return { useSubtitleTiming: () => ({ key: null, seconds: 0, onChange: noOp }), subtitleTime: time => time };
+            if (name === '@/lib/media/subtitle-timing') {
+                const timing = () => ({ key: null, seconds: 0, onChange: noOp });
+                return { useSubtitleTiming: timing, useVideoTiming: timing, subtitleTime: time => time };
+            }
             if (name === '@/lib/desktop/bridge') return { desktopBridge: () => native ? {} : null, recordDesktopStage() {} };
             if (name === '@/lib/media/playback-source') return utility('lib/media/playback-source.ts');
-            if (name === '@/lib/media/playback-preferences') {
-                const preferences = utility('lib/media/playback-preferences.ts');
-                return { ...preferences, readPlaybackPreferences: () => ({ ...preferences.DEFAULT_PLAYBACK_PREFERENCES, autoSelectWebStream }) };
-            }
+            if (name === '@/lib/media/playback-preferences') return preferences;
+            if (name === '@/lib/media/mediaflow-source') return mediaFlow;
+            if (name === '@/lib/media/playback-error') return load('lib/media/playback-error.ts', {}, { URL });
+            if (name === '@/components/player-playback-error') return { PlayerPlaybackError: 'player-playback-error' };
+            if (name === '@/lib/media/playback-reporter') return utility('lib/media/playback-reporter.ts');
             if (name === '@/lib/media/resolve-playback') return utility('lib/media/resolve-playback.ts');
             if (name === '@/lib/media/playback-details') return require('./test-support/playback-context.cjs').details;
             if (name === '@/lib/media/playback-titles') return utility('lib/media/playback-titles.ts');
@@ -134,7 +171,10 @@ function harness({ native = false, automatic = false, autoSelectWebStream = true
             };
             if (name === '@/lib/media/fetch-playback-details') return { fetchPlaybackDetails: async () => null };
             if (name === '@/lib/media/fetch-playback-episode') return { fetchPlaybackEpisode: async () => null };
-            if (name === '@/app/actions') return { fetchMediaDetails: async () => null, reportPlaybackStart: noOp, reportPlaybackProgress: noOp, reportPlaybackStopped: noOp };
+            if (name === '@/app/actions') {
+                const report = async () => true;
+                return { fetchMediaDetails: async () => null, reportPlaybackStart: report, reportPlaybackProgress: report, reportPlaybackStopped: report };
+            }
             if (name === '@/lib/media/playback-subtitles') return { PlaybackSubtitles: class { discover() { return Promise.resolve([]); } preload() {} } };
             if (name.startsWith('@/') || name === '@mux/mux-video-react') return new Proxy({}, { get: () => noOp });
             return require(name);
@@ -154,15 +194,23 @@ function harness({ native = false, automatic = false, autoSelectWebStream = true
         while (effects.length) effects.shift()();
     }
     return {
-        source, timers, events, toasts, published, routes,
+        source, timers, events, toasts, dismissedToasts, published, routes, proxySource, proxyRequests,
+        get savedMode() { return JSON.parse(storage.get(preferences.PLAYBACK_PREFERENCES_KEY)).mediaFlowMode; },
         get video() { return renderedVideo; },
         get media() { return media; },
         get streamFetches() { return streamFetches; },
-        get errorVisible() { return find(tree, node => node.props?.role === 'alert').length > 0; },
+        get errorPanel() { return find(tree, node => node.type === 'player-playback-error')[0]?.props; },
+        get errorVisible() { return Boolean(this.errorPanel); },
         get statsMenu() { return find(tree, node => node.props?.stats !== undefined)[0]?.props.stats; },
         get statsPanels() { return find(tree, node => node.props?.videoRef && node.props?.onClose); },
         get selection() { return find(tree, node => node.props?.onEpisodeSelect && node.props?.onStreamSelect)[0]?.props; },
-        async settle() { for (let i = 0; i < 20; i++) { if (dirty) render(); await Promise.resolve(); } },
+        async settle() {
+            // Wait for simulated fetch bodies and playback promises as well as queued state updates.
+            for (let i = 0; i < 8; i++) {
+                if (dirty) render();
+                await new Promise(resolve => setImmediate(resolve));
+            }
+        },
         fail(code = 4) {
             media.error = { code, message: 'MEDIA_ELEMENT_ERROR: Format error' };
             renderedVideo.props.onError({ currentTarget: media, target: media });
@@ -178,7 +226,7 @@ function harness({ native = false, automatic = false, autoSelectWebStream = true
             timers.delete(id); timer.callback();
         },
         close() { find(tree, node => node.props?.['data-player-close'] !== undefined)[0].props.onClick(); },
-        retry() { find(tree, node => node.props?.children === 'Try again')[0].props.onClick(); },
+        retry() { this.errorPanel.onRetry(); },
         replace() { request = { ...request, id: 'another-movie', streamUrl: 'https://stream.example/another.mp4' }; dirty = true; },
     };
 }
@@ -302,7 +350,7 @@ async function run() {
         assert.notEqual(player.video.key, original.key, 'Fallback must mount a new source');
         assert.equal(player.video.props.src, automatic ? 'https://stream.example/next.mp4' : 'https://stream.example/best.mp4');
         assert.equal(player.toasts.length, 1, 'Duplicate decoder errors must show one recovery toast');
-        assert.match(player.toasts[0].message, /Trying another one/);
+        assert.equal(player.toasts[0].message, 'Trying another stream…');
         player.video.props.onLoadedMetadata();
         assert.equal(player.media.currentTime, 42, 'Scene/resume position must survive switching files');
         player.playing(); await player.settle();
@@ -340,10 +388,40 @@ async function run() {
     await permanent.settle();
     permanent.fail(); await permanent.settle();
     assert.equal(permanent.errorVisible, true, 'Exhausting unique streams must stop with a useful error');
-    assert.match(permanent.toasts.at(-1).message, /No compatible video and audio stream/);
+    assert.match(permanent.errorPanel.error.message, /No compatible video and audio stream/);
+    assert.equal(permanent.toasts.length, 1, 'The terminal error appears in the player only');
+    assert.equal(permanent.dismissedToasts.at(-1), permanent.toasts[0].id);
     assert.equal(permanent.streamFetches, 1);
     permanent.retry(); await permanent.settle();
     assert.equal(permanent.errorVisible, false, 'Manual retry begins a fresh attempt');
+
+    const proxy = harness();
+    await proxy.settle();
+    proxy.video.props.onLoadedMetadata();
+    proxy.advance(10);
+    const directVideo = proxy.video;
+    proxy.media.dataset.webgpuFallback = 'network-failed';
+    proxy.fail();
+    await proxy.settle();
+    assert.equal(proxy.savedMode, 'off', 'Showing the proxy suggestion does not save a preference');
+    const action = find(PlayerPlaybackError(proxy.errorPanel), node => node.type === 'button'
+        && node.props.children === 'Enable proxy and retry')[0];
+    assert.ok(action, 'A WebGPU source error offers a proxy retry');
+    action.props.onClick();
+    assert.equal(proxy.savedMode, 'in-house', 'Clicking the button saves the preference immediately');
+    await proxy.settle();
+    assert.deepEqual(proxy.proxyRequests, [{
+        path: '/api/playback/source', body: { url: proxy.source, mediaFlow: 'in-house' }, savedMode: 'in-house',
+    }], 'Retry requests the same stream through MediaFlow after saving the preference');
+    assert.equal(proxy.video?.props.src, proxy.proxySource, proxy.errorPanel?.error.message);
+    assert.notEqual(proxy.video.key, directVideo.key, 'Retry mounts a new playback attempt');
+    assert.equal(proxy.video.props.startPosition, 52, 'Retry keeps the current playback position');
+    proxy.playing(); await proxy.settle();
+    assert.equal(proxy.errorVisible, false);
+    assert.equal(proxy.toasts.at(-1).message, 'In-house proxy enabled');
+    proxy.replace(); await proxy.settle();
+    assert.equal(proxy.proxyRequests[1].body.url, 'https://stream.example/another.mp4');
+    assert.equal(proxy.proxyRequests[1].savedMode, 'in-house', 'Later playback uses the saved mode');
 
     const closed = harness(); await closed.settle();
     closed.fail(); closed.close(); await closed.settle();
@@ -362,6 +440,6 @@ async function run() {
     assert.equal(native.errorVisible, true, 'Native playback keeps its existing error handling');
     assert.equal(native.toasts.length, 0, 'Native playback must not show web fallback toasts');
     assert.equal(native.streamFetches, 1);
-    console.log('PASS: web compatibility ranking, next-file fallback, deduplicated toasts, preserved playback position, bounded exhaustion, cancellation, and unchanged native ordering.');
+    console.log('PASS: compatibility ranking, stream recovery, saved proxy retry, toasts, resume positions, cancellation, and native ordering.');
 }
 run().catch(error => { console.error(error); process.exitCode = 1; });

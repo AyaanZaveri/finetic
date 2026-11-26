@@ -312,6 +312,28 @@ function fixture({ result, resolvedSource, audioFailure = false, deferred = fals
   fallback.events.onError('late failure'); assert.equal(fallback.fallbacks, 1, 'Late callbacks cannot restart fallback');
   fallback.detach();
 
+  const blocked = fixture(); await tick();
+  const fetchFailure = 'route-start-failed: TypeError: Failed to fetch https://source.example/private';
+  blocked.events.onError(fetchFailure); await tick();
+  blocked.events.onError(fetchFailure);
+  assert.equal(blocked.fallbacks, 1);
+  assert.equal(blocked.video.dataset.webgpuFallback, 'route-start-failed');
+  assert.equal(blocked.video.dataset.webgpuSourceAccessFailed, '', 'Keep a safe access-failure hint for the terminal browser error');
+  assert.ok(!JSON.stringify(blocked.video.dataset).includes('source.example'));
+  const { describePlaybackError } = load('lib/media/playback-error.ts', {}, { URL });
+  const input = { message: '', source: 'https://source.example/file.mkv', mediaFlowMode: 'off' };
+  assert.equal(describePlaybackError({ ...input }).message, 'Couldn’t play this stream');
+  assert.equal(describePlaybackError({ ...input, gpuReason: 'decode-failed' }).message, 'Couldn’t play this stream');
+  assert.equal(describePlaybackError({ ...input, gpuReason: 'decode-failed' }).suggestInHouseProxy, false);
+  assert.equal(describePlaybackError({ ...input, gpuReason: 'network-failed' }).suggestInHouseProxy, true);
+  assert.equal(describePlaybackError({ ...input, gpuReason: blocked.video.dataset.webgpuFallback, sourceAccessFailed: true }).suggestInHouseProxy, true);
+  for (const mediaFlowMode of ['custom', 'in-house']) {
+    assert.equal(describePlaybackError({ ...input, gpuReason: 'network-failed', mediaFlowMode }).suggestInHouseProxy, false);
+  }
+  assert.equal(describePlaybackError({ ...input, gpuReason: 'network-failed',
+    source: 'https://proxy.example/_token_fixture/proxy/stream/video.mkv' }).suggestInHouseProxy, false);
+  blocked.detach();
+
   const heldFallback = fixture(); await tick();
   setMaxListeners(0, heldFallback.video);
   const stopWatchingHold = store.subscribe(() => {});
