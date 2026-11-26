@@ -9,6 +9,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { VibrantAuroraBackground } from "@/components/vibrant-aurora-background";
 import { HeroWordmark } from "@/components/hero-wordmark";
 import { MediaRatingBadge } from "@/components/media-page/media-rating-badge";
+import { ContentRatingBadge } from "@/components/media-page/content-rating-badge";
+import { RottenTomatoesRatingBadge } from "@/components/media-page/rotten-tomatoes-rating-badge";
 import { BackdropImage } from "@/components/media-page/backdrop-image";
 import { PosterImage } from "@/components/media-page/poster-image";
 import { MediaPlayButton } from "@/components/media-page/play-button";
@@ -132,6 +134,8 @@ export function MovieDetailsView({ movie, cast, recommendations, previewProgress
                       </Badge>
                     )}
                     <MediaRatingBadge media={movie} />
+                    <RottenTomatoesRatingBadge score={movie.rottenTomatoesRating} />
+                    <ContentRatingBadge rating={movie.contentRating} />
                   </div>
                   <MediaPlayButton
                     previewProgress={previewProgress}

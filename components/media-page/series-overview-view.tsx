@@ -4,6 +4,8 @@ import { PosterImage } from "@/components/media-page/poster-image";
 import { MediaPlayButton } from "@/components/media-page/play-button";
 import { Badge } from "@/components/ui/badge";
 import { MediaRatingBadge } from "@/components/media-page/media-rating-badge";
+import { ContentRatingBadge } from "@/components/media-page/content-rating-badge";
+import { RottenTomatoesRatingBadge } from "@/components/media-page/rotten-tomatoes-rating-badge";
 import { formatReleaseDate } from "@/lib/format-release-date";
 
 import type { MediaItem } from "@/types/stremio";
@@ -43,12 +45,14 @@ export function SeriesOverviewView({ show, regularSeasonCount, previewProgress }
                     {show.releaseInfo ? formatReleaseDate(show.releaseInfo) : show.year}
                   </Badge>
                 )}
-                <MediaRatingBadge media={show} />
                 {regularSeasonCount > 0 && (
                   <Badge variant="secondary">
                     {regularSeasonCount} Season{regularSeasonCount !== 1 ? "s" : ""}
                   </Badge>
                 )}
+                <MediaRatingBadge media={show} />
+                <RottenTomatoesRatingBadge score={show.rottenTomatoesRating} />
+                <ContentRatingBadge rating={show.contentRating} series />
               </div>
               <MediaPlayButton
                 previewProgress={previewProgress}

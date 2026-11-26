@@ -17,6 +17,8 @@ license. Preserve each upstream notice when copying or distributing its files.
 | Country flags | Respective upstream licenses | [3x2](public/flags/3x2/LICENSE), [circle](public/flags/circle/LICENSE) |
 | Subtitle preview photograph | Simon Berger / Pexels | [Photo notice](public/images/subtitle-preview.LICENSE.txt) |
 | Stremio sign-in mark in `public/logo/stremio.svg` | [Official Stremio brand assets](https://github.com/Stremio/stremio-brand/blob/master/logos/SVG/stremio-logo-800px.svg) | Stremio trademark; identifies the connected account provider |
+| Tomatometer score marks in `public/logo/tomatometer-*.svg` | Rotten Tomatoes public [Fresh](https://www.rottentomatoes.com/assets/pizza-pie/images/icons/tomatometer/tomatometer-fresh.149b5e8adc3.svg) and [Rotten](https://www.rottentomatoes.com/assets/pizza-pie/images/icons/tomatometer/tomatometer-rotten.f1ef4f02ce3.svg) SVGs | Rotten Tomatoes trademarks; used to identify the review source and score. See [licensing information](https://www.rottentomatoes.com/help_desk/licensing). |
+| IMDb wordmarks in `public/logo/imdb-*.svg` | [Official IMDb brand toolkit, June 2025](https://brand.imdb.com/imdb) | IMDb, IMDbPro, STARmeter, and all related logos are trademarks of IMDb.com, Inc. or its affiliates. |
 | Mobile icons | Lucide ISC / Feather MIT | [Android notice](android/app/src/main/assets/third-party-licenses/lucide.txt), [iOS notices](ios/Navigator/Resources/ThirdPartyNotices.txt) |
 
 `skills-lock.json` maps every installed skill to its source and content hash.

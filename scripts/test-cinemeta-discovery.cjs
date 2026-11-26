@@ -60,6 +60,7 @@ async function main() {
     const seriesId = 'tt9140554';
     const still = 'https://episodes.metahub.space/tt9140554/1/3/w780.jpg';
     const tmdbReads = [];
+    const certificationReads = [];
     const core = {
         'server-only': {}, '@/lib/artwork': artwork,
         './auth': { getInstalledAddons: async () => [] },
@@ -67,16 +68,20 @@ async function main() {
         '@/lib/server/catalog-cache': {}, '@/lib/server/media-artwork': {},
         '@/lib/server/outbound-fetch': { outboundFetch: async () => { throw new Error('Unexpected add-on request'); } },
         '@/lib/server/metadata-provider': { getMetadataProvider: async () => provider },
-        '@/lib/server/metadata-identity': { metadataIdentity: async () => ({ scope: 'account', revision: provider, provider, tmdbConfigured: true }) },
+        '@/lib/server/metadata-identity': { metadataIdentity: async () => ({ scope: 'account', revision: `${provider}:${Boolean(token)}`, provider, tmdbConfigured: Boolean(token) }) },
         '@/lib/server/metadata-cache': load('lib/server/metadata-cache.ts', { 'server-only': {} }, { Buffer }),
         '@/lib/tmdb-artwork': { getTMDBArtwork: async () => undefined },
         '@/lib/cinemeta': { cinemetaMetadata: async (_type, id) => id === seriesId ? {
-            id, type: 'series', name: 'Cinemeta title', videos: [
+            id, type: 'series', name: 'Cinemeta title', moviedb_id: "84958", videos: [
                 { id: `${id}:1:2`, name: 'Previous', season: 1, episode: 2 },
                 { id: `${id}:1:3`, name: 'Cinemeta episode', season: 1, episode: 3, thumbnail: still },
             ],
         } : null },
         '@/lib/tmdb-discovery': {
+            getTMDBContentRating: async (id, type) => {
+                certificationReads.push([id, type]);
+                return { value: 'TV-14', region: 'US' };
+            },
             resolveTMDBPlaybackId: async () => seriesId,
             tmdbMediaItem: async () => { tmdbReads.push('title'); return { id: 'tmdb:84958', imdbId: seriesId, name: 'TMDB title', type: 'series' }; },
             getTMDBSeasons: async () => { tmdbReads.push('seasons'); return [{ number: 1, name: 'Season 1', episodeCount: 6 }]; },
@@ -91,14 +96,21 @@ async function main() {
 
     provider = 'cinemeta';
     assert.equal((await media.fetchMediaDetails(seriesId, 'series')).name, 'Cinemeta title');
+    assert.equal((await media.fetchMediaDetails(seriesId, 'series')).contentRating, undefined);
+    assert.equal(certificationReads.length, 0, 'Cinemeta needs no TMDB token');
+    token = 'configured';
+    assert.equal((await media.fetchMediaDetails(seriesId, 'series')).contentRating.value, 'TV-14');
+    assert.deepEqual(certificationReads, [['tmdb:84958', 'series']], 'Read only the certificate by Cinemeta’s TMDB ID');
     assert.equal((await media.fetchMediaDetails('tmdb:84958', 'series')).tmdbId, 84958, 'Known legacy routes can switch providers');
+    const beforePlayback = certificationReads.length;
     assert.equal((await media.fetchMediaDetails(seriesId, 'series', undefined, { playback: true })).name, 'Cinemeta title');
+    assert.equal(certificationReads.length, beforePlayback, 'Do not add certificate lookups to playback startup');
     assert.equal((await tv.fetchSeasons(seriesId))[0].episodeCount, 2);
     assert.equal((await tv.fetchEpisodeDetails(seriesId, 1, 3)).thumbnail, still);
     assert.equal((await tv.getFollowingEpisodeForSeries(seriesId, 1, 2)).title, 'Cinemeta episode');
     const seasonUrl = id => new Request(`https://navigator.test/api/series/episodes?id=${id}&season=1`);
     assert.equal((await (await episodesRoute.GET(seasonUrl('tmdb:84958'))).json())[1].title, 'Cinemeta episode');
-    assert.deepEqual(tmdbReads, [], 'Selected Cinemeta uses no TMDB reads for IMDb title and episode metadata');
+    assert.deepEqual(tmdbReads, [], 'Selected Cinemeta still supplies title and episode details');
 
     provider = 'tmdb';
     assert.equal((await media.fetchMediaDetails(seriesId, 'series')).name, 'TMDB title', 'A provider switch cannot reuse the previous title payload');

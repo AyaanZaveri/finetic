@@ -107,6 +107,7 @@ export interface StremioMetaPreview {
 }
 
 export interface StremioMeta extends StremioMetaPreview {
+  moviedb_id?: number | string;
   cast?: string[];
   director?: string[];
   writer?: string[];
@@ -239,6 +240,8 @@ export interface MediaItem {
   releaseInfo?: string;
   released?: string | null;
   imdbRating?: string;
+  contentRating?: import("@/lib/media/content-rating").ContentRating;
+  rottenTomatoesRating?: number;
   communityRating?: number;
   ratingSource?: string;
   voteCount?: number;

@@ -16,9 +16,17 @@ export function MediaRatingBadge({ media }: { media: RatingMedia }) {
     const label = `${source} ${score.toFixed(1)} out of 10${count ? `, ${count.toLocaleString("en-US")} vote${count === 1 ? "" : "s"}` : ""}`;
 
     return (
-        <Badge variant="secondary" aria-label={label} title={label}>
-            <Star aria-hidden="true" className="size-3 fill-yellow-400 text-yellow-400" />
-            <span>{source} {score.toFixed(1)}</span>
+        <Badge variant="secondary" className={hasIMDb ? "gap-0 pl-1 pr-2" : undefined} aria-label={label} title={label}>
+            {hasIMDb ? (
+                // The original SVG includes IMDb's required clear space.
+                <span className="relative flex h-4 w-10 shrink-0 items-center" aria-hidden="true">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/logo/imdb-black.svg" alt="" width={40} height={22} className="h-auto w-10 dark:hidden" />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/logo/imdb-gold.svg" alt="" width={40} height={22} className="hidden h-auto w-10 dark:block" />
+                </span>
+            ) : <Star aria-hidden="true" className="size-3 fill-yellow-400 text-yellow-400" />}
+            <span className="tabular-nums">{hasIMDb ? score.toFixed(1) : `${source} ${score.toFixed(1)}`}</span>
         </Badge>
     );
 }

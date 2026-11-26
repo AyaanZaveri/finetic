@@ -24,17 +24,21 @@ const revision = 'd'.repeat(64), at = Date.now() - 100_000;
     const key = record.queryKey; client.setQueryData(key, newer);
     hydrate(client, state); assert.equal(client.getQueryData(key).data.name, 'Newer'); client.clear();
 
-    let signedIn = false, reads = 0, token = 'private-token', addons = [{ transportUrl: 'https://addon.test/secret', manifest: { id: 'one' } }];
+    let signedIn = false, reads = 0, token = 'private-token', mdbKey, addons = [{ transportUrl: 'https://addon.test/secret', manifest: { id: 'one' } }];
     const identity = load('lib/server/metadata-identity.ts', {
         'server-only': {}, react: { cache: callback => callback },
         './auth': { getAuthData: async () => { if (!signedIn) throw Error('guest'); return { user: { _id: 'user' }, issuedAt: 1 }; } },
         '@/app/actions/auth': { getInstalledAddons: async () => { reads++; return addons; } },
         '@/lib/tmdb-credentials': { getTMDBToken: async () => token },
+        '@/lib/mdblist-credentials': { getMDBListKey: async () => mdbKey },
         './metadata-cache': load('lib/server/metadata-cache.ts', { 'server-only': {} }, { Buffer }),
     });
     const guest = await identity.metadataIdentity(); assert.equal(reads, 0, 'Guest cache identity does not read installed add-ons');
     signedIn = true; const first = await identity.metadataIdentity(); assert.notEqual(first.revision, guest.revision);
     token = 'replacement-token'; const second = await identity.metadataIdentity(); assert.notEqual(first.revision, second.revision);
+    mdbKey = 'private-mdblist-key'; const withRatings = await identity.metadataIdentity();
+    assert.notEqual(second.revision, withRatings.revision, 'Changing the MDBList key invalidates title metadata');
+    assert.ok(!JSON.stringify(withRatings).includes(mdbKey));
     addons = [...addons, { transportUrl: 'https://other.test/config', manifest: { id: 'two' } }];
     const third = await identity.metadataIdentity(); addons.reverse(); assert.notEqual(third.revision, (await identity.metadataIdentity()).revision);
     assert.ok(!JSON.stringify(first).includes('private-token')); assert.ok(!JSON.stringify(first).includes('secret'));

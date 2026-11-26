@@ -6,6 +6,7 @@ import { parseSeriesRouteId } from "@/lib/series-route";
 import { getTMDBArtwork } from "@/lib/tmdb-artwork";
 import type { MediaItem } from "@/types/stremio";
 import type { HomeCatalogSection } from "@/lib/home-catalogs";
+import { tmdbContentRating, type TMDBCertificationData } from "@/lib/media/content-rating";
 
 export type TMDBMediaType = "movie" | "series";
 export type FilmographyRole = "all" | "acting" | "directing" | "writing" | "producing";
@@ -77,7 +78,7 @@ interface TMDBEpisodeRecord {
     guest_stars?: { name: string; character?: string }[];
     crew?: { name: string; job?: string }[];
 }
-interface TMDBTitleDetails extends TMDBTitleRecord {
+interface TMDBTitleDetails extends TMDBTitleRecord, TMDBCertificationData {
     imdb_id?: string | null;
     external_ids?: { imdb_id?: string | null };
     genres?: { id: number; name: string }[];
@@ -280,12 +281,13 @@ export async function resolveAddonMediaId(id: string, type: TMDBMediaType, signa
 export async function getTMDBTitle(id: string, type: TMDBMediaType, signal?: AbortSignal) {
     const tmdbId = await tmdbIdForTitle(id, type, signal);
     const details = await request<TMDBTitleDetails>(`${type === "movie" ? "movie" : "tv"}/${tmdbId}`, {
-        append_to_response: "external_ids,credits",
+        append_to_response: `external_ids,credits,${type === "movie" ? "release_dates" : "content_ratings"}`,
     }, signal);
     const result = titleResult(details, type);
     const imdbId = details.imdb_id || details.external_ids?.imdb_id || undefined;
     return {
         ...result, imdbId, runtime: details.runtime || details.episode_run_time?.[0],
+        contentRating: tmdbContentRating(details, type),
         genres: details.genres?.map(genre => genre.name) || [], status: details.status, tagline: details.tagline,
         cast: details.credits?.cast?.slice(0, 20).map(person => person.name) || [],
         people: [
@@ -302,6 +304,25 @@ export async function getTMDBTitle(id: string, type: TMDBMediaType, signal?: Abo
         })),
         episodeCount: details.number_of_episodes,
     };
+}
+
+/** Optional enrichment for titles loaded from Cinemeta or other add-ons.
+ * Bound both ID resolution and certificate retrieval to one short deadline. */
+export async function getTMDBContentRating(id: string, type: TMDBMediaType, signal?: AbortSignal) {
+    const deadline = AbortSignal.timeout(2500);
+    const combined = signal ? AbortSignal.any([signal, deadline]) : deadline;
+    try {
+        const tmdbId = await tmdbIdForTitle(id, type, combined);
+        if (type === "movie") {
+            const release_dates = await request<NonNullable<TMDBCertificationData["release_dates"]>>(`movie/${tmdbId}/release_dates`, {}, combined);
+            return tmdbContentRating({ release_dates }, type);
+        }
+        const content_ratings = await request<NonNullable<TMDBCertificationData["content_ratings"]>>(`tv/${tmdbId}/content_ratings`, {}, combined);
+        return tmdbContentRating({ content_ratings }, type);
+    } catch {
+        signal?.throwIfAborted();
+        return undefined;
+    }
 }
 
 export async function getTMDBSeasons(seriesId: string, signal?: AbortSignal) {
@@ -469,6 +490,7 @@ export async function tmdbMediaItem(id: string, type: TMDBMediaType, signal?: Ab
         logo: await getTMDBArtwork(id, type, "logo"),
         genres: title.genres, cast: title.cast, director: title.director, writer: title.writer,
         communityRating: title.communityRating, ratingSource: title.ratingSource, voteCount: title.voteCount,
+        contentRating: title.contentRating,
         runtime: title.runtime ? `${title.runtime} min` : undefined,
         seasons: type === "series" ? title.seasons.filter(season => season.episodeCount > 0)
             .map(({ number, name, episodeCount }) => ({ number, name, episodeCount })) : undefined,

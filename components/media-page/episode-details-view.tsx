@@ -1,4 +1,6 @@
 import { MediaRatingBadge } from "./media-rating-badge";
+import { ContentRatingBadge } from "./content-rating-badge";
+import { RottenTomatoesRatingBadge } from "./rotten-tomatoes-rating-badge";
 import type { MediaItem } from "@/types/stremio";
 import artworkStyles from "./detail-artwork.module.css";
 import type { ReactNode } from "react";
@@ -19,7 +21,7 @@ export function EpisodeDetailsView({
   episodeNumber: number;
   released?: string;
   rating?: string;
-  ratingMedia?: Pick<MediaItem, "imdbRating" | "communityRating" | "ratingSource" | "voteCount">;
+  ratingMedia?: Pick<MediaItem, "imdbRating" | "communityRating" | "ratingSource" | "voteCount" | "contentRating" | "rottenTomatoesRating">;
   thumbnail: ReactNode;
   actions: ReactNode;
   description?: ReactNode;
@@ -74,6 +76,8 @@ export function EpisodeDetailsView({
                 </Badge>
               )}
               <MediaRatingBadge media={ratingMedia ?? { imdbRating: rating }} />
+              <RottenTomatoesRatingBadge score={ratingMedia?.rottenTomatoesRating} />
+              <ContentRatingBadge rating={ratingMedia?.contentRating} series />
             </div>
             {actions}
           </div>

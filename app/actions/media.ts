@@ -240,7 +240,20 @@ export async function fetchMediaDetails(mediaItemId: string, type: string = "mov
   const preferConfiguredProvider = provider === "tmdb" || (provider === "auto" && !options?.playback);
   const preferredProvider = preferConfiguredProvider ? (tmdbConfigured ? "tmdb" : "cinemeta") : provider;
   return serverMetadataCache.read(opaqueMetadataIdentity([scope, revision, "title", mediaItemId, type, Boolean(options?.playback)]), async sharedSignal => {
-    const item = await fetchMediaDetailsUncached(mediaItemId, type, sharedSignal, preferredProvider, options);
+    let item = await fetchMediaDetailsUncached(mediaItemId, type, sharedSignal, preferredProvider, options);
+    // Age ratings are optional. Do not add a provider lookup to playback startup.
+    if (item && !options?.playback && (type === "movie" || type === "series") && item.type === type) {
+      // Optional score and age-rating enrichment run together. Neither may
+      // delay playback startup or replace the chosen title metadata.
+      const base = item;
+      const [ratings, contentRating] = await Promise.all([
+        import("@/lib/server/title-review-scores").then(module => module.enrichTitleReviewScores(base, sharedSignal)).catch(() => base),
+        tmdbConfigured && !base.contentRating && base.ratingSource !== "TMDB" && /^tt\d+$/.test(base.id)
+          ? import("@/lib/tmdb-discovery").then(module => module.getTMDBContentRating(base.tmdbId ? `tmdb:${base.tmdbId}` : base.id, type, sharedSignal)).catch(() => undefined)
+          : undefined,
+      ]);
+      item = contentRating ? { ...ratings, contentRating } : ratings;
+    }
     if (item) titleEnvelope(item, Date.now());
     return item;
   }, signal);
@@ -262,7 +275,11 @@ async function fetchMediaDetailsUncached(
       if (options?.playback) await getAuthData();
       const { cinemetaMetadata } = await import("@/lib/cinemeta");
       const meta = await cinemetaMetadata(type, id, signal);
-      return meta ? fullMetaToMediaItem(meta) : null;
+      if (!meta) return null;
+      const tmdbId = typeof meta.moviedb_id === "number" || (typeof meta.moviedb_id === "string" && /^\d+$/.test(meta.moviedb_id))
+        ? Number(meta.moviedb_id) : undefined;
+      return { ...fullMetaToMediaItem(meta), imdbId: id,
+        tmdbId: tmdbId && Number.isSafeInteger(tmdbId) && tmdbId > 0 ? tmdbId : undefined };
     };
     if (/^tmdb:[1-9]\d*$/.test(mediaItemId) && (type === "movie" || type === "series")) {
       if (options?.playback) await getAuthData();

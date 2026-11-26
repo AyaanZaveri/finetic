@@ -7,14 +7,19 @@ import { isMeaningfulEpisodeTitle } from "./playback-titles";
 import { mergePlaybackDetails } from "./playback-details";
 
 const text = z.string().trim().min(1).max(100_000).optional();
-const rating = z.object({ source: z.enum(["IMDb", "TMDB"]), scope: z.enum(["title", "episode"]),
-    value: z.number().min(0).max(10), votes: z.number().nonnegative().optional() });
+const rating = z.union([
+    z.object({ source: z.enum(["IMDb", "TMDB"]), scope: z.enum(["title", "episode"]),
+        value: z.number().min(0).max(10), votes: z.number().nonnegative().optional() }),
+    z.object({ source: z.literal("Rotten Tomatoes"), scope: z.literal("title"),
+        value: z.number().int().min(0).max(100), votes: z.number().nonnegative().optional() }),
+]);
 export const titleMetadataSchema = z.object({
     id: z.string(), type: z.enum(["movie", "series", "channel", "tv"]), imdbId: text, tmdbId: z.number().optional(),
     name: text, year: z.number().optional(), releaseInfo: text, releaseDate: text, runtime: text, synopsis: text,
     genres: z.array(z.string()).optional(), cast: z.array(z.string()).optional(),
     directors: z.array(z.string()).optional(), writers: z.array(z.string()).optional(),
-    ratings: z.array(rating), artwork: z.object({ poster: text, backdrop: text, logo: text }),
+    ratings: z.array(rating), contentRating: z.object({ value: z.string().trim().min(1).max(20), region: z.string().regex(/^[A-Z]{2}$/) }).optional(),
+    artwork: z.object({ poster: text, backdrop: text, logo: text }),
 });
 export const episodeMetadataSchema = z.object({
     seriesId: z.string(), season: z.number().int().nonnegative(), episode: z.number().int().positive(),
@@ -46,9 +51,10 @@ export function titleEnvelope(item: MediaItem, fetchedAt: number, coverage: "pre
     const imdb = Number(item.imdbRating);
     if (item.imdbRating && Number.isFinite(imdb) && imdb >= 0 && imdb <= 10) ratings.push({ source: "IMDb", scope: "title", value: imdb });
     if (item.ratingSource === "TMDB" && typeof item.communityRating === "number") ratings.push({ source: "TMDB", scope: "title", value: item.communityRating, votes: item.voteCount });
+    if (typeof item.rottenTomatoesRating === "number" && Number.isInteger(item.rottenTomatoesRating) && item.rottenTomatoesRating >= 0 && item.rottenTomatoesRating <= 100) ratings.push({ source: "Rotten Tomatoes", scope: "title", value: item.rottenTomatoesRating });
     const data = titleMetadataSchema.parse({ id: item.id, type: item.type, imdbId: clean(item.imdbId) || (/^tt\d+$/.test(item.id) ? item.id : undefined), tmdbId: item.tmdbId || (/^tmdb:[1-9]\d*$/.test(item.id) ? Number(item.id.slice(5)) : undefined),
         name: clean(item.name), year: releaseYear(item.year, item.releaseInfo), releaseInfo: clean(item.releaseInfo), releaseDate: /^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(item.releaseInfo || "") ? item.releaseInfo : undefined, runtime: clean(item.runtime), synopsis: clean(item.description),
-        genres: item.genres, cast: item.cast, directors: item.director, writers: item.writer, ratings,
+        genres: item.genres, cast: item.cast, directors: item.director, writers: item.writer, ratings, contentRating: item.contentRating,
         artwork: { poster: clean(item.poster), backdrop: clean(item.background), logo: clean(item.logo) } });
     return { data, fetchedAt, coverage, unavailable: coverage === "header" ? [...Object.entries(data).filter(([, v]) => v === undefined || Array.isArray(v) && !v.length).map(([k]) => k), ...Object.entries(data.artwork).filter(([, v]) => !v).map(([k]) => `artwork.${k}`)] : [] };
 }
@@ -64,10 +70,12 @@ export function metadataDetails(record: TitleEnvelope): MediaItem {
     const d = record.data;
     const imdb = d.ratings.find(r => r.source === "IMDb" && r.scope === "title");
     const tmdb = d.ratings.find(r => r.source === "TMDB" && r.scope === "title");
+    const tomatoes = d.ratings.find(r => r.source === "Rotten Tomatoes" && r.scope === "title");
     return { id: d.id, type: d.type, name: d.name || "", imdbId: d.imdbId, tmdbId: d.tmdbId, year: d.year,
         releaseInfo: d.releaseInfo || d.releaseDate, runtime: d.runtime, description: d.synopsis, genres: d.genres, cast: d.cast,
         director: d.directors, writer: d.writers, poster: d.artwork.poster, background: d.artwork.backdrop, logo: d.artwork.logo,
-        imdbRating: imdb ? String(imdb.value) : undefined, communityRating: tmdb?.value, ratingSource: tmdb?.source, voteCount: tmdb?.votes };
+        imdbRating: imdb ? String(imdb.value) : undefined, communityRating: tmdb?.value, ratingSource: tmdb?.source, voteCount: tmdb?.votes,
+        contentRating: d.contentRating, rottenTomatoesRating: tomatoes?.value };
 }
 export function metadataEpisode(record: EpisodeEnvelope): Episode {
     const d = record.data, tmdb = d.ratings.find(r => r.source === "TMDB" && r.scope === "episode");
