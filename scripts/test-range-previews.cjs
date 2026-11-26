@@ -25,7 +25,7 @@ let response;
 const context = { exports: {},
   setTimeout(callback, delay) { timers.set(++timerId, { callback, delay }); return timerId; },
   clearTimeout(id) { timers.delete(id); }, Headers, AbortController, AbortSignal,
-  URL: { createObjectURL: () => `blob:preview-${++blobId}`, revokeObjectURL: src => revoked.push(src) }, fetch: async () => response,
+  URL: { createObjectURL: () => `blob:preview-${++blobId}`, revokeObjectURL: src => revoked.push(src) }, Response, fetch: async () => response,
   document: { createElement: () => ({ getContext: () => ({ drawImage() {} }), toDataURL: () => 'data:image/jpeg;base64,thumbnail' }) },
   require: name => name === 'mediabunny' ? bundle : name === './webgpu-source' ? { resolveWebGpuSource: async () => 'https://fixture.test/resolved.mkv' } : frames.exports,
 };
@@ -56,6 +56,18 @@ const finish = index => requests[index].resolve({ canvas: { width: 448, height: 
     assert.equal(answers.at(-1)[0], 44, 'Keep showing completed keyframes while the pointer moves');
     finish(2); await settle(); assert.equal(answers.at(-1)[0], 63);
     assert.equal(timers.size, 0, 'After the pointer stops, no exact frame is scheduled');
+    const bytes = new Uint8Array([1, 2, 3]);
+    for (const encoding of ['Identity', 'gzip']) {
+      response = new Response(bytes, { status: 206, headers: {
+        'Content-Encoding': encoding, 'Content-Range': 'bytes 0-2/100000', 'Content-Length': '3',
+      } });
+      const range = await sourceOptions.fetchFn('https://proxy.test/_token_fixture/proxy/stream/video.mkv',
+        { headers: { Range: 'bytes=0-2' } });
+      assert.equal(range.headers.get('Content-Encoding'), encoding === 'Identity' ? null : encoding,
+        'The preview demuxer must see identity encoding as an unencoded range');
+      assert.equal(range.headers.get('Content-Range'), 'bytes 0-2/100000');
+      assert.deepEqual(new Uint8Array(await range.arrayBuffer()), bytes);
+    }
     preview.want(26); await settle();
     assert.deepEqual(answers.at(-1), [26, first]);
     assert.equal(requests.length, 3, 'Returning to a cached interval avoids decoding');
@@ -104,9 +116,13 @@ const finish = index => requests[index].resolve({ canvas: { width: 448, height: 
   prefix.fill(0, moov.at, moov.at + moov.length); prefix.writeUInt32BE(moov.length, moov.at); prefix.write('free', moov.at + 4);
   prefix.writeUInt32BE(1, fixture.length); prefix.write('free', fixture.length + 4); prefix.writeBigUInt64BE(BigInt(size - fixture.length - moov.length), fixture.length + 8);
   let bytes = 0, ranges = 0, readTail = false;
-  const input = new Input({ formats: [MP4], source: new UrlSource('https://fixture.test/eight-gigabytes.mp4', {
+  const proxied = 'https://proxy.test/_token_fixture/proxy/stream/video.mp4';
+  const proxyTransport = new context.exports.RangePreviewFrames(proxied, () => {}, () => {});
+  await proxyTransport.prepare();
+  const input = new Input({ formats: [MP4], source: new UrlSource(proxied, {
     parallelism: 1, getRetryDelay: () => null,
     fetchFn: async (url, init) => {
+      assert.equal(url, proxied);
       const range = new Headers(init.headers).get('Range'); assert.ok(range);
       const match = /bytes=(\d+)-(\d*)/.exec(range); assert.ok(match);
       const start = Number(match[1]), end = Math.min(size - 1, start + 65535, match[2] ? Number(match[2]) : size - 1);
@@ -118,7 +134,10 @@ const finish = index => requests[index].resolve({ canvas: { width: 448, height: 
         body.set(moov.data.subarray(from - tailAt, end - tailAt + 1), from - start); readTail = true;
       }
       bytes += body.length; ranges++;
-      return new Response(body, { status: 206, headers: { 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': String(body.length) } });
+      response = new Response(body, { status: 206, headers: {
+        'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': String(body.length), 'Content-Encoding': 'identity',
+      } });
+      return sourceOptions.fetchFn(url, init);
     },
   }) });
   try {
@@ -128,5 +147,5 @@ const finish = index => requests[index].resolve({ canvas: { width: 448, height: 
     assert.ok(readTail, 'The large-file index is read from the end using 64-bit byte positions');
     assert.ok(bytes < 1024 * 1024, `Sparse metadata/keyframe extraction read ${bytes} bytes`);
     console.log(`PASS: real 8GB MP4 sparse range demux (${bytes} bytes, ${ranges} requests), bounded HDR decoding, latest request/cache/cancel and HTML fallback`);
-  } finally { input.dispose(); }
+  } finally { input.dispose(); proxyTransport.dispose(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

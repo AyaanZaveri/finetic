@@ -149,6 +149,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
 
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [routedStreamUrl, setRoutedStreamUrl] = useState<string | null>(null);
+  const playbackSource = routedStreamUrl ?? streamUrl;
   const [loadedMediaDetails, setMediaDetails] = useState<MediaItem | null>(null);
   const mediaDetailsOwner = useRef<MediaToPlay | null>(null);
   const mediaDetails = mediaDetailsOwner.current === playbackRequest ? loadedMediaDetails
@@ -246,7 +247,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   const handleSkipSegments = useCallback((segments: SkipSegment[]) => {
     setSkipTimeline({ source: streamUrl, segments });
   }, [streamUrl]);
-  const chapters = usePlayerChapters(videoRef, streamUrl, duration);
+  const chapters = usePlayerChapters(videoRef, playbackSource, duration);
 
 
   const playbackKey = playbackRequest
@@ -1044,7 +1045,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
               key={`${streamUrl}:${playerAttempt}`}
               // @ts-ignore
               ref={videoRef}
-              src={routedStreamUrl ?? streamUrl}
+              src={playbackSource ?? streamUrl}
               {...(nativePlayback ? { requestHeaders, startPosition: currentMedia.type === "series" ? 0 : currentMedia.resumePositionTicks ?? 0,
                 onPreloadFallback: () => setVideoReady(false),
                 systemMedia: { title: primaryTitle, subtitle: showTitle || undefined,
@@ -1244,7 +1245,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           />
         )}
 
-        <PlayerControlBar title={primaryTitle} previewSource={routedStreamUrl ?? streamUrl ?? undefined}
+        <PlayerControlBar title={primaryTitle} previewSource={playbackSource ?? undefined}
           episode={isEpisodePlayback ? { showTitle, season, episodeNumber } : undefined}
           releaseYear={currentMedia.type === "movie" ? mediaDetails?.year : undefined}
           endTime={<PlayerEndTime key={`${streamUrl}:${playerAttempt}`} duration={duration} mediaRef={videoRef} />}
@@ -1257,7 +1258,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           {selectorMedia && streamUrl && activePlaybackRequestRef.current === playbackRequest && (
             <PlayerSelectionControls key={`${selectorMedia.id}:${playerAttempt}`} media={selectorMedia} streamUrl={streamUrl}
               playbackReady={videoReady && !loading && !playbackError}
-              chapterNavigation={{ chapters, media: chapterMedia, source: streamUrl, onSeek: time => {
+              chapterNavigation={{ chapters, media: chapterMedia, source: playbackSource ?? streamUrl, onSeek: time => {
                 if (chapterMedia && videoRef.current === chapterMedia) chapterMedia.currentTime = time;
               } }}
               playingEpisode={playingEpisode} onStreamSelect={changeStream} onEpisodeSelect={episode => {

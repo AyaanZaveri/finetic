@@ -64,6 +64,18 @@ export class RangePreviewFrames {
                     await response.body?.cancel();
                     throw new Error('Thumbnail extraction requires HTTP ranges');
                 }
+                // The demuxer skips size inference whenever Content-Encoding
+                // exists. MediaFlow can send "identity" for unencoded ranges.
+                if (response.status === 206 && response.headers.get('Content-Encoding')?.trim().toLowerCase() === 'identity') {
+                    const headers = new Headers(response.headers);
+                    headers.delete('Content-Encoding');
+                    const unencoded = new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+                    // Keep the final URL available to the demuxer after a redirect.
+                    if (response.redirected) Object.defineProperties(unencoded, {
+                        redirected: { value: true }, url: { value: response.url },
+                    });
+                    return unencoded;
+                }
                 return response;
             }) as typeof fetch,
         }) });

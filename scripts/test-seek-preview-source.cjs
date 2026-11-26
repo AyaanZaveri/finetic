@@ -43,7 +43,11 @@ context.window = { navigatorDesktop: { platform: 'windows', capabilities: { nati
 const nativeMedia = { controller: { previewSession: 'native', cachedPreview() {} } };
 const manifest = context.exports.SeekPreview({ media: nativeMedia, source: 'https://stream.test/movie.m3u8', time: 20, duration: 120, active: true });
 assert.equal(manifest.type(manifest.props).props.children[0].type, 'MuxVideo', 'Native keyframe previews must retain the browser decoder for HLS manifests');
-assert.match(player, /<PlayerControlBar\b[^>]*previewSource=\{routedStreamUrl\s*\?\?\s*streamUrl\s*\?\?\s*undefined\}/, 'The production caller passes the routed transport URL, with the original stream as fallback, to previews');
+assert.match(player, /const playbackSource = routedStreamUrl \?\? streamUrl;/);
+assert.match(player, /<PlayerControlBar\b[^>]*previewSource=\{playbackSource \?\? undefined\}/, 'Seek previews use the routed transport');
+assert.match(player, /usePlayerChapters\(videoRef, playbackSource, duration\)/, 'Chapter metadata uses the routed transport');
+assert.match(player, /chapterNavigation=\{\{ chapters, media: chapterMedia, source: playbackSource \?\? streamUrl,/, 'Chapter images use the routed transport');
+assert.match(player, /<PlayerSelectionControls\b[^>]*streamUrl=\{streamUrl\}/, 'Stream selection retains the unrouted source as its identity');
 const controls = fs.readFileSync('components/player-control-bar.tsx', 'utf8');
 assert.match(controls, /<MediaPlayerSeek\b[^>]*previewSource=\{previewSource\}/, 'The shared controls pass the resolved URL to the timeline');
 console.log('PASS: original HLS source survives MSE blob replacement; progressive formats keep their native decoder');
