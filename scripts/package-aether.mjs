@@ -49,6 +49,10 @@ export async function embedAether(bundle, resources, { configuration = "release"
       if (match && !await exists(join(frameworks, match[1]))) throw new Error(`Unresolved AetherEngine dependency: ${match[1]}`);
     }
   }
+  const symbols = tool("nm", ["-gU", library]);
+  for (const name of ["navigator_aether_create", "navigator_aether_command", "navigator_aether_destroy"]) {
+    if (!symbols.includes(`_${name}`)) throw new Error(`Missing Aether bridge C entry point: ${name}`);
+  }
   tool("codesign", ["--force", "--sign", "-", library], true);
   tool("codesign", ["--verify", "--strict", library], true);
 

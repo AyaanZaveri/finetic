@@ -102,7 +102,7 @@ export function PlayerPlaybackStats({ open, obscured = false, videoRef, onClose,
 
     const stats = history?.stats;
     const fps = history?.samples.at(-1)?.fps;
-    const hasFrameStats = stats?.presented !== undefined || stats?.dropped !== undefined;
+    const hasFrameStats = stats?.presented !== undefined || stats?.dropped !== undefined || stats?.observedFps !== undefined;
     const chartMode = hasFrameStats ? mode : "buffer";
     const freezeLabel = frozen ? "Resume stats updates" : "Freeze stats";
     const FreezeIcon = frozen ? Play : Pause;
@@ -115,6 +115,7 @@ export function PlayerPlaybackStats({ open, obscured = false, videoRef, onClose,
         ["HDR output", stats?.hdr],
     ] as const;
     const details = ([
+        ["Source color format", stats?.sourceHdr],
         ["Engine version", stats?.engineVersion],
         ["Decoder route", stats?.route],
         ["Video decoder", stats?.videoDecoder],

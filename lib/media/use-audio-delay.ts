@@ -13,7 +13,7 @@ export function useAudioDelay(mediaRef: RefObject<HTMLVideoElement | null>, seco
             if (supported) controller?.setAudioDelay(seconds);
         };
         update();
-        const events = ["trackschange", "loadedmetadata", "emptied"];
+        const events = ["trackschange", "nativecapabilitieschange", "loadedmetadata", "emptied"];
         events.forEach(event => element?.addEventListener(event, update));
         return () => events.forEach(event => element?.removeEventListener(event, update));
     }, [mediaRef, seconds, source]);

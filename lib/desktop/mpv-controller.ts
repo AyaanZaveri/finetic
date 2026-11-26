@@ -137,6 +137,7 @@ export class MpvController extends EventTarget {
       path: this.state.engine === "aether" ? "AetherEngine" : this.state.engine === "mpv" ? "libmpv" : "Native player",
       route: this.state.route,
       hdr: this.state.hdr,
+      sourceHdr: this.state.sourceHdr,
       videoDecoder: this.state.videoDecoder,
       audioDecoder: this.state.audioDecoder,
       fallback: this.fallbackReason ?? this.state.fallback,
@@ -281,6 +282,7 @@ export class MpvController extends EventTarget {
     this.bridge.send({ type: "pause", session: this.session });
     if (!paused) this.fire("pause");
   }
+  get audioDelayLimit() { return this.state.engine === "aether" ? 2 : 30; }
   get supportsAudioTiming() { return this.bridge.capabilities?.audioTiming === true && !(this.state.engine === "aether" && this.state.route === "remoteBypass"); }
   get supportsSubtitleTiming() { return this.bridge.capabilities?.subtitleTiming === true && !(this.state.engine === "aether" && this.state.route === "remoteBypass"); }
   private publishedMetadata?: { session: string; metadata: SystemMediaMetadata };
@@ -298,7 +300,8 @@ export class MpvController extends EventTarget {
   }
   setAudioDelay(seconds: number) {
     if (!this.supportsAudioTiming || this.disposed || !this.session) return;
-    this.bridge.send({ type: "audio-delay", session: this.session, seconds: Number.isFinite(seconds) ? Math.round(Math.max(-30, Math.min(30, seconds)) * 10) / 10 : 0 });
+    const limit = this.audioDelayLimit;
+    this.bridge.send({ type: "audio-delay", session: this.session, seconds: Number.isFinite(seconds) ? Math.round(Math.max(-limit, Math.min(limit, seconds)) * 10) / 10 : 0 });
   }
   selectTrack(kind: TrackKind, id: string) {
     if (this.disposed || !this.session) return;
@@ -491,6 +494,7 @@ export class MpvController extends EventTarget {
         }
         if (this.pending.has("position")) incoming.seeking = true;
         this.state = incoming;
+        if (previous.engine !== incoming.engine || previous.route !== incoming.route) this.fire("nativecapabilitieschange");
         this.finishTrackSwitches(incoming.position > previous.position);
         if (previous.position !== this.state.position) this.fire("timeupdate");
         if (previous.duration !== this.state.duration) this.fire("durationchange");

@@ -192,8 +192,6 @@ final class PlaybackBridge {
         )
         options.sessionCacheHardLimitBytes = 512 * 1024 * 1024
         options.sessionCacheFreeReserveBytes = 512 * 1024 * 1024
-        // One app-owned reader budget, including subtitle/preview requests.
-        options.maxConcurrentSourceRequests = 2
         options.autoplay = false
         options.skipsContainerAttachments = true
         let initialPosition = message["startPosition"] as? Double ?? 0
@@ -275,11 +273,12 @@ final class PlaybackBridge {
             var state: [String: Any] = [
                 "position": lastClock, "duration": finite(engine.duration),
                 "paused": desiredPaused, "volume": volume, "muted": muted, "rate": rate,
-                "buffering": buffering, "seeking": engine.isSeeking, "buffered": finite(engine.bufferedPosition),
+                "audioDelay": engine.audioDelaySeconds, "buffering": buffering, "seeking": engine.isSeeking, "buffered": finite(engine.bufferedPosition),
                 "bufferedRanges": engine.residentRanges.map { ["start": finite($0.lowerBound), "end": finite($0.upperBound)] },
                 "width": engine.sourceVideoWidth, "height": engine.sourceVideoHeight,
                 "engine": "aether", "engineVersion": AetherEngine.version,
-                "route": String(describing: engine.videoRoute), "hdr": String(describing: engine.videoFormat)
+                "route": String(describing: engine.videoRoute), "hdr": colorLabel(engine.videoFormat),
+                "sourceHdr": colorLabel(engine.sourceVideoFormat)
             ]
             if let decoder = engine.activeVideoDecoder { state["videoDecoder"] = decoder }
             if let decoder = engine.activeAudioDecoder { state["audioDecoder"] = decoder }
@@ -298,7 +297,11 @@ final class PlaybackBridge {
 
     private func failure() {
         guard session != nil else { return }
-        emit("error", ["message": "AetherEngine could not play this stream.", "position": lastClock])
+        var fields: [String: Any] = ["message": "AetherEngine could not play this stream.", "position": lastClock]
+        // Never classify a failure by localized error text or expose a signed
+        // URL in the diagnostics. The engine supplies a stable error kind.
+        if let info = engine.errorInfo { fields["errorKind"] = String(describing: info.kind) }
+        emit("error", fields)
         stop()
     }
 
@@ -368,6 +371,17 @@ final class PlaybackBridge {
 
     private func encoded(_ value: [String: Any]) -> Data? {
         try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
+    }
+
+    private func colorLabel(_ value: VideoFormat) -> String {
+        switch value {
+        case .sdr: "SDR"
+        case .hdr10: "HDR10"
+        case .hdr10Plus: "HDR10+"
+        case .dolbyVision: "Dolby Vision"
+        case .hlg: "HLG"
+        @unknown default: String(describing: value)
+        }
     }
 
     private func finite(_ value: Double) -> Double { value.isFinite ? max(0, value) : 0 }

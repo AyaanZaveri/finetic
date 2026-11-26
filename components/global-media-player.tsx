@@ -926,6 +926,8 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   episodeContinuationRef.current = episodeContinuation;
 
   const audioDelayAvailable = useAudioDelay(videoRef, audioTiming.seconds, `${streamUrl}:${playerAttempt}`);
+  const audioDelayLimit = (videoRef.current as unknown as MpvElementHandle | null)?.controller?.audioDelayLimit ?? 30;
+  const appliedAudioDelay = audioDelayAvailable ? Math.max(-audioDelayLimit, Math.min(audioDelayLimit, audioTiming.seconds)) : 0;
   const embeddedSubtitleTiming = useNativeSubtitleTiming(videoRef, subtitleTiming.seconds,
     subtitleTracks.some(track => track.active), `${streamUrl}:${playerAttempt}`, nativePlayback);
 
@@ -1056,7 +1058,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           container={videoRef.current?.closest<HTMLElement>('[data-slot="media-player"]')} />
         <SubtitleTimingPopover mode="audio" open={audioTimingOpen}
           onOpenChange={open => setAudioTimingOpenKey(open ? audioTiming.key : null)}
-          seconds={audioDelayAvailable ? audioTiming.seconds : 0} onChange={audioTiming.onChange} available={audioDelayAvailable}
+          seconds={appliedAudioDelay} onChange={audioTiming.onChange} available={audioDelayAvailable} limit={audioDelayLimit}
           mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`}
           container={videoRef.current?.closest<HTMLElement>('[data-slot="media-player"]')} />
         <NativePlayerGlass mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} ready={videoReady && !loading && !playbackError} />
@@ -1285,7 +1287,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
               }} />
           )}
           <DesktopTracks mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} onBrowserLoadingChange={setFetchingBrowserAudio}
-            timing={{ seconds: audioDelayAvailable ? audioTiming.seconds : 0, open: audioTimingOpen,
+            timing={{ seconds: appliedAudioDelay, open: audioTimingOpen,
               onOpen: () => { setTimingOpenKey(null); setAudioTimingOpenKey(audioTiming.key); }, onClose: () => setAudioTimingOpenKey(null) }} />
           <PlayerSubtitles mediaRef={videoRef} sourceKey={`${streamUrl}:${playerAttempt}`} native={nativePlayback}
             tracks={subtitleTracks} requestedSrc={requestedSubtitleSrc} onTrackChange={handleCustomSubtitleChange}

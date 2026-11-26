@@ -28,6 +28,7 @@ export type NativeState = {
   engine?: "mpv" | "aether";
   route?: string;
   hdr?: string;
+  sourceHdr?: string;
   videoDecoder?: string;
   audioDecoder?: string;
   engineVersion?: string;

@@ -754,7 +754,7 @@ AetherEngine manages HDR brightness through Apple's native presentation path.
 The Swift package is pinned in `macos/aether/Package.resolved`. Build it with
 Xcode 27 and Swift 6.4, the upstream supported toolchain. For development, set
 `NAVIGATOR_AETHER_BRIDGE` to the built dynamic library's absolute path.
-Release packaging includes the signed dynamic bridge and its FFmpeg frameworks
+Release packaging includes the ad-hoc signed dynamic bridge and its FFmpeg frameworks
 under Contents/Frameworks while leaving the shell deployment target at macOS
 13.5. Older macOS versions do not load the Swift library.
 
@@ -762,8 +762,12 @@ AetherEngine uses a bounded temporary fMP4 segment cache and a separate source
 clock for subtitle cue timing. Seek previews use its timestamped cache-backed
 API; targets outside the retained cache may have no preview yet. Stats for
 nerds reports the selected engine, decoder route, video/audio decoder names,
-presented HDR format, and available drop counters. Counters unavailable on a
-route are omitted rather than fabricated.
+source and presented HDR formats, and available drop counters. Counters unavailable on a
+route are omitted rather than fabricated. Audio delay is limited to two seconds
+in either direction on AetherEngine, and is unavailable on the direct remote
+HLS path. The existing subtitle timing overlay follows the engine's source clock.
+Explicit HDR output on a physical display, Dolby Vision, Atmos and PiP require
+hands-on device testing; this experimental adapter does not yet expose PiP.
 
 References:
 - [Host guide](https://github.com/superuser404notfound/AetherEngine/blob/7.76.0/docs/guide.md)
@@ -771,3 +775,5 @@ References:
 - [Installation](https://github.com/superuser404notfound/AetherEngine/blob/7.76.0/docs/installation.md)
 - [Formats and limitations](https://github.com/superuser404notfound/AetherEngine/blob/7.76.0/docs/formats.md)
 - [Licensing](https://github.com/superuser404notfound/AetherEngine/blob/7.76.0/docs/licensing.md)
+- [Moonfin macOS native view integration](https://github.com/Moonfin-Client/Moonfin-Core/blob/d1e22735d90489dec59bd331a7b5e51f491a39ac/macos/Runner/Playback/MacosAetherVideoPlatformView.swift)
+- [Rivulet macOS engine integration](https://github.com/l984-451/Rivulet/blob/01265d25affcac3913515c945353845d6d30e753/RivuletMac/Player/AetherPlayer.swift)

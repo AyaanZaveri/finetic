@@ -19,11 +19,13 @@ export function useNativeSubtitleTiming(mediaRef: RefObject<HTMLVideoElement | n
         update();
         element?.textTracks?.addEventListener("change", update);
         element?.addEventListener("trackschange", update);
+        element?.addEventListener("nativecapabilitieschange", update);
         element?.addEventListener("loadedmetadata", update);
         element?.addEventListener("emptied", update);
         return () => {
             element?.textTracks?.removeEventListener("change", update);
             element?.removeEventListener("trackschange", update);
+            element?.removeEventListener("nativecapabilitieschange", update);
             element?.removeEventListener("loadedmetadata", update);
             element?.removeEventListener("emptied", update);
         };

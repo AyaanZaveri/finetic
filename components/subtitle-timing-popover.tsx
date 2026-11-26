@@ -24,7 +24,7 @@ const audioMarks = [
 type Mark = { kind: (typeof subtitleMarks)[number]["kind"]; time: number };
 const otherPlayerTool = '[data-player-selection-drawer], [role="menu"], [data-slot="dropdown-menu-content"], [data-slot="dropdown-menu-sub-content"], [data-navigator-focus-ui]';
 
-export function SubtitleTimingPopover({ open, onOpenChange, seconds, onChange, available, container, mediaRef, sourceKey, mode = "subtitle" }: {
+export function SubtitleTimingPopover({ open, onOpenChange, seconds, onChange, available, container, mediaRef, sourceKey, mode = "subtitle", limit = SUBTITLE_TIMING_LIMIT }: {
   open: boolean;
   onOpenChange(open: boolean): void;
   seconds: number;
@@ -34,6 +34,7 @@ export function SubtitleTimingPopover({ open, onOpenChange, seconds, onChange, a
   mediaRef?: RefObject<HTMLVideoElement | null>;
   sourceKey?: string;
   mode?: "subtitle" | "audio";
+  limit?: number;
 }) {
   const audio = mode === "audio";
   const title = audio ? "Audio delay" : "Subtitle timing";
@@ -70,7 +71,7 @@ export function SubtitleTimingPopover({ open, onOpenChange, seconds, onChange, a
     setFirstMark(null);
     setCompletedMark(null);
     setSyncStatus(null);
-    onChange(value);
+    onChange(Math.max(-limit, Math.min(limit, value)));
   };
   const mark = useCallback((kind: Mark["kind"]) => {
     const media = mediaRef?.current;
@@ -95,14 +96,14 @@ export function SubtitleTimingPopover({ open, onOpenChange, seconds, onChange, a
     const saw = kind === "saw" ? time : firstMark.time;
     const next = (audio ? audioDelayForMarks : subtitleDelayForMarks)(seconds, heard, saw);
     setFirstMark(null);
-    if (next === null) {
+    if (next === null || Math.abs(next) > limit) {
       setSyncStatus({ text: `That offset is outside the timing range. Try another ${audio ? "event" : "line"}.`, warning: "range" });
       return;
     }
     onChange(next);
     setCompletedMark(kind);
     setSyncStatus({ text: `Timing updated. Mark another ${audio ? "event" : "line"} to refine it.` });
-  }, [audio, available, firstMark, mediaRef, onChange, open, seconds]);
+  }, [audio, available, firstMark, mediaRef, onChange, open, seconds, limit]);
 
   useEffect(() => {
     if (!open || !mediaRef || !available) return;
@@ -129,7 +130,7 @@ export function SubtitleTimingPopover({ open, onOpenChange, seconds, onChange, a
   const nudge = (direction: -1 | 1) => <Button type="button" variant="ghost" size="icon"
     className="size-11" aria-label={`${audio ? "Play audio" : "Show subtitles"} 0.1 seconds ${direction < 0 ? "earlier" : "later"}`}
     title={direction < 0 ? "Earlier by 0.1 seconds" : "Later by 0.1 seconds"}
-    disabled={!available || (direction < 0 ? seconds <= -SUBTITLE_TIMING_LIMIT : seconds >= SUBTITLE_TIMING_LIMIT)}
+    disabled={!available || (direction < 0 ? seconds <= -limit : seconds >= limit)}
     onClick={() => changeManually(normalizeSubtitleDelay(seconds + direction * 0.1))}>
     {direction < 0 ? <Minus className="size-4" /> : <Plus className="size-4" />}
   </Button>;
@@ -180,7 +181,7 @@ export function SubtitleTimingPopover({ open, onOpenChange, seconds, onChange, a
         </div>
       </div>
       <RulerSlider className={styles.ruler} label={title} hideLabel valueStart={nudge(-1)} valueEnd={nudge(1)} value={seconds} onValueChange={changeManually}
-        min={-SUBTITLE_TIMING_LIMIT} max={SUBTITLE_TIMING_LIMIT} step={0.1} largeStep={1}
+        min={-limit} max={limit} step={0.1} largeStep={1}
         majorEvery={10} spacing={10} format={value => `${value > 0 ? "+" : ""}${value.toFixed(1)}`}
         unit="s" disabled={!available} />
       <p id={descriptionId} className="sr-only">{description}</p>

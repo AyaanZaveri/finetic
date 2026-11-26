@@ -23,7 +23,7 @@ export function registerMpvElement() {
       const bridge = desktopBridge();
       if (!bridge || this.controller) return;
       this.controller = new MpvController(bridge);
-      for (const type of ["beforeplaybackenginechange", "emptied", "loadstart", "timeupdate", "durationchange", "play", "pause", "volumechange", "ratechange", "seeking", "seeked", "waiting", "resize", "progress", "loadedmetadata", "loadeddata", "canplay", "canplaythrough", "playing", "ended", "error", "trackschange", "chapterschange", "subtitlechange"]) {
+      for (const type of ["beforeplaybackenginechange", "emptied", "loadstart", "timeupdate", "durationchange", "play", "pause", "volumechange", "ratechange", "seeking", "seeked", "waiting", "resize", "progress", "loadedmetadata", "loadeddata", "canplay", "canplaythrough", "playing", "ended", "error", "trackschange", "nativecapabilitieschange", "chapterschange", "subtitlechange"]) {
         this.controller.addEventListener(type, () => this.dispatchEvent(new Event(type)));
       }
     }

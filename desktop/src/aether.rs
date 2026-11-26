@@ -301,7 +301,10 @@ impl Router {
             .as_f64()
             .unwrap_or(active.position)
             .max(0.0);
-        log::info!("AetherEngine failed; retrying with libmpv at the current position");
+        log::info!(
+            "AetherEngine failed ({:?}); retrying with libmpv at the current position",
+            value["errorKind"].as_str()
+        );
         self.mpv_reason = Some("AetherEngine playback failed");
         self.mpv_session = Some(session.clone());
         mpv.send(Command::Load {
