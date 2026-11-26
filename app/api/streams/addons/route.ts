@@ -26,6 +26,7 @@ export async function GET(request: Request) {
       .map((addon) => ({
         id: addon.manifest.id || addon.transportUrl,
         name: addon.manifest.name || "Unknown addon",
+        transportUrl: addon.transportUrl,
       }));
 
     const revision = createHash("sha256").update(JSON.stringify(addons.map(addon => [addon.transportUrl, addon.manifest]))).digest("hex");

@@ -1,5 +1,6 @@
 import type { StremioStream } from '@/types/stremio';
 import { fetchPlaybackId } from './fetch-playback-id';
+import { fetchAddonStreams, type StreamAddonTarget } from './fetch-addon-streams';
 
 export type StreamWithAddon = StremioStream & { addonId: string; addonName: string; addonIndex?: number };
 export interface PlaybackStreamSnapshot { streams: StreamWithAddon[]; pending: number; total: number; complete: boolean; settledPrefix?: number }
@@ -40,7 +41,7 @@ export function createPlaybackStreamRequest(id: string, type: string, signal?: A
             fetch('/api/streams/addons?' + new URLSearchParams({ type }), { signal: timeout(15_000) }),
         ]);
         if (!targetsResponse.ok) throw new Error('Could not fetch streams. Check your connection and try again.');
-        const { addons = [] } = await targetsResponse.json() as { addons?: { id: string; name?: string }[] };
+        const { addons = [] } = await targetsResponse.json() as { addons?: StreamAddonTarget[] };
         let pending = addons.length;
         const groups: StreamWithAddon[][] = addons.map(() => []);
         const settled = addons.map(() => false);
@@ -53,13 +54,9 @@ export function createPlaybackStreamRequest(id: string, type: string, signal?: A
         update();
         await Promise.allSettled(addons.map(async (addon, index) => {
             try {
-                const params = new URLSearchParams({ mediaItemId: canonicalId, type, addonId: addon.id });
-                const response = await fetch('/api/streams/addon?' + params, { signal: timeout(30_000) });
-                if (!response.ok) throw new Error("Add-on request failed");
-                const data = await response.json() as { streams?: StremioStream[] };
-                if (!Array.isArray(data.streams)) throw new Error("Invalid add-on response");
+                const streams = await fetchAddonStreams(addon, canonicalId, type, timeout(30_000));
                 succeeded++;
-                groups[index] = data.streams.map(stream => ({
+                groups[index] = streams.map(stream => ({
                     ...stream, addonId: addon.id, addonName: addon.name || addon.id, addonIndex: index,
                 }));
             } finally { settled[index] = true; pending--; update(); }

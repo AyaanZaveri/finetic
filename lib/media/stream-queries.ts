@@ -1,11 +1,11 @@
 import { QueryClient, QueryObserver, queryOptions, type QueryKey } from "@tanstack/react-query";
 import { fetchPlaybackId } from "./fetch-playback-id";
 import type { PlaybackStreamRequest, PlaybackStreamSnapshot, StreamWithAddon } from "./fetch-playback-streams";
-import type { StremioStream } from "@/types/stremio";
+import { fetchAddonStreams, type StreamAddonTarget } from "./fetch-addon-streams";
 
 type Target = { id: string; type: string };
 type Purpose = "speculative" | "required";
-type Addons = { revision: string; addons: { id: string; name: string }[] };
+type Addons = { revision: string; addons: StreamAddonTarget[] };
 type Entry = {
     request: PlaybackStreamRequest; target: Target; generation: number; started: number;
     required: number; speculative: number; completed: boolean; dead: boolean;
@@ -227,10 +227,9 @@ export function createStreamQueries(scope: string, client = new QueryClient(), f
             const options = targets.addons.map((addon, index) => queryOptions({ ...STREAM_QUERY_DEFAULTS,
                 queryKey: providerKey(targets.revision, target.type, id, index),
                 queryFn: async ({ signal }) => {
-                    const data = await read<{ streams: StremioStream[] }>("/api/streams/addon?" + new URLSearchParams({
-                        type: target.type, mediaItemId: id, addonId: addon.id,
-                    }), AbortSignal.any([signal, AbortSignal.timeout(30_000)]));
-                    return data.streams.map(stream => ({ ...stream, addonId: addon.id, addonName: addon.name, addonIndex: index }));
+                    const streams = await fetchAddonStreams(addon, id, target.type,
+                        AbortSignal.any([signal, AbortSignal.timeout(30_000)]), fetchFn);
+                    return streams.map(stream => ({ ...stream, addonId: addon.id, addonName: addon.name || addon.id, addonIndex: index }));
                 },
             }));
             entry.keys = options.map(option => option.queryKey);

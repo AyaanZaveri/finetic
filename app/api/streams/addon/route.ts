@@ -4,6 +4,10 @@ import { getInstalledAddons } from "@/app/actions/auth";
 import type { StremioAddon } from "@/types/stremio";
 import { parseStreamResponse } from "@/lib/media/stream-schema";
 
+class AddonRateLimitError extends Error {
+  constructor(readonly retryAfter: string | null) { super("Add-on rate limited"); }
+}
+
 function addonSupportsStream(addon: StremioAddon, type?: string): boolean {
   return addon.manifest.resources.some((resource) => {
     if (typeof resource === "string") {
@@ -34,6 +38,11 @@ async function fetchAddonStreams(
     signal,
   });
 
+  if (response.status === 429) {
+    const retryAfter = response.headers.get("Retry-After");
+    await response.body?.cancel();
+    throw new AddonRateLimitError(retryAfter);
+  }
   if (!response.ok) {
     throw new Error("The stream provider could not complete this lookup.");
   }
@@ -79,6 +88,11 @@ export async function GET(request: Request) {
   } catch (error: any) {
     // The client has gone away; stop owned I/O without logging an upstream fault.
     if (request.signal.aborted) return new Response(null, { status: 499 });
+    if (error instanceof AddonRateLimitError) {
+      return NextResponse.json({ streams: [], error: "This add-on is rate limited. Wait before trying again." }, {
+        status: 429, headers: { "Cache-Control": "private, no-store", ...(error.retryAfter ? { "Retry-After": error.retryAfter } : {}) },
+      });
+    }
     if (error?.message?.includes("Not authenticated")) {
       return NextResponse.json({ streams: [] }, { status: 401 });
     }
