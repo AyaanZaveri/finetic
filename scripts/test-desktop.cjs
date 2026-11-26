@@ -183,6 +183,50 @@ async function testController(platform) {
     unsafe.dispose();
 }
 
+function testAetherController() {
+    const { MpvController } = load("lib/desktop/mpv-controller.ts");
+    const sent = [];
+    let listener;
+    const controller = new MpvController({
+        platform: "macos", capabilities: { aetherPlayback: true, initialSeek: true, audioTiming: true, subtitleTiming: true },
+        send: value => sent.push(value), subscribe(callback) { listener = callback; return () => {}; },
+    });
+    controller.load("https://example.test/fixture.mkv", {}, 4);
+    assert.equal(sent[0].type, "native-engine");
+    assert.equal(sent[0].engine, "mpv", "The experimental engine is opt-in");
+    const session = sent.find(message => message.type === "load").session;
+    const state = { position: 20, duration: 120, paused: true, volume: 0.5, muted: false, rate: 1, buffering: false, seeking: false, buffered: 40, width: 320, height: 180 };
+    let metadata = 0;
+    controller.addEventListener("loadedmetadata", () => metadata++);
+    listener({ type: "state", session, state: { ...state, engine: "aether", route: "loopback", hdr: "hdr10", videoDecoder: "VideoToolbox", engineVersion: "7.76.0" } });
+    listener({ type: "loaded", session });
+    listener({ type: "ready", session });
+    listener({ type: "tracks", session, tracks: [
+        { id: 2, type: "audio", lang: "eng", title: "English", codec: "aac", selected: true },
+        { id: 4, type: "sub", lang: "eng", title: "English", codec: "subrip", selected: true },
+    ] });
+    assert.equal(controller.playbackStats.path, "AetherEngine");
+    assert.equal(controller.playbackStats.videoDecoder, "VideoToolbox");
+    listener({ type: "engine-fallback", session, reason: "AetherEngine playback failed" });
+    assert.equal(controller.currentTime, 20);
+    assert.equal(controller.paused, true);
+    listener({ type: "state", session, state: { ...state, engine: "mpv" } });
+    listener({ type: "tracks", session, tracks: [
+        { id: 5, type: "audio", lang: "eng", title: "English", codec: "aac", selected: false },
+        { id: 7, type: "sub", lang: "eng", title: "English", codec: "subrip", selected: false },
+    ] });
+    listener({ type: "loaded", session });
+    listener({ type: "ready", session });
+    assert.equal(metadata, 1, "An in-playback fallback must not rerun the initial resume/autoplay callback");
+    assert.equal(controller.currentTime, 20);
+    assert.equal(controller.paused, true);
+    assert.equal(controller.playbackStats.path, "libmpv");
+    assert.equal(controller.playbackStats.fallback, "AetherEngine playback failed");
+    assert.ok(sent.some(message => message.type === "track" && message.id === "5"));
+    assert.ok(sent.some(message => message.type === "track" && message.id === "7"));
+    controller.dispose();
+}
+
 function testBridge() {
     let listener;
     let keydown;
@@ -272,6 +316,7 @@ function testAskPlayback() {
 }
 
 Promise.all([testController("android"), testController("ios")]).then(() => {
+    testAetherController();
     testBridge();
     require("./test-desktop-drag.cjs");
     testAskPlayback();

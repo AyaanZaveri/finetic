@@ -115,6 +115,7 @@ export function PlayerPlaybackStats({ open, obscured = false, videoRef, onClose,
         ["HDR output", stats?.hdr],
     ] as const;
     const details = ([
+        ["Engine version", stats?.engineVersion],
         ["Decoder route", stats?.route],
         ["Video decoder", stats?.videoDecoder],
         ["Audio decoder", stats?.audioDecoder],

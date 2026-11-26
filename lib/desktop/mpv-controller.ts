@@ -132,12 +132,14 @@ export class MpvController extends EventTarget {
   get videoHeight() { return this.state.height; }
   get playbackStats() {
     return {
+      observedFps: this.state.observedFps,
+      engineVersion: this.state.engineVersion,
       path: this.state.engine === "aether" ? "AetherEngine" : this.state.engine === "mpv" ? "libmpv" : "Native player",
       route: this.state.route,
       hdr: this.state.hdr,
       videoDecoder: this.state.videoDecoder,
       audioDecoder: this.state.audioDecoder,
-      fallback: this.fallbackReason,
+      fallback: this.fallbackReason ?? this.state.fallback,
       dropped: this.state.droppedFrames,
       decoderDropped: this.state.decoderDroppedFrames,
       videoCodec: this.tracks.find(track => track.type === "video" && track.selected)?.codec,
@@ -170,6 +172,8 @@ export class MpvController extends EventTarget {
 
   private audioChosen = false;
   private fallbackReason?: string;
+  private fallbackWasLoaded = false;
+  private fallbackTracks: NativeTrack[] = [];
   private trackSwitches = new Map<TrackKind, TrackSwitch>();
 
   get fetchingTrack(): TrackKind | null {
@@ -231,6 +235,8 @@ export class MpvController extends EventTarget {
     this.chapters = [];
     this.audioChosen = false;
     this.fallbackReason = undefined;
+    this.fallbackWasLoaded = false;
+    this.fallbackTracks = [];
     this.subtitleText = "";
     const { volume, muted, rate } = this.state;
     this.state = { ...initialState(), volume, muted, rate };
@@ -275,8 +281,8 @@ export class MpvController extends EventTarget {
     this.bridge.send({ type: "pause", session: this.session });
     if (!paused) this.fire("pause");
   }
-  get supportsAudioTiming() { return this.bridge.capabilities?.audioTiming === true; }
-  get supportsSubtitleTiming() { return this.bridge.capabilities?.subtitleTiming === true; }
+  get supportsAudioTiming() { return this.bridge.capabilities?.audioTiming === true && !(this.state.engine === "aether" && this.state.route === "remoteBypass"); }
+  get supportsSubtitleTiming() { return this.bridge.capabilities?.subtitleTiming === true && !(this.state.engine === "aether" && this.state.route === "remoteBypass"); }
   private publishedMetadata?: { session: string; metadata: SystemMediaMetadata };
   setMediaMetadata(metadata: SystemMediaMetadata) {
     if (!this.bridge.capabilities?.systemMedia || !this.session || this.disposed) return;
@@ -410,7 +416,10 @@ export class MpvController extends EventTarget {
     switch (message.type) {
       case "engine-fallback":
         this.fallbackReason = message.reason;
+        this.fallbackWasLoaded = this.loaded;
+        this.fallbackTracks = this.tracks.filter(track => track.selected && (track.type === "audio" || track.type === "sub"));
         this.audioChosen = false;
+        this.fire("beforeplaybackenginechange");
         this.clearTrackSwitches();
         this.clearSubtitle();
         this.cancelPreview();
@@ -418,7 +427,11 @@ export class MpvController extends EventTarget {
         this.previewFrames.clear(); this.previewAliases.clear(); this.previewRanges.clear(); this.decodedPreviews.clear();
         this.tracks = [];
         this.chapters = [];
-        this.ready = this.loaded = false;
+        // Preserve metadata and the paused/resumed transport of a title that
+        // already started. A second loadedmetadata would reapply the original
+        // episode resume position and autoplay behind a deliberate pause.
+        this.ready = false;
+        this.state = { ...this.state, buffering: true };
         this.fire("waiting", "trackschange", "chapterschange");
         break;
       case "chapters":
@@ -497,7 +510,13 @@ export class MpvController extends EventTarget {
             (confirmingPlay || previous.paused || previous.buffering || previous.seeking)) this.fire("playing");
         break;
       }
-      case "loaded": this.loaded = true; this.fire("durationchange", "loadedmetadata"); break;
+      case "loaded":
+        this.loaded = true;
+        if (this.fallbackWasLoaded) {
+          this.fallbackWasLoaded = false;
+          this.fire("durationchange");
+        } else this.fire("durationchange", "loadedmetadata");
+        break;
       case "ready":
         this.ready = true;
         this.fire("loadeddata", "canplay", "canplaythrough");
@@ -517,6 +536,21 @@ export class MpvController extends EventTarget {
           change.confirmed = this.selectedTrackId(kind) === change.id;
         }
         this.finishTrackSwitches();
+        if (this.fallbackTracks.length) {
+          const previous = this.fallbackTracks;
+          this.fallbackTracks = [];
+          for (const track of previous) {
+            // Engine track IDs are unrelated. Prefer the unique metadata match
+            // instead of accidentally selecting an unrelated stream by ID.
+            const matches = this.tracks.filter(candidate => candidate.type === track.type
+              && candidate.lang === track.lang && candidate.title === track.title && candidate.codec === track.codec);
+            if (matches.length === 1) {
+              if (track.type === "audio") this.audioChosen = true;
+              if (!matches[0].selected) this.bridge.send({ type: "track", session: this.session,
+                kind: track.type === "audio" ? "audio" : "subtitle", id: String(matches[0].id) });
+            }
+          }
+        }
         if (!this.audioChosen) {
           const english = preferredAudioTrack(this.tracks.filter(track => track.type === "audio"), readPlaybackPreferences().audioLanguage);
           if (english) {

@@ -46,7 +46,7 @@ export function observePlaybackHistory(video: HTMLVideoElement, readStats: (_vid
         const reading: PlaybackSample = {
             at,
             buffer: stats.videoAheadMs == null ? undefined : stats.videoAheadMs / 1000,
-            fps: baseline && playbackFrameRate(baseline, stats, elapsed),
+            fps: stats.observedFps ?? (baseline && playbackFrameRate(baseline, stats, elapsed)),
             dropsPerSecond: baseline && playbackFrameRate(baseline, stats, elapsed, "dropped"),
         };
         const last = samples.at(-1);
@@ -111,11 +111,11 @@ export function observePlaybackHistory(video: HTMLVideoElement, readStats: (_vid
 
 export function playbackDiagnostics({ at, stats, samples, events, stallCount, stallMs }: PlaybackHistory) {
     // Only export known diagnostics fields. Fallback details can contain arbitrary error text.
-    const { path, route, resolution, hdr, videoCodec, audioCodec, videoDecoder, audioDecoder, presented, dropped, decoderDropped, late, draws,
+    const { path, route, resolution, hdr, videoCodec, audioCodec, videoDecoder, audioDecoder, engineVersion, observedFps, presented, dropped, decoderDropped, late, draws,
         videoAheadMs, audioAheadMs, audioUnderflows } = stats;
     const elapsed = (time: number) => Math.round(time - at);
     return JSON.stringify({
-        path, route, resolution, hdr, videoCodec, audioCodec, videoDecoder, audioDecoder, presented, dropped, decoderDropped, late, draws,
+        path, route, resolution, hdr, videoCodec, audioCodec, videoDecoder, audioDecoder, engineVersion, observedFps, presented, dropped, decoderDropped, late, draws,
         videoAheadMs, audioAheadMs, audioUnderflows, stallCount, stallMs: Math.round(stallMs),
         samples: samples.map(({ at: time, ...values }) => ({ relativeMs: elapsed(time), ...values })),
         events: events.map(({ at: time, kind }) => ({ relativeMs: elapsed(time), kind })),

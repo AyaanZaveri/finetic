@@ -121,6 +121,7 @@ pub struct Router {
     manual_hdr: bool,
     active: Option<Active>,
     mpv_session: Option<String>,
+    mpv_reason: Option<&'static str>,
     wake_lock: WakeLock,
 }
 
@@ -137,6 +138,7 @@ impl Router {
             manual_hdr: false,
             active: None,
             mpv_session: None,
+            mpv_reason: None,
             wake_lock: WakeLock::default(),
         }
     }
@@ -169,10 +171,17 @@ impl Router {
             // move a user with this setting to a limited tone-map route.
             // AVPlayer's remote-HLS bypass can forward arbitrary headers to
             // other hosts. Do not give it authenticated or custom-header sources.
+            let reason = selection_reason(
+                self.preference,
+                self.bridge.is_some(),
+                self.manual_hdr,
+                &url,
+                &headers,
+            );
+            self.mpv_reason = reason;
             if let Some(bridge) = &self.bridge
                 && self.preference != NativeEngine::Mpv
-                && (self.preference == NativeEngine::Aether || !self.manual_hdr)
-                && headers.is_empty()
+                && reason.is_none()
             {
                 if let Some(previous) = self.mpv_session.take() {
                     mpv.send(Command::Stop { session: previous });
@@ -254,6 +263,9 @@ impl Router {
         }
         if value["type"] == "state" {
             value["state"]["engine"] = json!("mpv");
+            if let Some(reason) = self.mpv_reason {
+                value["state"]["fallback"] = json!(reason);
+            }
         }
         true
     }
@@ -290,6 +302,7 @@ impl Router {
             .unwrap_or(active.position)
             .max(0.0);
         log::info!("AetherEngine failed; retrying with libmpv at the current position");
+        self.mpv_reason = Some("AetherEngine playback failed");
         self.mpv_session = Some(session.clone());
         mpv.send(Command::Load {
             session: session.clone(),
@@ -331,5 +344,67 @@ impl Router {
         vec![
             json!({"type":"engine-fallback","session":session,"reason":"AetherEngine playback failed"}),
         ]
+    }
+}
+
+/// Keep the routing decision independent of the native view so every policy
+/// can be covered in ordinary Rust regression tests.
+fn selection_reason(
+    preference: NativeEngine,
+    available: bool,
+    manual_hdr: bool,
+    url: &str,
+    headers: &BTreeMap<String, String>,
+) -> Option<&'static str> {
+    if preference == NativeEngine::Mpv {
+        return None;
+    }
+    if !available {
+        return Some("AetherEngine is unavailable on this Mac");
+    }
+    let credentials = crate::protocol::media_url(url)
+        .is_ok_and(|url| !url.username().is_empty() || url.password().is_some());
+    if !headers.is_empty() || credentials {
+        return Some("Stream requires private request headers or credentials");
+    }
+    if preference == NativeEngine::Automatic && manual_hdr {
+        return Some("Manual HDR peak uses libmpv");
+    }
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn aether_selection_preserves_compatibility_and_credential_boundaries() {
+        let none = BTreeMap::new();
+        let headers = BTreeMap::from([("Authorization".into(), "fixture".into())]);
+        let url = "https://example.test/movie.mkv";
+        assert_eq!(
+            selection_reason(NativeEngine::Automatic, true, false, url, &none),
+            None
+        );
+        assert!(selection_reason(NativeEngine::Automatic, true, true, url, &none).is_some());
+        assert_eq!(
+            selection_reason(NativeEngine::Aether, true, true, url, &none),
+            None
+        );
+        assert!(selection_reason(NativeEngine::Aether, false, false, url, &none).is_some());
+        assert!(selection_reason(NativeEngine::Aether, true, false, url, &headers).is_some());
+        assert!(
+            selection_reason(
+                NativeEngine::Aether,
+                true,
+                false,
+                "https://user:password@example.test/video",
+                &none
+            )
+            .is_some()
+        );
+        assert_eq!(
+            selection_reason(NativeEngine::Mpv, true, false, url, &headers),
+            None
+        );
     }
 }

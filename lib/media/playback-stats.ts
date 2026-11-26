@@ -45,6 +45,8 @@ export type PlaybackStats = Partial<Omit<ReturnType<typeof readWebPlaybackStats>
     audioCodec?: string;
     videoDecoder?: string;
     audioDecoder?: string;
+    engineVersion?: string;
+    observedFps?: number;
 };
 
 export function readNativePlaybackStats(video: HTMLVideoElement): PlaybackStats {

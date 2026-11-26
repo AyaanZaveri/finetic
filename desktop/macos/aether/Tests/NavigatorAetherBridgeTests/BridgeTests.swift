@@ -16,13 +16,17 @@ struct BridgeTests {
     #expect(parent.subviews.isEmpty)
 }
 
+@MainActor
 private final class Events {
     var messages: [[String: Any]] = []
     let callback: EventCallback = { context, bytes, count in
+        guard let context, let bytes else { return }
+        let address = UInt(bitPattern: context)
+        let data = Data(bytes: bytes, count: count)
         MainActor.assumeIsolated {
-            guard let context, let bytes,
-                  let value = try? JSONSerialization.jsonObject(with: Data(bytes: bytes, count: count)) as? [String: Any] else { return }
-            Unmanaged<Events>.fromOpaque(context).takeUnretainedValue().messages.append(value)
+            guard let pointer = UnsafeMutableRawPointer(bitPattern: address),
+                  let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+            Unmanaged<Events>.fromOpaque(pointer).takeUnretainedValue().messages.append(value)
         }
     }
     var state: [String: Any] { messages.last(where: { $0["type"] as? String == "state" })?["state"] as? [String: Any] ?? [:] }

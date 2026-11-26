@@ -30,6 +30,9 @@ export type NativeState = {
   hdr?: string;
   videoDecoder?: string;
   audioDecoder?: string;
+  engineVersion?: string;
+  observedFps?: number;
+  fallback?: string;
 };
 
 export type UpdateStatus = { type: "update-status"; version: string; nextVersion?: string | null; available: boolean; automatic: boolean; state: "idle" | "checking" | "downloading" | "ready" | "available" | "installing" | "current" | "error"; message?: string };

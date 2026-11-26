@@ -159,6 +159,7 @@ final class PlaybackBridge {
                 if let frame, let jpeg = NSBitmapImageRep(cgImage: frame.image).representation(using: .jpeg, properties: [.compressionFactor: 0.72]) {
                     result["position"] = frame.actualSeconds
                     result["src"] = "data:image/jpeg;base64," + jpeg.base64EncodedString()
+                    if let range = frame.validRange { result["range"] = ["start": range.lowerBound, "end": range.upperBound] }
                 }
                 self.emit("thumbnail", result)
             }
@@ -277,12 +278,13 @@ final class PlaybackBridge {
                 "buffering": buffering, "seeking": engine.isSeeking, "buffered": finite(engine.bufferedPosition),
                 "bufferedRanges": engine.residentRanges.map { ["start": finite($0.lowerBound), "end": finite($0.upperBound)] },
                 "width": engine.sourceVideoWidth, "height": engine.sourceVideoHeight,
-                "engine": "aether", "route": String(describing: engine.videoRoute),
-                "hdr": String(describing: engine.videoFormat)
+                "engine": "aether", "engineVersion": AetherEngine.version,
+                "route": String(describing: engine.videoRoute), "hdr": String(describing: engine.videoFormat)
             ]
             if let decoder = engine.activeVideoDecoder { state["videoDecoder"] = decoder }
             if let decoder = engine.activeAudioDecoder { state["audioDecoder"] = decoder }
             if let count = engine.diagnostics.liveTelemetry?.droppedFrameCount { state["droppedFrames"] = count }
+            if let fps = engine.diagnostics.liveTelemetry?.observedFps, fps.isFinite { state["observedFps"] = fps }
             if let bytes = encoded(state), bytes != lastState {
                 lastState = bytes
                 emit("state", ["state": state])
@@ -371,31 +373,30 @@ final class PlaybackBridge {
     private func finite(_ value: Double) -> Double { value.isFinite ? max(0, value) : 0 }
 }
 
+// The C ABI is synchronous and only called from Tao's AppKit event thread.
+// Isolation belongs on the entry point itself; C callers cannot hop actors.
+@MainActor
 @_cdecl("navigator_aether_create")
 func create(_ parent: UnsafeMutableRawPointer?, _ callback: EventCallback, _ context: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer? {
-    // The main actor's return type must be Sendable. Transfer only the
-    // retained object's address across the synchronous isolation assertion.
-    let address: UInt = MainActor.assumeIsolated {
-        guard let parent else { return 0 }
-        let view = Unmanaged<NSView>.fromOpaque(parent).takeUnretainedValue()
-        guard let bridge = try? PlaybackBridge(parent: view, callback: callback, context: context) else { return 0 }
-        return UInt(bitPattern: Unmanaged.passRetained(bridge).toOpaque())
-    }
-    return UnsafeMutableRawPointer(bitPattern: address)
+    precondition(Thread.isMainThread)
+    guard let parent else { return nil }
+    let view = Unmanaged<NSView>.fromOpaque(parent).takeUnretainedValue()
+    guard let bridge = try? PlaybackBridge(parent: view, callback: callback, context: context) else { return nil }
+    return Unmanaged.passRetained(bridge).toOpaque()
 }
 
+@MainActor
 @_cdecl("navigator_aether_command")
 func command(_ handle: UnsafeMutableRawPointer?, _ bytes: UnsafePointer<UInt8>?, _ count: Int) {
-    MainActor.assumeIsolated {
-        guard let handle, let bytes, count > 0, count <= 65536 else { return }
-        Unmanaged<PlaybackBridge>.fromOpaque(handle).takeUnretainedValue().command(Data(bytes: bytes, count: count))
-    }
+    precondition(Thread.isMainThread)
+    guard let handle, let bytes, count > 0, count <= 131072 else { return }
+    Unmanaged<PlaybackBridge>.fromOpaque(handle).takeUnretainedValue().command(Data(bytes: bytes, count: count))
 }
 
+@MainActor
 @_cdecl("navigator_aether_destroy")
 func destroy(_ handle: UnsafeMutableRawPointer?) {
-    MainActor.assumeIsolated {
-        guard let handle else { return }
-        Unmanaged<PlaybackBridge>.fromOpaque(handle).takeRetainedValue().close()
-    }
+    precondition(Thread.isMainThread)
+    guard let handle else { return }
+    Unmanaged<PlaybackBridge>.fromOpaque(handle).takeRetainedValue().close()
 }
