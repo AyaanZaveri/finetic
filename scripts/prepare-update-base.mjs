@@ -69,7 +69,8 @@ async function prepare(platform) {
             return;
         }
         const extracted=join(directory,'windows');
-        const script="$ErrorActionPreference='Stop'; Expand-Archive -LiteralPath $env:NAV_BASE_ZIP -DestinationPath $env:NAV_BASE_DIR";
+        // Windows PowerShell sends per-file progress to stderr in non-interactive runs.
+        const script="$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; Expand-Archive -LiteralPath $env:NAV_BASE_ZIP -DestinationPath $env:NAV_BASE_DIR";
         await exec('powershell.exe',['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(script,'utf16le').toString('base64')],{
             env:windowsPowerShellEnvironment({...process.env,NAV_BASE_ZIP:archive,NAV_BASE_DIR:extracted}),
         });
