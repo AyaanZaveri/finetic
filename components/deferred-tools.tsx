@@ -26,7 +26,10 @@ const Player = dynamic(() => import("@/components/global-media-player").then(mod
 });
 function NavigatorPending() {
     const [open, setOpen] = useAtom(isAIAskOpenAtom);
-    if (!open) return null;
+    const playing = useAtomValue(isPlayerVisibleAtom);
+    // Off the player this stands in for the launcher pill that was just clicked.
+    // The player has no pill, so showing one here flashes it before the panel.
+    if (!open || playing) return null;
     return <div role="status" data-navigator-focus-ui="" className="pointer-events-none fixed inset-x-0 bottom-4 z-[var(--layer-player-navigator)] flex justify-center px-4">
         <div className="pointer-events-auto mb-0 sm:mb-1"><NavigatorLauncher busy expanded onClick={() => setOpen(false)} /></div>
     </div>;
@@ -53,6 +56,17 @@ export function DeferredTools({ userId, navigatorEnabled, onToggleAIAsk }: {
         const timer = window.setTimeout(preloadPlayer, 0);
         return () => window.clearTimeout(timer);
     }, []);
+    useEffect(() => {
+        if (!playing || !navigatorEnabled) return;
+        // The player's Navigator button has no pending UI, so warm the chunk
+        // once playback opens and the first toggle can render the panel directly.
+        if (typeof window.requestIdleCallback === "function") {
+            const idle = window.requestIdleCallback(preloadNavigator, { timeout: 3000 });
+            return () => window.cancelIdleCallback(idle);
+        }
+        const timer = window.setTimeout(preloadNavigator, 1000);
+        return () => window.clearTimeout(timer);
+    }, [playing, navigatorEnabled]);
     // These one-way latches preserve player cleanup and chat history after first
     // use. Conditional render-time state adjustment avoids an extra effect commit.
     if (playing && !playerRequested) setPlayerRequested(true);

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { MediaPlayerTooltip } from "@/components/ui/media-player";
 import { useNavigatorShortcut } from "@/hooks/use-navigator-shortcut";
 import { isAIAskOpenAtom } from "@/lib/atoms";
+import { preloadNavigator } from "@/lib/preload-tools";
 
 // The click zone keeps outside-pointer dismissal from racing the toggle click.
 export function PlayerNavigatorButton({ onToggle }: { onToggle: () => void }) {
@@ -22,6 +23,8 @@ export function PlayerNavigatorButton({ onToggle }: { onToggle: () => void }) {
         aria-expanded={open}
         aria-keyshortcuts="Meta+K Control+K"
         onClick={onToggle}
+        onPointerEnter={preloadNavigator}
+        onFocus={preloadNavigator}
       >
         <Ship aria-hidden="true" />
       </Button>
