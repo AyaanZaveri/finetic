@@ -114,7 +114,7 @@ async function main() {
       './episodes': { createEpisodeTools: () => ({}) },
       '@/lib/navigator-model-settings': { navigatorRoutingSettings: () => ({}) },
       '@/lib/navigator-structured-output': { generateNavigatorObject: async input => ({
-        output: input.task === 'subtitle-analysis' ? { answer: 'A secret was revealed.', evidence: [1] } : { candidate: 1, confidence: 'high' },
+        output: input.task === 'subtitle-analysis' ? { answer: 'A secret was revealed.', evidence: [1] } : { status: 'matched', candidates: [{ startCue: 'C1', evidence: ['C1'] }] },
         totalUsage: { outputTokenDetails: {} },
       }) },
     };
