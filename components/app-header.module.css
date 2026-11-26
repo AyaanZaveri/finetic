@@ -114,8 +114,8 @@
         --user-menu-trigger-padding: 2px;
     }
 
-    .header[data-compact-header] .search [data-persistent] { visibility: hidden; }
-    .header[data-compact-header] .searchFallback {
+    .header .search [data-persistent] { visibility: hidden; }
+    .header .searchFallback {
         width: 44px;
         margin-inline-start: auto;
         border-radius: 50%;
@@ -123,7 +123,7 @@
 
     .header[data-detail-header="true"] .home { display: none; }
     .header[data-detail-header="true"] .detailBack { display: inline-flex; }
-    .header[data-compact-header] :is(.detailBack, .guestAccount) {
+    .header :is(.detailBack, .guestAccount) {
         width: 44px;
         height: 44px;
         padding: 0;
@@ -135,28 +135,28 @@
         -webkit-backdrop-filter: blur(12px);
         backdrop-filter: blur(12px);
     }
-    .header[data-compact-header] :is(.detailBack svg, .guestAccount svg, [data-slot="expanding-search-icon"]) {
+    .header :is(.detailBack svg, .guestAccount svg, [data-slot="expanding-search-icon"]) {
         width: 20px;
         height: 20px;
         stroke-width: 2.25;
     }
-    .header[data-compact-header] [data-slot="expanding-search-icon"] {
+    .header [data-slot="expanding-search-icon"] {
         top: calc(50% - 10px);
         left: calc(var(--control-height-md) / 2 - 11px);
         color: var(--foreground);
     }
-    .header[data-compact-header] :is(.detailBack, .guestAccount):focus-visible {
+    .header :is(.detailBack, .guestAccount):focus-visible {
         border-color: var(--ring);
         box-shadow: 0 0 0 var(--keyboard-focus-halo-width) var(--focus-halo);
     }
-    .header[data-compact-header] .guestAccount span { display: none; }
-    .header[data-compact-header] :is(.navigation, .profile) { gap: .5rem; }
+    .header .guestAccount span { display: none; }
+    .header :is(.navigation, .profile) { gap: .5rem; }
 }
 @media (width < 48rem) and (hover: hover) and (pointer: fine) {
-    .header[data-compact-header] :is(.detailBack, .guestAccount):hover { background: var(--muted); }
+    .header :is(.detailBack, .guestAccount):hover { background: var(--muted); }
 }
 @media (width < 48rem) and (prefers-reduced-transparency: reduce) {
-    .header[data-compact-header] :is(.detailBack, .guestAccount, [data-slot="expanding-search-shell"]) {
+    .header :is(.detailBack, .guestAccount, [data-slot="expanding-search-shell"]) {
         background: var(--background);
         -webkit-backdrop-filter: none;
         backdrop-filter: none;

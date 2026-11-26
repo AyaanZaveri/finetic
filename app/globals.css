@@ -218,7 +218,7 @@ html[data-native-platform="macos"]::-webkit-scrollbar-thumb {
 
 @media (min-width: 64rem) {
   :root { --page-gutter: 2rem; }
-  [data-home-layout] { --page-gutter: 2.5rem; }
+  [data-app-layout] { --page-gutter: 2.5rem; }
 }
 
 @theme inline {

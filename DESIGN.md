@@ -178,7 +178,7 @@ Sunghyun Sans ships locally in weights 100–900. `--font-sans`, `--font-body`, 
 
 ## Layout
 
-Start with `--page-gutter` (1rem, 1.5rem from 40rem, 2rem from 64rem) and the existing `--space-*` rhythm. The shell keeps the header outside the `[data-page-scroll]` viewport. Media routes can paint behind the header. Preserve native scrolling, the skip link, and safe-area and window-control insets. The header aligns the ship mark and search at the leading edge, with the account action at the trailing edge. See `@components/layout-content.tsx`, `@components/layout-content.module.css`, and `@components/app-header.tsx`.
+Start with `--page-gutter` (1rem, 1.5rem from 40rem, 2.5rem in the app shell from 64rem) and the existing `--space-*` rhythm. The shell keeps the header outside the `[data-page-scroll]` viewport. All app pages scroll behind the header. Non-hero pages start below the measured header height. On phones, Search and account controls use the same circular treatment across routes; title pages retain their Back button. Preserve native scrolling, the skip link, and safe-area and window-control insets. The header aligns the ship mark and search at the leading edge, with the account action at the trailing edge. See `@components/layout-content.tsx`, `@components/layout-content.module.css`, and `@components/app-header.tsx`.
 
 | Surface | Pattern to reuse |
 | --- | --- |

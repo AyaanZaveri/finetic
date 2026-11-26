@@ -53,10 +53,10 @@ function subscribePhone(notify: () => void) {
     query.addEventListener("change", notify);
     return () => query.removeEventListener("change", notify);
 }
-function HeaderSearch({ detail, home }: { detail: boolean; home: boolean }) {
+function HeaderSearch() {
     const phone = useSyncExternalStore(subscribePhone, () => window.matchMedia(phoneQuery).matches, () => false);
-    const compact = (detail || home) && phone;
-    return <SearchBar key={compact ? "compact" : "full"} compact={compact} keyboardShortcut={home || !compact}
+    const compact = phone;
+    return <SearchBar key={compact ? "compact" : "full"} compact={compact} keyboardShortcut
         placeholder={compact ? "Search" : undefined} />;
 }
 
@@ -68,8 +68,8 @@ function DetailBackButton() {
     </Button>;
 }
 
-export function AppHeader({ email, overlay = false, home = false, onSignOut }: {
-    email: string; overlay?: boolean; home?: boolean; onSignOut?: typeof logout;
+export function AppHeader({ email, overlay = false, onSignOut }: {
+    email: string; overlay?: boolean; onSignOut?: typeof logout;
 }) {
     const { authenticated, requestSignIn } = useAccountAccess();
     const isPlayerVisible = useIsPlayerVisible();
@@ -118,7 +118,7 @@ export function AppHeader({ email, overlay = false, home = false, onSignOut }: {
     if (isPlayerVisible) return null;
 
     return (
-        <header ref={headerRef} data-detail-header={overlay || undefined} data-compact-header={home || overlay || undefined} data-window-drag-region="" className={`${styles.header} relative col-start-1 row-start-1 z-[var(--layer-header)] shrink-0 pl-[max(var(--page-gutter),env(safe-area-inset-left),var(--window-controls-inset,0px))] pr-[max(var(--page-gutter),env(safe-area-inset-right),var(--window-controls-right-inset,0px))]`}>
+        <header ref={headerRef} data-detail-header={overlay || undefined} data-window-drag-region="" className={`${styles.header} relative col-start-1 row-start-1 z-[var(--layer-header)] shrink-0 pl-[max(var(--page-gutter),env(safe-area-inset-left),var(--window-controls-inset,0px))] pr-[max(var(--page-gutter),env(safe-area-inset-right),var(--window-controls-right-inset,0px))]`}>
             <div ref={surfaceRef} className={styles.surface} aria-hidden="true">
                 <ProgressiveBlur direction="top" blurLayers={6} blurIntensity={2.4} className={styles.blur} />
                 <div data-header-tint="" className={styles.tint} />
@@ -132,7 +132,7 @@ export function AppHeader({ email, overlay = false, home = false, onSignOut }: {
                 {overlay && <DetailBackButton />}
                 <div className={`${styles.search} min-w-0 flex-1 sm:max-w-lg`}>
                     <Suspense fallback={<div className={`${styles.searchFallback} h-11 rounded-xl bg-muted`} />}>
-                        <HeaderSearch detail={overlay} home={home} />
+                        <HeaderSearch />
                     </Suspense>
                 </div>
                 <div className={`${styles.profile} flex h-11 shrink-0 items-center justify-center gap-3`}>

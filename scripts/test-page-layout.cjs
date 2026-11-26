@@ -33,10 +33,11 @@ for (const path of ['/', '/movie/tt123', '/series/tt123', '/series/tt123/1/2', '
   const headers = find(tree, node => node.type === Header);
   const mains = find(tree, node => node.props?.['data-page-scroll'] !== undefined);
   const layout = find(tree, node => node.props?.['data-app-layout'] !== undefined)[0];
-  assert.equal(layout.props['data-home-layout'] !== undefined, path === '/', 'The shared 40px desktop gutter is scoped to Home');
+  assert.ok(layout, 'Every route uses the shared app shell gutter');
   assert.equal(find(mains[0], node => node.type === 'HomeAuroraController').length, path === '/' ? 1 : 0, 'Only Home mounts the scroll/hover Aurora controller');
   assert.equal(headers.length, 1, `${path}: one persistent header`);
-  assert.equal(headers[0].props.home, path === '/', `${path}: compact Home header styling stays on Home`);
+  assert.equal(headers[0].props.home, undefined, `${path}: no route-specific Home header variant`);
+  assert.match(mains[0].props.className, /row-start-1 row-span-2/, `${path}: scrolling content can paint behind the navbar`);
   assert.equal(mains.length, 1, `${path}: one page scrollport`);
   const gradients = find(mains[0], node => node.type === 'HomeGradientBackground');
   assert.equal(gradients[0].props.emerald, /^\/(settings|addons)(?:\/|$)/.test(path), 'Only Settings and Addons replace artwork colors with emerald');
@@ -48,7 +49,7 @@ for (const path of ['/', '/movie/tt123', '/series/tt123', '/series/tt123/1/2', '
   assert.equal(find(mains[0], node => node.type === Header).length, 0, `${path}: scrolling page content must not contain the navbar`);
   assert.ok(find(mains[0], node => node.type === "p" && node.props.children === "Page content").length, `${path}: page content remains in the scrollport`);
   assert.equal(headers[0].props.overlay, /^\/(movie|series)(?:\/|$)/.test(path), `${path}: media pages retain adaptive backdrop presentation`);
-  assert.equal(mains[0].props['data-header-overlay'], path === '/' || /^\/(movie|series)(?:\/|$)/.test(path) ? 'true' : 'false', `${path}: Mac scrollport geometry follows route changes without double-insetting overlay pages`);
+  assert.equal(mains[0].props['data-header-overlay'], path === '/' || /^\/(movie|series)(?:\/|$)/.test(path) ? 'true' : 'false', `${path}: Only hero routes supply their own header inset`);
 }
 
 // Native scrolling can move the page before its JS scroll listener runs.
