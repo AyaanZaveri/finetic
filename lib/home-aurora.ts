@@ -9,7 +9,7 @@ export function homeAuroraArtwork(element: Element | null): HomeArtwork | null {
 }
 
 /** Select the artwork at the leading visible edge, not the first mounted
- * virtual row. The header covers part of the page scrollport. */
+ * catalog row. The header covers part of the page scrollport. */
 export function homeAuroraBase(page: HTMLElement, viewport: HTMLElement, header: HTMLElement | null): HomeArtwork | null {
     const bounds = viewport.getBoundingClientRect();
     const top = Math.max(bounds.top, header?.getBoundingClientRect().bottom ?? bounds.top);

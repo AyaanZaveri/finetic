@@ -1,0 +1,79 @@
+name: Check Home scrolling
+
+on:
+  push:
+    branches: [home-scroll-placeholders]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: chrome
+            os: ubuntu-latest
+          - target: safari
+            os: macos-15
+    name: Browser (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 26.7.0
+          cache: npm
+      - run: npm ci
+      - if: matrix.target == 'chrome'
+        name: Test Home behavior and types
+        run: |
+          npm run test:home-pagination
+          npm run test:page-layout
+          npx tsc --noEmit --incremental false
+      - if: matrix.target == 'chrome'
+        name: Run the fixture in Google Chrome
+        run: |
+          npm install -g agent-browser@0.31.1
+          google-chrome --version
+          xvfb-run -a node scripts/test-home-scroll-browser.mjs chrome
+      - if: matrix.target == 'safari'
+        name: Run the fixture in Apple Safari
+        run: |
+          sudo safaridriver --enable
+          node scripts/test-home-scroll-browser.mjs safari
+
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-2025]
+    name: Desktop (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 24
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 26.7.0
+          cache: npm
+      - uses: dtolnay/rust-toolchain@3da603d4464771f1a8c3dd4acb41f03bc8107551
+        with:
+          toolchain: 1.92.0
+      - run: npm ci
+      - name: Test the desktop shell
+        run: cargo test --manifest-path desktop/Cargo.toml --locked --bin navigator-desktop
+      - name: Run the fixture in the native webview
+        run: |
+          cargo build --manifest-path desktop/Cargo.toml --locked --example home-scroll-check
+          node scripts/test-home-scroll-browser.mjs desktop

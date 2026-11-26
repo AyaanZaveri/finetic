@@ -22,7 +22,7 @@ const section = key => ({ key, sectionName: `Catalog ${key}`, mediaItems: [{ id:
         '@/components/media-section': { MediaSection: ({ sectionName }) => React.createElement('section', null, sectionName) },
         '@/components/ui/button': { Button: 'button' },
         '@/components/ui/loading-placeholder': { LoadingPlaceholder: delayedPlaceholder },
-        './media-section.module.css': { track: 'track' },
+        './home-catalog-skeleton.module.css': { placeholder: 'placeholder' },
     };
     const { HomeCatalogSectionsLazy } = load('components/home-catalog-sections-lazy.tsx', viewDependencies);
     const { default: Home } = load('app/(main)/page.tsx', {
@@ -54,7 +54,7 @@ const section = key => ({ key, sectionName: `Catalog ${key}`, mediaItems: [{ id:
     const placeholderSlots = markup => (markup.match(/aria-hidden="true"[^>]+min-height:360px/g) ?? []).length;
     const assertVisiblePlaceholders = markup => {
         assert.ok(!markup.includes(loadingClass), 'Catalog handoffs cannot restart the hidden placeholder delay');
-        assert.match(markup, /class="(?=[^"]*\baspect-\[2\/3\])(?=[^"]*\bbg-accent\b)(?=[^"]*\brounded-md\b)[^"]*\bw-full\b[^"]*"/);
+        assert.match(markup, /data-home-catalog-placeholder=""/);
         assert.doesNotMatch(markup, /animate-pulse/);
     };
     assertVisiblePlaceholders(bootstrap);

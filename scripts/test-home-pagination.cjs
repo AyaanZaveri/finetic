@@ -1,33 +1,33 @@
 const assert = require('node:assert/strict');
-const { Virtualizer } = require('@tanstack/virtual-core');
 const { load, hooks } = require('./test-support/react-hooks.cjs');
 
 function harness(count = 100) {
   const h = hooks(), requests = [];
-  const root = { scrollTop: 0, getBoundingClientRect: () => ({ top: 0 }) };
-  const prefix = 300; // Continue Watching above the virtual list.
-  const list = { closest: () => root, parentElement: {}, getBoundingClientRect: () => ({ top: prefix - root.scrollTop }) };
-  let core, options, tree, rendered = -1, viewportChanged = false;
+  const rowHeight = 360, viewportHeight = 720, prefix = 300;
+  const root = { scrollTop: 0, getBoundingClientRect: () => ({ top: 0, height: viewportHeight }) };
+  const targets = Array.from({ length: count }, (_, index) => ({
+    dataset: { homeCatalogRow: String(index) },
+    getBoundingClientRect: () => ({ top: prefix + index * rowHeight - root.scrollTop, height: rowHeight }),
+  }));
+  const list = { closest: () => root, children: targets };
+  let observe, options, tree, rendered = -1, started = false;
+  const publish = () => observe(targets.map(target => {
+    const { top, height } = target.getBoundingClientRect();
+    return { target, isIntersecting: top + height > -720 && top < viewportHeight + 720 };
+  }));
   const { HomeCatalogSectionsLazy } = load('components/home-catalog-sections-lazy.tsx', {
-    react: { ...h.react, useLayoutEffect: h.react.useEffect }, 'react/jsx-runtime': h.jsx,
-    '@tanstack/react-virtual': { defaultRangeExtractor: require('@tanstack/virtual-core').defaultRangeExtractor, useVirtualizer(next) {
-      options = next;
-      // Real TanStack range calculations; only the DOM observation adapter is simulated.
-      const settings = { ...next, initialRect: { width: 1024, height: 720 },
-        scrollToFn() {}, observeElementRect() {}, observeElementOffset() {} };
-      core ??= new Virtualizer(settings);
-      core.setOptions(settings);
-      core.scrollRect = { width: 1024, height: 720 };
-      core.scrollOffset = root.scrollTop;
-      return core;
-    } },
+    react: h.react, 'react/jsx-runtime': h.jsx,
     '@/components/media-section': { MediaSection: 'MediaSection' },
-    './media-section.module.css': { track: 'track' },
+    './home-catalog-skeleton.module.css': { placeholder: 'placeholder' },
     '@/components/ui/loading-placeholder': { LoadingPlaceholder: 'LoadingPlaceholder' },
     '@/components/ui/skeleton': { Skeleton: 'Skeleton' }, '@/components/ui/button': { Button: 'button' },
   }, {
     AbortController, AbortSignal, TextDecoder, console: { error() {} },
-    ResizeObserver: class { observe() {} disconnect() {} },
+    IntersectionObserver: class {
+      constructor(callback, config) { observe = callback; options = config; }
+      observe() {}
+      disconnect() {}
+    },
     fetch: (url, init) => new Promise(resolve => requests.push({ url, init, entries: JSON.parse(init.body).entries, resolve })),
   });
   const entries = Array.from({ length: count }, (_, i) => ({ key: String(i), sectionName: `Catalog ${i}`, catalogType: 'movie', catalogId: String(i), addonTransportUrl: 'https://addon.test/manifest.json' }));
@@ -38,12 +38,13 @@ function harness(count = 100) {
   function render() {
     tree = h.render(HomeCatalogSectionsLazy, props);
     tree.props.ref.current = list;
-    rendered = h.updates; viewportChanged = false; h.flush();
+    rendered = h.updates; h.flush();
   }
   return {
     requests, h,
-    async settle() { for (let i = 0; i < 45; i++) { if (rendered !== h.updates || viewportChanged) render(); await Promise.resolve(); } },
-    jump(index) { root.scrollTop = prefix + index * 360; viewportChanged = true; },
+    async settle() { for (let i = 0; i < 45; i++) { if (rendered !== h.updates) { render(); if (!started) { started = true; publish(); } } await Promise.resolve(); } },
+    jump(index, notify = true) { root.scrollTop = prefix + index * rowHeight; if (notify) publish(); },
+    publish,
     answer(index, status = 200, sections = []) { requests[index].resolve(Response.json({ sections }, { status })); },
     stream(index) {
       let controller, cancelled = false;
@@ -53,12 +54,13 @@ function harness(count = 100) {
         fail() { controller.error(Error('stream interrupted')); }, get cancelled() { return cancelled; } };
     },
     retry() { nodes(tree, node => node.type === 'button')[0].props.onClick(); },
-    focusRow(index) { nodes(tree, node => node.props?.['data-index'] === index)[0].props.onFocusCapture(); },
-    blurRow(index) { nodes(tree, node => node.props?.['data-index'] === index)[0].props.onBlurCapture({ currentTarget: { contains: () => false }, relatedTarget: null }); },
-    rowStyle(index) { return nodes(tree, node => node.props?.['data-index'] === index)[0].props.style; },
-    get rowIndexes() { return nodes(tree, node => node.props?.['data-index'] !== undefined).map(node => node.props['data-index']); },
-    get rowCount() { return nodes(tree, node => node.props?.['data-index'] !== undefined).length; },
-    get height() { return tree.props.style.height; },
+    focusRow(index) { nodes(tree, node => node.props?.['data-home-catalog-row'] === String(index))[0].props.onFocusCapture(); },
+    blurRow(index) { nodes(tree, node => node.props?.['data-home-catalog-row'] === String(index))[0].props.onBlurCapture({ currentTarget: { contains: () => false }, relatedTarget: null }); },
+    rowStyle(index) { return nodes(tree, node => node.props?.['data-home-catalog-row'] === String(index))[0].props.style; },
+    get rowIndexes() { return nodes(tree, node => node.props?.['data-home-catalog-row'] !== undefined).map(node => Number(node.props['data-home-catalog-row'])); },
+    get rowCount() { return nodes(tree, node => node.props?.['data-home-catalog-row'] !== undefined).length; },
+    get height() { return this.rowIndexes.reduce((height, index) => height + this.rowStyle(index).minHeight, 0); },
+    hasPlaceholder(index) { return nodes(tree, node => node.props?.['data-home-catalog-row'] === String(index))[0].props.children.type.name === 'HomeCatalogSkeleton'; },
     get buttons() { return nodes(tree, node => node.type === 'button'); },
     get sections() { return nodes(tree, node => node.type === 'MediaSection').map(node => node.props.sectionName); },
     get options() { return options; },
@@ -66,22 +68,14 @@ function harness(count = 100) {
 }
 
 (async () => {
-  const focusPage = harness(); await focusPage.settle();
-  focusPage.focusRow(0); await focusPage.settle();
-  focusPage.jump(35); await focusPage.settle();
-  assert.ok(focusPage.rowIndexes.includes(0), 'A focused catalog stays mounted when scrolled outside the virtual range');
-  focusPage.blurRow(0); await focusPage.settle();
-  assert.equal(focusPage.rowIndexes.includes(0), false, 'Leaving the row releases it back to normal virtualization');
-  focusPage.h.unmount();
   const page = harness(); await page.settle();
   assert.equal(page.height, 36000, 'All known catalog positions exist before their data loads');
-  assert.equal(page.rowStyle(0).top, 0, 'The first catalog starts below Continue Watching');
-  assert.equal(page.rowStyle(1).top, 360, 'The second catalog retains its nonzero offset in layout');
-  assert.equal(page.rowStyle(1).transform, undefined, 'A lower catalog must not put hover layers inside a translated row');
-  assert.ok(page.rowCount <= 7, 'Only viewport rows plus overscan enter the DOM');
+  assert.equal(page.rowStyle(0).minHeight, 360, 'The first catalog reserves its place below Continue Watching');
+  assert.equal(page.rowStyle(1).top, undefined, 'Catalog rows use normal document flow');
+  assert.equal(page.rowCount, 100, 'All catalog slots stay in the DOM');
   assert.equal(page.requests.length, 1);
   assert.equal(page.buttons.length, 0, 'There is no Load more button');
-  assert.ok(page.options.getScrollElement(), 'Virtualization uses the actual page scroller');
+  assert.ok(page.options.root, 'The visibility observer uses the actual page scroller');
   const height = page.height;
   page.answer(0, 200, [{ key: '0', sectionName: 'Loaded catalog', mediaItems: [{ id: 'tt123', name: 'Movie', type: 'movie' }] }]); await page.settle();
   assert.ok(page.sections.includes('Loaded catalog'), 'A loaded skeleton becomes the requested catalog');
@@ -90,8 +84,13 @@ function harness(count = 100) {
   assert.equal(page.requests.length, 2, 'Stop when viewport and overscan are loaded, even for empty catalogs');
   assert.equal(page.height, height, 'Empty results do not collapse placeholders or drag the page downward');
 
-  page.jump(35); await page.settle();
-  assert.equal(page.rowStyle(35).top, 35 * 360, 'A row keeps its catalog position after a long scroll');
+  page.focusRow(0); await page.settle();
+  page.jump(35, false);
+  assert.ok(page.hasPlaceholder(35) && page.hasPlaceholder(36), 'A long jump has placeholders even before the observer reports it');
+  page.publish(); await page.settle();
+  assert.ok(page.sections.includes('Loaded catalog'), 'Keep an offscreen row mounted while it contains focus');
+  page.blurRow(0); await page.settle();
+  assert.ok(page.hasPlaceholder(0), 'Removing focus releases the heavy content without collapsing its slot');
   assert.equal(page.requests.length, 3);
   assert.deepEqual(page.requests[2].entries.map(entry => entry.key), ['35', '36'], 'A flick prioritizes its landing viewport');
   for (let i = 2; i < 5; i++) { page.answer(i); await page.settle(); }
@@ -165,13 +164,12 @@ function harness(count = 100) {
   assert.equal(providerSignal, undefined, 'Already aborted batches never start provider work');
   assert.equal(response.status, 499);
 
-  // Check real React + TanStack SSR too: the existing first rows cannot vanish
-  // while the browser has not yet attached its scrolling element.
+  // Check server output before a browser has started observing the rows.
   const React = require('react');
   const { renderToStaticMarkup } = require('react-dom/server');
   const { HomeCatalogSectionsLazy } = load('components/home-catalog-sections-lazy.tsx', {
     '@/components/media-section': { MediaSection: ({ sectionName }) => React.createElement('section', null, sectionName) },
-    './media-section.module.css': { track: 'track' },
+    './home-catalog-skeleton.module.css': { placeholder: 'placeholder' },
     '@/components/ui/loading-placeholder': { LoadingPlaceholder: ({ children }) => React.createElement('div', null, children) },
     '@/components/ui/skeleton': { Skeleton: () => React.createElement('span', null) },
     '@/components/ui/button': { Button: 'button' },
@@ -181,7 +179,7 @@ function harness(count = 100) {
     remainingEntries: Array.from({ length: 50 }, (_, i) => ({ key: String(i), sectionName: String(i) })), batchSize: 2,
   }));
   assert.ok(html.includes('Initial catalog'), 'Server-rendered initial catalogs stay visible');
-  assert.ok(html.includes('18360px'), 'SSR reserves the full known list height');
-  assert.ok((html.match(/data-index=/g) || []).length <= 5, 'SSR does not render every skeleton');
-  console.log('PASS: real TanStack viewport ranges, stable skeleton space, continuous flick loading, destination priority, bounded requests, no Load more button, retry, and cancellation.');
+  assert.equal((html.match(/data-home-catalog-row=/g) || []).length, 51, 'SSR emits one slot per known catalog');
+  assert.equal((html.match(/data-home-catalog-placeholder=/g) || []).length, 50, 'All unready rows have a placeholder before hydration');
+  console.log('PASS: persistent in-flow catalog slots, stable skeleton space, continuous flick loading, destination priority, bounded requests, no Load more button, retry, and cancellation.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

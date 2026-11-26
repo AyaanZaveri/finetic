@@ -1,7 +1,6 @@
 "use client";
 
-import { Suspense, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
+import { Suspense, use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MediaSection } from "@/components/media-section";
 import { CATALOG_ROW_HEIGHT, HomeCatalogSkeleton } from "@/components/home-catalog-skeleton";
 import { CachedCatalogRow } from "@/components/home-catalog-placeholder";
@@ -66,48 +65,45 @@ export function HomeCatalogSectionsLazy({ initialSections, initialRows, remainin
     return () => { active = false; };
   }, [initialRows, saveCatalogs]);
 
-  const listRef = useRef<HTMLDivElement | null>(null);
-  const [scrollMargin, setScrollMargin] = useState<number | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [nearbyKeys, setNearbyKeys] = useState<string[] | null>(null);
   const [catalogs, setCatalogs] = useState<Map<string, CatalogState>>(() => new Map());
   const requestRef = useRef<{ controller: AbortController; keys: string[] } | null>(null);
   const [requestVersion, setRequestVersion] = useState(0);
-  const [focusedRow, setFocusedRow] = useState<number | null>(null);
-  const rangeExtractor = useCallback((range: Parameters<typeof defaultRangeExtractor>[0]) => {
-    const indexes = defaultRangeExtractor(range);
-    // Keep the active control mounted when pointer scrolling moves its row away.
-    if (focusedRow !== null && focusedRow < range.count && !indexes.includes(focusedRow)) indexes.push(focusedRow);
-    return indexes.sort((a, b) => a - b);
-  }, [focusedRow]);
-  const initialCount = initialRows?.length ?? initialSections.length;
-  const getItemKey = useCallback((index: number) => index < initialCount
-    ? (initialRows?.[index] ?? initialSections[index]).key : remainingEntries[index - initialCount].key,
-  [initialCount, initialSections, initialRows, remainingEntries]);
+  const [focusedKey, setFocusedKey] = useState<string | null>(null);
+  const initial = initialRows ?? initialSections;
+  const rowKeys = useMemo(() => [...initial.map(row => row.key), ...remainingEntries.map(entry => entry.key)], [initial, remainingEntries]);
 
-  const virtualizer = useVirtualizer({
-    count: initialCount + remainingEntries.length,
-    getScrollElement: () => listRef.current?.closest<HTMLElement>("[data-page-scroll]") || null,
-    estimateSize: () => CATALOG_ROW_HEIGHT,
-    getItemKey,
-    rangeExtractor,
-    overscan: 2,
-    scrollMargin: scrollMargin ?? 0,
-    initialRect: { width: 0, height: Math.max(1, initialCount) * CATALOG_ROW_HEIGHT },
-  });
-
-  useLayoutEffect(() => {
+  useEffect(() => {
     const list = listRef.current;
     const scroller = list?.closest<HTMLElement>("[data-page-scroll]");
-    if (!list || !scroller) return;
-    const update = () => setScrollMargin(Math.max(0,
-      Math.round(list.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop)));
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(scroller);
-    observer.observe(list.parentElement || list);
-    const homePage = list.closest<HTMLElement>("[data-home-page]");
-    if (homePage && homePage !== list.parentElement) observer.observe(homePage);
+    if (!list || !scroller || !rowKeys.length) return;
+    const nearby = new Set<HTMLElement>();
+    const observer = new IntersectionObserver(entries => {
+      for (const { target, isIntersecting } of entries) {
+        const row = target as HTMLElement;
+        if (isIntersecting) nearby.add(row);
+        else nearby.delete(row);
+      }
+      if (nearby.size === 0) {
+        setNearbyKeys(previous => previous?.length === 0 ? previous : []);
+        return;
+      }
+      const viewport = scroller.getBoundingClientRect();
+      const center = viewport.top + viewport.height / 2;
+      const next = Array.from(nearby, row => {
+        const bounds = row.getBoundingClientRect();
+        return { key: row.dataset.homeCatalogRow!, distance: Math.abs(bounds.top + bounds.height / 2 - center) };
+      }).sort((a, b) => a.distance - b.distance).map(row => row.key);
+      setNearbyKeys(previous => previous?.length === next.length && previous.every((key, index) => key === next[index]) ? previous : next);
+    }, { root: scroller, rootMargin: `${CATALOG_ROW_HEIGHT * 2}px 0px` });
+    for (const row of list.children) observer.observe(row);
     return () => observer.disconnect();
-  }, []);
+  }, [rowKeys]);
+
+  // Render the first rows in the server stream and during hydration. Once the
+  // observer reports, mount heavy rows only near the viewport or while focused.
+  const mountedKeys = useMemo(() => new Set(nearbyKeys ?? rowKeys.slice(0, INITIAL_CATALOG_COUNT)), [nearbyKeys, rowKeys]);
 
   const loadEntries = useCallback(async (entries: HomeCatalogEntry[]) => {
     if (requestRef.current || !entries.length) return;
@@ -165,15 +161,15 @@ export function HomeCatalogSectionsLazy({ initialSections, initialRows, remainin
     }
   }, []);
 
-  const rows = virtualizer.getVirtualItems();
-  const center = (virtualizer.scrollOffset ?? 0) + (virtualizer.scrollRect?.height ?? 0) / 2;
-  const wantedEntries = useMemo(() => [...rows]
-    .sort((a, b) => Math.abs(a.start + a.size / 2 - center) - Math.abs(b.start + b.size / 2 - center))
-    .flatMap(row => remainingEntries[row.index - initialCount] ? [remainingEntries[row.index - initialCount]] : []),
-  [rows, center, remainingEntries, initialCount]);
+  const wantedEntries = useMemo(() => {
+    const entries = new Map(remainingEntries.map(entry => [entry.key, entry]));
+    return (nearbyKeys ?? []).flatMap(key => {
+      const entry = entries.get(key);
+      return entry ? [entry] : [];
+    });
+  }, [nearbyKeys, remainingEntries]);
 
   useEffect(() => {
-    if (scrollMargin === null) return;
     const wanted = new Set(wantedEntries.map(entry => entry.key));
     const pending = requestRef.current;
     if (pending && pending.keys.length > 0 && !pending.keys.some(key => wanted.has(key))) {
@@ -190,33 +186,32 @@ export function HomeCatalogSectionsLazy({ initialSections, initialRows, remainin
     if (requestRef.current) return;
     const missing = wantedEntries.filter(entry => !catalogs.has(entry.key));
     void loadEntries(missing.slice(0, Math.max(1, Math.min(batchSize, 6))));
-  }, [wantedEntries, catalogs, batchSize, loadEntries, scrollMargin, requestVersion]);
+  }, [wantedEntries, catalogs, batchSize, loadEntries, requestVersion]);
 
   useEffect(() => () => requestRef.current?.controller.abort(), []);
 
   return (
-    <div ref={listRef} data-home-catalogs="" className="relative w-full" style={{ height: virtualizer.getTotalSize(), overflowAnchor: "none" }}>
-      {rows.map(row => {
-        const entry = remainingEntries[row.index - initialCount];
-        const state = entry ? catalogs.get(entry.key) : undefined;
-        const section = row.index < initialCount ? initialSections[row.index] : state?.status === "ready" ? state.section : undefined;
-        const saved = homeCache?.catalogs.find(entry => entry.data.key === row.key)?.data;
-        // Keep the row offset in layout so WebKit can paint card hover effects
-        // without a translated ancestor inside the page scroller.
-        const top = row.start - (scrollMargin ?? 0);
+    <div ref={listRef} data-home-catalogs="" className="w-full" style={{ overflowAnchor: "none" }}>
+      {rowKeys.map((key, index) => {
+        const entry = remainingEntries[index - initial.length];
+        const state = entry ? catalogs.get(key) : undefined;
+        const section = index < initial.length ? initialSections[index] : state?.status === "ready" ? state.section : undefined;
+        const mounted = mountedKeys.has(key) || focusedKey === key;
+        const saved = mounted ? homeCache?.catalogs.find(entry => entry.data.key === key)?.data : undefined;
+        const initialRow = initialRows?.[index];
         return (
-          <div key={row.key} data-index={row.index} ref={virtualizer.measureElement}
-            onFocusCapture={() => setFocusedRow(row.index)}
+          <div key={key} data-home-catalog-row={key}
+            onFocusCapture={() => setFocusedKey(key)}
             onBlurCapture={event => {
-              if (!event.currentTarget.contains(event.relatedTarget)) setFocusedRow(null);
+              if (!event.currentTarget.contains(event.relatedTarget)) setFocusedKey(null);
             }}
-            className="absolute left-0 z-0 w-full flow-root"
-            aria-busy={entry && (!state || state.status === "loading") ? true : undefined}
-            style={{ top, minHeight: CATALOG_ROW_HEIGHT }}>
-            {initialRows?.[row.index] ? <Suspense fallback={<div data-home-initial-pending>
+            className="flow-root"
+            aria-busy={mounted && entry && (!state || state.status === "loading") ? true : undefined}
+            style={{ minHeight: CATALOG_ROW_HEIGHT }}>
+            {!mounted ? <HomeCatalogSkeleton /> : initialRow ? <Suspense fallback={<div data-home-initial-pending>
               {saved ? <CachedCatalogRow section={saved} /> : <HomeCatalogSkeleton />}
             </div>}>
-              <InitialCatalogRow row={initialRows[row.index]} saved={saved} />
+              <InitialCatalogRow row={initialRow} saved={saved} />
             </Suspense> : section ? <MediaSection sectionName={section.sectionName} mediaItems={section.mediaItems} />
               : state?.status === "error" ? <section className="relative z-10 mb-8">
                 <h2 className="mb-4 text-xl sm:text-2xl font-semibold">{entry.sectionName}</h2>

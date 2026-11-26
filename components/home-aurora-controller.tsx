@@ -9,7 +9,7 @@ import { useAuroraRegistration } from "@/components/aurora-provider";
 import { loadHomePalette } from "@/lib/aurora-palette-loader";
 import { createHomeAuroraSelection, homeAuroraArtwork, homeAuroraBase } from "@/lib/home-aurora";
 
-/** One controller for the whole scrollport, including streamed and virtual
+/** One controller for the whole scrollport, including streamed and deferred
  * catalog rows. The persistent Aurora renderer owns the color interpolation. */
 export function HomeAuroraController() {
     const anchor = useRef<HTMLSpanElement>(null);
