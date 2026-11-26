@@ -9,7 +9,11 @@ const { execFileSync } = require('node:child_process');
 async function main() {
     if (!process.argv.includes('--live')) { console.log('SKIP: pass --live to use configured TMDB, TinyFish and OpenCode APIs.'); return; }
     process.loadEnvFile('.env');
-    assert.ok(process.env.OPENCODE_GO_API_KEY && process.env.TMDB_API_READ_ACCESS_TOKEN && process.env.TINYFISH_API_KEY, 'Configure live service credentials in .env');
+    const arg = flag => { const index = process.argv.indexOf(flag); return index < 0 ? undefined : process.argv[index + 1]; };
+    const provider = arg('--provider') || 'opencode';
+    assert.ok(['opencode', 'gemini', 'groq'].includes(provider), 'Unsupported live test provider');
+    assert.ok(process.env[{ opencode: 'OPENCODE_GO_API_KEY', gemini: 'GOOGLE_GENERATIVE_AI_API_KEY', groq: 'GROQ_API_KEY' }[provider]]
+        && process.env.TMDB_API_READ_ACCESS_TOKEN && process.env.TINYFISH_API_KEY, 'Configure live service credentials in .env');
     const dependencies = {};
     for (const name of ['ai', 'zod', '@ai-sdk/openai', '@ai-sdk/google', '@ai-sdk/groq', '@ai-sdk/cerebras', '@ai-sdk/openai-compatible', '@openrouter/ai-sdk-provider', 'ai-sdk-ollama']) dependencies[name] = await import(name);
     const profile = [];
@@ -159,6 +163,12 @@ async function main() {
                 },
             }])) };
     }
+    const promptFile = arg('--system-prompt-file');
+    if (promptFile) {
+        const toolsModule = dependencies['@/app/tools'] || load('app/tools/index.ts');
+        const instructions = fs.readFileSync(promptFile, 'utf8');
+        dependencies['@/app/tools'] = { ...toolsModule, createSystemPrompt: () => instructions };
+    }
     const { POST } = load('app/api/chat/route.ts');
     const modelFlag = process.argv.indexOf('--model');
     const models = modelFlag >= 0 ? [process.argv[modelFlag + 1]] : ['muse-spark-1.3-contributor'];
@@ -170,7 +180,7 @@ async function main() {
         profileStart = start; profile.length = 0;
         const response = await POST(new Request('http://localhost/api/chat', { method: 'POST', signal: AbortSignal.timeout(120_000), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
             messages: [{ id: 'live-episode-probe', role: 'user', parts: [{ type: 'text', text: prompt }] }],
-            aiProvider: 'opencode', opencodeModel: model, opencodeApiKey: process.env.OPENCODE_GO_API_KEY,
+            aiProvider: provider, opencodeModel: model, geminiModel: model, groqModel: model,
             opencodeSessionId: `navigator-episode-validation-${model}`, pathname: '/',
         }) }));
         if (response.status !== 200) {
@@ -182,14 +192,16 @@ async function main() {
         const errors = events.filter(event => event.type === 'error');
         const inputs = events.filter(event => event.type === 'tool-input-available').map(({ toolName, input }) => ({ toolName, input }));
         const outputs = events.filter(event => event.type === 'tool-output-available').map(event => event.output);
-        console.log(JSON.stringify({ model, prompt, ...(sourceRef ? { sourceRef } : {}), durationMs: Date.now() - start, tools: inputs,
+        console.log(JSON.stringify({ model, provider, prompt, ...(sourceRef ? { sourceRef } : {}), ...(promptFile ? { promptFile } : {}), durationMs: Date.now() - start, tools: inputs,
             results: outputs.map(output => ({ success: output.success, status: output.status, url: output.url,
+                mediaId: output.mediaId, mediaName: output.mediaName, execution: output.execution,
                 episodeTitle: output.episodeTitle, episodes: output.episodes?.map(episode => episode.id),
                 evidence: output.evidence?.map(({ sourceId, url }) => ({ sourceId, url })), error: output.error,
                 timestamp: output.timestamp, text: output.text, timings: output.timings })), errors, services,
             answerText: events.filter(event => event.type === 'text-delta').map(event => event.delta).join(''),
             ...(process.argv.includes('--timings') ? { profile } : {}) }));
         assert.equal(errors.length, 0, 'No provider continuation failure');
+        if (process.argv.includes('--report-only')) continue;
         if (process.argv.includes('--intent-only')) {
             assert.equal(inputs.length, 1);
             assert.equal(inputs[0].toolName, 'skipToSubtitleContent');
@@ -219,6 +231,7 @@ async function main() {
             }
         }
     }
-    if (!process.argv.includes('--intent-only')) console.log('PASS: live source route prepares the expected verified episode action. Browser execution is not part of this check.');
+    if (process.argv.includes('--report-only')) console.log('REPORT: provider responses captured without asserting task correctness.');
+    else if (!process.argv.includes('--intent-only')) console.log('PASS: live source route prepares the expected verified episode action. Browser execution is not part of this check.');
 }
 main().catch(error => { console.error(error.message); process.exitCode = 1; });
