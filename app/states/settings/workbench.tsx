@@ -63,7 +63,10 @@ function Stage({ active, scrollTop }: { active: ReturnType<typeof readState>; sc
     useEffect(() => {
         if (!ready) return;
         if (scrollTop > 0) stage.current?.scrollTo({ top: scrollTop, behavior: "instant" });
-    }, [ready, scrollTop]);
+        else if (id.startsWith("playback-mediaflow-")) {
+            stage.current?.querySelector("#playback-mediaflow")?.scrollIntoView({ block: "start", behavior: "instant" });
+        }
+    }, [ready, scrollTop, id]);
 
     useEffect(() => {
         if (!ready) return;
