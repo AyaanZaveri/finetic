@@ -163,13 +163,33 @@ export async function getTMDBRecommendations(id: string, type: TMDBMediaType): P
         .map(item => titleResult(item, type));
 }
 
+export function getTMDBWatchRegion() {
+    const configuredRegion = process.env.TMDB_WATCH_REGION?.trim().toUpperCase();
+    return configuredRegion && /^[A-Z]{2}$/.test(configuredRegion) ? configuredRegion : "US";
+}
+
+/** Feature popular titles already available to stream, rather than titles
+ * attracting attention before their release. Keep these feeds off the home rows. */
+export async function getTMDBFeaturedTitles(type: TMDBMediaType): Promise<MediaItem[]> {
+    const today = new Date().toISOString().slice(0, 10);
+    const data = await request<TMDBPage<TMDBTitleRecord>>(`discover/${type === "movie" ? "movie" : "tv"}`, {
+        include_adult: false,
+        watch_region: getTMDBWatchRegion(),
+        with_watch_monetization_types: "flatrate|free|ads",
+        sort_by: "popularity.desc",
+        "vote_count.gte": 30,
+        [type === "movie" ? "primary_release_date.lte" : "first_air_date.lte"]: today,
+    });
+    return data.results.filter(item => !item.adult && Number.isSafeInteger(item.id) && item.id > 0
+        && (item.vote_count ?? 0) >= 30).map(item => titleResult(item, type));
+}
+
 /** Maintained TMDB feeds need no Stremio account or user-owned list IDs.
  * Provider discovery is TMDB popularity within a regional catalog, not the
  * provider's own viewing chart. Keep that distinction in the section labels.
  */
 export function getTMDBHomeRows(only?: ReadonlySet<string>, signal?: AbortSignal) {
-    const configuredRegion = process.env.TMDB_WATCH_REGION?.trim().toUpperCase();
-    const region = configuredRegion && /^[A-Z]{2}$/.test(configuredRegion) ? configuredRegion : "US";
+    const region = getTMDBWatchRegion();
     const feeds: { key: string; name: string; path: string; type: TMDBMediaType; params?: Params }[] = [
         { key: "trending-movies", name: "Trending movies", path: "trending/movie/week", type: "movie" },
         { key: "trending-series", name: "Trending TV shows", path: "trending/tv/week", type: "series" },

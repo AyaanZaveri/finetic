@@ -82,7 +82,7 @@ async function main() {
         './home-catalog-skeleton.module.css': { placeholder: 'placeholder' },
         './home-page.module.css': { page: 'page', rows: 'rows', attribution: 'attribution', attributionLink: 'attributionLink', attributionProvider: 'attributionProvider' },
         '@/components/home-hero': { HomeFeatured: 'HomeFeatured', HomeHeroSkeleton: 'HomeHeroSkeleton' },
-        '@/lib/server/home-hero': { enrichHomeHeroItems: async items => items },
+        '@/lib/server/home-hero': { loadHomeHeroItems: async () => [] },
         '@/lib/server/metadata-provider': { getMetadataProvider: async () => preferredProvider },
         '@/components/ui/empty': Object.fromEntries(['Empty', 'EmptyHeader', 'EmptyDescription', 'EmptyTitle'].map(name => [name, name])),
         '@/components/home-palette-provider': { HomeInitialPalette: 'palette', HomePaletteProvider: 'palette-provider' },

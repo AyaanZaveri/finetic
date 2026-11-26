@@ -1,15 +1,14 @@
 import { cinemetaHomeRows, hasTMDBDiscovery } from "@/lib/discovery";
-import { getMetadataProvider, type MetadataProvider } from "@/lib/server/metadata-provider";
+import { getMetadataProvider } from "@/lib/server/metadata-provider";
 import { fetchCatalogItems } from "@/app/actions/media";
 import { getInstalledAddons, getUser } from "@/app/actions/auth";
-import { getTMDBHomeRows } from "@/lib/tmdb-discovery";
+import { getTMDBHomeRows, getTMDBWatchRegion } from "@/lib/tmdb-discovery";
 import { AuthErrorHandler } from "@/app/components/auth-error-handler";
 import { HomeCatalogSectionsLazy } from "@/components/home-catalog-sections-lazy";
 import { ContinueWatchingSection } from "@/components/home-continue-watching";
 import { HomeCatalogsPending, HomeCatalogsUnavailable } from "@/components/home-catalog-placeholder";
 import { HomeFeatured, HomeHeroSkeleton } from "@/components/home-hero";
-import { selectHomeHeroItems, type HomeHeroItem } from "@/lib/home-hero";
-import { enrichHomeHeroItems } from "@/lib/server/home-hero";
+import { loadHomeHeroItems } from "@/lib/server/home-hero";
 import { createHash } from "node:crypto";
 import type { HomeCatalogEntry, HomeCatalogSection, InitialHomeCatalog } from "@/lib/home-catalogs";
 import { CATALOG_BATCH_SIZE, INITIAL_CATALOG_COUNT } from "@/lib/home-catalogs";
@@ -99,14 +98,12 @@ type DiscoveryPlan =
 type HomeDataPlan =
   | {
       kind: "addons";
-      preferredProvider: MetadataProvider;
       initialRows: InitialHomeCatalog[];
       remainingEntries: HomeCatalogEntry[];
       discovery: DiscoveryPlan | null;
     }
   | {
       kind: "discovery";
-      preferredProvider: MetadataProvider;
       discovery: DiscoveryPlan;
     };
 
@@ -125,11 +122,7 @@ async function prepareHomeData(
 ): Promise<HomeDataPlan> {
   const catalogEntries = catalogEntriesPromise ? await catalogEntriesPromise : null;
   if (!catalogEntries?.length) {
-    const [preferredProvider, discovery] = await Promise.all([
-      getMetadataProvider().catch(() => "auto" as const),
-      buildDiscoveryPlan(),
-    ]);
-    return { kind: "discovery", preferredProvider, discovery };
+    return { kind: "discovery", discovery: await buildDiscoveryPlan() };
   }
 
   const preferredProvider = await getMetadataProvider();
@@ -143,7 +136,7 @@ async function prepareHomeData(
   }));
   const discovery = preferredProvider !== "auto" ? await buildDiscoveryPlan() : null;
 
-  return { kind: "addons", preferredProvider, initialRows, remainingEntries, discovery };
+  return { kind: "addons", initialRows, remainingEntries, discovery };
 }
 
 async function DiscoverySections({ discovery }: { discovery: DiscoveryPlan }) {
@@ -151,7 +144,7 @@ async function DiscoverySections({ discovery }: { discovery: DiscoveryPlan }) {
   return <HomeCatalogSectionsLazy initialSections={[]} initialRows={discovery.rows} remainingEntries={[]} batchSize={CATALOG_BATCH_SIZE} />;
 }
 
-async function DiscoveryAttribution({ discovery }: { discovery: DiscoveryPlan }) {
+async function DiscoveryAttribution({ discovery }: { discovery: { source: "cinemeta"; available: Promise<boolean> } | { source: "tmdb"; region: string } }) {
   if (discovery.source === "cinemeta") {
     if (!await discovery.available) return null;
     return <footer className={homeStyles.attribution}>Movie and TV data by <span className={homeStyles.attributionProvider}>Cinemeta</span></footer>;
@@ -160,6 +153,13 @@ async function DiscoveryAttribution({ discovery }: { discovery: DiscoveryPlan })
     Movie and TV data by <a draggable={false} href="https://www.themoviedb.org" target="_blank" rel="noopener noreferrer" className={homeStyles.attributionLink}>TMDB</a>.
     {" "}Streaming availability by <a draggable={false} href="https://www.justwatch.com" target="_blank" rel="noopener noreferrer" className={homeStyles.attributionLink}>JustWatch</a> ({discovery.region}).
   </footer>;
+}
+
+async function FeaturedAttribution() {
+  const discovery = await hasTMDBDiscovery()
+    ? { source: "tmdb" as const, region: getTMDBWatchRegion() }
+    : { source: "cinemeta" as const, available: Promise.resolve(true) };
+  return <DiscoveryAttribution discovery={discovery} />;
 }
 
 async function HomeCatalogsBootstrap({ getPlan }: { getPlan: () => Promise<HomeDataPlan> }) {
@@ -173,35 +173,8 @@ async function HomeCatalogsBootstrap({ getPlan }: { getPlan: () => Promise<HomeD
       remainingEntries={plan.remainingEntries}
       batchSize={CATALOG_BATCH_SIZE}
     />}
-    {discovery && <DiscoveryAttribution discovery={discovery} />}
+    {discovery ? <DiscoveryAttribution discovery={discovery} /> : <FeaturedAttribution />}
   </>;
-}
-
-async function loadFeaturedTitles(getPlan: () => Promise<HomeDataPlan>): Promise<HomeHeroItem[] | null> {
-  const plan = await getPlan();
-  const sourceRows = (plan.kind === "discovery"
-    ? plan.discovery.rows
-    : plan.discovery?.rows ?? plan.initialRows
-  ).slice(0, 2);
-
-  if (!sourceRows.length) return [];
-
-  const settled = await Promise.allSettled(sourceRows.map(row => row.result));
-  const sources = settled.flatMap((entry) => {
-    if (entry.status !== "fulfilled" || entry.value.status !== "ready" || !entry.value.section?.mediaItems.length) {
-      return [];
-    }
-    return [{
-      items: entry.value.section.mediaItems,
-    }];
-  });
-
-  const candidates = selectHomeHeroItems(sources);
-  if (!candidates.length) {
-    const failed = settled.some(entry => entry.status === "rejected" || entry.value.status === "error");
-    return failed ? null : [];
-  }
-  return enrichHomeHeroItems(candidates, plan.preferredProvider);
 }
 
 export default async function Home() {
@@ -220,7 +193,7 @@ export default async function Home() {
       <div data-home-page className={homeStyles.page}>
         <h1 className="sr-only">Home</h1>
         <Suspense fallback={<HomeHeroSkeleton />}>
-          <HomeFeatured items={loadFeaturedTitles(getPlan).catch(() => null)} />
+          <HomeFeatured items={loadHomeHeroItems().catch(() => null)} />
         </Suspense>
         <div className={homeStyles.rows}>
           {user && <ContinueWatchingSection />}

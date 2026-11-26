@@ -22,7 +22,7 @@ export interface HeroMetadata {
 }
 
 /**
- * Interleave featured titles across the leading home rows so the spotlight
+ * Interleave featured titles across the selected feeds so the spotlight
  * mixes movies and series without repeating a title or picking items that
  * lack widescreen backdrop artwork.
  */

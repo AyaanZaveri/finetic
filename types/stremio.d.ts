@@ -100,6 +100,7 @@ export interface StremioMetaPreview {
   logo?: string;
   description?: string;
   releaseInfo?: string;
+  released?: string | null;
   imdbRating?: string;
   genres?: string[];
   links?: StremioMetaLink[];
@@ -236,6 +237,7 @@ export interface MediaItem {
   description?: string;
   year?: number;
   releaseInfo?: string;
+  released?: string | null;
   imdbRating?: string;
   communityRating?: number;
   ratingSource?: string;

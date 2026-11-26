@@ -7,6 +7,7 @@ import type { MediaItem } from "@/types/stremio";
 const MAX_AGE = 24 * 60 * 60_000;
 const STORE = "home";
 const KEY = "active";
+const HERO_SOURCE_VERSION = 2;
 type Saved<T> = { data: T; updatedAt: number };
 export type SavedCatalog = Saved<HomeCatalogSection>;
 export type HomeSnapshot = {
@@ -14,7 +15,7 @@ export type HomeSnapshot = {
     catalogRevision: number;
     catalogs: SavedCatalog[];
     resume?: Saved<MediaItem[]>;
-    hero?: Saved<MediaItem[]>;
+    hero?: Saved<MediaItem[]> & { sourceVersion?: number };
 };
 
 function text(value: unknown, max = 256) {
@@ -82,8 +83,8 @@ function prune(snapshot: HomeSnapshot, now: number): HomeSnapshot {
     });
     const resume = snapshot.resume && fresh(snapshot.resume.updatedAt, now) && Array.isArray(snapshot.resume.data)
         ? { data: snapshotItems(snapshot.resume.data, 20), updatedAt: snapshot.resume.updatedAt } : undefined;
-    const hero = snapshot.hero && fresh(snapshot.hero.updatedAt, now)
-        ? { data: snapshotHero(snapshot.hero.data), updatedAt: snapshot.hero.updatedAt } : undefined;
+    const hero = snapshot.hero?.sourceVersion === HERO_SOURCE_VERSION && fresh(snapshot.hero.updatedAt, now)
+        ? { data: snapshotHero(snapshot.hero.data), updatedAt: snapshot.hero.updatedAt, sourceVersion: HERO_SOURCE_VERSION } : undefined;
     return { scope: snapshot.scope, catalogRevision: number(snapshot.catalogRevision) ?? 0, catalogs, resume, hero };
 }
 
@@ -93,7 +94,7 @@ function snapshotHero(items: MediaItem[]) {
 
 export function mergeHomeHero(snapshot: HomeSnapshot, items: MediaItem[], revision: number): HomeSnapshot {
     if ((snapshot.hero?.updatedAt ?? 0) > revision) return snapshot;
-    return { ...snapshot, hero: { data: snapshotHero(items), updatedAt: revision } };
+    return { ...snapshot, hero: { data: snapshotHero(items), updatedAt: revision, sourceVersion: HERO_SOURCE_VERSION } };
 }
 
 export function mergeHomeCatalogs(snapshot: HomeSnapshot, rows: HomeCatalogRow[], revision: number, now: number): HomeSnapshot {

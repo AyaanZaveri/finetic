@@ -27,6 +27,10 @@ async function run() {
     const first = storage();
     await first.restoreHomeSnapshot(account);
     const heroItem = { ...movie, background: artwork, logo: 'https://image.tmdb.org/t/p/original/hero.png' };
+    await first.updateHomeSnapshot(account, snapshot => ({ ...snapshot,
+        hero: { data: [heroItem], updatedAt: now },
+    }));
+    assert.equal((await first.restoreHomeSnapshot(account)).hero, undefined, 'Discard hero snapshots from the old catalog-based source');
     await Promise.all([
         first.updateHomeSnapshot(account, (snapshot, timestamp) => first.mergeHomeCatalogs(snapshot, [result(movie)], now, timestamp)),
         first.updateHomeSnapshot(account, snapshot => first.mergeHomeHero(snapshot, [heroItem], now)),

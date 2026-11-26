@@ -1,19 +1,15 @@
 import { notFound } from "next/navigation";
 import { cinemetaHomeRows, hasTMDBDiscovery } from "@/lib/discovery";
 import type { HomeCatalogSection } from "@/lib/home-catalogs";
-import { selectHomeHeroItems } from "@/lib/home-hero";
-import { enrichHomeHeroItems } from "@/lib/server/home-hero";
-import { getMetadataProvider } from "@/lib/server/metadata-provider";
+import { loadHomeHeroItems } from "@/lib/server/home-hero";
 import { getTMDBHomeRows } from "@/lib/tmdb-discovery";
 import type { HomeHeroPublicData } from "./fixtures";
 import HomeHeroWorkbench from "./workbench";
 
 async function loadGuestHomeData(): Promise<HomeHeroPublicData> {
     try {
-        const [provider, useTMDB] = await Promise.all([
-            getMetadataProvider().catch(() => "auto" as const),
-            hasTMDBDiscovery().catch(() => false),
-        ]);
+        const useTMDB = await hasTMDBDiscovery().catch(() => false);
+        const featured = loadHomeHeroItems().catch(() => null);
         const rows = useTMDB ? getTMDBHomeRows().rows : cinemetaHomeRows();
         const settled = await Promise.allSettled(rows.map(row => row.result));
         const sections: HomeCatalogSection[] = settled.flatMap(entry =>
@@ -21,11 +17,7 @@ async function loadGuestHomeData(): Promise<HomeHeroPublicData> {
                 ? [entry.value.section]
                 : [],
         );
-        const candidates = selectHomeHeroItems(
-            sections.slice(0, 2).map(section => ({ items: section.mediaItems })),
-            6,
-        );
-        const heroItems = await enrichHomeHeroItems(candidates, provider);
+        const heroItems = await featured ?? [];
         return { heroItems, sections };
     } catch {
         return { heroItems: [], sections: [] };
