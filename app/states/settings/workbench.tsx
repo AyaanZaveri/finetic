@@ -65,20 +65,25 @@ function Stage({ active, scrollTop }: { active: ReturnType<typeof readState>; sc
         if (scrollTop > 0) stage.current?.scrollTo({ top: scrollTop, behavior: "instant" });
         else if (id.startsWith("playback-mediaflow-")) {
             stage.current?.querySelector("#playback-mediaflow")?.scrollIntoView({ block: "start", behavior: "instant" });
+        } else if (id.startsWith("connections-mdblist-")) {
+            stage.current?.querySelector("#mdblist")?.scrollIntoView({ block: "start", behavior: "instant" });
         }
     }, [ready, scrollTop, id]);
 
     useEffect(() => {
         if (!ready) return;
         const panel = stage.current;
-        const form = panel?.querySelector<HTMLInputElement>("#tmdb-read-access-token")?.form;
-        const autoSave = id === "connections-saving" || id === "connections-save-error";
+        const mdb = id.startsWith("connections-mdblist-");
+        const form = panel?.querySelector<HTMLInputElement>(mdb ? "#mdblist-api-key" : "#tmdb-read-access-token")?.form;
+        const autoSave = id === "connections-saving" || id === "connections-save-error" || ["connections-mdblist-saving", "connections-mdblist-save-error", "connections-mdblist-saved"].includes(id);
+        const autoRemove = id === "connections-mdblist-removing" || id === "connections-mdblist-removed";
         const autoSignIn = id === "navigator-chatgpt-pending" || id === "navigator-chatgpt-error";
         const autoReleaseNotes = isReleaseNotesState(id);
-        if (!panel || (!autoSave && !autoSignIn && !autoReleaseNotes)) return;
+        if (!panel || (!autoSave && !autoRemove && !autoSignIn && !autoReleaseNotes)) return;
         const buttonLabel = autoReleaseNotes ? "Release notes" : "Continue with ChatGPT";
         const run = () => {
             const button = autoSave ? form?.querySelector<HTMLButtonElement>("button[type=submit]")
+                : autoRemove ? Array.from(form?.querySelectorAll("button") ?? []).find(button => button.textContent?.includes("Remove key"))
                 : Array.from(panel.querySelectorAll("button")).find(button => button.textContent?.includes(buttonLabel));
             if (!button || button.disabled) return;
             observer.disconnect();
@@ -130,7 +135,7 @@ function Switcher({ active }: { active: ReturnType<typeof readState> }) {
     useEffect(() => {
         if (displayed.current === active.id) return;
         const stage = frame.current?.contentDocument?.querySelector<HTMLElement>("[data-page-scroll]");
-        const scrollTop = readState(displayed.current).category === active.category ? stage?.scrollTop : 0;
+        const scrollTop = readState(displayed.current).category === active.category && !active.id.startsWith("connections-mdblist-") ? stage?.scrollTop : 0;
         displayed.current = active.id;
         frame.current?.contentWindow?.location.replace(stageHref(active.id, scrollTop));
     }, [active.id, active.category]);

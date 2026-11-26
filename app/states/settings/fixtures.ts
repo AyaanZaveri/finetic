@@ -1,5 +1,6 @@
 import * as artwork from "@/app/actions/artwork-settings";
 import * as webSearch from "@/app/actions/web-search-settings";
+import * as mdblist from "@/app/actions/mdblist-settings";
 import type { DesktopBridge, NativeMessage, UpdateStatus } from "@/lib/desktop/bridge";
 import { KEYBOARD_SEEK_SECONDS, PLAYBACK_PREFERENCES_KEY, type PlaybackPreferences } from "@/lib/media/playback-preferences";
 import type { ModelsDevModel } from "@/lib/models-dev";
@@ -8,6 +9,7 @@ import { isReleaseNotesState, type StateId } from "./states";
 
 const artworkToken = "fixture-tmdb-read-access-token";
 const webSearchKey = "fixture-tinyfish-api-key";
+const mdblistKey = "a1b2c3d4e5f6-fixture-key";
 
 const playback: Partial<Record<StateId, Partial<PlaybackPreferences>>> = {
     "playback-custom": { keyboardSeekBackwardSeconds: 5, keyboardSeekForwardSeconds: 15 },
@@ -121,6 +123,10 @@ function fixtureStorage(id: StateId): Storage {
         values.set("navigator-tmdb-token", artworkToken);
     }
     if (id === "connections-personal") values.set("navigator-tinyfish-api-key", webSearchKey);
+    if (["connections-personal", "connections-mdblist-personal", "connections-mdblist-saving", "connections-mdblist-save-error",
+        "connections-mdblist-removing", "connections-mdblist-saved", "connections-mdblist-removed"].includes(id)) {
+        values.set("navigator-mdblist-api-key", mdblistKey);
+    }
     return {
         get length() { return values.size; },
         clear: () => values.clear(),
@@ -140,6 +146,9 @@ const actions = {
     saveSearch: () => webSearch.saveWebSearchKey(webSearchKey),
     removeSearch: () => webSearch.removeWebSearchKey(),
     setSearch: () => webSearch.setWebSearchEnabled(false),
+    getMDBList: () => mdblist.getMDBListSettings(),
+    saveMDBList: () => mdblist.saveMDBListKey(mdblistKey),
+    removeMDBList: () => mdblist.removeMDBListKey(),
 };
 type Action = keyof typeof actions;
 
@@ -174,8 +183,22 @@ export function installFixtures(id: StateId) {
     const shared = id === "connections-shared";
     const artworkState: artwork.ArtworkSettingsState = { configured: personal || shared, personal, provider: personal ? "tmdb" : "auto" };
     const searchState = { configured: personal || shared || id.startsWith("navigator-search-"), personal, enabled: id !== "navigator-search-disabled" };
+    const mdbPersonal = personal || ["connections-mdblist-personal", "connections-mdblist-removing", "connections-mdblist-removed"].includes(id);
+    const mdbShared = shared || id === "connections-mdblist-shared";
+    const mdbState = { configured: mdbPersonal || mdbShared, personal: mdbPersonal };
 
     function handleAction(action: Action, argument: unknown) {
+        if (action.endsWith("MDBList")) {
+            if (action === "getMDBList") {
+                if (id === "connections-loading" || id === "connections-mdblist-loading") return pending();
+                if (id === "connections-error" || id === "connections-mdblist-load-error") return new Response("Couldn’t load MDBList settings.", { status: 503 });
+                return flight(mdbState);
+            }
+            if (id === "connections-mdblist-saving" || id === "connections-mdblist-removing") return pending();
+            if (id === "connections-mdblist-save-error") return flight({ success: false, error: "MDBList didn’t accept this key. Check your API key and try again." });
+            Object.assign(mdbState, { configured: action === "saveMDBList" || mdbShared, personal: action === "saveMDBList" });
+            return flight({ success: true, ...mdbState });
+        }
         if (action === "getArtwork" || action === "getSearch") {
             if (id === "connections-loading") return pending();
             if (id === "connections-error") return new Response("Couldn’t load connection settings.", { status: 503 });

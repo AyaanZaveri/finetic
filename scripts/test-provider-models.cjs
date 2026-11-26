@@ -31,9 +31,11 @@ async function main() {
     const action = name => () => window.fetch('/states/settings', { method: 'POST', headers: { 'Next-Action': name }, body: '[]' });
     const artworkActions = Object.fromEntries(['getArtworkSettings', 'saveArtworkToken', 'removeArtworkToken', 'saveMetadataProvider'].map(name => [name, action(name)]));
     const searchActions = Object.fromEntries(['getWebSearchSettings', 'saveWebSearchKey', 'removeWebSearchKey', 'setWebSearchEnabled'].map(name => [name, action(name)]));
+    const mdbActions = Object.fromEntries(['getMDBListSettings', 'saveMDBListKey', 'removeMDBListKey'].map(name => [name, action(name)]));
     const { installFixtures } = load('app/states/settings/fixtures.ts', {
         '@/app/actions/artwork-settings': artworkActions,
         '@/app/actions/web-search-settings': searchActions,
+        '@/app/actions/mdblist-settings': mdbActions,
     }, { window, location, URL, URLSearchParams, Request, Response, Headers });
     const workbench = installFixtures('navigator-openai');
     await workbench.ready;
