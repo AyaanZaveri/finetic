@@ -15,12 +15,17 @@ import { WatchToggleButton } from "@/components/media-page/watch-toggle-button";
 import { ShuffleEpisodeButton } from "@/components/media-page/shuffle-episode-button";
 import { useAccountAccess } from "@/contexts/account-context";
 import { useSeriesOverviewPlayback } from "@/components/series-overview-playback";
+import type { MediaItem } from "@/types/stremio";
 
-export function MediaPlayButton({ media, episodes, previewProgress }: { media: MediaToPlay; episodes?: ResumeEpisode[]; previewProgress?: ResumeProgress | null }) {
+export function MediaPlayButton({ media, titleIds, episodes, previewProgress }: {
+    media: MediaToPlay; titleIds?: Pick<MediaItem, "imdbId" | "tmdbId">;
+    episodes?: ResumeEpisode[]; previewProgress?: ResumeProgress | null;
+}) {
     const { authenticated, requestSignIn } = useAccountAccess();
     const { playMedia } = usePlaybackActions();
     const id = media.seriesId || media.id;
     const sourceId = media.mediaSourceId;
+    const { imdbId, tmdbId } = titleIds ?? {};
     const overview = media.type === "series" && !sourceId;
     const seriesPlayback = useSeriesOverviewPlayback();
     const overviewPlayback = overview ? seriesPlayback : null;
@@ -29,11 +34,13 @@ export function MediaPlayButton({ media, episodes, previewProgress }: { media: M
     const [saved, setSaved] = useState<{ key: string; progress: ResumeProgress | null } | null>(null);
     useEffect(() => {
         if (!authenticated || sharedProgress || previewProgress !== undefined) return;
+        const type = media.type;
+        const identity = type === "movie" || type === "series" ? { type, imdbId, tmdbId } : undefined;
         let cancelled = false;
         let generation = 0;
         const load = () => {
             const request = ++generation;
-            void fetchPlaybackProgress(id, sourceId || (media.type === "movie" ? id : undefined))
+            void fetchPlaybackProgress(id, sourceId || (type === "movie" ? id : undefined), identity)
                 .then(progress => {
                     if (!cancelled && request === generation) setSaved({ key, progress });
                 }).catch(() => {
@@ -42,7 +49,7 @@ export function MediaPlayButton({ media, episodes, previewProgress }: { media: M
         };
         const refresh = (event: Event) => {
             const changedId = (event as CustomEvent<{ id?: string }>).detail?.id;
-            if (!changedId || changedId === id) load();
+            if (!changedId || changedId === id || changedId === imdbId || (tmdbId && changedId === `tmdb:${tmdbId}`)) load();
         };
         load();
         window.addEventListener(WATCH_HISTORY_CHANGED, refresh);
@@ -52,7 +59,7 @@ export function MediaPlayButton({ media, episodes, previewProgress }: { media: M
             window.removeEventListener(WATCH_HISTORY_CHANGED, refresh);
             window.removeEventListener("focus", refresh);
         };
-    }, [id, sourceId, key, media.type, authenticated, sharedProgress, previewProgress]);
+    }, [id, sourceId, imdbId, tmdbId, key, media.type, authenticated, sharedProgress, previewProgress]);
 
     const checkingProgress = previewProgress !== undefined ? false : overviewPlayback?.pending ?? saved?.key !== key;
     const target = overviewPlayback?.target ?? resumePlaybackTarget(media, previewProgress !== undefined ? previewProgress : checkingProgress ? {

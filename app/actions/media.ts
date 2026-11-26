@@ -854,19 +854,38 @@ export interface PlaybackProgressState {
   completed?: boolean;
 }
 
+export interface PlaybackProgressIdentity {
+  type: "movie" | "series";
+  imdbId?: string;
+  tmdbId?: number;
+}
+
+function libraryItemModified(item: { _mtime?: string; state?: { lastWatched?: string } }): number {
+  return Date.parse(item._mtime || item.state?.lastWatched || "") || 0;
+}
+
 export async function fetchPlaybackProgress(
   libraryItemId: string,
-  videoId?: string
+  videoId?: string,
+  identity?: PlaybackProgressIdentity,
 ): Promise<PlaybackProgressState | null> {
   try {
     const { authKey } = await getAuthData();
+    const ids = [libraryItemId];
+    if (identity && /^tmdb:[1-9]\d*$/.test(libraryItemId)) {
+      const imdbId = identity.imdbId && /^tt\d+$/.test(identity.imdbId) ? identity.imdbId
+        : await resolveTMDBPlaybackId(libraryItemId, identity.type, AbortSignal.timeout(3_500)).catch(() => libraryItemId);
+      if (imdbId !== libraryItemId) ids.unshift(imdbId);
+    } else if (identity?.tmdbId && Number.isSafeInteger(identity.tmdbId) && identity.tmdbId > 0 && /^tt\d+$/.test(libraryItemId)) {
+      ids.push(`tmdb:${identity.tmdbId}`);
+    }
     const response = await fetch(`${STREMIO_API}/datastoreGet`, {
       method: "POST", redirect: "manual",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         authKey,
         collection: "libraryItem",
-        ids: [libraryItemId],
+        ids,
         all: false,
       }),
       cache: "no-store",
@@ -880,12 +899,23 @@ export async function fetchPlaybackProgress(
 
     const data = await response.json();
     if (data?.error || !Array.isArray(data?.result)) return null;
-    const item = data.result.find((candidate: any) => (candidate?._id ?? candidate?.id) === libraryItemId);
+    // Compare both records before checking the episode, so a stale alias
+    // cannot restore progress that the newer record cleared or replaced.
+    let item;
+    for (const id of ids) {
+      const candidate = data.result.find((row: any) => (row?._id ?? row?.id) === id);
+      if (candidate && (!item || libraryItemModified(candidate) > libraryItemModified(item))) item = candidate;
+    }
     if (!item?.state) return null;
 
-    const stateVideoId = firstString(item?.state?.video_id);
+    const normalizeVideoId = (value?: string) => {
+      if (!value || ids.length === 1) return value;
+      const prefix = ids.find(id => value === id || value.startsWith(`${id}:`));
+      return prefix ? libraryItemId + value.slice(prefix.length) : value;
+    };
+    const stateVideoId = normalizeVideoId(firstString(item.state.video_id));
     // Episode detail pages should only show progress for their selected episode.
-    if (videoId && stateVideoId && stateVideoId !== videoId) {
+    if (videoId && stateVideoId && stateVideoId !== normalizeVideoId(videoId)) {
       return { videoId: stateVideoId };
     }
 
@@ -898,7 +928,7 @@ export async function fetchPlaybackProgress(
     const durationInSeconds = duration / 1000;
 
     return {
-      videoId: stateVideoId,
+      videoId: stateVideoId ? videoId ?? stateVideoId : undefined,
       completed: (Number(item.state.flaggedWatched) > 0 &&
         (offset === 0 || (duration > 0 && offset >= duration * CREDITS_THRESHOLD_COEF))) || undefined,
       resumePositionTicks: offsetInSeconds > 0 ? offsetInSeconds : undefined,
@@ -1007,11 +1037,10 @@ export async function fetchResumeItems(): Promise<MediaItem[]> {
     // Latest record wins, including removals and cleared resume positions.
     // Never match by title text: different releases can have the same name.
     const latest = new Map<string, any>();
-    const modified = (item: any) => Date.parse(item?._mtime || item?.state?.lastWatched || "") || 0;
     for (const item of normalized) {
       if (!item) continue;
       const key = `${item.type}:${item.id}`;
-      if (!latest.has(key) || modified(item) > modified(latest.get(key))) latest.set(key, item);
+      if (!latest.has(key) || libraryItemModified(item) > libraryItemModified(latest.get(key))) latest.set(key, item);
     }
     const libraryItems = [...latest.values()];
     const toNumberOrUndefined = (value: unknown): number | undefined => {

@@ -26,7 +26,7 @@ export function useSeriesOverviewPlayback() {
 export function SeriesOverviewPlaybackProvider({ show, children }: { show: MediaItem; children: ReactNode }) {
     const { authenticated } = useAccountAccess();
     const isOverview = useParams<{ episode?: string }>()?.episode === undefined;
-    const { id, imdbId, name, videos, seasons, background, poster } = show;
+    const { id, imdbId, tmdbId, name, videos, seasons, background, poster } = show;
     const [saved, setSaved] = useState<{ id: string; isOverview: boolean; playback: OverviewPlayback } | null>(null);
     const media = useMemo<MediaToPlay>(() => ({
         id, name, type: "series", seriesId: id, showName: name,
@@ -38,20 +38,14 @@ export function SeriesOverviewPlaybackProvider({ show, children }: { show: Media
     useEffect(() => {
         if (!authenticated) return;
         let generation = 0;
-        const historyId = imdbId && /^tt\d+$/.test(imdbId) && /^tmdb:\d+$/.test(id) ? imdbId : id;
-        const readProgress = (id: string) => fetchPlaybackProgress(id).catch(() => null);
+        const tmdbHistoryId = /^tmdb:[1-9]\d*$/.test(id) ? Number(id.slice(5)) : tmdbId;
+        const historyId = imdbId && /^tt\d+$/.test(imdbId) && tmdbHistoryId ? imdbId : id;
         const load = async () => {
             const request = ++generation;
-            let seriesId = historyId;
-            let progress = await readProgress(historyId);
+            const progress = await fetchPlaybackProgress(historyId, undefined, { type: "series", imdbId, tmdbId: tmdbHistoryId }).catch(() => null);
             if (request !== generation) return;
-            if (!progress?.videoId && historyId !== id) {
-                seriesId = id;
-                progress = await readProgress(id);
-                if (request !== generation) return;
-            }
-            const series = { ...media, id: seriesId, seriesId };
-            const last = progress?.videoId ? savedRegularEpisode(seriesId, progress.videoId, videos ?? []) : undefined;
+            const series = { ...media, id: historyId, seriesId: historyId };
+            const last = progress?.videoId ? savedRegularEpisode(historyId, progress.videoId, videos ?? []) : undefined;
             let target = resumePlaybackTarget(series, progress?.completed ? null : progress, videos);
             if (!target.mediaSourceId && isOverview && last) {
                 const following = progress?.completed
@@ -64,7 +58,7 @@ export function SeriesOverviewPlaybackProvider({ show, children }: { show: Media
         };
         const refresh = (event: Event) => {
             const changedId = (event as CustomEvent<{ id?: string }>).detail?.id;
-            if (!changedId || changedId === id || changedId === historyId) void load();
+            if (!changedId || changedId === id || changedId === historyId || (tmdbHistoryId && changedId === `tmdb:${tmdbHistoryId}`)) void load();
         };
         void load();
         window.addEventListener(WATCH_HISTORY_CHANGED, refresh);
@@ -74,7 +68,7 @@ export function SeriesOverviewPlaybackProvider({ show, children }: { show: Media
             window.removeEventListener(WATCH_HISTORY_CHANGED, refresh);
             window.removeEventListener("focus", refresh);
         };
-    }, [authenticated, id, imdbId, videos, media, isOverview]);
+    }, [authenticated, id, imdbId, tmdbId, videos, media, isOverview]);
 
     const playback = authenticated && saved?.id === id && saved.isOverview === isOverview
         ? saved.playback : { target: media, progress: null, pending: authenticated };

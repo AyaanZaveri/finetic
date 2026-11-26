@@ -135,6 +135,7 @@ export function MovieDetailsView({ movie, cast, recommendations, previewProgress
                   </div>
                   <MediaPlayButton
                     previewProgress={previewProgress}
+                    titleIds={{ imdbId: movie.imdbId, tmdbId: movie.tmdbId }}
                     media={{
                       id: movie.id,
                       name: movie.name,

@@ -95,6 +95,40 @@ assert.equal(unwatched.props.children[1], false, 'No redundant restart button wi
 saved = null;
 assert.equal(MediaPlayButton({ media }).props.children[0].props.disabled, true, 'Wait for current episode progress before playing');
 
+async function testDetailProgress() {
+    const { load, hooks } = require('./test-support/react-hooks.cjs');
+    const h = hooks();
+    const lookups = [];
+    const { MediaPlayButton } = load('components/media-page/play-button.tsx', {
+        react: h.react, 'react/jsx-runtime': h.jsx,
+        '@/lib/media/resume-playback': helpers,
+        '@/app/actions': { fetchPlaybackProgress: async (id, videoId, identity) => {
+            lookups.push([id, videoId, identity.type, identity.imdbId]);
+            return { ...progress, videoId };
+        } },
+        '@/contexts/MediaPlayerContext': { usePlaybackActions: () => ({ playMedia: target => played.push(target) }) },
+        '@/contexts/account-context': { useAccountAccess: () => ({ authenticated: true }) },
+        '@/components/series-overview-playback': { useSeriesOverviewPlayback: () => null },
+        '@/components/metadata-preload': { useMetadataIntent: () => ({}) },
+        '@/components/ui/button': { Button: 'button' },
+        '@/components/ui/tooltip': {}, '@/components/media-page/watch-toggle-button': {},
+        '@/components/media-page/shuffle-episode-button': {}, '@/lib/preload-tools': {},
+    }, { window: { addEventListener() {}, removeEventListener() {} } });
+    const movie = { id: 'tmdb:21', type: 'movie', name: 'Movie' };
+    const episode = { ...media, id: 'tmdb:42', seriesId: 'tmdb:42', mediaSourceId: 'tmdb:42:1:3' };
+    for (const [target, imdbId] of [[movie, 'tt21'], [episode, 'tt42']]) {
+        const render = () => h.render(MediaPlayButton, { media: target, titleIds: { imdbId } }).props.children[0];
+        render(); h.flush();
+        await new Promise(resolve => setImmediate(resolve));
+        const button = render();
+        assert.deepEqual(lookups.at(-1), [target.id, target.mediaSourceId ?? target.id, target.type, imdbId]);
+        assert.equal(button.props.children[1].props.children[0], 'Resume');
+        button.props.onClick();
+        assert.equal(played.at(-1).resumePositionTicks, 754);
+    }
+    h.unmount();
+}
+
 async function testSeriesOverview() {
     const { load, hooks } = require('./test-support/react-hooks.cjs');
     const h = hooks();
@@ -109,7 +143,12 @@ async function testSeriesOverview() {
         '@/lib/media/resume-playback': helpers,
         '@/lib/watch-history': { WATCH_HISTORY_CHANGED: 'watch-history-changed' },
         '@/contexts/account-context': { useAccountAccess: () => ({ authenticated: true }) },
-        '@/app/actions/media': { fetchPlaybackProgress: async id => { reads.push(id); return latest; } },
+        '@/app/actions/media': { fetchPlaybackProgress: async (id, videoId, identity) => {
+            assert.equal(videoId, undefined);
+            assert.equal(identity.tmdbId, 42, 'Read the legacy alias alongside the canonical overview record');
+            reads.push(id);
+            return latest;
+        } },
         '@/app/actions/tv-shows': {
             getFollowingEpisodeForSeries: async (...args) => { lookups.push(args); return following; },
         },
@@ -171,4 +210,4 @@ async function testSeriesOverview() {
     console.log('PASS: series overview and playback share the saved, next, or first episode; direct episode links keep their selection.');
 }
 
-testSeriesOverview().catch(error => { console.error(error); process.exitCode = 1; });
+testDetailProgress().then(testSeriesOverview).catch(error => { console.error(error); process.exitCode = 1; });

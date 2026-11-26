@@ -60,6 +60,7 @@ async function LoadedEpisodeDetails({ params }: EpisodePageProps) {
         title={selectedEpisodeTitle}
       />}
       actions={<MediaPlayButton
+        titleIds={{ imdbId: show.imdbId, tmdbId: show.tmdbId }}
         media={{
           id: show.id,
           name: selectedEpisodeTitle,

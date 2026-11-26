@@ -102,6 +102,25 @@ async function run() {
     assert.equal(shortProgress.resumePositionTicks, 1.5, 'Progress reads convert milliseconds even below ten seconds');
     assert.equal(shortProgress.totalDuration, 8);
 
+    const movieIdentity = { type: 'movie', imdbId: 'tt123' };
+    library.push({ _id: 'tt123', type: 'movie', state: { video_id: 'tt123', timeOffset: 754000, duration: 1800000 } });
+    const movieProgress = await actions.fetchPlaybackProgress('tmdb:123', 'tmdb:123', movieIdentity);
+    assert.equal(movieProgress?.resumePositionTicks, 754, 'A TMDB movie page can resume the IMDb playback record');
+    assert.deepEqual(reads.at(-1).ids, ['tt123', 'tmdb:123'], 'Read both known IDs in one cloud request');
+    library.push({ _id: 'tt42', type: 'series', _mtime: '2026-11-25', state: { video_id: 'tt42:1:3', timeOffset: 754000, duration: 1800000 } });
+    library.push({ _id: 'tmdb:42', type: 'series', _mtime: '2026-11-24', state: { video_id: 'tmdb:42:1:2', timeOffset: 900000, duration: 1800000 } });
+    const showIdentity = { type: 'series', imdbId: 'tt42', tmdbId: 42 };
+    const episodeProgress = await actions.fetchPlaybackProgress('tmdb:42', 'tmdb:42:1:3', showIdentity);
+    assert.equal(episodeProgress?.resumePositionTicks, 754, 'Matching episode coordinates survive the ID change');
+    assert.equal(episodeProgress?.videoId, 'tmdb:42:1:3');
+    assert.equal((await actions.fetchPlaybackProgress('tmdb:42', 'tmdb:42:1:2', showIdentity))?.resumePositionTicks, undefined,
+        'A stale alias must not resume a different episode');
+    assert.equal((await actions.fetchPlaybackProgress('tt42', undefined, showIdentity))?.videoId, 'tt42:1:3', 'Overview can use the saved episode');
+    library.find(item => item._id === 'tmdb:42')._mtime = '2026-11-26';
+    library.find(item => item._id === 'tmdb:42').state.timeOffset = 0;
+    assert.equal((await actions.fetchPlaybackProgress('tt42', undefined, showIdentity))?.resumePositionTicks, undefined,
+        'A newer cleared record takes precedence over old progress');
+
     const scrobble = { libraryItemId: 'scrobble', videoId: 'scrobble', mediaType: 'movie', mediaName: 'Scrobble', durationSeconds: 1000, sessionId: 'scrobble-session' };
     await start({ ...scrobble, currentTimeSeconds: 0, watchedTimeSeconds: 0 });
     await progress({ ...scrobble, currentTimeSeconds: 900, watchedTimeSeconds: 3 });
