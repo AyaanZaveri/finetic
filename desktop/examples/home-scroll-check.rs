@@ -11,7 +11,9 @@ fn main() {
     use tao::window::WindowBuilder;
     use wry::WebViewBuilder;
 
-    let url = std::env::args().nth(1).expect("provide the local fixture URL");
+    let url = std::env::args()
+        .nth(1)
+        .expect("provide the local fixture URL");
     let event_loop = EventLoopBuilder::<String>::with_user_event().build();
     let proxy = event_loop.create_proxy();
     let window = WindowBuilder::new()
