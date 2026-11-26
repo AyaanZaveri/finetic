@@ -253,8 +253,9 @@ export function UserMenu({ user, status: statusProp, defaultStatus = "available"
         panel.style.left = `${left}px`;
         panel.style.top = `${top}px`;
       }
-      const faceCenter = rect.left + Math.min(rect.width, 40) / 2;
-      const originX = align === "end" && rect.width > 40 ? rect.right - 20 - left : faceCenter - left;
+      const faceOffset = (showName ? Math.min(rect.width, 40) : rect.width) / 2;
+      const faceCenter = align === "end" ? rect.right - faceOffset : rect.left + faceOffset;
+      const originX = faceCenter - left;
       panel.style.setProperty("--origin-x", `${Math.min(Math.max(0, originX), width)}px`);
       panel.style.setProperty("--origin-y", top < rect.top ? `${height}px` : "0px");
     };
@@ -263,7 +264,7 @@ export function UserMenu({ user, status: statusProp, defaultStatus = "available"
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, true);
     return () => { window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
-  }, [open, sheet, inline, align]);
+  }, [open, sheet, inline, align, showName]);
 
   // Outside presses close the panel. The sheet has its own scrim.
   useEffect(() => {

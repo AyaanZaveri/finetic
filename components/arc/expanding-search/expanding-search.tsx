@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { KeyboardEvent, ReactNode, Ref, RefObject } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode, Ref, RefObject } from "react";
 import { flushSync } from "react-dom";
 import { AnimatePresence, animate, motion, useMotionValue, useMotionValueEvent, useReducedMotion } from "motion/react";
 import type { MotionValue } from "motion/react";
@@ -45,6 +45,8 @@ export interface ExpandingSearchProps {
   onSubmit?: (query: string) => void;
   /** Keep the field visible in the app header; only the results panel closes. */
   persistent?: boolean;
+  /** Let the slash key open and focus this search from elsewhere on the page. */
+  keyboardShortcut?: boolean;
   ref?: Ref<HTMLInputElement>;
   /** Shown before anything is typed, such as recent searches. */
   suggestions?: ExpandingSearchItem[];
@@ -218,7 +220,7 @@ function Listbox({ id, label, groups, query, activeIndex, optionId, reduced, key
   </div>;
 }
 
-export function ExpandingSearch({ label, items, suggestions = [], suggestionsLabel = "Recent", placeholder, onSelect, onItemIntent, onExpandedChange, expandedWidth = 360, maxResults = 6, anchor = "end", emptyHint = "Try a shorter word or check the spelling.", className, value, onValueChange, loading = false, filterResults = true, minQueryLength = 1, onSubmit, persistent = false, ref }: ExpandingSearchProps) {
+export function ExpandingSearch({ label, items, suggestions = [], suggestionsLabel = "Recent", placeholder, onSelect, onItemIntent, onExpandedChange, expandedWidth = 360, maxResults = 6, anchor = "end", emptyHint = "Try a shorter word or check the spelling.", className, value, onValueChange, loading = false, filterResults = true, minQueryLength = 1, onSubmit, persistent = false, keyboardShortcut = persistent, ref }: ExpandingSearchProps) {
   const id = useId();
   const reduced = useReducedMotion() ?? false;
   const rootRef = useRef<HTMLDivElement>(null);
@@ -237,6 +239,21 @@ export function ExpandingSearch({ label, items, suggestions = [], suggestionsLab
   const width = useMotionValue(FALLBACK_SIZE);
   /** True while the last highlight move came from the keyboard, so only keyboard moves scroll the list. */
   const keyboard = useRef(false);
+
+  useEffect(() => {
+    if (!keyboardShortcut) return;
+    const handleShortcut = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.key !== "/" || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+      const focused = document.activeElement;
+      if (focused?.matches("input, textarea, select, [contenteditable]:not([contenteditable='false'])")
+        || (focused instanceof HTMLElement && focused.isContentEditable)) return;
+      event.preventDefault();
+      if (open.current) inputRef.current?.focus({ preventScroll: true });
+      else buttonRef.current?.click();
+    };
+    document.addEventListener("keydown", handleShortcut);
+    return () => document.removeEventListener("keydown", handleShortcut);
+  }, [keyboardShortcut]);
 
   // The corner radius follows the width: a circle while collapsed, the control radius once open. It rides the same spring, so the two never drift apart.
   const syncShape = useCallback((value: number) => {
@@ -315,7 +332,7 @@ export function ExpandingSearch({ label, items, suggestions = [], suggestionsLab
     onSelect?.(item);
   }
 
-  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+  function handleKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
     if (event.key === "Escape") { event.preventDefault(); collapse(true); return; }
     if (event.key === "Enter" && !activeItem && trimmed && onSubmit) {
       event.preventDefault();
@@ -339,12 +356,13 @@ export function ExpandingSearch({ label, items, suggestions = [], suggestionsLab
   const clearHidden = reduced ? { opacity: 0 } : { opacity: 0, scale: .6, filter: `blur(${motionTokens.blur.subtle}px)` };
 
   return <div ref={rootRef} className={[styles.root, className].filter(Boolean).join(" ")} data-anchor={anchor} data-persistent={persistent || undefined}>
-    <motion.div ref={shellRef} className={styles.shell} data-expanded={expanded || undefined} style={{ width: persistent ? "100%" : width }}>
-      <button ref={buttonRef} type="button" className={styles.trigger} aria-label={label} hidden={expanded} onClick={expand} draggable={false} />
-      <Search className={styles.icon} width={18} height={18} strokeWidth={1.75} aria-hidden="true" />
+    <motion.div ref={shellRef} className={styles.shell} data-slot="expanding-search-shell" data-expanded={expanded || undefined} style={{ width: persistent ? "100%" : width }}>
+      <button ref={buttonRef} type="button" className={styles.trigger} aria-label={label} aria-keyshortcuts={keyboardShortcut ? "/" : undefined}
+        hidden={expanded} onClick={expand} draggable={false} />
+      <Search className={styles.icon} data-slot="expanding-search-icon" width={18} height={18} strokeWidth={1.75} aria-hidden="true" />
       {/* The placeholder waits for the shape to start moving, then fades in; on close it leaves first. */}
       <motion.input ref={inputRef} className={styles.input} type="search" role="combobox" inert={!expanded} value={query} placeholder={placeholder ?? label}
-        aria-keyshortcuts={persistent ? "/" : undefined}
+        aria-keyshortcuts={keyboardShortcut ? "/" : undefined}
         aria-label={label} aria-expanded={panelOpen} aria-controls={panelOpen && (mode === "results" || mode === "suggestions") ? listboxId : undefined} aria-autocomplete="list"
         aria-activedescendant={panelOpen && activeItem ? optionId(activeItem) : undefined}
         name="media-search" autoComplete="off" autoCorrect="off" spellCheck={false} enterKeyHint="search"
@@ -360,7 +378,7 @@ export function ExpandingSearch({ label, items, suggestions = [], suggestionsLab
           if (open.current && !inputRef.current?.value.trim()) collapse(false);
         }}
         onKeyDown={handleKeyDown} />
-      {persistent && expanded && !query && <span className={styles.shortcut} aria-hidden="true"><Kbd>/</Kbd></span>}
+      {persistent && keyboardShortcut && expanded && !query && <span className={styles.shortcut} aria-hidden="true"><Kbd>/</Kbd></span>}
       <AnimatePresence initial={false}>
         {expanded && query && <motion.button key="clear" type="button" tabIndex={-1} className={styles.clear} aria-label="Clear search"
           onMouseDown={event => event.preventDefault()}

@@ -17,9 +17,12 @@ interface SearchBarProps {
   className?: string;
   initialQuery?: string;
   compact?: boolean;
+  keyboardShortcut?: boolean;
+  placeholder?: string;
 }
 
-export function SearchBar({ className = "", initialQuery = "", compact = false }: SearchBarProps) {
+export function SearchBar({ className = "", initialQuery = "", compact = false, keyboardShortcut = !compact,
+    placeholder = "Search movies, TV shows, and people…" }: SearchBarProps) {
     const [searchQuery, setSearchQuery] = useState(initialQuery.trim());
     const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -33,7 +36,6 @@ export function SearchBar({ className = "", initialQuery = "", compact = false }
     const searchRequestIdRef = useRef(0);
     const skipNextSuggestSearchRef = useRef(false);
     const lastAppliedUrlQueryRef = useRef<string | null>(null);
-    const inputRef = useRef<HTMLInputElement>(null);
     const urlQuery = (searchParams.get("q") ?? "").trim();
 
     const cancelPrefetch = useRef<(() => void) | null>(null);
@@ -132,28 +134,6 @@ export function SearchBar({ className = "", initialQuery = "", compact = false }
         };
     }, [searchQuery]);
 
-    // Global keyboard shortcut
-    useEffect(() => {
-        if (compact) return;
-        const handleGlobalKeyDown = (event: KeyboardEvent) => {
-            if (
-                event.key === "/" &&
-        !event.ctrlKey &&
-        !event.metaKey &&
-        !event.altKey &&
-        !event.shiftKey &&
-        document.activeElement?.tagName !== "INPUT" &&
-        document.activeElement?.tagName !== "TEXTAREA" &&
-        !document.activeElement?.hasAttribute("contenteditable")
-            ) {
-                event.preventDefault();
-                inputRef.current?.focus();
-            }
-        };
-        document.addEventListener("keydown", handleGlobalKeyDown);
-        return () => document.removeEventListener("keydown", handleGlobalKeyDown);
-    }, [compact]);
-
     const handleQueryChange = (query: string) => {
         skipNextSuggestSearchRef.current = false;
         searchRequestIdRef.current += 1;
@@ -200,10 +180,10 @@ export function SearchBar({ className = "", initialQuery = "", compact = false }
 
     return (
         <ExpandingSearch
-            ref={inputRef}
             className={className}
+            keyboardShortcut={keyboardShortcut}
             label="Search movies, TV shows, and people"
-            placeholder="Search movies, TV shows, and people…"
+            placeholder={placeholder}
             value={searchQuery}
             onValueChange={handleQueryChange}
             items={items}

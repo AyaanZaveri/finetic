@@ -36,6 +36,7 @@ for (const path of ['/', '/movie/tt123', '/series/tt123', '/series/tt123/1/2', '
   assert.equal(layout.props['data-home-layout'] !== undefined, path === '/', 'The shared 40px desktop gutter is scoped to Home');
   assert.equal(find(mains[0], node => node.type === 'HomeAuroraController').length, path === '/' ? 1 : 0, 'Only Home mounts the scroll/hover Aurora controller');
   assert.equal(headers.length, 1, `${path}: one persistent header`);
+  assert.equal(headers[0].props.home, path === '/', `${path}: compact Home header styling stays on Home`);
   assert.equal(mains.length, 1, `${path}: one page scrollport`);
   const gradients = find(mains[0], node => node.type === 'HomeGradientBackground');
   assert.equal(gradients[0].props.emerald, /^\/(settings|addons)(?:\/|$)/.test(path), 'Only Settings and Addons replace artwork colors with emerald');

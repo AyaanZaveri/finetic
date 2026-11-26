@@ -60,7 +60,7 @@ function Stage({ id, publicData }: { id: StateId; publicData: HomeHeroPublicData
                     <HomePaletteProvider><AuroraProvider>
                         <div data-app-layout data-home-layout="" className="relative flex h-dvh flex-col overflow-hidden">
                             <div className="relative grid min-h-0 min-w-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)]">
-                                <AppHeader email="viewer@example.invalid" overlay={false} onSignOut={async () => {}} />
+                                <AppHeader email="viewer@example.invalid" home onSignOut={async () => {}} />
                                 <main
                                     data-page-scroll=""
                                     data-header-overlay="true"

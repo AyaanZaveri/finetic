@@ -30,19 +30,22 @@
 }
 
 /* The trigger anchors the menu, so it answers hover and press with color, never with scale. */
-.trigger { --presence-surface: var(--user-menu-surface, var(--surface)); position: relative; display: inline-flex; height: 40px; flex: none; align-items: center; gap: var(--space-2); margin: 0; padding: 4px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--foreground); font: inherit; font-family: var(--font-body); font-size: var(--text-sm); letter-spacing: var(--tracking-body); cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background-color var(--duration-fast) var(--ease-standard); }
+.trigger { --presence-surface: var(--user-menu-surface, var(--surface)); position: relative; display: inline-flex; height: var(--user-menu-trigger-height, 40px); flex: none; align-items: center; gap: var(--space-2); margin: 0; padding: var(--user-menu-trigger-padding, 4px); border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--foreground); font: inherit; font-family: var(--font-body); font-size: var(--text-sm); letter-spacing: var(--tracking-body); cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background-color var(--duration-fast) var(--ease-standard); }
 .trigger[data-name] { padding-right: 10px; }
 .triggerName { max-width: 11rem; overflow: hidden; font-weight: 500; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
 .chevron { flex: none; margin-left: -2px; color: var(--text-muted); transition: transform var(--duration-spring) var(--ease-spring), color var(--duration-fast) var(--ease-standard); }
 .trigger:hover .chevron, .trigger[data-state="open"] .chevron { color: var(--foreground); }
 .trigger[data-state="open"] .chevron { transform: rotate(180deg); }
 @media (max-width: 639px) {
-  .trigger[data-name] { padding-right: 4px; }
+  .trigger[data-name] { padding-right: var(--user-menu-trigger-padding, 4px); }
   .triggerName, .chevron { display: none; }
 }
 
 .face { position: relative; display: inline-grid; width: var(--face-size); height: var(--face-size); flex: none; }
-.face[data-size="sm"] { --face-size: 32px; --dot-size: 11px; }
+.face[data-size="sm"] {
+  --face-size: calc(var(--user-menu-trigger-height, 40px) - 2 * var(--user-menu-trigger-padding, 4px));
+  --dot-size: 11px;
+}
 .face[data-size="md"] { --face-size: 34px; --dot-size: 10px; }
 .portrait { display: block; width: 100%; height: 100%; border-radius: var(--radius-pill); background: var(--surface-muted); object-fit: cover; object-position: 50% 15%; outline: 1px solid color-mix(in oklab, var(--foreground) 9%, transparent); outline-offset: -1px; user-select: none; }
 .portrait[data-artwork-state] { background-color: var(--surface-muted); }
