@@ -132,6 +132,12 @@ export class MpvController extends EventTarget {
   get videoHeight() { return this.state.height; }
   get playbackStats() {
     return {
+      path: this.state.engine === "aether" ? "AetherEngine" : this.state.engine === "mpv" ? "libmpv" : "Native player",
+      route: this.state.route,
+      hdr: this.state.hdr,
+      videoDecoder: this.state.videoDecoder,
+      audioDecoder: this.state.audioDecoder,
+      fallback: this.fallbackReason,
       dropped: this.state.droppedFrames,
       decoderDropped: this.state.decoderDroppedFrames,
       videoCodec: this.tracks.find(track => track.type === "video" && track.selected)?.codec,
@@ -163,6 +169,7 @@ export class MpvController extends EventTarget {
   }
 
   private audioChosen = false;
+  private fallbackReason?: string;
   private trackSwitches = new Map<TrackKind, TrackSwitch>();
 
   get fetchingTrack(): TrackKind | null {
@@ -223,6 +230,7 @@ export class MpvController extends EventTarget {
     this.tracks = [];
     this.chapters = [];
     this.audioChosen = false;
+    this.fallbackReason = undefined;
     this.subtitleText = "";
     const { volume, muted, rate } = this.state;
     this.state = { ...initialState(), volume, muted, rate };
@@ -233,6 +241,10 @@ export class MpvController extends EventTarget {
         this.bridge.send({ type: "native-hdr-peak", nits: readPlaybackPreferences().nativeHdrPeakNits });
       } else if (this.bridge.platform === "macos" && this.bridge.capabilities?.macHdrPeak) {
         this.bridge.send({ type: "mac-hdr-peak", nits: readPlaybackPreferences().nativeHdrPeakNits });
+      }
+      if (this.bridge.capabilities?.aetherPlayback) {
+        const preferences = readPlaybackPreferences();
+        this.bridge.send({ type: "native-engine", engine: preferences.macPlaybackEngine, audioLanguage: preferences.audioLanguage });
       }
       this.bridge.send({ type: "load", session: this.session, url, headers,
         ...(this.bridge.capabilities?.initialSeek || ["android", "ios"].includes(this.bridge.platform)
@@ -396,6 +408,19 @@ export class MpvController extends EventTarget {
   private receive(message: NativeMessage, previewOrder?: number) {
     if (this.disposed || !("session" in message) || message.session !== this.session) return;
     switch (message.type) {
+      case "engine-fallback":
+        this.fallbackReason = message.reason;
+        this.audioChosen = false;
+        this.clearTrackSwitches();
+        this.clearSubtitle();
+        this.cancelPreview();
+        this.previewImages.clear();
+        this.previewFrames.clear(); this.previewAliases.clear(); this.previewRanges.clear(); this.decodedPreviews.clear();
+        this.tracks = [];
+        this.chapters = [];
+        this.ready = this.loaded = false;
+        this.fire("waiting", "trackschange", "chapterschange");
+        break;
       case "chapters":
         this.chapters = Array.isArray(message.chapters) ? message.chapters.filter(chapter => Number.isFinite(chapter.time) && chapter.time >= 0) : [];
         this.fire("chapterschange");

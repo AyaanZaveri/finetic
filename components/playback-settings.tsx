@@ -9,6 +9,7 @@ import { useSettings } from "@/contexts/settings-context";
 import { PlaybackLanguageSettings } from "./playback-language-settings";
 import { MediaFlowSettings } from "./settings/mediaflow-settings";
 import { NumberField } from "@/components/arc/number-field/number-field";
+import { Select } from "@/components/arc/select/select";
 import { Switch } from "@/components/arc/switch/switch";
 import { Field, FieldGroup, FieldLabel, FieldContent, FieldDescription } from "@/components/ui/field";
 import { desktopBridge, type DesktopBridge } from "@/lib/desktop/bridge";
@@ -114,6 +115,21 @@ export function PlaybackSettings() {
       </FieldGroup>
     </section>
     {!desktop && <MediaFlowSettings />}
+    {desktop?.platform === "macos" && desktop.capabilities?.aetherPlayback && <section aria-labelledby="playback-engine" className={styles.section}>
+      <h2 id="playback-engine">Playback engine</h2>
+      <FieldGroup className="min-w-0 gap-6">
+        <Field>
+          <Select id="mac-playback-engine" label="Engine" value={playbackPreferences.macPlaybackEngine}
+            options={[
+              { value: "automatic", label: "Automatic (experimental)" },
+              { value: "aether", label: "AetherEngine (experimental)" },
+              { value: "mpv", label: "libmpv" },
+            ]}
+            onValueChange={value => updatePlaybackPreferences({ macPlaybackEngine: value === "automatic" || value === "aether" ? value : "mpv" })} />
+          <FieldDescription>Automatic tries AetherEngine and retries with libmpv if playback fails. Streams with request headers use libmpv. Changes apply to the next video.</FieldDescription>
+        </Field>
+      </FieldGroup>
+    </section>}
     {desktop ? (desktop.platform === "macos" || desktop.platform === "windows") && <section aria-labelledby="playback-video" className={styles.section}>
       <h2 id="playback-video">Native HDR</h2>
       <p className={styles.description}>HDR turns on for supported videos and displays</p>
@@ -121,7 +137,7 @@ export function PlaybackSettings() {
         <Field orientation="horizontal">
           <FieldContent>
             <FieldLabel htmlFor="native-hdr-auto">Automatic HDR peak brightness</FieldLabel>
-            <FieldDescription id="native-hdr-auto-description">Use the system’s HDR peak. Changes apply to the next video.</FieldDescription>
+            <FieldDescription id="native-hdr-auto-description">Use the system’s HDR peak. Changes apply to the next video. AetherEngine manages HDR brightness automatically.</FieldDescription>
           </FieldContent>
           <Switch id="native-hdr-auto" aria-describedby="native-hdr-auto-description" checked={automaticNativePeak}
             onCheckedChange={automatic => updatePlaybackPreferences({ nativeHdrPeakNits: automatic ? null : 1000 })} />

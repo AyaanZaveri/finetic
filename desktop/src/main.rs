@@ -1,6 +1,8 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 #[cfg(target_os = "linux")]
 mod gtk_shell;
+#[cfg(target_os = "macos")]
+mod aether;
 #[cfg(any(target_os = "macos", test))]
 mod hdr;
 #[cfg(any(windows, test))]

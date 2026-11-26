@@ -15,6 +15,7 @@ use wry::{NewWindowResponse, WebContext, WebViewBuilder};
 
 enum UserEvent {
     Emit(Value),
+    AetherEmit(Value),
     Update(crate::macos_updater::Event),
     UpdateCommand(protocol::Command),
     Fullscreen(bool),
@@ -117,6 +118,13 @@ pub fn run(mut app: App) -> Result<(), String> {
         }
     })?;
     surface.attach(player.mpv.clone());
+    let mut playback = crate::aether::Router::new(&window, app.smoke, {
+        let proxy = proxy.clone();
+        move |value| { let _ = proxy.send_event(UserEvent::AetherEmit(value)); }
+    });
+    if playback.available() {
+        app.bridge = format!("Object.defineProperty(window, '__navigatorAetherAvailable', {{value: true}});{}", app.bridge);
+    }
     let mut context = WebContext::new(Some(app.data.join("webview")));
     let app_origin = app.origin.clone();
     let ipc_proxy = proxy.clone();
@@ -260,6 +268,7 @@ pub fn run(mut app: App) -> Result<(), String> {
         // Stop the owned backend here rather than relying on process-exit drops.
         if matches!(&event, Event::LoopDestroyed) {
             save_window(&normal);
+            playback.stop();
             media_controls.take();
             if !installing { if let Some(updater) = &updater { updater.cancel_pending_install(); } }
             drop(app._server.take());
@@ -323,8 +332,8 @@ pub fn run(mut app: App) -> Result<(), String> {
                     UpdateEvent::Current => { update_state = "current"; update_message = None; next_update_version = None; }
                     UpdateEvent::Error => { update_state = "error"; update_message = Some("Couldn’t check or download the update. Try again later.".into()); }
                     UpdateEvent::Finished => { if update_state == "checking" { update_state = "idle"; next_update_version = None; } }
-                    UpdateEvent::Install => { update_state = "installing"; closing = true; player.begin_shutdown(); }
-                    UpdateEvent::Relaunch => { closing = true; player.begin_shutdown(); }
+                    UpdateEvent::Install => { update_state = "installing"; closing = true; playback.stop(); player.begin_shutdown(); }
+                    UpdateEvent::Relaunch => { closing = true; playback.stop(); player.begin_shutdown(); }
                 }
                 let _ = webview.evaluate_script(&receive(&json!({"type":"update-status", "version":env!("CARGO_PKG_VERSION"), "nextVersion":next_update_version, "available":updater.is_some(), "automatic":automatic_updates, "state":update_state, "message":update_message})));
             }
@@ -364,7 +373,15 @@ pub fn run(mut app: App) -> Result<(), String> {
                 }
                 let _ = webview.evaluate_script(&receive(&json!({"type":"update-status", "version":env!("CARGO_PKG_VERSION"), "nextVersion":next_update_version, "available":updater.is_some(), "automatic":automatic_updates, "state":update_state, "message":update_message})));
             }
-            Event::UserEvent(UserEvent::Emit(value)) => {
+            Event::UserEvent(UserEvent::AetherEmit(value)) => {
+                for value in playback.accept_aether(value, &player) {
+                    media_session.observe_event(&value);
+                    if let Some(controls) = &mut media_controls { controls.sync(media_session.now_playing()); }
+                    let _ = webview.evaluate_script(&receive(&value));
+                }
+            }
+            Event::UserEvent(UserEvent::Emit(mut value)) => {
+                if !playback.accept_mpv(&mut value) { return; }
                 media_session.observe_event(&value);
                 if let Some(controls) = &mut media_controls { controls.sync(media_session.now_playing()); }
                 let _ = webview.evaluate_script(&receive(&value));
@@ -372,10 +389,10 @@ pub fn run(mut app: App) -> Result<(), String> {
             Event::UserEvent(UserEvent::PlaybackCommand(command)) if !closing => {
                 media_session.observe_command(&command);
                 if let Some(controls) = &mut media_controls { controls.sync(media_session.now_playing()); }
-                if !matches!(command, protocol::Command::MediaMetadata { .. }) { player.send(command); }
+                if !matches!(command, protocol::Command::MediaMetadata { .. }) { playback.send(command, &player); }
             }
             Event::UserEvent(UserEvent::SystemMedia(action)) if !closing => {
-                if let Some(command) = media_session.command(action) { player.send(command); }
+                if let Some(command) = media_session.command(action) { playback.send(command, &player); }
             }
             Event::UserEvent(UserEvent::SystemArtwork(url, bytes)) if !closing => {
                 if let Some(controls) = &mut media_controls { controls.receive_artwork(url, bytes); }
@@ -391,7 +408,10 @@ pub fn run(mut app: App) -> Result<(), String> {
                 platform::set_window_controls_visible(&window, visible || window.fullscreen().is_some());
             }
             #[cfg(target_os = "macos")]
-            Event::UserEvent(UserEvent::NativeHdrPeak(nits)) => platform::set_hdr_peak(nits),
+            Event::UserEvent(UserEvent::NativeHdrPeak(nits)) => {
+                playback.set_peak(nits);
+                platform::set_hdr_peak(nits);
+            },
             Event::UserEvent(UserEvent::TitlebarPress { double_click }) if !closing => {
                 if window.fullscreen().is_none() {
                     if double_click {
@@ -418,6 +438,7 @@ pub fn run(mut app: App) -> Result<(), String> {
                 save_window(&normal);
                 if let Some(updater) = &updater { updater.cancel_pending_install(); }
                 closing = true;
+                playback.stop();
                 player.begin_shutdown();
             }
             Event::UserEvent(UserEvent::OpenSettings) if !closing => {
@@ -475,7 +496,7 @@ pub fn run(mut app: App) -> Result<(), String> {
                     player.begin_shutdown();
                 } else if !closing {
                     let _ = webview.evaluate_script(&receive(&json!({"type":"close-player"})));
-                    if let Some(command) = media_session.pause_for_close() { player.send(command); }
+                    if let Some(command) = media_session.pause_for_close() { playback.send(command, &player); }
                     media_session.clear();
                     if let Some(controls) = &mut media_controls { controls.sync(None); }
                     if fullscreen || window.fullscreen().is_some() {

@@ -1,0 +1,41 @@
+{
+  "pins": [
+    {
+      "identity": "aetherengine",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/superuser404notfound/AetherEngine",
+      "state": {
+        "revision": "506d3fc1467e6653320b1071b194c8c19420866f",
+        "version": "7.76.0"
+      }
+    },
+    {
+      "identity": "ffmpegbuild",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/superuser404notfound/FFmpegBuild",
+      "state": {
+        "revision": "6169df99e21e80fb20cbda6ec79c634366a28dd0",
+        "version": "3.19.2"
+      }
+    },
+    {
+      "identity": "libdovi",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/superuser404notfound/LibDovi",
+      "state": {
+        "revision": "caff700968700467c089a3f38c8b4180620518b5",
+        "version": "2.2.0"
+      }
+    },
+    {
+      "identity": "smbclient",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/kishikawakatsumi/SMBClient",
+      "state": {
+        "revision": "e636c2b2458930770932a36d311ec9d478575b90",
+        "version": "0.3.1"
+      }
+    }
+  ],
+  "version": 2
+}

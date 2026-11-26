@@ -22,5 +22,30 @@ jobs:
         run: |
           swift --version
           xcodebuild -version
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/Library/Caches/org.swift.swiftpm/repositories
+          key: aether-swiftpm-${{ hashFiles('desktop/macos/aether/Package.resolved') }}
+      - name: Generate and serve a real playback fixture
+        run: |
+          command -v ffmpeg >/dev/null || brew install ffmpeg
+          fixture="$RUNNER_TEMP/aether-fixture"
+          mkdir -p "$fixture"
+          printf '1\n00:00:01,000 --> 00:00:10,000\nNavigator playback fixture\n' > "$fixture/subtitles.srt"
+          ffmpeg -v error -y -f lavfi -i 'testsrc2=size=320x180:rate=24:duration=18' -f lavfi -i 'sine=frequency=440:duration=18' -f lavfi -i 'sine=frequency=880:duration=18' -i "$fixture/subtitles.srt" -map 0:v -map 1:a -map 2:a -map 3:s -c:v libx264 -g 48 -pix_fmt yuv420p -c:a aac -c:s srt -metadata:s:a:0 language=eng -metadata:s:a:1 language=deu -metadata:s:s:0 language=eng "$fixture/fixture.mkv"
+          python3 scripts/aether-fixture-server.py "$fixture" 18765 > "$RUNNER_TEMP/aether-origin.log" 2>&1 &
+          curl --fail --retry 8 --retry-connrefused --head http://127.0.0.1:18765/fixture.mkv
+          echo "NAVIGATOR_AETHER_FIXTURE=http://127.0.0.1:18765/fixture.mkv" >> "$GITHUB_ENV"
       - name: Compile and test Aether bridge
         run: swift test --package-path desktop/macos/aether
+      - uses: dtolnay/rust-toolchain@3da603d4464771f1a8c3dd4acb41f03bc9107551 # 1.92.0
+        with:
+          toolchain: 1.92.0
+      - name: Test Rust native shell
+        run: cargo test --manifest-path desktop/Cargo.toml --locked
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 26.7.0
+          cache: npm
+      - run: npm ci
+      - run: node scripts/test-desktop.cjs

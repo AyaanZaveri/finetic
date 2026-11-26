@@ -25,6 +25,11 @@ export type NativeState = {
   height: number;
   droppedFrames?: number;
   decoderDroppedFrames?: number;
+  engine?: "mpv" | "aether";
+  route?: string;
+  hdr?: string;
+  videoDecoder?: string;
+  audioDecoder?: string;
 };
 
 export type UpdateStatus = { type: "update-status"; version: string; nextVersion?: string | null; available: boolean; automatic: boolean; state: "idle" | "checking" | "downloading" | "ready" | "available" | "installing" | "current" | "error"; message?: string };
@@ -42,6 +47,7 @@ export type NativeMessage =
   | { type: "thumbnail-frame"; session: string; position: number; src: string; range?: { start: number; end: number } | null }
   | { type: "thumbnail"; session: string; request: number; src: string | null; position: number | null; range?: { start: number; end: number } | null }
   | { type: "loading" | "loaded" | "ready" | "ended"; session: string }
+  | { type: "engine-fallback"; session: string; reason: string }
   | { type: "error"; session: string; message: string }
   | { type: "window-state"; maximized: boolean }
   | { type: "fullscreen"; value: boolean };
@@ -66,6 +72,7 @@ export type NativeRequest =
   | { type: "rate"; session: string; rate: number }
   | { type: "subtitle-delay"; session: string; seconds: number }
   | { type: "audio-delay"; session: string; seconds: number }
+  | { type: "native-engine"; engine: "automatic" | "aether" | "mpv"; audioLanguage?: string }
   | { type: "native-hdr-peak" | "mac-hdr-peak"; nits: number | null }
   | { type: "track"; session: string; kind: "audio" | "subtitle"; id: string }
   | { type: "fullscreen"; value: boolean }
@@ -81,7 +88,7 @@ export interface DesktopBridge {
   readonly protocol: 1;
   readonly platform: "macos" | "windows" | "linux" | "android" | "ios";
   readonly engine?: "mpv" | "exoplayer" | "vlc";
-  readonly capabilities?: { subtitleTiming?: boolean; audioTiming?: boolean; macHdrPeak?: boolean; nativeHdrPeak?: boolean; updates?: boolean; updateReview?: boolean; chapters?: boolean; initialSeek?: boolean; windowControlsVisibility?: boolean; videoFit?: boolean; timings?: boolean; glass?: boolean; glassPixels?: boolean; nativePreviews?: boolean; nativeSurfaceGestures?: boolean; nativeMaterials?: boolean; nativeSystemVolume?: boolean; pip?: boolean; airplay?: boolean; systemVolume?: boolean; systemMedia?: boolean };
+  readonly capabilities?: { aetherPlayback?: boolean; subtitleTiming?: boolean; audioTiming?: boolean; macHdrPeak?: boolean; nativeHdrPeak?: boolean; updates?: boolean; updateReview?: boolean; chapters?: boolean; initialSeek?: boolean; windowControlsVisibility?: boolean; videoFit?: boolean; timings?: boolean; glass?: boolean; glassPixels?: boolean; nativePreviews?: boolean; nativeSurfaceGestures?: boolean; nativeMaterials?: boolean; nativeSystemVolume?: boolean; pip?: boolean; airplay?: boolean; systemVolume?: boolean; systemMedia?: boolean };
   readonly fullscreen: boolean;
   send(request: NativeRequest): void;
   subscribe(listener: (message: NativeMessage) => void): () => void;

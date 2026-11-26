@@ -111,11 +111,11 @@ export function observePlaybackHistory(video: HTMLVideoElement, readStats: (_vid
 
 export function playbackDiagnostics({ at, stats, samples, events, stallCount, stallMs }: PlaybackHistory) {
     // Only export known diagnostics fields. Fallback details can contain arbitrary error text.
-    const { path, resolution, hdr, videoCodec, audioCodec, presented, dropped, decoderDropped, late, draws,
+    const { path, route, resolution, hdr, videoCodec, audioCodec, videoDecoder, audioDecoder, presented, dropped, decoderDropped, late, draws,
         videoAheadMs, audioAheadMs, audioUnderflows } = stats;
     const elapsed = (time: number) => Math.round(time - at);
     return JSON.stringify({
-        path, resolution, hdr, videoCodec, audioCodec, presented, dropped, decoderDropped, late, draws,
+        path, route, resolution, hdr, videoCodec, audioCodec, videoDecoder, audioDecoder, presented, dropped, decoderDropped, late, draws,
         videoAheadMs, audioAheadMs, audioUnderflows, stallCount, stallMs: Math.round(stallMs),
         samples: samples.map(({ at: time, ...values }) => ({ relativeMs: elapsed(time), ...values })),
         events: events.map(({ at: time, kind }) => ({ relativeMs: elapsed(time), kind })),

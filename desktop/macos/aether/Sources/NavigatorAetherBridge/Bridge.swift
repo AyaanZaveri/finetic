@@ -30,6 +30,7 @@ final class PlaybackBridge {
     private var subtitleDelay: Double = 0
     private var subtitleText = ""
     private var bitmapIDs: [String] = []
+    private var bitmapBounds = CGRect.zero
     private var lastTracks: Data?
     private var lastChapters: Data?
     private var lastState: Data?
@@ -49,6 +50,7 @@ final class PlaybackBridge {
         view.autoresizingMask = [.width, .height]
         bitmapOverlay.autoresizingMask = [.width, .height]
         bitmapOverlay.wantsLayer = true
+        bitmapOverlay.layer?.masksToBounds = true
         container.addSubview(view)
         container.addSubview(bitmapOverlay)
         // Rust inserts this before WebKit, as a sibling of the mpv view.
@@ -176,6 +178,7 @@ final class PlaybackBridge {
         subtitleDelay = 0
         lastClock = 0
         rate = 1
+        lastStateAt = .distantPast
         engine.setSoftwareSubtitleDelay(0)
         container.isHidden = false
         emit("loading")
@@ -188,6 +191,8 @@ final class PlaybackBridge {
         )
         options.sessionCacheHardLimitBytes = 512 * 1024 * 1024
         options.sessionCacheFreeReserveBytes = 512 * 1024 * 1024
+        // One app-owned reader budget, including subtitle/preview requests.
+        options.maxConcurrentSourceRequests = 2
         options.autoplay = false
         options.skipsContainerAttachments = true
         let initialPosition = message["startPosition"] as? Double ?? 0
@@ -283,7 +288,7 @@ final class PlaybackBridge {
                 emit("state", ["state": state])
             }
         }
-        if !ready, engine.hasFirstFrameReadyForDisplay, !engine.isBuffering {
+        if !ready, engine.hasFirstFrameReadyForDisplay, !engine.isBuffering, engine.playbackPhase != .loading {
             ready = true
             emit("ready")
         }
@@ -313,24 +318,34 @@ final class PlaybackBridge {
             if case .image = cue.body { return String(describing: cue.id) }
             return nil
         }
-        if ids == bitmapIDs { return }
+        if ids == bitmapIDs, bitmapBounds == bitmapOverlay.bounds { return }
         clearBitmap()
         bitmapIDs = ids
+        bitmapBounds = bitmapOverlay.bounds
         for cue in active {
             guard case .image(let image) = cue.body else { continue }
-            let canvas = image.canvasSize
-            guard canvas.width > 0, canvas.height > 0 else { continue }
+            let bounds = bitmapOverlay.bounds
+            let size = engine.softwareDisplaySize ?? CGSize(
+                width: CGFloat(engine.sourceVideoWidth) * CGFloat(engine.sourceVideoPixelAspectRatio),
+                height: CGFloat(engine.sourceVideoHeight))
+            var picture = bounds
+            if let videoRect = engine.nativePlayerLayer?.videoRect, !videoRect.isEmpty {
+                picture = videoRect
+            } else if size.width > 0, size.height > 0, engine.videoGravity != .resize {
+                let sx = bounds.width / size.width, sy = bounds.height / size.height
+                let scale = engine.videoGravity == .resizeAspectFill ? max(sx, sy) : min(sx, sy)
+                picture = CGRect(x: (bounds.width - size.width * scale) / 2,
+                                 y: (bounds.height - size.height * scale) / 2,
+                                 width: size.width * scale, height: size.height * scale)
+            }
+            // SubtitleImage.position is a normalized top-left rect, not pixels.
+            let rect = image.position
             let layer = CALayer()
             layer.contents = image.cgImage
             layer.contentsGravity = .resize
-            let bounds = bitmapOverlay.bounds
-            let scale = min(bounds.width / canvas.width, bounds.height / canvas.height)
-            let x = (bounds.width - canvas.width * scale) / 2
-            let y = (bounds.height - canvas.height * scale) / 2
-            layer.frame = CGRect(x: x + image.position.x * scale,
-                                 y: y + (canvas.height - image.position.y - CGFloat(image.cgImage.height)) * scale,
-                                 width: CGFloat(image.cgImage.width) * scale,
-                                 height: CGFloat(image.cgImage.height) * scale)
+            layer.frame = CGRect(x: picture.minX + rect.minX * picture.width,
+                                 y: picture.minY + (1 - rect.maxY) * picture.height,
+                                 width: rect.width * picture.width, height: rect.height * picture.height)
             bitmapOverlay.layer?.addSublayer(layer)
         }
     }
@@ -358,12 +373,15 @@ final class PlaybackBridge {
 
 @_cdecl("navigator_aether_create")
 func create(_ parent: UnsafeMutableRawPointer?, _ callback: EventCallback, _ context: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer? {
-    MainActor.assumeIsolated {
-        guard let parent else { return nil }
+    // The main actor's return type must be Sendable. Transfer only the
+    // retained object's address across the synchronous isolation assertion.
+    let address: UInt = MainActor.assumeIsolated {
+        guard let parent else { return 0 }
         let view = Unmanaged<NSView>.fromOpaque(parent).takeUnretainedValue()
-        guard let bridge = try? PlaybackBridge(parent: view, callback: callback, context: context) else { return nil }
-        return Unmanaged.passRetained(bridge).toOpaque()
+        guard let bridge = try? PlaybackBridge(parent: view, callback: callback, context: context) else { return 0 }
+        return UInt(bitPattern: Unmanaged.passRetained(bridge).toOpaque())
     }
+    return UnsafeMutableRawPointer(bitPattern: address)
 }
 
 @_cdecl("navigator_aether_command")

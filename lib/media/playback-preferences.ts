@@ -16,6 +16,7 @@ export interface PlaybackPreferences {
   hdrOutput: boolean;
   hdrPeakNits: number;
   nativeHdrPeakNits: number | null;
+  macPlaybackEngine: "automatic" | "aether" | "mpv";
   audioLanguage: string;
   subtitleLanguage: string;
   subtitleMode: "normal" | "forced";
@@ -26,7 +27,7 @@ export const DEFAULT_PLAYBACK_PREFERENCES: PlaybackPreferences = {
   keyboardSeekForwardSeconds: KEYBOARD_SEEK_SECONDS.default,
   continueWatchingPrefetch: true, metadataPrefetch: true,
   episodeAutoplay: true, episodePrefetch: true,
-  autoSelectWebStream: false, webGpuPlayback: true, nativeWebGpuDecoding: false, hdrOutput: false, hdrPeakNits: 1000, nativeHdrPeakNits: null,
+  autoSelectWebStream: false, webGpuPlayback: true, nativeWebGpuDecoding: false, hdrOutput: false, hdrPeakNits: 1000, nativeHdrPeakNits: null, macPlaybackEngine: "mpv",
   mediaFlowMode: "off", mediaFlowUrl: "", mediaFlowPassword: "",
   audioLanguage: "en", subtitleLanguage: "en", subtitleMode: "normal", subtitlesEnabledByDefault: false,
 };
@@ -81,6 +82,7 @@ export function normalizePlaybackPreferences(value: unknown): PlaybackPreference
     hdrOutput: candidate.hdrOutput === true,
     hdrPeakNits: typeof candidate.hdrPeakNits === "number" && Number.isFinite(candidate.hdrPeakNits)
       ? Math.round(Math.max(203, Math.min(10000, candidate.hdrPeakNits))) : 1000,
+    macPlaybackEngine: candidate.macPlaybackEngine === "automatic" || candidate.macPlaybackEngine === "aether" ? candidate.macPlaybackEngine : "mpv",
     nativeHdrPeakNits: typeof nativePeak === "number" && Number.isFinite(nativePeak)
       ? Math.round(Math.max(203, Math.min(10000, nativePeak))) : null,
     audioLanguage: language(candidate.audioLanguage), subtitleLanguage: language(candidate.subtitleLanguage),

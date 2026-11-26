@@ -86,3 +86,6 @@ skills-lock.json
 
 # Versioned WebGPU runtime assets copied from the pinned dependency
 /public/webgpu-player/
+
+# SwiftPM build products for the optional macOS player.
+/desktop/macos/aether/.build/

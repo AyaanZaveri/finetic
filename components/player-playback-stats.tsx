@@ -116,6 +116,8 @@ export function PlayerPlaybackStats({ open, obscured = false, videoRef, onClose,
     ] as const;
     const details = ([
         ["Decoder route", stats?.route],
+        ["Video decoder", stats?.videoDecoder],
+        ["Audio decoder", stats?.audioDecoder],
         ["Video codec", stats?.videoCodec],
         ["Audio codec", stats?.audioCodec],
         ["Frames presented", stats?.presented],

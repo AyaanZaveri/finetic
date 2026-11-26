@@ -151,7 +151,7 @@ impl Player {
                         Command::Load { session, .. } | Command::Play { session } | Command::Pause { session }
                         | Command::Seek { session, .. } | Command::Volume { session, .. } | Command::Muted { session, .. }
                         | Command::SubtitleDelay { session, .. } | Command::AudioDelay { session, .. } | Command::Rate { session, .. } | Command::Track { session, .. } | Command::Stop { session } | Command::Thumbnail { session, .. } | Command::VideoFit { session, .. } | Command::Glass { session, .. } => session,
-                        Command::MediaMetadata { .. } | Command::UpdateStatus {} | Command::UpdateCheck { .. } | Command::UpdateAutomatic { .. } | Command::WindowControlsVisible { .. } | Command::Fullscreen { .. } | Command::WindowDrag { .. } | Command::WindowControl { .. } | Command::AppReady { .. } | Command::ClientStage { .. } | Command::GlassConsumed { .. } | Command::NativeHdrPeak { .. } => continue,
+                        Command::MediaMetadata { .. } | Command::UpdateStatus {} | Command::UpdateCheck { .. } | Command::UpdateAutomatic { .. } | Command::WindowControlsVisible { .. } | Command::Fullscreen { .. } | Command::WindowDrag { .. } | Command::WindowControl { .. } | Command::AppReady { .. } | Command::ClientStage { .. } | Command::GlassConsumed { .. } | Command::NativeHdrPeak { .. } | Command::NativeEngine { .. } => continue,
                     };
                     if !matches!(command, Command::Load { .. }) && target != &desired { continue; }
                     let target = target.clone();
@@ -255,7 +255,7 @@ impl Player {
                             else { pending_preview = position.map(|at| (request, at)); }
                             Ok(())
                         },
-                        Command::MediaMetadata { .. } | Command::UpdateStatus {} | Command::UpdateCheck { .. } | Command::UpdateAutomatic { .. } | Command::WindowControlsVisible { .. } | Command::Fullscreen { .. } | Command::WindowDrag { .. } | Command::WindowControl { .. } | Command::AppReady { .. } | Command::ClientStage { .. } | Command::GlassConsumed { .. } | Command::NativeHdrPeak { .. } => unreachable!(),
+                        Command::MediaMetadata { .. } | Command::UpdateStatus {} | Command::UpdateCheck { .. } | Command::UpdateAutomatic { .. } | Command::WindowControlsVisible { .. } | Command::Fullscreen { .. } | Command::WindowDrag { .. } | Command::WindowControl { .. } | Command::AppReady { .. } | Command::ClientStage { .. } | Command::GlassConsumed { .. } | Command::NativeHdrPeak { .. } | Command::NativeEngine { .. } => unreachable!(),
                     };
                     if let Err(message) = result { emit(json!({"type":"error","session":target,"message":message})); }
                 }

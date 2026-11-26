@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use url::Url;
 
@@ -6,7 +6,7 @@ pub const PROTOCOL: u32 = 1;
 pub const MAX_MESSAGE_BYTES: usize = 64 * 1024;
 
 /// Deliberately exposes playback operations, never arbitrary mpv commands or paths.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum Command {
     ClientStage {
@@ -54,6 +54,11 @@ pub enum Command {
     AudioDelay { session: String, seconds: f64 },
     #[serde(alias = "mac-hdr-peak")]
     NativeHdrPeak { nits: Option<u32> },
+    NativeEngine {
+        engine: NativeEngine,
+        #[serde(rename = "audioLanguage", default)]
+        audio_language: Option<String>,
+    },
     Track {
         session: String,
         kind: TrackKind,
@@ -119,7 +124,7 @@ fn update_intent_distinguishes_preparing_from_restarting() {
     assert_eq!(UpdateIntent::for_state(None, "ready"), Some(Install));
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ClientStage {
     InterfaceHydrated,
@@ -140,7 +145,7 @@ impl ClientStage {
     }
 }
 
-#[derive(Debug, Deserialize, Clone, Copy)]
+#[derive(Debug, Deserialize, Serialize, Clone, Copy)]
 #[serde(rename_all = "kebab-case")]
 pub enum WindowAction {
     Minimize,
@@ -148,7 +153,7 @@ pub enum WindowAction {
     Close,
 }
 
-#[derive(Debug, Deserialize, Clone, Copy)]
+#[derive(Debug, Deserialize, Serialize, Clone, Copy)]
 #[serde(rename_all = "lowercase")]
 pub enum VideoFitMode {
     Fit,
@@ -156,11 +161,20 @@ pub enum VideoFitMode {
     Stretch,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TrackKind {
     Audio,
     Subtitle,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NativeEngine {
+    #[default]
+    Automatic,
+    Aether,
+    Mpv,
 }
 
 pub fn parse(text: &str) -> Result<Command, String> {
@@ -192,6 +206,10 @@ pub fn parse(text: &str) -> Result<Command, String> {
             {
                 return Err("Invalid request headers".into());
             }
+        }
+        Command::NativeEngine { audio_language: Some(language), .. }
+            if language.len() > 64 || !language.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') => {
+            return Err("Invalid audio language".into());
         }
         Command::GlassConsumed { slot, sequence } if *slot > 2 || *sequence == 0 || *sequence > 9_007_199_254_740_991 => {
             return Err("Invalid shared frame acknowledgment".into());
