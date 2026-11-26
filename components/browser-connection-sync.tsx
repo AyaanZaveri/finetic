@@ -7,7 +7,8 @@ import { CONNECTION_CREDENTIALS_EVENT, CONNECTION_STORAGE_KEYS, readConnectionCr
 
 /** Browser storage owns the saved values. Cookies bridge them to metadata/image and research requests. */
 export function BrowserConnectionSync() {
-    const login = usePathname() === "/login";
+    const pathname = usePathname();
+    const login = pathname === "/login" || (pathname.startsWith("/states/") && process.env.NODE_ENV === "development");
     const router = useRouter();
     useEffect(() => {
         if (login) return;
@@ -16,7 +17,8 @@ export function BrowserConnectionSync() {
             try {
                 const tmdbToken = readConnectionCredential("tmdb");
                 const tinyfishApiKey = readConnectionCredential("tinyfish");
-                const result = await syncBrowserConnectionCredentials({ tmdbToken, tinyfishApiKey });
+                const mdblistApiKey = readConnectionCredential("mdblist");
+                const result = await syncBrowserConnectionCredentials({ tmdbToken, tinyfishApiKey, mdblistApiKey });
                 if (!active || !result.success) return;
                 // A late migration response must not replace a key saved while it was in flight.
                 if (result.tmdbToken !== undefined && readConnectionCredential("tmdb") === tmdbToken) {
@@ -24,6 +26,9 @@ export function BrowserConnectionSync() {
                 }
                 if (result.tinyfishApiKey !== undefined && readConnectionCredential("tinyfish") === tinyfishApiKey) {
                     localStorage.setItem(CONNECTION_STORAGE_KEYS.tinyfish, result.tinyfishApiKey);
+                }
+                if (result.mdblistApiKey !== undefined && readConnectionCredential("mdblist") === mdblistApiKey) {
+                    localStorage.setItem(CONNECTION_STORAGE_KEYS.mdblist, result.mdblistApiKey);
                 }
                 window.dispatchEvent(new Event(CONNECTION_CREDENTIALS_EVENT));
                 if (result.changed) router.refresh();

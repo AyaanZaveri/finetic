@@ -5,12 +5,13 @@ import { getUser } from "@/app/actions/auth";
 import { cookieRequiresHttps } from "@/lib/cookie-policy";
 import { TMDB_TOKEN_COOKIE } from "@/lib/tmdb-credentials";
 import { TINYFISH_KEY_COOKIE } from "@/lib/tinyfish-credentials";
+import { MDBLIST_KEY_COOKIE } from "@/lib/mdblist-credentials";
 
 /** Restore browser-saved keys for server requests; migrate only personal cookies, never environment keys. */
-export async function syncBrowserConnectionCredentials(input: { tmdbToken?: string; tinyfishApiKey?: string }) {
+export async function syncBrowserConnectionCredentials(input: { tmdbToken?: string; tinyfishApiKey?: string; mdblistApiKey?: string }) {
     if (!await getUser()) return { success: false as const };
     if (!input || typeof input !== "object" || Array.isArray(input)) return { success: false as const };
-    for (const value of [input.tmdbToken, input.tinyfishApiKey]) {
+    for (const value of [input.tmdbToken, input.tinyfishApiKey, input.mdblistApiKey]) {
         if (value !== undefined && (typeof value !== "string" || value.length > 2048 || (value && !/^[\x21-\x7e]+$/.test(value)))) {
             return { success: false as const };
         }
@@ -29,5 +30,6 @@ export async function syncBrowserConnectionCredentials(input: { tmdbToken?: stri
     };
     const tmdbToken = sync(TMDB_TOKEN_COOKIE, input.tmdbToken);
     const tinyfishApiKey = sync(TINYFISH_KEY_COOKIE, input.tinyfishApiKey);
-    return { success: true as const, tmdbToken, tinyfishApiKey, changed };
+    const mdblistApiKey = sync(MDBLIST_KEY_COOKIE, input.mdblistApiKey);
+    return { success: true as const, tmdbToken, tinyfishApiKey, mdblistApiKey, changed };
 }

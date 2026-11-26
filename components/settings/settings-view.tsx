@@ -37,6 +37,7 @@ import { isSmallModelProvider, latestSmallModel, OPENAI_DEFAULT_BASE_URL, type M
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { getArtworkSettings, saveArtworkToken, removeArtworkToken, saveMetadataProvider, type ArtworkSettingsState } from "@/app/actions/artwork-settings";
+import { getMDBListSettings, saveMDBListKey, removeMDBListKey, type MDBListSettingsState } from "@/app/actions/mdblist-settings";
 import { continueWatchingKey } from "@/lib/media/continue-watching-query";
 import { invalidateSeriesSeasons } from "@/lib/media/series-season";
 import { AppUpdates } from "./app-updates";
@@ -271,6 +272,73 @@ function WebSearchSettings({ variant }: { variant: "preference" | "connection" }
     </section>;
 }
 
+function MDBListSettings() {
+    const queries = useStreamQueries();
+    const [state, setState] = useState<MDBListSettingsState>({ configured: false, personal: false });
+    const { value: key, setValue: setKey, persist: persistKey } = useConnectionCredential("mdblist");
+    const [loading, setLoading] = useState(true);
+    const [pending, setPending] = useState<"save" | "remove" | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [status, setStatus] = useState("");
+    const readVersion = useRef(0);
+    useEffect(() => {
+        let active = true;
+        const load = () => {
+            const version = ++readVersion.current;
+            void getMDBListSettings().then(value => {
+                if (active && readVersion.current === version) setState(value);
+            }).catch(() => {
+                if (active && readVersion.current === version) setError("Couldn’t load MDBList settings. Reload to try again.");
+            }).finally(() => { if (active) setLoading(false); });
+        };
+        load();
+        window.addEventListener(CONNECTION_CREDENTIALS_EVENT, load);
+        return () => { active = false; window.removeEventListener(CONNECTION_CREDENTIALS_EVENT, load); };
+    }, []);
+
+    async function update(operation: "save" | "remove") {
+        readVersion.current++;
+        setPending(operation);
+        setError(null);
+        setStatus("");
+        try {
+            const result = operation === "save" ? await saveMDBListKey(key) : await removeMDBListKey();
+            if (!result.success) { setError(result.error); return; }
+            setState(result);
+            persistKey(operation === "save" ? key.trim() : "");
+            queries?.metadata.invalidate();
+            setStatus(operation === "save" ? "Key saved" : "Key removed");
+        } catch {
+            setError("Couldn’t update MDBList. Check your connection and try again.");
+        } finally {
+            setPending(null);
+        }
+    }
+
+    return <section id="mdblist" aria-labelledby="mdblist-settings-title" className={styles.section}>
+        <h2 id="mdblist-settings-title">Review scores</h2>
+        <form autoComplete="off" data-form-type="other" className="min-w-0" aria-busy={loading || !!pending}
+            onSubmit={event => { event.preventDefault(); if (!loading && !pending && key.trim()) void update("save"); }}>
+            <FieldGroup className="gap-4">
+                <ApiKeyInput id="mdblist-api-key" label="MDBList API key" value={key}
+                    onValueChange={value => { setKey(value); setError(null); setStatus(""); }}
+                    keyUrl="https://mdblist.com/preferences/#api" keyLinkLabel="Get an MDBList key"
+                    description="Optional. Show Rotten Tomatoes critic scores on movie and TV show details."
+                    disabled={loading || !!pending} error={error} />
+                <div className="flex flex-wrap items-center gap-1">
+                    <Button type="submit" variant="outline" size="sm" disabled={loading || !!pending || !key.trim()} aria-busy={pending === "save" || undefined}>
+                        {pending === "save" ? <ActivityTextShimmer>Checking key…</ActivityTextShimmer> : "Save key"}
+                    </Button>
+                    {(state.personal || key) && <Button type="button" variant="ghost" size="sm" disabled={loading || !!pending} aria-busy={pending === "remove" || undefined} onClick={() => void update("remove")}>
+                        {pending === "remove" ? <ActivityTextShimmer>Removing…</ActivityTextShimmer> : "Remove key"}
+                    </Button>}
+                </div>
+                <p role="status" className={styles.feedback}>{status || (state.configured && !state.personal ? "Using the shared MDBList connection" : "")}</p>
+            </FieldGroup>
+        </form>
+    </section>;
+}
+
 function ArtworkSettings() {
     const queries = useStreamQueries();
     const [state, setState] = useState<ArtworkSettingsState>({ configured: false, personal: false, provider: "auto" });
@@ -323,7 +391,7 @@ function ArtworkSettings() {
             <Select id="metadata-provider" label="Metadata provider" value={state.provider}
                 disabled={loading || !!pending}
                 aria-describedby={providerError ? "metadata-provider-error" : undefined}
-                description={state.configured ? "Choose the source for browsing, search, and title details"
+                description={state.configured ? "Choose the source for browsing, search, and title details. Age ratings use TMDB."
                     : "Connect a TMDB token to use TMDB. Cinemeta works without a token."}
                 options={[
                     { value: "auto", label: "Automatic" },
@@ -811,6 +879,6 @@ export function SettingsView({ category }: { category: SettingsCategory }) {
     case "navigator":
         return <NavigatorSettings />;
     case "connections":
-        return <><ArtworkSettings /><WebSearchSettings variant="connection" /></>;
+        return <><ArtworkSettings /><MDBListSettings /><WebSearchSettings variant="connection" /></>;
     }
 }

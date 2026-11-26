@@ -1,6 +1,7 @@
 export const CONNECTION_STORAGE_KEYS = {
     tmdb: "navigator-tmdb-token",
     tinyfish: "navigator-tinyfish-api-key",
+    mdblist: "navigator-mdblist-api-key",
 } as const;
 
 export type ConnectionService = keyof typeof CONNECTION_STORAGE_KEYS;
