@@ -5,11 +5,13 @@ const searchSchema = z.object({ results: z.array(z.object({
     title: z.string(), snippet: z.string().optional(), url: z.string().url(), position: z.number().optional(), site_name: z.string().optional(),
 })) });
 const fetchSchema = z.object({
-    results: z.array(z.object({ url: z.string(), final_url: z.string().optional(), title: z.string().nullish(), text: z.string() })),
+    results: z.array(z.object({ url: z.string(), final_url: z.string().nullish(), title: z.string().nullish(), text: z.string().nullable() })),
     errors: z.array(z.object({ url: z.string(), error: z.unknown(), status: z.number().optional() })).default([]),
 });
 
 export interface WebEvidence { id: string; title: string; url: string; text: string }
+export type TinySearchResult = Awaited<ReturnType<typeof searchTinyfish>>[number];
+export type EpisodeSourceRanking = (results: TinySearchResult[]) => Promise<TinySearchResult[]>;
 
 function publicUrl(value: string) {
     try {
@@ -77,17 +79,88 @@ export function rankMediaSources<T extends { title: string; snippet?: string; ur
     }).sort((a, b) => b.score - a.score).map(({ item }) => item);
 }
 
+/** Search titles are discovery leads, not evidence. Promote pages that name
+ * an actual catalog episode; retain the original relevance order otherwise. */
+export function rankEpisodeSources(results: TinySearchResult[], episodeTitles: string[]): TinySearchResult[] {
+    const normalized = (value: string) => ` ${value.normalize("NFKD").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim()} `;
+    const titles = [...new Set(episodeTitles.map(normalized))].filter(title => title.trim().length >= 4);
+    const ranked = results.map((result, index) => {
+        const heading = normalized(result.title);
+        const snippet = normalized(result.snippet ?? "");
+        const named = titles.filter(title => heading.includes(title));
+        // A page listing many episodes is less useful than a focused hit.
+        const score = named.length === 1 ? 2 : named.length === 0 && titles.some(title => snippet.includes(title)) ? 1 : 0;
+        return { result, index, score: score - index * 0.3 };
+    }).sort((a, b) => b.score - a.score || a.index - b.index).map(item => item.result);
+    // Many hits can be different pages on the same site. A four-page budget
+    // should not be spent on four copies of one source when alternatives exist.
+    const seen = new Set<string>();
+    const first: TinySearchResult[] = [], repeated: TinySearchResult[] = [];
+    for (const result of ranked) {
+        const host = new URL(result.url).hostname.replace(/^www\./, "");
+        (seen.has(host) ? repeated : first).push(result);
+        seen.add(host);
+    }
+    return [...first, ...repeated];
+}
+
 export async function fetchMediaWebSources(urls: string[], purpose: string, apiKey: string, signal?: AbortSignal, query = purpose): Promise<WebEvidence[]> {
     if (!urls.length || urls.length > 10 || urls.some(url => !publicUrl(url))) throw new Error("Provide up to ten public HTTPS source URLs.");
     const data = fetchSchema.parse(await request("https://api.fetch.tinyfish.ai/", apiKey, signal, {
         urls, purpose, format: "markdown", per_url_timeout_ms: 10_000,
     }));
     const sources = data.results.filter(item => urls.includes(item.url) && publicUrl(item.final_url || item.url)
-        && item.text.trim() && !/\b(sign in|log in|captcha|access denied|site maintenance)\b/i.test(item.title || ""))
+        && typeof item.text === "string" && item.text.trim() && !/\b(sign in|log in|captcha|access denied|site maintenance)\b/i.test(item.title || ""))
         .map((item, index) => ({ id: `web:${index + 1}`, url: item.final_url || item.url,
-            title: item.title || new URL(item.url).hostname, text: webPassages(item.text, query) }));
+            title: item.title || new URL(item.url).hostname, text: webPassages(item.text!, query) }));
     if (!sources.length && data.errors.length) throw new Error("TinyFish could not read the matching sources. Try another description.");
     return sources;
+}
+
+/**
+ * Automatic episode research can verify a small set of completed pages while
+ * slower URLs load. Use individual requests so TinyFetch's batch tail latency
+ * does not block available evidence. Never use search snippets as page proof.
+ * Yield cumulative evidence with stable IDs; closing the iterator aborts
+ * outstanding reads.
+ */
+export async function* streamMediaWebEvidence(query: string, purpose: string, apiKey: string, signal?: AbortSignal,
+    onSearchResults?: (_results: TinySearchResult[]) => void, rankEpisodes?: EpisodeSourceRanking): AsyncGenerator<WebEvidence[]> {
+    const results = await searchTinyfish(query, purpose, apiKey, signal);
+    onSearchResults?.(results);
+    const ranked = rankMediaSources(results, query);
+    const candidates = rankEpisodes ? await rankEpisodes(ranked) : ranked;
+    signal?.throwIfAborted();
+    const urls = [...new Set(candidates.map(item => item.url))].slice(0, 4);
+    if (!urls.length) { yield []; return; }
+    const controller = new AbortController();
+    const combined = signal ? AbortSignal.any([controller.signal, signal]) : controller.signal;
+    const pending = new Map(urls.map((url, index) => [index,
+        fetchMediaWebSources([url], purpose, apiKey, combined, query)
+            .then(sources => ({ index, sources, error: undefined }), error => ({ index, sources: [] as WebEvidence[], error }))]));
+    const collected: WebEvidence[] = [];
+    let lastYield = 0;
+    let firstError: unknown;
+    try {
+        while (pending.size) {
+            combined.throwIfAborted();
+            const settled = await Promise.race(pending.values());
+            pending.delete(settled.index);
+            combined.throwIfAborted();
+            firstError ??= settled.error;
+            for (const source of settled.sources) {
+                if (!collected.some(item => item.url === source.url)) collected.push({ ...source, id: `web:${settled.index + 1}` });
+            }
+            // Two readable sources are a useful first verification set. If
+            // only one is available, it is still usable once the reads settle.
+            if ((lastYield === 0 && collected.length >= 2) || (!pending.size && collected.length > lastYield)) {
+                lastYield = collected.length;
+                yield [...collected];
+            }
+        }
+        if (!collected.length && firstError) throw firstError;
+        if (!collected.length) yield [];
+    } finally { controller.abort(); }
 }
 
 export async function researchMediaWeb(query: string, purpose: string, apiKey: string, signal?: AbortSignal,

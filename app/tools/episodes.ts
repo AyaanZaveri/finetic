@@ -2,7 +2,7 @@ import { tool, type LanguageModel } from "ai";
 import { z } from "zod";
 import { resolveEpisode, type EpisodeQuery, type EpisodeProgress } from "@/lib/episode-discovery";
 import { getTinyfishConfig } from "@/lib/tinyfish-credentials";
-import { researchMediaWeb } from "@/lib/tinyfish";
+import { researchMediaWeb, streamMediaWebEvidence, type searchTinyfish } from "@/lib/tinyfish";
 import { createEpisodeResearch } from "@/lib/episode-research";
 import { navigateToEpisode, navigateToMedia, playMedia, playMediaInputSchema } from "./media";
 import { fetchEpisodeDetails } from "@/app/actions/tv-shows";
@@ -21,9 +21,12 @@ export function createEpisodeTools(model?: LanguageModel, originalRequest = "") 
     const resolve = async (input: EpisodeQuery, options: { abortSignal?: AbortSignal; context?: unknown }) => {
         const config = await getTinyfishConfig();
         const onProgress = record(options.context).onEpisodeProgress as ((_progress: EpisodeProgress) => void) | undefined;
+        const onSearchResults = (query: string) => (results: Awaited<ReturnType<typeof searchTinyfish>>) =>
+            onProgress?.({ stage: "search", state: "completed", detail: query, sources: results.map(({ url, title }) => ({ url, title })) });
         return resolveEpisode(input, { model, signal: options.abortSignal, onProgress,
             prefetchResearch: record(options.context).prefetchEpisodeResearch === true,
-            research: config.enabled && config.apiKey ? (query, purpose, signal) => researchMediaWeb(query, purpose, config.apiKey!, signal, results => onProgress?.({ stage: "search", state: "completed", detail: query, sources: results.map(({ url, title }) => ({ url, title })) })) : undefined });
+            research: config.enabled && config.apiKey ? (query, purpose, signal) => researchMediaWeb(query, purpose, config.apiKey!, signal, onSearchResults(query)) : undefined,
+            researchStream: config.enabled && config.apiKey ? (query, purpose, signal, rankEpisodes) => streamMediaWebEvidence(query, purpose, config.apiKey!, signal, onSearchResults(query), rankEpisodes) : undefined });
     };
     const findEpisode = tool({
         description: "Resolve an exact episode title with an optional user-specified season. For remembered scenes/events use getEpisodeCatalog, searchMediaWeb, readMediaWebSources and verifyEpisode so you control the research. Never guess coordinates from memory.",

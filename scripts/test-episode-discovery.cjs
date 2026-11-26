@@ -36,6 +36,7 @@ async function main() {
             const isWeb = options.prompt.includes('web:1');
             if (expectParallel && !isWeb) assert.ok(researchStarted, 'Scene research starts before metadata assessment finishes');
             const eligible = options.prompt.split('Evidence sources:')[0].includes('tmdb:58957:4:4');
+            if (mode === 'stream-late' && !options.prompt.includes('late source proof')) return { output: { status: 'not_found', evidence: [], clueEvidence: [] } };
             if (mode === 'clue-only' && isWeb) return { output: { status: 'not_found', evidence: [], clueEvidence: [{ passageId: 'web:1:p1' }] } };
             if (mode === 'fake') return { output: { status: 'matched', clueEvidence: [], evidence: [{ episodeId: 'tmdb:58957:4:4', passageId: 'web:1:p999' }] } };
             if (mode === 'wrong-id') return { output: { status: 'matched', clueEvidence: [], evidence: [{ episodeId: 'tmdb:58957:4:5', passageId: 'web:1:p1' }] } };
@@ -66,7 +67,7 @@ async function main() {
         if (modules.has(absolute)) return modules.get(absolute).exports;
         const module = { exports: {} }; modules.set(absolute, module);
         const context = { module, exports: module.exports, process: { env }, console, URL, URLSearchParams, AbortSignal, AbortController, setTimeout, clearTimeout,
-            fetch: async (url, init) => { requests.push({ url, init }); return new Response(JSON.stringify(typeof fetchBody === 'function' ? await fetchBody(url) : fetchBody || { results: [{ title: 'Guide', url: 'https://example.com/guide' }] }), { status }); },
+            fetch: async (url, init) => { requests.push({ url, init }); return new Response(JSON.stringify(typeof fetchBody === 'function' ? await fetchBody(url, init) : fetchBody || { results: [{ title: 'Guide', url: 'https://example.com/guide' }] }), { status }); },
             require: name => overrides[name] || (name.startsWith('@/') ? load(name.slice(2) + '.ts') : require(name)),
         };
         vm.runInNewContext(ts.transpileModule(fs.readFileSync(absolute, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, context, { filename: absolute });
@@ -100,6 +101,10 @@ async function main() {
     assert.equal(result.evidence[0].quote, source.text, 'The server reconstructs the original source quotation from a supplied passage ID');
     assert.equal(webCalls, 1);
     assert.ok(prompts.some(prompt => prompt.includes('Early episode 44')), 'Episodes beyond the first 40 must be assessed');
+    const webAssessments = prompts.filter(prompt => prompt.startsWith('Identify the episode') && prompt.includes('web:1'));
+    assert.equal(webAssessments.length, 1, 'A compact catalog plus web evidence needs only one verification generation');
+    assert.ok(webAssessments[0].includes('Early episode 1') && webAssessments[0].includes('Early episode 44'),
+        'Fewer verification calls must not drop distant episodes');
     assert.ok(!result.episodes.some(ep => ep.id.endsWith(':4:7')), 'Finding Frances must never be a filler candidate');
     result = await resolveEpisode(input, { model: { modelId: 'mock', provider: 'mock' } });
     assert.equal(result.success, false);
@@ -131,6 +136,37 @@ async function main() {
     assert.equal(researchStarted, true);
     const sceneAssessments = prompts.slice(scenePromptStart).filter(prompt => prompt.startsWith('Identify the episode'));
     assert.ok(sceneAssessments.length > 0 && sceneAssessments.every(prompt => prompt.includes('web:1')), 'Scene lookup verifies web evidence instead of accepting a metadata-only teaser');
+    let closedEarly = false;
+    let readSlowBatch = false;
+    await resolveEpisode(input, { model: { modelId: 'mock', provider: 'mock' }, prefetchResearch: true, research,
+        researchStream: async function* () {
+            try { yield [source]; readSlowBatch = true; yield [source, { ...source, id: 'web:2' }]; }
+            finally { closedEarly = true; }
+        } });
+    assert.equal(readSlowBatch, false, 'A verified episode does not wait for the remaining web reads');
+    assert.equal(closedEarly, true, 'Early verification closes the evidence stream');
+    mode = 'stream-late';
+    result = await resolveEpisode(input, { model: { modelId: 'mock', provider: 'mock' }, prefetchResearch: true, research,
+        researchStream: async function* () {
+            yield [{ ...source, text: 'An unrelated page' }];
+            yield [{ ...source, text: 'late source proof: The Anecdote features Jimmy Kimmel.' }];
+        } });
+    assert.equal(result.success, true, 'Insufficient fast evidence falls through to the slower evidence');
+    assert.match(result.evidence[0].quote, /late source proof/);
+    mode = 'web';
+    let researchAttempts = 0;
+    result = await resolveEpisode(input, { model: { modelId: 'mock', provider: 'mock' }, prefetchResearch: true, research,
+        researchStream: async function* (_query, _purpose, _signal, rank) {
+            if (++researchAttempts === 1) {
+                await rank([{ title: 'Nathan for You: The Anecdote', url: 'https://example.com/lead', snippet: 'Jimmy Kimmel talk-show appearance' }]);
+                throw new Error('TinyFish could not read the matching sources. Try another description.');
+            }
+            yield [source];
+        } });
+    assert.equal(researchAttempts, 2, 'An unreadable source set allows one refined search');
+    assert.equal(result.success, true, 'A readable refined source can still verify the episode');
+    assert.ok(prompts.filter(prompt => prompt.startsWith('Write one complementary')).at(-1).includes('Nathan for You: The Anecdote'),
+        'Preserve useful result titles for query refinement even when page reads fail');
     result = await resolveEpisode({ ...input, episodeQuery: 'The Anecdote', seasonNumber: 4 }, { research });
     assert.equal(result.status, 'matched'); assert.equal(webCalls, calls, 'Exact titles need no model or web search');
     showCandidates = [{ id: 'tmdb:58957', name: 'Nathan for You', voteCount: 5000 }, { id: 'tmdb:999', name: 'Nathan for You', voteCount: 3 }];
@@ -206,6 +242,12 @@ async function main() {
     const fetchRequest = requests.findLast(request => request.url === 'https://api.fetch.tinyfish.ai/');
     assert.equal(JSON.parse(fetchRequest.init.body).urls.length, 2);
     assert.equal(JSON.parse(fetchRequest.init.body).highlights, undefined, 'No account-gated highlights dependency');
+    fetchBody = { results: [
+        { url: 'https://example.com/good', title: 'Guide', text: 'The Anecdote features Jimmy Kimmel.' },
+        { url: 'https://example.com/bad', title: null, final_url: null, text: null },
+    ], errors: [] };
+    assert.equal((await tinyfish.fetchMediaWebSources(['https://example.com/good', 'https://example.com/bad'], 'Find evidence', 'key')).length, 1,
+        'The latest nullable response shape must not discard valid sibling pages or treat missing text as evidence');
     fetchBody = url => url.includes('api.search.') ? { results: [{ title: 'Bad', url: 'https://example.com/bad' }] }
         : { results: [], errors: [{ url: 'https://example.com/bad', error: 'blocked' }] };
     await assert.rejects(tinyfish.researchMediaWeb('Jimmy Kimmel', 'Find the episode', 'key'), /could not read/);
@@ -237,9 +279,38 @@ async function main() {
         { title: 'Scene clip: Main bahar ja rahi hoon bitch', url: 'https://www.instagram.com/reel/clip', snippet: 'Late Bloomer dialogue.' },
     ], '"Late Bloomer" main bahar ja rahi hoon bitch episode');
     assert.match(ranked[0].url, /instagram/, 'Dialogue relevance outranks a generic reference page; social clips are not penalized');
+    const rankedEpisodes = tinyfish.rankEpisodeSources([
+        { title: 'Holt rant video', url: 'https://example.com/video', snippet: 'Holt talks about PhDs' },
+        { title: 'Brooklyn Nine-Nine: The Box', url: 'https://example.com/episode', snippet: 'Holt talks about PhDs' },
+        { title: 'The Box and The Party episode list', url: 'https://example.com/list' },
+    ], ['The Box', 'The Party']);
+    assert.equal(rankedEpisodes[0].url, 'https://example.com/episode', 'A known episode title is a strong retrieval lead');
+    const diverse = tinyfish.rankEpisodeSources([
+        { title: 'The Box quotes', url: 'https://example.com/1' },
+        { title: 'The Box cast', url: 'https://www.example.com/2' },
+        { title: 'The Box recap', url: 'https://another.example/1' },
+    ], ['The Box']);
+    assert.equal(diverse[1].url, 'https://another.example/1', 'Prefer independent hosts before duplicate pages');
     const longText = 'Unrelated introduction.\n'.repeat(1000) + 'The Anecdote: Jimmy Kimmel Live is the key clue.';
     assert.ok(tinyfish.webPassages(longText, 'Jimmy Kimmel').includes('The Anecdote: Jimmy Kimmel'));
     assert.ok(tinyfish.webPassages(longText, 'Jimmy Kimmel').length < longText.length);
+    let releaseSlow;
+    const slow = new Promise(resolve => { releaseSlow = resolve; });
+    fetchBody = async (url, init) => {
+        if (url.includes('api.search.')) return { results: tenResults.slice(0, 4) };
+        const [target] = JSON.parse(init.body).urls;
+        if (target.endsWith('/2') || target.endsWith('/3')) await slow;
+        return { results: [{ url: target, title: 'Page', text: 'Episode evidence' }], errors: [] };
+    };
+    const stream = tinyfish.streamMediaWebEvidence('TV series', 'Find evidence', 'key');
+    const firstPages = await stream.next();
+    assert.equal(firstPages.value.length, 2, 'Do not wait for slow pages in the automatic lookup');
+    assert.equal(new Set(firstPages.value.map(page => page.id)).size, 2);
+    const pendingReads = requests.slice(-4);
+    assert.ok(pendingReads.every(request => JSON.parse(request.init.body).urls.length === 1));
+    await stream.return();
+    assert.ok(pendingReads.every(request => request.init.signal.aborted), 'Close outstanding page requests after sufficient evidence');
+    releaseSlow();
     console.log('PASS: evidence-backed episode identity, full catalogs/overviews, ambiguity/no-match, cancellation, TinyFish credentials and optional search.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });
