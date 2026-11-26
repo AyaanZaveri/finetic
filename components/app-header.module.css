@@ -109,9 +109,6 @@
 
 .detailBack { display: none; }
 @media (width < 48rem) {
-    :global([data-app-layout]):has(.header[data-detail-header="true"]) {
-        --app-header-navigation-padding: .375rem;
-    }
     .header[data-detail-header="true"] .home { display: none; }
     .header[data-detail-header="true"] .detailBack {
         display: inline-flex;
