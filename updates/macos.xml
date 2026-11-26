@@ -4,7 +4,7 @@
     <title>Navigator for macOS</title>
     <language>en</language>
     <item>
-      <title>Navigator 0.7.1</title>
+      <title>Navigator 0.7.2</title>
       <description>&lt;!doctype html&gt;
 &lt;html lang=&quot;en&quot;&gt;
 &lt;head&gt;
@@ -23,11 +23,11 @@ p { margin: 0; }
 &lt;body&gt;&lt;p&gt;Update Navigator, then reopen it with your existing sign-in and settings.&lt;/p&gt;&lt;/body&gt;
 &lt;/html&gt;</description>
       <sparkle:minimumSystemVersion>13.5</sparkle:minimumSystemVersion>
-      <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.7.1/Navigator-0.7.1-macos-arm64.zip"
-        sparkle:version="0.7.1" sparkle:shortVersionString="0.7.1"
-        sparkle:edSignature="4ZqWsgU2GUrkhF8q3AKh5f1N7OIy4SA35lrZiad8iinOJj2hFYQ8wgOBWF0ChFjpm45HRa6sTHdRvd8JyOYFDg==" length="96814516" type="application/octet-stream" />
+      <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.7.2/Navigator-0.7.2-macos-arm64.zip"
+        sparkle:version="0.7.2" sparkle:shortVersionString="0.7.2"
+        sparkle:edSignature="Gq/Zxa8bIGS3CPz0mkI/y9es6bgoYbqICNq/rcRP4QSwt+tPiqVwXdQH5Kizw8oky/kYGl/Kb0/U41uU/27CCw==" length="113690298" type="application/octet-stream" />
       <sparkle:deltas>
-        <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.7.1/Navigator-0.7.1-macos-arm64-from-0.7.0.delta" sparkle:version="0.7.1" sparkle:deltaFrom="0.7.0" sparkle:edSignature="TLJcdpaRkp6fXxwq/QVDEleUVCinhwMJt3LXWX83VcsUcpK+0HX9KubXE7+n1qnkVpy1T6TXpRsVsbiJ/noUDQ==" length="810394" type="application/octet-stream" />
+        <enclosure url="https://github.com/AyaanZaveri/navigator/releases/download/release-v0.7.2/Navigator-0.7.2-macos-arm64-from-0.7.1.delta" sparkle:version="0.7.2" sparkle:deltaFrom="0.7.1" sparkle:edSignature="tTl1BvN3aQReSxkIto36th9rA/aMj/6wCUm6mELB9CCz8CbjaB/7w2waKkYXY9mmENTF49TUPXjWpNVMujdCBw==" length="12069366" type="application/octet-stream" />
       </sparkle:deltas>
     </item>
   </channel>
