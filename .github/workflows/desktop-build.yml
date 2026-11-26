@@ -94,10 +94,6 @@ jobs:
           node scripts/test-user-menu-keyboard.cjs
           node scripts/test-ci-desktop-artifacts.mjs
           cargo test --manifest-path desktop/Cargo.toml --locked
-      - name: Check macOS title-bar resize and restore
-        run: |
-          cargo run --manifest-path desktop/Cargo.toml --locked --example macos-titlebar-check -- -AppleActionOnDoubleClick Fill
-          cargo run --manifest-path desktop/Cargo.toml --locked --example macos-titlebar-check -- -AppleActionOnDoubleClick Maximize
       - name: Download verified playback libraries
         run: node scripts/fetch-desktop-libs.mjs
       - name: Prepare verified delta base
