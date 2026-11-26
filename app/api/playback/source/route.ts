@@ -1,5 +1,5 @@
 import { getAuthData } from "@/lib/server/auth";
-import { resolveWebPlaybackSource } from "@/lib/server/web-playback-source";
+import { resolveWebPlaybackSource, resolveInHouseMediaFlowSource } from "@/lib/server/web-playback-source";
 
 export const runtime = "nodejs";
 const MAX_BODY = 16 * 1024;
@@ -34,6 +34,7 @@ export async function POST(request: Request) {
     if (typeof url !== "string" || !url || url.length > 8192) return reply({ error: "Invalid source" }, 400);
     try {
         const signal = AbortSignal.any([request.signal, AbortSignal.timeout(12_000)]);
-        return reply({ url: await resolveWebPlaybackSource(url, signal) });
+        const inHouse = (body as { mediaFlow?: unknown }).mediaFlow === "in-house";
+        return reply({ url: await (inHouse ? resolveInHouseMediaFlowSource(url, signal) : resolveWebPlaybackSource(url, signal)) });
     } catch { return reply({ error: "Playback source unavailable" }, 502); }
 }
