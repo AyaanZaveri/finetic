@@ -38,11 +38,21 @@ jobs:
           echo "NAVIGATOR_AETHER_FIXTURE=http://127.0.0.1:18765/fixture.mkv" >> "$GITHUB_ENV"
       - name: Compile and test Aether bridge
         run: swift test --package-path desktop/macos/aether
-      - uses: dtolnay/rust-toolchain@3da603d4464771f1a8c3dd4acb41f03bc9107551 # 1.92.0
+  shell:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: dtolnay/rust-toolchain@3da603d4464771f1a8c3dd4acb41f03bc8107551 # 1.92.0
         with:
           toolchain: 1.92.0
       - name: Test Rust native shell
         run: cargo test --manifest-path desktop/Cargo.toml --locked
+  frontend:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 26.7.0
