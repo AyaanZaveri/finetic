@@ -77,3 +77,14 @@ The package includes its MIT-style license and third-party notices at
 `Contents/Resources/licenses/Sparkle.txt`. The framework's original nested
 signatures and symlinks are retained. The pinned SDK hashes are in
 `scripts/fetch-sparkle.mjs`.
+
+## AetherEngine (optional macOS engine)
+
+Navigator embeds [AetherEngine 7.76.0](https://github.com/superuser404notfound/AetherEngine/tree/7.76.0)
+on macOS 15 and later, through a newly written Swift adapter. AetherEngine is
+LGPL-3.0 with its upstream App Store/DRM exception. The dynamic FFmpegBuild
+frameworks have distinct Aether-prefixed install names so they do not replace
+libmpv's FFmpeg libraries. The release package includes the exact upstream
+source references and license notices for AetherEngine, FFmpegBuild, LibDovi,
+and the embedded Anime4K shader.
+Optional Dolby Vision FEL and object-audio package traits are not enabled.

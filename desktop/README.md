@@ -735,3 +735,39 @@ can apply the same 6px scrollbar and transparent track used by the site.
   platform binaries, LICENSE, and SHA-256 manifests.
 - [Node 26 supported platforms](https://github.com/nodejs/node/blob/v26.7.0/BUILDING.md#platform-list):
   the packaged runtime requires macOS 13.5+ and Windows 10+.
+
+### Experimental AetherEngine playback on macOS
+
+On macOS 15 and later, Navigator can use AetherEngine 7.76.0 through a
+Swift/AppKit adapter. The existing Rust shell and React controls remain shared.
+Settings > Playback > Playback engine offers libmpv, Automatic and AetherEngine.
+libmpv remains the default until the alternative has completed physical-device
+validation. Automatic tries AetherEngine and retries once through libmpv at the
+current position if AetherEngine reports a playback error. Explicit AetherEngine
+selection reports its own playback error.
+
+Streams requiring custom request headers keep using libmpv. This prevents an
+AVPlayer remote-HLS redirect or playlist from forwarding credentials to another
+origin. Automatic also uses libmpv for a manually configured HDR target.
+AetherEngine manages HDR brightness through Apple's native presentation path.
+
+The Swift package is pinned in `macos/aether/Package.resolved`. Build it with
+Xcode 27 and Swift 6.4, the upstream supported toolchain. For development, set
+`NAVIGATOR_AETHER_BRIDGE` to the built dynamic library's absolute path.
+Release packaging includes the signed dynamic bridge and its FFmpeg frameworks
+under Contents/Frameworks while leaving the shell deployment target at macOS
+13.5. Older macOS versions do not load the Swift library.
+
+AetherEngine uses a bounded temporary fMP4 segment cache and a separate source
+clock for subtitle cue timing. Seek previews use its timestamped cache-backed
+API; targets outside the retained cache may have no preview yet. Stats for
+nerds reports the selected engine, decoder route, video/audio decoder names,
+presented HDR format, and available drop counters. Counters unavailable on a
+route are omitted rather than fabricated.
+
+References:
+- [Host guide](https://github.com/superuser404notfound/AetherEngine/blob/7.76.0/docs/guide.md)
+- [API](https://github.com/superuser404notfound/AetherEngine/blob/7.76.0/docs/api.md)
+- [Installation](https://github.com/superuser404notfound/AetherEngine/blob/7.76.0/docs/installation.md)
+- [Formats and limitations](https://github.com/superuser404notfound/AetherEngine/blob/7.76.0/docs/formats.md)
+- [Licensing](https://github.com/superuser404notfound/AetherEngine/blob/7.76.0/docs/licensing.md)

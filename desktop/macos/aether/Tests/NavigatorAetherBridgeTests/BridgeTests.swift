@@ -3,7 +3,9 @@ import Foundation
 import Testing
 @testable import NavigatorAetherBridge
 
+@Suite(.serialized)
 @MainActor
+struct BridgeTests {
 @Test func bridgeLifecycle() throws {
     let parent = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 180))
     let callback: EventCallback = { _, _, _ in }
@@ -14,7 +16,6 @@ import Testing
     #expect(parent.subviews.isEmpty)
 }
 
-@MainActor
 private final class Events {
     var messages: [[String: Any]] = []
     let callback: EventCallback = { context, bytes, count in
@@ -35,7 +36,6 @@ private final class Events {
     func has(_ type: String) -> Bool { messages.contains { $0["type"] as? String == type } }
 }
 
-@MainActor
 @Test func remoteMediaLifecycle() async throws {
     // CI owns this deterministic HTTP range origin and media fixture.
     guard let url = ProcessInfo.processInfo.environment["NAVIGATOR_AETHER_FIXTURE"] else { return }
@@ -56,6 +56,7 @@ private final class Events {
     try await events.waitFor({ events.has("loaded") || events.has("error") })
     try #require(!events.has("error"))
     try await events.waitFor({ (events.state["position"] as? Double ?? 0) > 2.1 })
+    try await events.waitFor({ events.has("ready") })
     #expect(events.state["engine"] as? String == "aether")
     #expect(events.state["route"] as? String == "loopback")
     #expect(events.state["videoDecoder"] as? String != nil)
@@ -95,4 +96,5 @@ private final class Events {
     try send("stop")
     #expect(parent.subviews.first?.isHidden == true)
     print("Aether playback fixture diagnostics: \(events.state)")
+}
 }

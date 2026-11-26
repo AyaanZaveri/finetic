@@ -206,7 +206,7 @@ final class PlaybackBridge {
                 self.applyVolume()
                 self.engine.setRate(Float(self.rate))
                 self.publishMetadata()
-                self.tick(force: true)
+                self.tick(force: true, allowReady: false)
                 self.emit("loaded")
                 if !self.desiredPaused { self.engine.play() }
                 self.tick(force: true)
@@ -248,7 +248,7 @@ final class PlaybackBridge {
         }
     }
 
-    private func tick(force: Bool = false) {
+    private func tick(force: Bool = false, allowReady: Bool = true) {
         guard session != nil else { return }
         if case .error = engine.state { failure(); return }
         if case .ended = engine.state {
@@ -288,7 +288,7 @@ final class PlaybackBridge {
                 emit("state", ["state": state])
             }
         }
-        if !ready, engine.hasFirstFrameReadyForDisplay, !engine.isBuffering, engine.playbackPhase != .loading {
+        if allowReady, !ready, engine.hasFirstFrameReadyForDisplay, !engine.isBuffering, engine.playbackPhase != .loading {
             ready = true
             emit("ready")
         }

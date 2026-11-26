@@ -3,6 +3,14 @@ name: macOS Aether playback
 on:
   push:
     branches: [macos-aether-playback]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'desktop/macos/aether/**'
+      - 'desktop/src/aether.rs'
+      - 'desktop/src/protocol.rs'
+      - 'scripts/package-aether.mjs'
+      - '.github/workflows/macos-aether.yml'
   workflow_dispatch:
 
 permissions:
@@ -22,10 +30,6 @@ jobs:
         run: |
           swift --version
           xcodebuild -version
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/Library/Caches/org.swift.swiftpm/repositories
-          key: aether-swiftpm-${{ hashFiles('desktop/macos/aether/Package.resolved') }}
       - name: Generate and serve a real playback fixture
         run: |
           command -v ffmpeg >/dev/null || brew install ffmpeg
@@ -38,6 +42,11 @@ jobs:
           echo "NAVIGATOR_AETHER_FIXTURE=http://127.0.0.1:18765/fixture.mkv" >> "$GITHUB_ENV"
       - name: Compile and test Aether bridge
         run: swift test --package-path desktop/macos/aether
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 26.7.0
+      - name: Verify portable dynamic bridge bundle
+        run: node scripts/package-aether.mjs "$RUNNER_TEMP/NavigatorAetherFixture.app/Contents" debug
   shell:
     runs-on: macos-15
     timeout-minutes: 30
