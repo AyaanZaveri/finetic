@@ -19,6 +19,28 @@ export function getWordmarkDensity(
   return coverage / Math.max(1, width * height * bounds.width * bounds.height);
 }
 
+/** Dim pale ink on light artwork without flattening the logo's color or detail. */
+export function getWordmarkLightBrightness(pixels: ArrayLike<number>): number | undefined {
+  const tones = new Uint32Array(256);
+  let visible = 0;
+  for (let offset = 0; offset < pixels.length; offset += 4) {
+    if (pixels[offset + 3] < 128) continue;
+    const tone = Math.round(pixels[offset] * .2126 + pixels[offset + 1] * .7152 + pixels[offset + 2] * .0722);
+    tones[tone]++;
+    visible++;
+  }
+  if (!visible) return undefined;
+
+  // Ignore isolated highlights and small badges when choosing the main ink tone.
+  const targetTone = 112;
+  const upperQuartile = Math.ceil(visible * .75);
+  let count = 0;
+  for (let tone = 0; tone < tones.length; tone++) {
+    count += tones[tone];
+    if (count >= upperQuartile) return tone > targetTone ? targetTone / tone : 1;
+  }
+}
+
 /** Normalized visible bounds; transparent canvas padding should not determine logo size. */
 export function getWordmarkBounds(
   pixels: ArrayLike<number>,

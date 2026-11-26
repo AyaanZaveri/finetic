@@ -169,6 +169,7 @@ export function HomeHero({ items, resume, onViewChange }: {
                             alt=""
                             fetchPriority={index === activeIndex ? "high" : "auto"}
                             className={styles.wordmark}
+                            adaptToLightBackdrop
                             onError={() =>
                                 setFailedLogos((previous) =>
                                     previous.includes(itemArtwork.logo!) ? previous : [...previous, itemArtwork.logo!],

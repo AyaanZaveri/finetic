@@ -206,7 +206,7 @@
     transparent 84%);
 }
 
-:global(html:not(.dark)) .wordmark { filter: brightness(0) opacity(0.87); }
+:global(html:not(.dark)) .wordmark { filter: brightness(var(--wordmark-light-brightness, .68)); }
 :global(html:not(.dark)) .titleFallback,
 :global(html:not(.dark)) .fact,
 :global(html:not(.dark)) .genres,

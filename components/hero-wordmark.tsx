@@ -1,16 +1,21 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
-import { getWordmarkBounds, getWordmarkDensity } from "@/lib/wordmark-bounds";
+import { useCallback, useRef, useState, type CSSProperties } from "react";
+import { getWordmarkBounds, getWordmarkDensity, getWordmarkLightBrightness } from "@/lib/wordmark-bounds";
 import { publicArtworkUrl } from "@/lib/artwork";
 import { cn } from "@/lib/utils";
 import styles from "./hero-wordmark.module.css";
 
 const fullBounds = { left: 0, top: 0, width: 1, height: 1 };
 
-function measureWordmark(image: HTMLImageElement, canSample: boolean) {
+function measureWordmark(image: HTMLImageElement, canSample: boolean, adaptToLightBackdrop: boolean) {
   const { naturalWidth, naturalHeight } = image;
-  const intrinsic = { bounds: fullBounds, aspect: naturalWidth / naturalHeight, dense: false };
+  const intrinsic = {
+    bounds: fullBounds,
+    aspect: naturalWidth / naturalHeight,
+    dense: false,
+    lightBrightness: undefined,
+  };
   if (!canSample) return intrinsic;
 
   const canvas = document.createElement("canvas");
@@ -29,6 +34,7 @@ function measureWordmark(image: HTMLImageElement, canSample: boolean) {
       bounds,
       dense: getWordmarkDensity(pixels, canvas.width, canvas.height, bounds) > .5,
       aspect: (naturalWidth * bounds.width) / (naturalHeight * bounds.height),
+      lightBrightness: adaptToLightBackdrop ? getWordmarkLightBrightness(pixels) : undefined,
     };
   } catch {
     // Intrinsic dimensions are available even when the browser restricts pixel access.
@@ -36,12 +42,13 @@ function measureWordmark(image: HTMLImageElement, canSample: boolean) {
   }
 }
 
-export function HeroWordmark({ src, alt, className, fetchPriority, onError }: {
+export function HeroWordmark({ src, alt, className, fetchPriority, onError, adaptToLightBackdrop = false }: {
   src: string;
   alt: string;
   className?: string;
   fetchPriority?: "high" | "low" | "auto";
   onError?: () => void;
+  adaptToLightBackdrop?: boolean;
 }) {
   const [analysis, setAnalysis] = useState<({ src: string } & ReturnType<typeof measureWordmark>) | null>(null);
   const [corsFailedSrc, setCorsFailedSrc] = useState<string | null>(null);
@@ -52,8 +59,8 @@ export function HeroWordmark({ src, alt, className, fetchPriority, onError }: {
   const imageLoaded = useCallback((image: HTMLImageElement) => {
     if (image !== displayedImage.current || image === settledImage.current || !image.naturalWidth || !image.naturalHeight) return;
     settledImage.current = image;
-    setAnalysis({ src, ...measureWordmark(image, corsFailedSrc !== src) });
-  }, [src, corsFailedSrc]);
+    setAnalysis({ src, ...measureWordmark(image, corsFailedSrc !== src, adaptToLightBackdrop) });
+  }, [src, corsFailedSrc, adaptToLightBackdrop]);
 
   const imageFailed = useCallback((image: HTMLImageElement) => {
     if (image !== displayedImage.current || image === settledImage.current) return;
@@ -73,9 +80,14 @@ export function HeroWordmark({ src, alt, className, fetchPriority, onError }: {
   const current = analysis?.src === src ? analysis : null;
   const bounds = current?.bounds ?? fullBounds;
   const aspect = current?.aspect ?? 800 / 310;
+  const lightBrightness = adaptToLightBackdrop ? current?.lightBrightness : undefined;
+  const style = lightBrightness === undefined ? undefined : {
+    "--wordmark-light-brightness": lightBrightness,
+  } as CSSProperties;
   return (
     <div
       className={cn(styles.root, className)}
+      style={style}
       data-wide={aspect >= 3 || undefined}
       data-dense={current?.dense || undefined}
       data-ready={Boolean(current) || undefined}
