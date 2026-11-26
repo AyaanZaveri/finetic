@@ -10,6 +10,13 @@ const visibleText = node => Array.isArray(node) ? node.map(visibleText).join('')
     let h = hooks();
     let attempts = 0, invalidations = 0, released = 0;
     let publishStreams, cached;
+    const addonApi = load('lib/media/fetch-addon-streams.ts', {}, { URL, URLSearchParams, Response });
+    let rateLimitError;
+    try {
+        await addonApi.fetchAddonStreams({ id: 'fixture' }, 'tt123', 'movie', new AbortController().signal,
+            async () => new Response(null, { status: 429, headers: { 'Retry-After': '60' } }));
+    } catch (error) { rateLimitError = error; }
+    assert.ok(rateLimitError);
     const queries = {
         peek: () => cached,
         acquire: () => {
@@ -20,13 +27,14 @@ const visibleText = node => Array.isArray(node) ? node.map(visibleText).join('')
                     publishStreams([], cached ? 2 : 0);
                     return () => {};
                 },
-                promise: failed ? Promise.reject(new Error('offline')) : Promise.resolve([]),
+                promise: failed ? Promise.reject(rateLimitError) : Promise.resolve([]),
             } };
         },
         invalidate: target => { assert.equal(target.id, 'tt123:2:2'); invalidations++; },
     };
     const { MediaActions } = load('components/media-actions.tsx', {
         react: new Proxy({}, { get: (_, key) => h.react[key] }), 'react/jsx-runtime': h.jsx,
+        '@/lib/media/fetch-addon-streams': addonApi,
         '@/components/stream-query-provider': { useStreamQueries: () => queries },
         '@/contexts/account-context': { useAccountAccess: () => ({ authenticated: true }) },
         '@/contexts/MediaPlayerContext': { usePlaybackActions: () => ({}) },
@@ -55,6 +63,7 @@ const visibleText = node => Array.isArray(node) ? node.map(visibleText).join('')
     h.unmount(); h = hooks(); attempts = 0; released = 0;
     render(); await tick(); let tree = render();
     assert.equal(find(tree, node => node.type === 'EmptyTitle')[0].props.children, 'Could not load streams');
+    assert.match(visibleText(find(tree, node => node.type === 'EmptyDescription')[0]), /rate limited.*Wait before trying again/);
     find(tree, node => node.type === 'button' && node.props.children === 'Try again')[0].props.onClick();
     render(); await tick(); tree = render();
     assert.equal(attempts, 2); assert.equal(invalidations, 1); assert.equal(released, 1);

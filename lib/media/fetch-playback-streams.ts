@@ -1,6 +1,6 @@
 import type { StremioStream } from '@/types/stremio';
 import { fetchPlaybackId } from './fetch-playback-id';
-import { fetchAddonStreams, type StreamAddonTarget } from './fetch-addon-streams';
+import { fetchAddonStreams, summarizeAddonFailures, type StreamAddonTarget } from './fetch-addon-streams';
 
 export type StreamWithAddon = StremioStream & { addonId: string; addonName: string; addonIndex?: number };
 export interface PlaybackStreamSnapshot { streams: StreamWithAddon[]; pending: number; total: number; complete: boolean; settledPrefix?: number }
@@ -52,7 +52,7 @@ export function createPlaybackStreamRequest(id: string, type: string, signal?: A
             publish({ streams: groups.flat(), pending, total: addons.length, complete: pending === 0, settledPrefix });
         };
         update();
-        await Promise.allSettled(addons.map(async (addon, index) => {
+        const outcomes = await Promise.allSettled(addons.map(async (addon, index) => {
             try {
                 const streams = await fetchAddonStreams(addon, canonicalId, type, timeout(30_000));
                 succeeded++;
@@ -61,7 +61,9 @@ export function createPlaybackStreamRequest(id: string, type: string, signal?: A
                 }));
             } finally { settled[index] = true; pending--; update(); }
         }));
-        if (succeeded < addons.length && !request.snapshot.streams.length) throw new Error("Could not load streams from your add-ons. Try again.");
+        if (succeeded < addons.length && !request.snapshot.streams.length) {
+            throw summarizeAddonFailures(outcomes.flatMap(result => result.status === "rejected" ? [result.reason] : []));
+        }
         return request.snapshot.streams;
     })();
     return request;

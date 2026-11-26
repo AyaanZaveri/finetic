@@ -1,7 +1,7 @@
 import { QueryClient, QueryObserver, queryOptions, type QueryKey } from "@tanstack/react-query";
 import { fetchPlaybackId } from "./fetch-playback-id";
 import type { PlaybackStreamRequest, PlaybackStreamSnapshot, StreamWithAddon } from "./fetch-playback-streams";
-import { fetchAddonStreams, type StreamAddonTarget } from "./fetch-addon-streams";
+import { fetchAddonStreams, summarizeAddonFailures, type StreamAddonTarget } from "./fetch-addon-streams";
 
 type Target = { id: string; type: string };
 type Purpose = "speculative" | "required";
@@ -234,17 +234,18 @@ export function createStreamQueries(scope: string, client = new QueryClient(), f
             }));
             entry.keys = options.map(option => option.queryKey);
             for (const key of entry.keys) lastUse.set(JSON.stringify(key.slice(0, -1)), Date.now());
+            const failures: unknown[] = [];
             const work = options.map((option, index) => {
                 // Passive observers keep the shared query alive across page
                 // teardown; acquisition alone decides when to fetch.
                 const observer = new QueryObserver(client, { ...option, enabled: false });
                 entry.cleanups.push(observer.subscribe(() => { if (!entry.completed) update(); }));
-                return client.query(option).then(() => { ready[index] = true; }, () => {}).finally(() => { settled[index] = true; update(); });
+                return client.query(option).then(() => { ready[index] = true; }, error => { failures.push(error); }).finally(() => { settled[index] = true; update(); });
             });
             update(); await Promise.all(work);
             controller.signal.throwIfAborted();
             if (targets.addons.length && !request.snapshot.streams.length && ready.some(value => !value)) {
-                throw new Error("Could not load streams from your add-ons. Try again.");
+                throw summarizeAddonFailures(failures);
             }
             return request.snapshot.streams;
         })();

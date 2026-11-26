@@ -20,6 +20,7 @@ import { ChipGroup } from "@/components/arc/chip-group/chip-group";
 import styles from "./media-actions.module.css";
 import { StreamSummary } from "@/components/stream-summary";
 import { createPlaybackStreamRequest, type StreamWithAddon } from "@/lib/media/fetch-playback-streams";
+import { getAddonStreamErrorMessage } from "@/lib/media/fetch-addon-streams";
 import { useStreamQueries } from "@/components/stream-query-provider";
 import { projectPlaybackDetails } from "@/lib/media/playback-details";
 import { safeResumePosition } from "@/lib/media/resume-playback";
@@ -53,7 +54,7 @@ export function MediaActions({ media, movie, streamSelection, preview = false }:
   const { setIsPlayerVisible, playMedia } = usePlaybackActions();
   const [streams, setStreams] = useState<StreamWithAddon[]>(initialStreams?.streams ?? []);
   const [loading, setLoading] = useState(false);
-  const [streamError, setStreamError] = useState(false);
+  const [streamError, setStreamError] = useState<string | null>(null);
   const [streamRetry, setStreamRetry] = useState(0);
   const [hasCheckedStreams, setHasCheckedStreams] = useState(preview || (initialStreams?.complete ?? false));
   const [pendingAddons, setPendingAddons] = useState(0);
@@ -88,7 +89,7 @@ export function MediaActions({ media, movie, streamSelection, preview = false }:
   useEffect(() => {
     if (preview || !authenticated || !activeId || !activeType) return;
     let cancelled = false;
-    setStreamError(false);
+    setStreamError(null);
 
     const lease = queries?.acquire({ id: activeId, type: activeType });
     const request = lease?.request || createPlaybackStreamRequest(activeId, activeType);
@@ -105,7 +106,11 @@ export function MediaActions({ media, movie, streamSelection, preview = false }:
     void request.promise.then(() => {
       if (!cancelled) { setLoading(false); setHasCheckedStreams(true); }
     }).catch(error => {
-      if (!cancelled) { console.error("Failed to fetch streams:", error); setStreamError(true); setLoading(false); setHasCheckedStreams(true); }
+      if (!cancelled) {
+        const message = getAddonStreamErrorMessage(error);
+        console.error("Failed to fetch streams:", message);
+        setStreamError(message); setLoading(false); setHasCheckedStreams(true);
+      }
     });
     return () => { cancelled = true; unsubscribe(); lease?.release(); };
   }, [activeId, activeType, queries, authenticated, streamRetry, switchingStream, preview]);
@@ -373,7 +378,7 @@ export function MediaActions({ media, movie, streamSelection, preview = false }:
                   ? "More add-ons are loading. Try a different search or filter."
                   : normalizedSearchQuery || hasActiveFilters
                   ? "Try a different search or filter"
-                  : streamError ? "Your add-ons could not complete this lookup. Try again."
+                  : streamError ? streamError
                   : totalAddons === 0 ? "Install a stream add-on on the Add-ons page"
                   : "Your add-ons returned no streams. Try another title or check your add-ons."}
               </EmptyDescription>

@@ -16,6 +16,7 @@ const streams = () => Response.json({ streams: [{ url: 'https://video.example/mo
         assert.equal(parsed.searchParams.get('token'), 'fixture');
         assert.equal(init.credentials, 'omit'); assert.equal(init.mode, 'cors');
         assert.equal(init.referrerPolicy, 'no-referrer'); assert.equal(init.headers, undefined);
+        assert.equal(init.cache, 'default', 'Use normal provider-controlled HTTP caching');
         return streams();
     });
     assert.equal(calls.length, 1); assert.equal(result.length, 2);
@@ -23,19 +24,22 @@ const streams = () => Response.json({ streams: [{ url: 'https://video.example/mo
 
     for (const failure of ['network', 'timeout', 401, 403, 405]) {
         calls = [];
-        await fresh()(addon, 'tt123', 'movie', signal, async (url, init) => {
+        await assert.rejects(fresh()(addon, 'tt123', 'movie', signal, async url => {
             calls.push(url);
-            if (calls.length === 1) {
-                if (failure === 'network' || failure === 'timeout') throw new TypeError(failure);
-                return new Response(null, { status: failure });
-            }
-            assert.ok(url.startsWith('/api/streams/addon?'));
-            assert.equal(init.credentials, 'same-origin');
-            assert.equal(new URL(url, 'https://app.example').searchParams.get('addonId'), addon.id);
-            return streams();
-        });
-        assert.equal(calls.length, 2, `${failure} falls back once`);
+            if (failure === 'network' || failure === 'timeout') throw new TypeError(failure);
+            return new Response(null, { status: failure });
+        }), failure === 'network' || failure === 'timeout' ? /browser could not connect/i : /rejected|Could not load streams/i);
+        assert.equal(calls.length, 1, `${failure} must not cause a second provider request`);
     }
+    calls = [];
+    await fresh()({ id: addon.id, name: addon.name }, 'tt123', 'movie', signal, async (url, init) => {
+        calls.push(url);
+        assert.ok(url.startsWith('/api/streams/addon?'));
+        assert.equal(init.credentials, 'same-origin');
+        assert.equal(init.cache, 'no-store');
+        return streams();
+    });
+    assert.equal(calls.length, 1, 'Legacy targets without a direct URL use the backend');
     for (const status of [404, 429, 500, 503]) {
         calls = [];
         await assert.rejects(fresh()(addon, 'tt123', 'movie', signal, async url => {
@@ -63,16 +67,18 @@ const streams = () => Response.json({ streams: [{ url: 'https://video.example/mo
         const api = load('lib/media/fetch-addon-streams.ts', {}, { ...globals, Date: class extends Date { static now() { return now; } } });
         const limited = async url => {
             hits++;
-            if (backend && !url.startsWith('/api/')) throw new TypeError('CORS blocked');
+            if (backend) assert.ok(url.startsWith('/api/'));
+            else assert.ok(url.startsWith('https://addon.example/'));
             return new Response(null, { status: 429, headers: { 'Retry-After': '120' } });
         };
-        await assert.rejects(api.fetchAddonStreams(addon, 'tt123', 'movie', signal, limited), /rate limited/);
+        const target = backend ? { id: addon.id, name: addon.name } : addon;
+        await assert.rejects(api.fetchAddonStreams(target, 'tt123', 'movie', signal, limited), /rate limited/);
         const before = hits;
         now += 90_000;
-        await assert.rejects(api.fetchAddonStreams(addon, 'tt456', 'movie', signal, limited), /rate limited/);
+        await assert.rejects(api.fetchAddonStreams(target, 'tt456', 'movie', signal, limited), /rate limited/);
         assert.equal(hits, before, 'Respect the provider cooldown across titles');
         now += 31_000;
-        await api.fetchAddonStreams(addon, 'tt456', 'movie', signal, async () => streams());
+        await api.fetchAddonStreams(target, 'tt456', 'movie', signal, async () => streams());
     }
 
     const dependencies = {
@@ -88,6 +94,32 @@ const streams = () => Response.json({ streams: [{ url: 'https://video.example/mo
     const route = load('app/api/streams/addon/route.ts', dependencies, globals);
     const limited = await route.GET(new Request('https://app.example/api/streams/addon?mediaItemId=tt123&addonId=fixture'));
     assert.equal(limited.status, 429); assert.equal(limited.headers.get('Retry-After'), '120');
+
+    // Both client entry points must preserve the rate-limit reason and honor
+    // the same cooldown on a different title rather than starting another request.
+    for (const shared of [false, true]) {
+        let providerHits = 0;
+        const browserFetch = async url => {
+            if (url.startsWith('/api/streams/addons?')) return Response.json({ revision: 'fixture', addons: [addon] });
+            assert.ok(url.startsWith('https://addon.example/'));
+            providerHits++;
+            return new Response(null, { status: 429, headers: { 'Retry-After': '120' } });
+        };
+        const env = { ...globals, TextEncoder, DOMException, fetch: browserFetch };
+        if (shared) {
+            const { createStreamQueries } = load('lib/media/stream-queries.ts', {}, env);
+            const store = createStreamQueries('rate-limit-test');
+            try {
+                await assert.rejects(store.create('tt123', 'movie').promise, /rate limited/);
+                await assert.rejects(store.create('tt456', 'movie').promise, /rate limited/);
+            } finally { store.clear(); }
+        } else {
+            const { createPlaybackStreamRequest } = load('lib/media/fetch-playback-streams.ts', {}, env);
+            await assert.rejects(createPlaybackStreamRequest('tt123', 'movie').promise, /rate limited/);
+            await assert.rejects(createPlaybackStreamRequest('tt456', 'movie').promise, /rate limited/);
+        }
+        assert.equal(providerHits, 1, 'No provider request during the cooldown');
+    }
 
     // Both public client entry points must use direct requests, including
     // canonical episode IDs and the shared query cache used by prefetch.
@@ -105,8 +137,11 @@ const streams = () => Response.json({ streams: [{ url: 'https://video.example/mo
             const { createStreamQueries } = load('lib/media/stream-queries.ts', deps, env);
             const store = createStreamQueries('direct-test');
             try {
-                const result = await store.create('tmdb:123:1:2', 'series').promise;
+                const prefetch = store.speculate('tmdb:123:1:2', 'series');
+                const page = store.create('tt123:1:2', 'series');
+                const [result, pageResult] = await Promise.all([prefetch.promise, page.promise]);
                 assert.equal(result[0].addonId, addon.id);
+                assert.equal(pageResult[0].addonId, addon.id);
                 await store.create('tt123:1:2', 'series').promise;
                 assert.equal(requests.length, 2, 'Canonical aliases reuse direct results');
             } finally { store.clear(); }
@@ -117,5 +152,5 @@ const streams = () => Response.json({ streams: [{ url: 'https://video.example/mo
             assert.equal(requests.length, 2);
         }
     }
-    console.log('PASS: direct add-on results, compatibility fallback, cancellation, validation, private targets and rate-limit cooldowns');
+    console.log('PASS: normal HTTP caching, direct add-on deduplication, legacy compatibility, fail-closed access errors, cancellation, validation and rate-limit cooldowns');
 })().catch(error => { console.error(error); process.exitCode = 1; });
