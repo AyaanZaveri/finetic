@@ -26,8 +26,10 @@ async function waitFor(condition) {
 async function run() {
     const first = storage();
     await first.restoreHomeSnapshot(account);
+    const heroItem = { ...movie, background: artwork, logo: 'https://image.tmdb.org/t/p/original/hero.png' };
     await Promise.all([
         first.updateHomeSnapshot(account, (snapshot, timestamp) => first.mergeHomeCatalogs(snapshot, [result(movie)], now, timestamp)),
+        first.updateHomeSnapshot(account, snapshot => first.mergeHomeHero(snapshot, [heroItem], now)),
         first.updateHomeSnapshot(account, (snapshot, timestamp) => ({
             ...snapshot, resume: { data: first.snapshotItems([movie], 20), updatedAt: timestamp },
         })),
@@ -37,6 +39,7 @@ async function run() {
     const restored = await reopened.restoreHomeSnapshot(account);
     assert.equal(restored.catalogs[0].data.mediaItems[0].poster, artwork);
     assert.equal(restored.resume.data[0].resumePositionTicks, 25);
+    assert.equal(restored.hero.data[0].logo, heroItem.logo, 'Store the resolved wordmark alongside the cached hero');
     assert.doesNotMatch(JSON.stringify(restored), /should-not-persist|stream\.test|addon\.test|subtitleFilename/);
 
     // Mount the real persistence owner and a real TanStack observer together.
@@ -46,7 +49,7 @@ async function run() {
         react: host.react, 'react/jsx-runtime': host.jsx,
         '@tanstack/react-query': { useQueryClient: () => client },
         '@/lib/home-snapshot': reopened, '@/lib/media/continue-watching-query': query,
-    });
+    }, { Date: { now: () => now } });
     const provider = () => host.render(HomeSnapshotProvider, { scope: account, children: null });
     let finish, requests = 0;
     const observer = new QueryObserver(client, query.continueWatchingOptions(account, () => {
@@ -57,6 +60,15 @@ async function run() {
     provider(); host.flush();
     await waitFor(() => provider().props.value.catalogs.length && observer.getCurrentResult().data?.length);
     assert.equal(requests, 1, 'Restore does not defer or skip the live refresh');
+    const homeHero = () => provider().props.children.props.value;
+    const home = homeHero();
+    assert.equal(home.heroItems[0].logo, heroItem.logo);
+    const secondSlide = { ...heroItem, id: 'tt124' };
+    home.saveHero([secondSlide]);
+    home.saveHeroView({ slide: 'movie:tt124', rotation: false });
+    assert.equal(homeHero().heroItems[0].id, 'tt124', 'Warm navigation sees the live hero without waiting for IndexedDB');
+    assert.equal(homeHero().heroView.slide, 'movie:tt124');
+    assert.equal((await reopened.restoreHomeSnapshot(account)).hero.data[0].id, 'tt124');
     assert.equal(observer.getCurrentResult().fetchStatus, 'fetching');
     assert.equal(observer.getCurrentResult().data[0].name, 'Saved title');
     assert.equal(observer.getCurrentResult().dataUpdatedAt, now, 'Hydration preserves snapshot age');
@@ -92,7 +104,9 @@ async function run() {
 
     await reopened.updateHomeSnapshot(account, (snapshot, timestamp) => reopened.mergeHomeCatalogs(snapshot, [result(movie)], now + 3, timestamp));
     now += 24 * 60 * 60_000;
-    assert.equal((await storage().restoreHomeSnapshot(account)).catalogs.length, 0, 'Expired catalog entries are deleted on restore');
+    const expired = await storage().restoreHomeSnapshot(account);
+    assert.equal(expired.catalogs.length, 0, 'Expired catalog entries are deleted on restore');
+    assert.equal(expired.hero, undefined, 'The same expiry applies to the hero cache');
     await reopened.updateHomeSnapshot(account, (snapshot, timestamp) => reopened.mergeHomeCatalogs(snapshot, [result(movie)], now, timestamp));
     assert.equal((await storage().restoreHomeSnapshot('other:1')).catalogs.length, 0);
     await reopened.restoreHomeSnapshot('anonymous');
@@ -102,7 +116,7 @@ async function run() {
     assert.equal((await storage().restoreHomeSnapshot(account)).catalogs.length, 0, 'Sign-out removes the entire saved Home view');
     const denied = load('lib/home-snapshot.ts', {}, { indexedDB: { open() { throw Error('Storage denied'); } } });
     assert.equal(await denied.restoreHomeSnapshot(account), undefined);
-    console.log('PASS: persisted Home rows and artwork URLs, startup refresh, privacy, expiry, account changes, empty results and conflict-safe writes');
+    console.log('PASS: persisted Home rows, hero and artwork URLs, startup refresh, privacy, expiry, account changes, empty results and conflict-safe writes');
 }
 
 notifyManager.setScheduler(queueMicrotask);

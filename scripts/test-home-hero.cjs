@@ -57,7 +57,8 @@ let authenticated = true;
 let signInCalls = 0;
 const played = [];
 
-const { HomeHero, HomeHeroPending, HomeHeroSkeleton } = load('components/home-hero.tsx', {
+let snapshot = null;
+const heroDependencies = {
   react: h.react,
   'react/jsx-runtime': h.jsx,
   'lucide-react': {
@@ -72,7 +73,7 @@ const { HomeHero, HomeHeroPending, HomeHeroSkeleton } = load('components/home-he
   },
   '@/components/artwork-image': { ArtworkImage: 'artwork-img' },
   '@/components/hero-wordmark': { HeroWordmark: 'hero-wordmark' },
-  '@/components/home-snapshot-provider': { useHomeSnapshot: () => null },
+  '@/components/home-snapshot-provider': { useHomeHeroSnapshot: () => snapshot },
   '@/components/intent-link': { IntentLink: 'intent-link' },
   '@/components/metadata-preload': { useMetadataIntent: () => ({ start() {}, cancel() {} }) },
   '@/components/motion-primitives/progressive-blur': { ProgressiveBlur: 'progressive-blur' },
@@ -90,7 +91,8 @@ const { HomeHero, HomeHeroPending, HomeHeroSkeleton } = load('components/home-he
   },
   '@/lib/preload-tools': { preloadPlayer() {} },
   './home-hero.module.css': new Proxy({}, { get: (_, key) => key === '__esModule' ? false : String(key) }),
-});
+};
+const { HomeHero, HomeHeroSkeleton } = load('components/home-hero.tsx', heroDependencies);
 
 const nodes = node => (!node || typeof node !== 'object' ? [] : [node, ...[node.props?.children].flat(Infinity).flatMap(nodes)]);
 
@@ -287,7 +289,55 @@ assert.equal(skeletonDots.filter(n => n.props['aria-current'] === 'true').length
 assert.ok(nodes(skeletonControls).some(n => n.type === 'icon-pause'), 'The skeleton includes a pause affordance');
 assert.ok(nodes(skeletonControls).every(n => n.type !== 'button' && !n.props?.onClick), 'Loading controls are not interactive');
 h.react.useMemo = calculate => calculate();
-assert.equal(HomeHeroPending().type, HomeHeroSkeleton, 'Cold Home loads show a hero skeleton instead of collapsing the slot');
+// Home navigation and server refresh use the same carousel instance, with
+// selection keyed by title so a changed order cannot move the active slide.
+const returning = hooks();
+returning.react.useSyncExternalStore = h.react.useSyncExternalStore;
+const pending = new Promise(() => {});
+returning.react.use = () => { throw pending; };
+const surface = load('components/home-hero.tsx', { ...heroDependencies, react: returning.react, 'react/jsx-runtime': returning.jsx });
+assert.throws(() => returning.render(surface.HomeFeatured, { items: pending }), error => error === pending,
+  'Cold Home suspends so the hero skeleton can render');
+let accepted = null;
+const savedView = { slide: 'series:tmdb:10', rotation: false };
+snapshot = { heroItems, heroView: savedView, saveHero: items => { accepted = items; snapshot.heroItems = items; }, saveHeroView() {} };
+const fresh = [heroItems[1], heroItems[0]];
+const refresh = Promise.resolve(fresh);
+const present = () => returning.render(surface.HomeFeatured, { items: refresh });
+const cached = present(); returning.flush();
+assert.equal(cached.type, surface.HomeHero, 'A warm return renders the cached hero immediately without suspending');
+assert.equal(cached.props.items, heroItems);
+assert.equal(cached.props.resume, savedView);
+const heroHost = hooks();
+heroHost.react.useSyncExternalStore = h.react.useSyncExternalStore;
+const { HomeHero: ResumingHero } = load('components/home-hero.tsx', { ...heroDependencies, react: heroHost.react, 'react/jsx-runtime': heroHost.jsx });
+const restored = heroHost.render(ResumingHero, cached.props);
+assert.equal(restored.props['data-hero-restoring'], true);
+assert.equal(restored.props['data-aurora-primary'], heroItems[1].background, 'Return to the previously displayed slide');
+assert.equal(heroHost.render(ResumingHero, { ...cached.props, items: fresh }).props['data-aurora-primary'], heroItems[1].background,
+  'A title remains active across a refresh that reorders the slides');
+
+const React = require('react');
+const { renderToString } = require('react-dom/server');
+const wrapping = ({ children }) => React.createElement(React.Fragment, null, children);
+const serverHero = load('components/home-hero.tsx', {
+  ...heroDependencies, react: React, 'react/jsx-runtime': require('react/jsx-runtime'),
+  '@/components/ui/button': { Button: wrapping },
+  '@/components/ui/tooltip': { Tooltip: wrapping, TooltipTrigger: wrapping, TooltipContent: wrapping },
+  '@/components/ui/skeleton': { Skeleton: () => null },
+});
+const markup = () => renderToString(React.createElement(React.Suspense,
+  { fallback: React.createElement(serverHero.HomeHeroSkeleton) }, React.createElement(serverHero.HomeFeatured, { items: pending })));
+assert.doesNotMatch(markup(), /data-hero-loading=/, 'React can render the cached carousel under Suspense with a pending refresh');
+const warmSnapshot = snapshot;
+snapshot = null;
+assert.match(markup(), /data-hero-loading=/, 'A cold Home still shows the loading skeleton');
+snapshot = warmSnapshot;
+
+queueMicrotask(() => {
+  assert.equal(accepted, fresh, 'Replace cached items only after the refresh resolves');
+  assert.equal(present().type, cached.type, 'Fresh data keeps the same hero component mounted');
+});
 const css = require('postcss').parse(require('node:fs').readFileSync('components/home-hero.module.css', 'utf8'));
 const rule = selector => css.nodes.find(node => node.type === 'rule' && node.selector === selector);
 const property = (selector, name) => rule(selector).nodes.find(node => node.prop === name)?.value;

@@ -14,7 +14,7 @@
 .artwork {
   visibility: hidden;
   opacity: 0;
-  transition: opacity 300ms var(--ease-out);
+  transition: opacity var(--wordmark-reveal-duration, 300ms) var(--ease-out);
   position: relative;
   max-width: 100%;
   max-height: 100%;
@@ -27,7 +27,7 @@
   opacity: 1;
 }
 @media (prefers-reduced-motion: reduce) {
-  .artwork { transition-duration: 100ms; }
+  .artwork { transition-duration: var(--wordmark-reveal-duration, 100ms); }
 }
 .root[data-dense] .artwork {
   transform: scale(var(--hero-wordmark-dense-scale, .72));

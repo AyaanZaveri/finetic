@@ -276,6 +276,15 @@
   .copyPanel[data-active="true"] { opacity: 0; }
 }
 
+.hero[data-hero-restoring] .backdropSlide,
+.hero[data-hero-restoring] .copyPanel {
+  transition: none;
+}
+
+.hero[data-hero-restoring] .wordmark {
+  --wordmark-reveal-duration: 0s;
+}
+
 .wordmark {
   width: min(19rem, 76vw);
   --hero-wordmark-align: end;

@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent } from "react";
 import { ArrowRight, CalendarDays, Clock, Info, Pause, Play, Star, Tag } from "lucide-react";
 import { ArtworkImage } from "@/components/artwork-image";
 import { HeroWordmark } from "@/components/hero-wordmark";
-import { useHomeSnapshot } from "@/components/home-snapshot-provider";
+import { useHomeHeroSnapshot, type HomeHeroView } from "@/components/home-snapshot-provider";
 import { IntentLink } from "@/components/intent-link";
 import { useMetadataIntent } from "@/components/metadata-preload";
 import { ProgressiveBlur } from "@/components/motion-primitives/progressive-blur";
@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAccountAccess } from "@/contexts/account-context";
 import { usePlaybackActions } from "@/contexts/MediaPlayerContext";
 import { backdropVariantUrl, mediaArtwork } from "@/lib/artwork";
-import { formatHeroMetadata, heroDetailsHref, HOME_HERO_ITEM_LIMIT, selectHomeHeroItems, type HomeHeroItem } from "@/lib/home-hero";
+import { formatHeroMetadata, heroDetailsHref, HOME_HERO_ITEM_LIMIT, type HomeHeroItem } from "@/lib/home-hero";
 import { projectPlaybackDetails } from "@/lib/media/playback-details";
 import { preloadPlayer } from "@/lib/preload-tools";
 import styles from "./home-hero.module.css";
@@ -44,15 +44,22 @@ function heroDotTransform(index: number, activeIndex: number) {
     return `translateX(calc(${index} * var(--hero-dot-slot) + ${index === activeIndex ? 0.5 : index > activeIndex ? 1 : 0} * var(--hero-active-extra)))`;
 }
 
-export function HomeHero({ items }: { items: HomeHeroItem[] }) {
+const slideKey = (item: HomeHeroItem) => `${item.type}:${item.id}`;
+
+export function HomeHero({ items, resume, onViewChange }: {
+    items: HomeHeroItem[];
+    resume?: HomeHeroView;
+    onViewChange?: (_view: HomeHeroView) => void;
+}) {
     const { authenticated, requestSignIn } = useAccountAccess();
     const { playMedia, setIsPlayerVisible } = usePlaybackActions();
 
     const [selection, setSelection] = useState<{
-        index: number; displayed: number; ready: string[]; progressVersions: Record<number, number>;
-    }>({ index: 0, displayed: 0, ready: [], progressVersions: {} });
+        requested: string; displayed: string; ready: string[]; progressVersions: Record<string, number>;
+    }>(() => ({ requested: resume?.slide ?? "", displayed: resume?.slide ?? "", ready: [], progressVersions: {} }));
+    const [restored] = useState(Boolean(resume));
     const [failedLogos, setFailedLogos] = useState<string[]>([]);
-    const [rotationOverride, setRotationOverride] = useState<boolean | null>(null);
+    const [rotationOverride, setRotationOverride] = useState<boolean | null>(resume?.rotation ?? null);
     const [actionHovered, setActionHovered] = useState(false);
     const [heroVisible, setHeroVisible] = useState(true);
     const heroRef = useRef<HTMLElement>(null);
@@ -67,8 +74,14 @@ export function HomeHero({ items }: { items: HomeHeroItem[] }) {
         observer.observe(hero);
         return () => observer.disconnect();
     }, [count]);
-    const requestedIndex = count > 0 ? ((selection.index % count) + count) % count : 0;
-    const activeIndex = count > 0 ? ((selection.displayed % count) + count) % count : 0;
+    const keys = useMemo(() => items.map(slideKey), [items]);
+    const requestedIndex = Math.max(0, keys.indexOf(selection.requested));
+    const activeIndex = Math.max(0, keys.indexOf(selection.displayed));
+    const activeKey = keys[activeIndex];
+    const restoring = restored && Object.keys(selection.progressVersions).length === 0;
+    useEffect(() => {
+        if (activeKey) onViewChange?.({ slide: activeKey, rotation: rotationOverride });
+    }, [activeKey, rotationOverride, onViewChange]);
     const activeItem = count > 0 ? items[activeIndex] : null;
     const artwork = activeItem ? mediaArtwork(activeItem) : null;
     const running = rotating && pageVisible && heroVisible && !actionHovered && requestedIndex === activeIndex
@@ -93,26 +106,28 @@ export function HomeHero({ items }: { items: HomeHeroItem[] }) {
             if (count < 2) return;
             const nextIndex = ((nextRaw % count) + count) % count;
             const source = mediaArtwork(items[nextIndex]).background;
+            const nextKey = keys[nextIndex];
             setSelection((previous) => {
-                if (nextIndex === previous.index) return previous;
+                if (nextKey === (keys.includes(previous.requested) ? previous.requested : keys[0])) return previous;
                 return {
                     ...previous,
-                    index: nextIndex,
-                    displayed: source && previous.ready.includes(source) ? nextIndex : previous.displayed,
-                    progressVersions: { ...previous.progressVersions, [nextIndex]: (previous.progressVersions[nextIndex] ?? 0) + 1 },
+                    requested: nextKey,
+                    displayed: source && previous.ready.includes(source) ? nextKey : previous.displayed,
+                    progressVersions: { ...previous.progressVersions, [nextKey]: (previous.progressVersions[nextKey] ?? 0) + 1 },
                 };
             });
         },
-        [count, items],
+        [count, items, keys],
     );
 
-    const settleBackdrop = useCallback((index: number, source: string) => {
+    const settleBackdrop = useCallback((key: string, source: string) => {
         setSelection(previous => {
             const ready = previous.ready.includes(source) ? previous.ready : [...previous.ready, source];
-            const displayed = previous.index === index ? index : previous.displayed;
+            const requested = keys.includes(previous.requested) ? previous.requested : keys[0];
+            const displayed = requested === key ? key : previous.displayed;
             return ready === previous.ready && displayed === previous.displayed ? previous : { ...previous, ready, displayed };
         });
-    }, []);
+    }, [keys]);
 
     const handlePlay = async (event: MouseEvent<HTMLButtonElement>) => {
         if (!activeItem) return;
@@ -208,6 +223,7 @@ export function HomeHero({ items }: { items: HomeHeroItem[] }) {
         <section
             ref={heroRef}
             data-home-hero=""
+            data-hero-restoring={restoring || undefined}
             data-aurora-primary={artwork.background}
             data-aurora-fallback={artwork.poster}
             aria-label="Featured titles"
@@ -233,12 +249,12 @@ export function HomeHero({ items }: { items: HomeHeroItem[] }) {
                                     alt=""
                                     draggable={false}
                                     loading="eager"
-                                    fetchPriority={index === 0 ? "high" : "auto"}
+                                    fetchPriority={index === activeIndex ? "high" : "auto"}
                                     decoding="async"
                                     waitForDecode
                                     reveal={false}
-                                    onReady={() => settleBackdrop(index, source)}
-                                    onUnavailable={() => settleBackdrop(index, source)}
+                                    onReady={() => settleBackdrop(keys[index], source)}
+                                    onUnavailable={() => settleBackdrop(keys[index], source)}
                                     data-header-backdrop=""
                                     className={styles.artwork}
                                 />
@@ -358,7 +374,7 @@ export function HomeHero({ items }: { items: HomeHeroItem[] }) {
                                     onClick={() => selectIndex(index)}
                                 >
                                     <span aria-hidden="true" className={styles.dotTrack}>
-                                        <span key={selection.progressVersions[index] ?? 0} className={styles.progress}
+                                        <span key={selection.progressVersions[keys[index]] ?? 0} className={styles.progress}
                                             onAnimationEnd={() => { if (index === requestedIndex && running) selectIndex(requestedIndex + 1); }}
                                         />
                                     </span>
@@ -418,16 +434,21 @@ export function HomeHeroSkeleton() {
     );
 }
 
-export function HomeHeroPending() {
-    const snapshot = useHomeSnapshot();
-    const cachedItems = useMemo(() => {
-        const catalogs = snapshot?.catalogs ?? [];
-        return selectHomeHeroItems(
-            catalogs.slice(0, 2).map(({ data }) => ({
-                items: data.mediaItems,
-            })),
-        );
-    }, [snapshot]);
-    if (!cachedItems.length) return <HomeHeroSkeleton />;
-    return <HomeHero items={cachedItems} />;
+/** Cached slides can render while the server refresh is still streaming. Keep
+ * the same carousel instance when fresh data replaces them. */
+export function HomeFeatured({ items }: { items: Promise<HomeHeroItem[] | null> }) {
+    const snapshot = useHomeHeroSnapshot();
+    const saveHero = snapshot?.saveHero;
+    useEffect(() => {
+        if (!saveHero) return;
+        let active = true;
+        void items.then(result => { if (active && result) saveHero(result); });
+        return () => { active = false; };
+    }, [items, saveHero]);
+
+    const cached = snapshot?.heroItems;
+    const visible = cached ?? use(items);
+    if (!visible?.length) return null;
+    return <HomeHero items={visible} resume={cached ? snapshot?.heroView ?? { slide: "", rotation: null } : undefined}
+        onViewChange={snapshot?.saveHeroView} />;
 }

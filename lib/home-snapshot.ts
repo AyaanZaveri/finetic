@@ -1,6 +1,7 @@
 import { mediaArtwork } from "@/lib/artwork";
 import { INITIAL_CATALOG_COUNT, type HomeCatalogSection } from "@/lib/home-catalogs";
 import type { HomeCatalogRow } from "@/lib/home-catalog-stream";
+import { HOME_HERO_ITEM_LIMIT } from "@/lib/home-hero";
 import type { MediaItem } from "@/types/stremio";
 
 const MAX_AGE = 24 * 60 * 60_000;
@@ -13,6 +14,7 @@ export type HomeSnapshot = {
     catalogRevision: number;
     catalogs: SavedCatalog[];
     resume?: Saved<MediaItem[]>;
+    hero?: Saved<MediaItem[]>;
 };
 
 function text(value: unknown, max = 256) {
@@ -80,7 +82,18 @@ function prune(snapshot: HomeSnapshot, now: number): HomeSnapshot {
     });
     const resume = snapshot.resume && fresh(snapshot.resume.updatedAt, now) && Array.isArray(snapshot.resume.data)
         ? { data: snapshotItems(snapshot.resume.data, 20), updatedAt: snapshot.resume.updatedAt } : undefined;
-    return { scope: snapshot.scope, catalogRevision: number(snapshot.catalogRevision) ?? 0, catalogs, resume };
+    const hero = snapshot.hero && fresh(snapshot.hero.updatedAt, now)
+        ? { data: snapshotHero(snapshot.hero.data), updatedAt: snapshot.hero.updatedAt } : undefined;
+    return { scope: snapshot.scope, catalogRevision: number(snapshot.catalogRevision) ?? 0, catalogs, resume, hero };
+}
+
+function snapshotHero(items: MediaItem[]) {
+    return snapshotItems(items, HOME_HERO_ITEM_LIMIT).filter(item => item.background && (item.type === "movie" || item.type === "series"));
+}
+
+export function mergeHomeHero(snapshot: HomeSnapshot, items: MediaItem[], revision: number): HomeSnapshot {
+    if ((snapshot.hero?.updatedAt ?? 0) > revision) return snapshot;
+    return { ...snapshot, hero: { data: snapshotHero(items), updatedAt: revision } };
 }
 
 export function mergeHomeCatalogs(snapshot: HomeSnapshot, rows: HomeCatalogRow[], revision: number, now: number): HomeSnapshot {

@@ -7,8 +7,8 @@ import { AuthErrorHandler } from "@/app/components/auth-error-handler";
 import { HomeCatalogSectionsLazy } from "@/components/home-catalog-sections-lazy";
 import { ContinueWatchingSection } from "@/components/home-continue-watching";
 import { HomeCatalogsPending, HomeCatalogsUnavailable } from "@/components/home-catalog-placeholder";
-import { HomeHero, HomeHeroPending } from "@/components/home-hero";
-import { selectHomeHeroItems } from "@/lib/home-hero";
+import { HomeFeatured, HomeHeroSkeleton } from "@/components/home-hero";
+import { selectHomeHeroItems, type HomeHeroItem } from "@/lib/home-hero";
 import { enrichHomeHeroItems } from "@/lib/server/home-hero";
 import { createHash } from "node:crypto";
 import type { HomeCatalogEntry, HomeCatalogSection, InitialHomeCatalog } from "@/lib/home-catalogs";
@@ -190,14 +190,14 @@ async function HomeCatalogsBootstrap({ getPlan }: { getPlan: () => Promise<HomeD
   </>;
 }
 
-async function HomeHeroBootstrap({ getPlan }: { getPlan: () => Promise<HomeDataPlan> }) {
+async function loadFeaturedTitles(getPlan: () => Promise<HomeDataPlan>): Promise<HomeHeroItem[] | null> {
   const plan = await getPlan();
   const sourceRows = (plan.kind === "discovery"
     ? plan.discovery.rows
     : plan.discovery?.rows ?? plan.initialRows
   ).slice(0, 2);
 
-  if (!sourceRows.length) return null;
+  if (!sourceRows.length) return [];
 
   const settled = await Promise.allSettled(sourceRows.map(row => row.result));
   const sources = settled.flatMap((entry) => {
@@ -210,10 +210,11 @@ async function HomeHeroBootstrap({ getPlan }: { getPlan: () => Promise<HomeDataP
   });
 
   const candidates = selectHomeHeroItems(sources);
-  if (!candidates.length) return null;
-
-  const heroItems = await enrichHomeHeroItems(candidates, plan.preferredProvider);
-  return <HomeHero items={heroItems} />;
+  if (!candidates.length) {
+    const failed = settled.some(entry => entry.status === "rejected" || entry.value.status === "error");
+    return failed ? null : [];
+  }
+  return enrichHomeHeroItems(candidates, plan.preferredProvider);
 }
 
 export default async function Home() {
@@ -231,8 +232,8 @@ export default async function Home() {
     <AuthErrorHandler>
       <div data-home-page className={homeStyles.page}>
         <h1 className="sr-only">Home</h1>
-        <Suspense fallback={<HomeHeroPending />}>
-          <HomeHeroBootstrap getPlan={getPlan} />
+        <Suspense fallback={<HomeHeroSkeleton />}>
+          <HomeFeatured items={loadFeaturedTitles(getPlan).catch(() => null)} />
         </Suspense>
         <div className={homeStyles.rows}>
           {user && <ContinueWatchingSection />}
