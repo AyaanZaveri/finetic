@@ -68,6 +68,7 @@ async function main() {
     assert.equal((await retried.json()).status, 'ready');
 
     let signedIn = false, resumeCalls = 0, addonCalls = 0;
+    let preferredProvider = 'auto', installedAddons = [];
     const components = Object.fromEntries([
         ['@/app/components/auth-error-handler', 'AuthErrorHandler'],
         ['@/components/home-catalog-sections-lazy', 'HomeCatalogSectionsLazy'],
@@ -82,26 +83,33 @@ async function main() {
         './home-page.module.css': { page: 'page', rows: 'rows', attribution: 'attribution', attributionLink: 'attributionLink', attributionProvider: 'attributionProvider' },
         '@/components/home-hero': { HomeFeatured: 'HomeFeatured', HomeHeroSkeleton: 'HomeHeroSkeleton' },
         '@/lib/server/home-hero': { enrichHomeHeroItems: async items => items },
-        '@/lib/server/metadata-provider': { getMetadataProvider: async () => 'auto' },
+        '@/lib/server/metadata-provider': { getMetadataProvider: async () => preferredProvider },
         '@/components/ui/empty': Object.fromEntries(['Empty', 'EmptyHeader', 'EmptyDescription', 'EmptyTitle'].map(name => [name, name])),
         '@/components/home-palette-provider': { HomeInitialPalette: 'palette', HomePaletteProvider: 'palette-provider' },
         '@/app/actions/auth': {
             getUser: async () => signedIn ? { _id: 'account' } : null,
-            getInstalledAddons: async () => { addonCalls++; return []; },
+            getInstalledAddons: async () => { addonCalls++; return installedAddons; },
         },
-        '@/app/actions/media': { fetchResumeItems: async () => { resumeCalls++; return []; } },
+        '@/app/actions/media': { fetchResumeItems: async () => { resumeCalls++; return []; }, fetchCatalogItems: async () => result.sections[0].mediaItems },
         '@/lib/discovery': { hasTMDBDiscovery: async () => true },
         '@/lib/tmdb-discovery': { getTMDBHomeRows: () => ({ region: result.region, rows: result.sections.map(section => ({ key: section.key, sectionName: section.sectionName, result: Promise.resolve({ status: 'ready', section }) })) }) },
     }, { URLSearchParams });
     const guest = await Home();
     assert.equal(resumeCalls, 0); assert.equal(addonCalls, 0);
     assert.ok(!all(guest).some(node => node.type === 'ContinueWatchingSection'));
-    const publicSections = all(guest).find(node => node.type?.name === 'DiscoverySections');
+    const renderCatalogs = async page => {
+        const bootstrap = all(page).find(node => node.type?.name === 'HomeCatalogsBootstrap');
+        return all(await bootstrap.type(bootstrap.props));
+    };
+    const guestCatalogs = await renderCatalogs(guest);
+    const publicSections = guestCatalogs.find(node => node.type?.name === 'DiscoverySections');
     assert.ok(publicSections);
-    const discoveryNodes = all(await publicSections.type());
+    const discoveryNodes = all(await publicSections.type(publicSections.props));
     assert.ok(discoveryNodes.some(node => node.type === 'HomeCatalogSectionsLazy'));
-    const attribution = discoveryNodes.find(node => node.props?.className === 'attribution');
-    assert.ok(attribution, 'Discovery retains its provider attribution');
+    const attributionElement = guestCatalogs.find(node => node.type?.name === 'DiscoveryAttribution');
+    const attribution = await attributionElement.type(attributionElement.props);
+    assert.equal(attribution.type, 'footer', 'Discovery retains its provider attribution as a footer');
+    assert.equal(attribution.props.className, 'attribution');
     const providerLinks = all(attribution).filter(node => node.type === 'a');
     assert.deepEqual(providerLinks.map(node => node.props.children), ['TMDB', 'JustWatch']);
     assert.ok(providerLinks.every(node => node.props.className === 'attributionLink' && node.props.target === '_blank'));
@@ -110,6 +118,16 @@ async function main() {
     const account = await Home();
     assert.equal(resumeCalls, 0, 'Home does not block on the client-cached resume request'); assert.equal(addonCalls, 1);
     assert.ok(all(account).some(node => node.type === 'ContinueWatchingSection'));
+
+    preferredProvider = 'tmdb';
+    const { INITIAL_CATALOG_COUNT } = load('lib/home-catalogs.ts');
+    installedAddons = [{ transportUrl: 'https://fixture.test/manifest.json', manifest: {
+        catalogs: Array.from({ length: INITIAL_CATALOG_COUNT + 1 }, (_, index) => ({ id: `addon-${index}`, type: 'movie', name: `Catalog ${index}` })),
+    } }];
+    const mixedCatalogs = await renderCatalogs(await Home());
+    const addonRows = mixedCatalogs.find(node => node.type === 'HomeCatalogSectionsLazy');
+    assert.equal(addonRows.props.remainingEntries.length, 1, 'Include an add-on row that loads later');
+    assert.equal(mixedCatalogs.at(-1).type?.name, 'DiscoveryAttribution', 'Keep attribution after discovery and all initial and deferred add-on rows');
 
     const h = hooks();
     let authenticated = false, signIns = 0;

@@ -93,7 +93,7 @@ async function loadCatalogSections(entries: HomeCatalogEntry[]): Promise<HomeCat
 }
 
 type DiscoveryPlan =
-  | { source: "cinemeta"; rows: InitialHomeCatalog[] }
+  | { source: "cinemeta"; rows: InitialHomeCatalog[]; available: Promise<boolean> }
   | { source: "tmdb"; rows: InitialHomeCatalog[]; region: string };
 
 type HomeDataPlan =
@@ -112,7 +112,9 @@ type HomeDataPlan =
 
 async function buildDiscoveryPlan(): Promise<DiscoveryPlan> {
   if (!await hasTMDBDiscovery()) {
-    return { source: "cinemeta", rows: cinemetaHomeRows() };
+    const rows = cinemetaHomeRows();
+    const available = Promise.all(rows.map(row => row.result)).then(results => results.some(result => result.status !== "error"));
+    return { source: "cinemeta", rows, available };
   }
   const { rows, region } = getTMDBHomeRows();
   return { source: "tmdb", rows, region };
@@ -144,49 +146,34 @@ async function prepareHomeData(
   return { kind: "addons", preferredProvider, initialRows, remainingEntries, discovery };
 }
 
-async function DiscoverySections({
-  discoveryPromise,
-  getDiscovery,
-}: {
-  discoveryPromise?: Promise<DiscoveryPlan>;
-  getDiscovery?: () => Promise<DiscoveryPlan>;
-} = {}) {
-  const discovery = discoveryPromise
-    ? await discoveryPromise
-    : getDiscovery
-      ? await getDiscovery()
-      : await buildDiscoveryPlan();
+async function DiscoverySections({ discovery }: { discovery: DiscoveryPlan }) {
+  if (discovery.source === "cinemeta" && !await discovery.available) return <HomeCatalogsUnavailable />;
+  return <HomeCatalogSectionsLazy initialSections={[]} initialRows={discovery.rows} remainingEntries={[]} batchSize={CATALOG_BATCH_SIZE} />;
+}
+
+async function DiscoveryAttribution({ discovery }: { discovery: DiscoveryPlan }) {
   if (discovery.source === "cinemeta") {
-    const results = await Promise.all(discovery.rows.map(row => row.result));
-    if (results.every(result => result.status === "error")) return <HomeCatalogsUnavailable />;
-    return <>
-      <HomeCatalogSectionsLazy initialSections={[]} initialRows={discovery.rows} remainingEntries={[]} batchSize={CATALOG_BATCH_SIZE} />
-      <p className={homeStyles.attribution}>Movie and TV data by <span className={homeStyles.attributionProvider}>Cinemeta</span></p>
-    </>;
+    if (!await discovery.available) return null;
+    return <footer className={homeStyles.attribution}>Movie and TV data by <span className={homeStyles.attributionProvider}>Cinemeta</span></footer>;
   }
-  return <>
-    <HomeCatalogSectionsLazy initialSections={[]} initialRows={discovery.rows} remainingEntries={[]} batchSize={CATALOG_BATCH_SIZE} />
-    <p className={homeStyles.attribution}>
-      Movie and TV data by <a draggable={false} href="https://www.themoviedb.org" target="_blank" rel="noopener noreferrer" className={homeStyles.attributionLink}>TMDB</a>.
-      {" "}Streaming availability by <a draggable={false} href="https://www.justwatch.com" target="_blank" rel="noopener noreferrer" className={homeStyles.attributionLink}>JustWatch</a> ({discovery.region}).
-    </p>
-  </>;
+  return <footer className={homeStyles.attribution}>
+    Movie and TV data by <a draggable={false} href="https://www.themoviedb.org" target="_blank" rel="noopener noreferrer" className={homeStyles.attributionLink}>TMDB</a>.
+    {" "}Streaming availability by <a draggable={false} href="https://www.justwatch.com" target="_blank" rel="noopener noreferrer" className={homeStyles.attributionLink}>JustWatch</a> ({discovery.region}).
+  </footer>;
 }
 
 async function HomeCatalogsBootstrap({ getPlan }: { getPlan: () => Promise<HomeDataPlan> }) {
   const plan = await getPlan();
-  if (plan.kind === "discovery") {
-    return <DiscoverySections discoveryPromise={Promise.resolve(plan.discovery)} />;
-  }
-
+  const { discovery } = plan;
   return <>
-    {plan.discovery && <DiscoverySections discoveryPromise={Promise.resolve(plan.discovery)} />}
-    <HomeCatalogSectionsLazy
+    {discovery && <DiscoverySections discovery={discovery} />}
+    {plan.kind === "addons" && <HomeCatalogSectionsLazy
       initialSections={[]}
       initialRows={plan.initialRows}
       remainingEntries={plan.remainingEntries}
       batchSize={CATALOG_BATCH_SIZE}
-    />
+    />}
+    {discovery && <DiscoveryAttribution discovery={discovery} />}
   </>;
 }
 
@@ -238,15 +225,9 @@ export default async function Home() {
         <div className={homeStyles.rows}>
           {user && <ContinueWatchingSection />}
 
-          {catalogEntriesPromise ? (
-            <Suspense fallback={<HomeCatalogsPending />}>
-              <HomeCatalogsBootstrap getPlan={getPlan} />
-            </Suspense>
-          ) : (
-            <Suspense fallback={<HomeCatalogsPending />}>
-              <DiscoverySections getDiscovery={() => getPlan().then(plan => (plan.kind === "discovery" ? plan.discovery : buildDiscoveryPlan()))} />
-            </Suspense>
-          )}
+          <Suspense fallback={<HomeCatalogsPending />}>
+            <HomeCatalogsBootstrap getPlan={getPlan} />
+          </Suspense>
         </div>
       </div>
     </AuthErrorHandler>
