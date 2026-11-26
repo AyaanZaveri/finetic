@@ -49,7 +49,7 @@ export function SeriesDetailsFrame({ show, children, cast, recommendations }: {
                   <HeroWordmark
                     src={show.logo}
                     alt={`${show.name} logo`}
-                    movieName={show.name || ""}
+                    fetchPriority="high"
                     className="w-full"
                   />
                 </IntentLink>

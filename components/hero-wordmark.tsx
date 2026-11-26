@@ -1,103 +1,84 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { VibrantLogo } from "./vibrant-logo";
-import { getWordmarkBounds, getWordmarkDensity, type WordmarkBounds } from "@/lib/wordmark-bounds";
-import { artworkSampleUrl } from "@/lib/artwork";
+import { useCallback, useRef, useState } from "react";
+import { getWordmarkBounds, getWordmarkDensity } from "@/lib/wordmark-bounds";
+import { publicArtworkUrl } from "@/lib/artwork";
 import { cn } from "@/lib/utils";
 import styles from "./hero-wordmark.module.css";
 
-export function HeroWordmark({
-  src,
-  alt,
-  movieName,
-  className,
-  onError,
-}: {
+const fullBounds = { left: 0, top: 0, width: 1, height: 1 };
+
+function measureWordmark(image: HTMLImageElement, canSample: boolean) {
+  const { naturalWidth, naturalHeight } = image;
+  const intrinsic = { bounds: fullBounds, aspect: naturalWidth / naturalHeight, dense: false };
+  if (!canSample) return intrinsic;
+
+  const canvas = document.createElement("canvas");
+  const scale = Math.min(1, 160 / Math.max(naturalWidth, naturalHeight));
+  canvas.width = Math.max(1, Math.round(naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(naturalHeight * scale));
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return intrinsic;
+
+  try {
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    const bounds = getWordmarkBounds(pixels, canvas.width, canvas.height);
+    if (!bounds) return intrinsic;
+    return {
+      bounds,
+      dense: getWordmarkDensity(pixels, canvas.width, canvas.height, bounds) > .5,
+      aspect: (naturalWidth * bounds.width) / (naturalHeight * bounds.height),
+    };
+  } catch {
+    // Intrinsic dimensions are available even when the browser restricts pixel access.
+    return intrinsic;
+  }
+}
+
+export function HeroWordmark({ src, alt, className, fetchPriority, onError }: {
   src: string;
   alt: string;
-  movieName: string;
   className?: string;
+  fetchPriority?: "high" | "low" | "auto";
   onError?: () => void;
 }) {
-  const logoSrc = artworkSampleUrl(src);
-  const [analysis, setAnalysis] = useState<{
-    src: string;
-    bounds: WordmarkBounds;
-    aspect: number;
-    dense?: boolean;
-    ready?: boolean;
-  } | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    const image = new Image();
-    image.crossOrigin = "anonymous";
-    image.onload = () => {
-      if (cancelled || !image.naturalWidth || !image.naturalHeight) return;
-      const measured = {
-        src,
-        bounds: { left: 0, top: 0, width: 1, height: 1 },
-        aspect: image.naturalWidth / image.naturalHeight,
-        ready: true,
-      };
-      const canvas = document.createElement("canvas");
-      const scale = Math.min(
-        1,
-        160 / Math.max(image.naturalWidth, image.naturalHeight),
-      );
-      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-      const context = canvas.getContext("2d", { willReadFrequently: true });
-      if (!context) {
-        setAnalysis(measured);
-        return;
-      }
-      try {
-        context.drawImage(image, 0, 0, canvas.width, canvas.height);
-        const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-        const bounds = getWordmarkBounds(
-          pixels,
-          canvas.width,
-          canvas.height,
-        );
-        if (bounds) {
-          setAnalysis({
-            src,
-            bounds,
-            dense: getWordmarkDensity(pixels, canvas.width, canvas.height, bounds) > .5,
-            ready: true,
-            aspect:
-              (image.naturalWidth * bounds.width) /
-              (image.naturalHeight * bounds.height),
-          });
-          return;
-        }
-      } catch {
-        /* Keep the original artwork if its pixels cannot be inspected. */
-      }
-      setAnalysis(measured);
-    };
-    image.onerror = () => {
-      if (cancelled || !image.crossOrigin) return;
-      image.crossOrigin = null;
-      image.src = src;
-    };
-    image.src = logoSrc;
-    return () => {
-      cancelled = true;
-      image.onload = null;
-      image.onerror = null;
-    };
-  }, [src, logoSrc]);
+  const [analysis, setAnalysis] = useState<({ src: string } & ReturnType<typeof measureWordmark>) | null>(null);
+  const [corsFailedSrc, setCorsFailedSrc] = useState<string | null>(null);
+  const displayedImage = useRef<HTMLImageElement | null>(null);
+  const settledImage = useRef<HTMLImageElement | null>(null);
+  const cors = Boolean(publicArtworkUrl(src)) && corsFailedSrc !== src;
+
+  const imageLoaded = useCallback((image: HTMLImageElement) => {
+    if (image !== displayedImage.current || image === settledImage.current || !image.naturalWidth || !image.naturalHeight) return;
+    settledImage.current = image;
+    setAnalysis({ src, ...measureWordmark(image, corsFailedSrc !== src) });
+  }, [src, corsFailedSrc]);
+
+  const imageFailed = useCallback((image: HTMLImageElement) => {
+    if (image !== displayedImage.current || image === settledImage.current) return;
+    settledImage.current = image;
+    if (cors) setCorsFailedSrc(src);
+    else onError?.();
+  }, [cors, src, onError]);
+
+  const attachImage = useCallback((image: HTMLImageElement | null) => {
+    displayedImage.current = image;
+    // Catch images that loaded or failed before React hydrated the markup.
+    if (!image?.complete) return;
+    if (image.naturalWidth) imageLoaded(image);
+    else imageFailed(image);
+  }, [imageLoaded, imageFailed]);
+
   const current = analysis?.src === src ? analysis : null;
-  const bounds = current?.bounds ?? { left: 0, top: 0, width: 1, height: 1 };
+  const bounds = current?.bounds ?? fullBounds;
   const aspect = current?.aspect ?? 800 / 310;
   return (
     <div
       className={cn(styles.root, className)}
       data-wide={aspect >= 3 || undefined}
       data-dense={current?.dense || undefined}
-      data-ready={current?.ready || undefined}
+      data-ready={Boolean(current) || undefined}
     >
       <div
         className={styles.artwork}
@@ -115,25 +96,20 @@ export function HeroWordmark({
             height: `${100 / bounds.height}%`,
           }}
         >
-          <VibrantLogo
+          <img
+            key={`${src}:${cors}`}
+            ref={attachImage}
+            crossOrigin={cors ? "anonymous" : undefined}
+            loading="eager"
+            fetchPriority={fetchPriority}
             src={src}
             alt={alt}
-            movieName={movieName}
+            draggable={false}
             width={800}
             height={310}
             className="block size-full max-w-none object-contain"
-            onError={onError}
-            onLoad={(event) => {
-              const { naturalWidth, naturalHeight } = event.currentTarget;
-              if (!naturalWidth || !naturalHeight) return;
-              // Image dimensions remain available when CORS prevents pixel analysis.
-              // Keep any tighter visible bounds that have already been measured.
-              setAnalysis((previous) => previous?.src === src ? previous : {
-                src,
-                bounds: { left: 0, top: 0, width: 1, height: 1 },
-                aspect: naturalWidth / naturalHeight,
-              });
-            }}
+            onLoad={event => imageLoaded(event.currentTarget)}
+            onError={event => imageFailed(event.currentTarget)}
           />
         </div>
       </div>

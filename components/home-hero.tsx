@@ -152,7 +152,7 @@ export function HomeHero({ items }: { items: HomeHeroItem[] }) {
                         <HeroWordmark
                             src={itemArtwork.logo}
                             alt=""
-                            movieName={item.name}
+                            fetchPriority={index === activeIndex ? "high" : "auto"}
                             className={styles.wordmark}
                             onError={() =>
                                 setFailedLogos((previous) =>

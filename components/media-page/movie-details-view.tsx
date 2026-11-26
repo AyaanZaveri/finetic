@@ -81,7 +81,7 @@ export function MovieDetailsView({ movie, cast, recommendations, previewProgress
                 <HeroWordmark
                   src={movie.logo}
                   alt={`${movie.name} logo`}
-                  movieName={movie.name || ""}
+                  fetchPriority="high"
                   className="w-[min(15rem,65%)] [--hero-wordmark-height:4rem] md:w-[min(48rem,75%)] md:[--hero-wordmark-height:7rem]"
                 />
               </div>

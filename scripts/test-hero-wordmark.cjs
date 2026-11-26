@@ -1,99 +1,49 @@
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const vm = require('node:vm');
-const ts = require('typescript');
+const { readFileSync } = require('node:fs');
+const { load, hooks } = require('./test-support/react-hooks.cjs');
 
-let analysis = null;
-let captureEffects = false;
-const effects = [];
-const imageRequests = [];
+const h = hooks();
 let canvasContext = null;
-const react = {
-    ...require('react'),
-    useEffect(effect) { if (captureEffects) effects.push(effect); },
-    useState: () => [analysis, update => { analysis = typeof update === 'function' ? update(analysis) : update; }],
-};
-function load(file, dependencies = {}, globals = {}) {
-    const context = { exports: {}, require(name) {
-        if (name === 'react') return react;
-        if (name in dependencies) return dependencies[name];
-        return require(name);
-    }, ...globals };
-    vm.runInNewContext(ts.transpileModule(fs.readFileSync(file, 'utf8'), {
-        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
-    }).outputText, context);
-    return context.exports;
-}
-const { VibrantLogo } = load('components/vibrant-logo.tsx');
-const boundsHelpers = load('lib/wordmark-bounds.ts');
+let canvasImage;
 const { HeroWordmark } = load('components/hero-wordmark.tsx', {
-    './vibrant-logo': { VibrantLogo },
-    '@/lib/wordmark-bounds': boundsHelpers,
-    '@/lib/artwork': load('lib/artwork.ts', {}, { URLSearchParams }),
+    react: h.react,
+    'react/jsx-runtime': h.jsx,
     '@/lib/utils': { cn: (...classes) => classes.filter(Boolean).join(' ') },
-    './hero-wordmark.module.css': { default: { root: 'root', artwork: 'artwork', image: 'image' } },
+    './hero-wordmark.module.css': { root: 'root', artwork: 'artwork', image: 'image' },
 }, {
-    Image: class {
-        naturalWidth = 2944;
-        naturalHeight = 834;
-        set src(value) {
-            imageRequests.push(value);
-            if (value.includes('wsrv.nl')) this.onload?.();
-            else this.onerror?.();
-        }
-    },
+    URLSearchParams,
+    Image: class { constructor() { assert.fail('Wordmark readiness must not depend on a second image request'); } },
     document: { createElement: () => {
-        const canvas = { getContext: () => canvasContext && canvasContext(canvas) };
+        const canvas = { getContext: () => canvasContext?.(canvas) };
         return canvas;
     } },
 });
-function render(src = '/wide-logo.svg') {
-    const tree = HeroWordmark({ src, alt: 'Title logo', movieName: 'Title' });
-    const artwork = tree.props.children;
-    const logo = VibrantLogo(artwork.props.children.props.children.props);
-    return { root: tree, artwork, image: logo };
+
+const source = 'https://image.tmdb.org/t/p/original/logo.svg';
+let failures = 0;
+const onError = () => { failures++; };
+function render(src = source) {
+    const root = h.render(HeroWordmark, { src, alt: 'Title logo', fetchPriority: 'high', onError });
+    const artwork = root.props.children;
+    const image = artwork.props.children.props.children;
+    return { root, artwork, image };
 }
+function sample(width, height, complete = false) {
+    return { complete, naturalWidth: width, naturalHeight: height };
+}
+
 const initial = render();
-assert.equal(initial.image.props.loading, "eager", "Wordmarks load even inside an inactive carousel panel");
-assert.equal(initial.root.props['data-ready'], undefined, 'Do not reveal the guessed wordmark size');
-const wordmarkCss = fs.readFileSync('components/hero-wordmark.module.css', 'utf8');
-assert.match(wordmarkCss, /\.artwork\s*\{[^}]*visibility:\s*hidden/s,
-    'Unmeasured wordmarks must stay hidden until their final crop and aspect ratio are ready');
-render().image.props.onLoad({ currentTarget: { naturalWidth: 1600, naturalHeight: 160 } });
-assert.equal(render().artwork.props.style.aspectRatio, 10, 'Wide logos must use their intrinsic ratio even without pixel analysis');
-const wideAspect = render().artwork.props.style.aspectRatio;
-assert.equal(Math.min(768, 112 * wideAspect), 768, 'A wide desktop logo must reach the available 768px rather than the 289px fallback');
+assert.equal(initial.image.type, 'img');
+assert.equal(initial.image.props.src, source);
+assert.equal(initial.image.props.crossOrigin, 'anonymous', 'The displayed image must supply the canvas pixels');
+assert.equal(initial.image.props.loading, 'eager', 'Inactive slides can load before selection');
+assert.equal(initial.image.props.fetchPriority, 'high');
+assert.equal(initial.root.props['data-ready'], undefined, 'Do not reveal guessed geometry');
+const css = readFileSync('components/hero-wordmark.module.css', 'utf8');
+assert.match(css, /\.artwork\s*\{[^}]*visibility:\s*hidden/s);
 
-analysis = null;
-render().image.props.onLoad({ currentTarget: { naturalWidth: 2944, naturalHeight: 834 } });
-assert.equal(render().root.props['data-wide'], true, 'Interstellar’s decorative trail must not keep its wide lettering under the compact-logo height limit');
-
-analysis = { src: '/wide-logo.svg', aspect: 12, bounds: { left: .1, top: .2, width: .8, height: .2 } };
-render().image.props.onLoad({ currentTarget: { naturalWidth: 1600, naturalHeight: 160 } });
-assert.equal(render().artwork.props.style.aspectRatio, 12, 'A late image load must preserve already-trimmed visible bounds');
-
-render('/tall-logo.png').image.props.onLoad({ currentTarget: { naturalWidth: 200, naturalHeight: 400 } });
-assert.equal(render('/tall-logo.png').artwork.props.style.aspectRatio, .5, 'Navigation must use the new logo dimensions');
-assert.equal(render('/tall-logo.png').root.props['data-wide'], undefined, 'Tall logos must retain the compact height limit');
-render('/tall-logo.png').image.props.onLoad({ currentTarget: { naturalWidth: 0, naturalHeight: 0 } });
-assert.equal(render('/tall-logo.png').artwork.props.style.aspectRatio, .5, 'Invalid dimensions must not corrupt sizing');
-
-// A prerendered/cached image may have loaded before React attaches onLoad.
-// Its effect must still recover dimensions without cross-origin pixel access.
-analysis = null;
-captureEffects = true;
-const artworkUrl = 'https://image.tmdb.org/t/p/original/logo.svg';
-render(artworkUrl);
-captureEffects = false;
-effects.pop()();
-assert.equal(render(artworkUrl).artwork.props.style.aspectRatio, 2944 / 834,
-    'Cached logos must recover their dimensions even when the displayed image load event was missed and canvas is unavailable');
-assert.ok(imageRequests.at(-1).includes('wsrv.nl'), 'Logo measurement must load external CORS-enabled image bytes');
-assert.equal(render(artworkUrl).root.props['data-ready'], true,
-    'Reveal the final intrinsic size even if canvas analysis is unavailable');
-analysis = null;
 canvasContext = canvas => ({
-    drawImage() {},
+    drawImage(image) { canvasImage = image; },
     getImageData() {
         const pixels = new Uint8ClampedArray(canvas.width * canvas.height * 4);
         for (let y = 10; y < 20; y++) for (let x = 10; x < 140; x++) {
@@ -102,20 +52,40 @@ canvasContext = canvas => ({
         return { data: pixels };
     },
 });
-captureEffects = true;
-const beforeMeasurement = render(artworkUrl);
-captureEffects = false;
-beforeMeasurement.image.props.onLoad({ currentTarget: { naturalWidth: 2944, naturalHeight: 834 } });
-assert.equal(render(artworkUrl).root.props['data-ready'], undefined,
-    'Image load alone must not reveal an untrimmed provisional size');
-effects.pop()();
-const measured = render(artworkUrl);
-assert.equal(measured.root.props['data-ready'], true);
-assert.ok(measured.artwork.props.style.aspectRatio > 8, 'The first visible size must include transparent-padding analysis');
-const measuredAspect = measured.artwork.props.style.aspectRatio;
-measured.image.props.onLoad({ currentTarget: { naturalWidth: 2944, naturalHeight: 834 } });
-assert.equal(render(artworkUrl).artwork.props.style.aspectRatio, measuredAspect,
-    'A late display load must not change the visible final size');
-assert.equal(render('/new-title.png').root.props['data-ready'], undefined,
-    'Navigation must not reveal a new title with the previous title’s measurements');
-console.log('PASS: wide and cached hero logos recover dimensions without pixel analysis; cropped bounds and title navigation remain intact.');
+const loaded = sample(2944, 834);
+initial.image.props.ref(loaded);
+initial.image.props.onLoad({ currentTarget: loaded });
+const measured = render();
+assert.equal(canvasImage, loaded, 'Sample the exact image that will be painted');
+assert.equal(measured.root.props['data-ready'], true, 'The displayed image can reveal as soon as it is measured');
+assert.ok(measured.artwork.props.style.aspectRatio > 8, 'The first visible size includes transparent padding analysis');
+
+// A server-rendered image can finish before React attaches a load handler.
+canvasContext = null;
+const cached = render('/wide-logo.svg');
+assert.equal(cached.root.props['data-ready'], undefined, 'Navigation must not reuse another title’s geometry');
+cached.image.props.ref(sample(1600, 160, true));
+assert.equal(render('/wide-logo.svg').root.props['data-ready'], true);
+assert.equal(render('/wide-logo.svg').artwork.props.style.aspectRatio, 10);
+assert.equal(render('/wide-logo.svg').root.props['data-wide'], true);
+
+// An upstream row may still be drawable with an ordinary request after a
+// cross-origin request fails. Intrinsic dimensions suffice in that case.
+const other = 'https://images.metahub.space/logo/medium/tt1234/img';
+const cors = render(other);
+const broken = sample(0, 0, true);
+cors.image.props.ref(broken);
+const fallback = render(other);
+assert.equal(fallback.image.props.crossOrigin, undefined, 'Retry a failed CORS image without crossOrigin');
+assert.equal(fallback.image.props.src, other);
+assert.equal(failures, 0, 'Do not replace a logo with text before the direct fallback has failed');
+const recovered = sample(200, 400, true);
+fallback.image.props.ref(recovered);
+assert.equal(render(other).root.props['data-ready'], true);
+assert.equal(render(other).artwork.props.style.aspectRatio, .5);
+assert.equal(render(other).root.props['data-wide'], undefined);
+
+const missing = render('/missing-logo.png');
+missing.image.props.ref(broken);
+assert.equal(failures, 1, 'A terminal load failure still lets Home show the title as text');
+console.log('PASS: one direct image per wordmark, immediate crop and reveal, cached sizing, CORS retry and missing-logo fallback.');
