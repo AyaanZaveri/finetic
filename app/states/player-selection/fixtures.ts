@@ -1,6 +1,7 @@
 import type { Episode, Season } from "@/app/actions/tv-shows";
 import type { StremioStream } from "@/types/stremio";
 import { timingStates } from "./subtitle-fixtures";
+import { describePlaybackError } from "@/lib/media/playback-error";
 
 export const groups = [
     { title: "Player", states: [
@@ -10,6 +11,11 @@ export const groups = [
         { id: "playback-stats", label: "Stats for nerds" },
         { id: "up-next", label: "Up next" },
         { id: "chapters", label: "Chapter drawer" },
+    ] },
+    { title: "Playback errors", states: [
+        { id: "playback-error", label: "Stream could not play" },
+        { id: "webgpu-error", label: "WebGPU playback failed" },
+        { id: "webgpu-proxy-suggestion", label: "WebGPU source access blocked" },
     ] },
     { title: "Track loading", states: [
         { id: "fetching-subtitles", label: "Fetching subtitles" },
@@ -40,6 +46,14 @@ export type StateId = typeof groups[number]["states"][number]["id"];
 export const readState = (value: string | null): StateId => states.find(state => state.id === value)?.id ?? "closed";
 export const panelFor = (id: StateId) => id.startsWith("episode") ? "Episodes"
     : id.startsWith("stream") ? "Streams" : id === "chapters" ? "Chapters" : null;
+
+export function playbackErrorFixture(id: StateId) {
+    const source = "https://stream.example/brooklyn-nine-nine-1080p.mkv";
+    const mediaFlowMode = "off";
+    if (id === "playback-error") return describePlaybackError({ source, mediaFlowMode, message: "This stream ended early" });
+    if (id === "webgpu-error") return describePlaybackError({ source, mediaFlowMode, message: "", gpuReason: "decode-failed" });
+    if (id === "webgpu-proxy-suggestion") return describePlaybackError({ source, mediaFlowMode, message: "", gpuReason: "network-failed" });
+}
 
 const seasonSix = [
     "Honeymoon", "Hitchcock & Scully", "The Tattler", "Four Movements", "A Tale of Two Bandits", "The Crime Scene",

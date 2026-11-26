@@ -3,11 +3,14 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChevronDown, CornerDownRight, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { DesktopTracks } from "@/components/desktop/tracks";
 import { BrowserPlayerGlass } from "@/components/browser-player-glass";
+import { ArtworkImage } from "@/components/artwork-image";
 import { PlayerSelectionControls } from "@/components/player-selection-controls";
 import { PlayerControlBar } from "@/components/player-control-bar";
 import { PlayerLoadingStatus } from "@/components/player-loading-status";
+import { PlayerPlaybackError } from "@/components/player-playback-error";
 import { PlayerEndTime, PlayerSubtitleLayer } from "@/components/player-clock-islands";
 import { PlayerNextEpisode, PlayerUpNext } from "@/components/player-next-episode";
 import { PlayerPlaybackStats } from "@/components/player-playback-stats";
@@ -18,10 +21,11 @@ import { MediaPlayer, MediaPlayerFullscreen, MediaPlayerPiP, MediaPlayerSettings
 import { AccountContext } from "@/contexts/account-context";
 import { desktopBridge } from "@/lib/desktop/bridge";
 import { attachWindowsPlayerGlass } from "@/lib/desktop/windows-player-glass";
+import { IN_HOUSE_PROXY_ENABLED } from "@/lib/media/playback-error";
 import { stepSubtitleSize, type SubtitleSize } from "@/lib/subtitle-appearance";
 import type { Episode } from "@/app/actions/tv-shows";
 import "@/components/player-mobile.css";
-import { fixtures, groups, installFixtureFetch, panelFor, readState, states, type StateId } from "./fixtures";
+import { fixtures, groups, installFixtureFetch, panelFor, playbackErrorFixture, readState, states, type StateId } from "./fixtures";
 import { narratedSample, narrationSubtitleAt, timingStates } from "./subtitle-fixtures";
 import styles from "./states.module.css";
 
@@ -65,6 +69,7 @@ function Stage({ id }: { id: StateId }) {
     const stage = useRef<HTMLDivElement>(null);
     const video = useRef<HTMLVideoElement>(null);
     const movie = id === "movie";
+    const playbackError = playbackErrorFixture(id);
     const [windowsGlassFixture] = useState(() => typeof window !== "undefined"
         && new URLSearchParams(window.location.search).has("__windowsGlass"));
 
@@ -90,6 +95,26 @@ function Stage({ id }: { id: StateId }) {
         setEpisode({ seriesId: data.seriesId, season: item.season, episode: item.episode });
         setUpNextOpen(false);
     };
+    if (playbackError) return <div data-player-shell="" className="h-dvh w-full bg-black">
+        <MediaPlayer autoFocus={false} className="size-full">
+            <div className="fixed inset-0 bg-black z-40">
+                <div className="absolute inset-0" aria-hidden="true">
+                    <ArtworkImage src="/images/subtitle-preview.jpg" alt="" fallbackText="" className="size-full object-cover brightness-75" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                </div>
+                <div data-player-loading-copy="" className="absolute bottom-7 left-4 right-4">
+                    <div className="flex w-full flex-col gap-1.5 pb-1">
+                        <h2 data-player-title="" className="text-3xl font-semibold text-white truncate font-poppins">Along the Ridge</h2>
+                        <p data-player-loading-series="" className="text-sm text-white/75 truncate">Trail Notes</p>
+                        <div className="mt-2">
+                            <PlayerPlaybackError error={playbackError} onRetry={() => {}}
+                                onEnableProxy={() => toast.success(IN_HOUSE_PROXY_ENABLED)} />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </MediaPlayer>
+    </div>;
     return <div ref={stage} data-player-shell="" className="h-dvh w-full bg-black">
         <MediaPlayer autoFocus={id === "playing"} autoHide={id === "playing"} className="size-full" chapters={sampleChapters}
             onToggleCaptions={() => setCaptions(value => !value)}
