@@ -1,4 +1,4 @@
-import { episodeHeroStillUrl } from "@/lib/artwork";
+import { episodeHeroStillUrl, publicArtworkUrl } from "@/lib/artwork";
 import type { MediaToPlay } from "@/lib/atoms";
 import type { MetadataQueries } from "./metadata-queries";
 import { metadataTarget } from "./metadata";
@@ -6,17 +6,18 @@ import { playbackBackdrop } from "./playback-details";
 
 /** Image bytes belong to the browser cache, never to the query cache. */
 export function createMetadataImageQueue() {
-    const queue: string[] = [];
+    const queue: { source: string; crossOrigin?: "anonymous" }[] = [];
     const recent = new Set<string>();
     const active = new Set<() => void>();
     const pump = () => {
         while (queue.length && active.size < 2) {
-            const source = queue.shift()!;
+            const { source, crossOrigin } = queue.shift()!;
             const url = new URL(source, document.baseURI).href;
-            if ([...document.images].some(image => image.currentSrc === url || image.src === url)) continue;
+            if ([...document.images].some(image => (image.currentSrc === url || image.src === url)
+                && (image.crossOrigin || undefined) === crossOrigin)) continue;
             const image = new Image();
             image.fetchPriority = "low";
-            if (source.includes("sample=1")) image.crossOrigin = "anonymous";
+            if (crossOrigin) image.crossOrigin = crossOrigin;
             const finish = () => { clearTimeout(timer); image.onload = image.onerror = null; active.delete(cancel); pump(); };
             const cancel = () => { image.removeAttribute("src"); finish(); };
             const timer = setTimeout(cancel, 15_000);
@@ -25,10 +26,13 @@ export function createMetadataImageQueue() {
         }
     };
     return {
-        add(source?: string) {
-            if (!source || recent.has(source) || typeof document === "undefined") return;
-            recent.add(source); if (recent.size > 256) recent.delete(recent.values().next().value!);
-            queue.push(source); pump();
+        add(source?: string, crossOrigin?: "anonymous") {
+            if (!source || typeof document === "undefined") return;
+            if (source.includes("sample=1")) crossOrigin = "anonymous";
+            const key = JSON.stringify([source, crossOrigin]);
+            if (recent.has(key)) return;
+            recent.add(key); if (recent.size > 256) recent.delete(recent.values().next().value!);
+            queue.push({ source, crossOrigin }); pump();
         },
         clear() { queue.length = 0; for (const cancel of [...active]) cancel(); recent.clear(); },
     };
@@ -43,7 +47,7 @@ export function createMetadataWarmup(queries: MetadataQueries) {
     const warmArt = (media: MediaToPlay, intent: boolean) => {
         const cached = queries.peek(media);
         const logo = cached.title?.data.artwork.logo;
-        images.add(logo);
+        images.add(logo, publicArtworkUrl(logo) ? "anonymous" : undefined);
         images.add(episodeHeroStillUrl(cached.episode?.data.still));
         if (intent && !playbackBackdrop(media)) images.add(cached.title?.data.artwork.backdrop);
     };

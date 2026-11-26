@@ -55,8 +55,7 @@ try {
         await until(()=>gates.has(sharp),'Sharp still did not request decoding');
         await delay(350);
         for(const id of ids){const image=img(id);check(image.dataset.artworkState==='loading'&&opacity(image)===0,id+': unready pixels were exposed');}
-        const mask=document.querySelector('#wordmark [style*="mask-image"]');
-        check(mask&&getComputedStyle(mask).visibility==='hidden','Loading shimmer appeared before the actual wordmark');
+        check(!document.querySelector('#wordmark [style*="mask-image"]'),'Loading shimmer was mounted before the actual wordmark decoded');
         check(opacity(sharp)===0,'Sharp artwork appeared before decode');
         check(document.querySelector('#missing-avatar [data-slot="avatar-fallback"]')?.textContent==='MP','Missing avatar lost its existing fallback');
         check(getComputedStyle(img('avatar')).backgroundColor==='rgba(0, 0, 0, 0)','Transparent add-on icons must keep their backing transparent');
@@ -69,7 +68,8 @@ try {
           check(image.dataset.artworkState==='ready'&&opacity(image)===1,id+': image never settled');
           results.push({surface:id,intermediateFrames:intermediate,settled:opacity(image),cachedRevealSkipped:!image.hasAttribute('data-artwork-revealing')});
         }
-        check(getComputedStyle(mask).visibility==='visible','Shimmer did not follow the decoded logo');
+        const mask=document.querySelector('#wordmark [style*="mask-image"]');
+        check(mask&&getComputedStyle(mask).visibility==='visible','Shimmer did not follow the decoded logo');
         gates.get(sharp)();const upgrade=[];const upgradeStart=performance.now();
         while(performance.now()-upgradeStart<350){await frame();upgrade.push(opacity(sharp))}
         const intermediate=upgrade.filter(x=>x>.01&&x<.99).length;

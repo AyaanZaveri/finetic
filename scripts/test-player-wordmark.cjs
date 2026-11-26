@@ -1,24 +1,29 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const { load } = require('./test-support/react-hooks.cjs');
-let failure = null;
+const { load, hooks } = require('./test-support/react-hooks.cjs');
+const host = hooks();
 const { PlayerLoadingWordmark } = load('components/player-loading-wordmark.tsx', {
-  react: { useState: () => [failure, value => { failure = value; }], useCallback: callback => callback },
+  react: host.react, 'react/jsx-runtime': host.jsx,
   '@/components/artwork-image': { ArtworkImage: 'artwork-image' },
   './player-loading-wordmark.module.css': {},
   '@/lib/artwork': load('lib/artwork.ts', {}, { URLSearchParams }),
 });
 const src = 'https://image.tmdb.org/t/p/original/logo.svg';
-const render = (source = src, loading = true) => PlayerLoadingWordmark({ src: source, alt: 'Modern Family logo', loading });
+const render = (source = src, loading = true) => host.render(PlayerLoadingWordmark, { src: source, alt: 'Modern Family logo', loading });
 const children = tree => tree.props.children.props.children;
 let tree = render();
 assert.equal(children(tree)[0].props.src, src);
 assert.equal(children(tree)[0].props.fetchPriority, 'high');
 assert.equal(children(tree)[0].props.waitForDecode, true, 'Reveal the actual decoded logo instead of relying on the loading container animation');
-assert.ok(children(tree)[1].props.style.maskImage.includes('wsrv.nl'));
+assert.equal(children(tree)[0].props.crossOrigin, 'anonymous', 'Share CSS mask request mode');
+assert.equal(children(tree)[1], false, 'Keep the mask off the network while the logo decodes');
+children(tree)[0].props.onReady();
+tree = render();
+assert.equal(children(tree)[1].props.style.maskImage, `url("${src}")`, 'The mask uses the same image URL as the displayed logo');
 children(tree)[0].props.onUnavailable();
 tree = render();
 assert.ok(children(tree)[0].props.src.includes('wsrv.nl'), 'A failed CDN redirect retries through the external image service');
+assert.equal(children(tree)[1], false, 'Wait for the fallback image before attaching the mask');
 children(tree)[0].props.onUnavailable();
 tree = render();
 assert.equal(tree.props['data-state'], 'failed');

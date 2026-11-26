@@ -17,6 +17,9 @@ const api = load('lib/media/metadata-warmup.ts', {}, { document, Image, URL });
     images.add('/a.png'); images.add('/b.png'); images.add('/c.png');
     assert.equal(downloads.length, 2); assert.equal(downloads[0].fetchPriority, 'low');
     downloads[0].onload(); assert.equal(downloads.length, 3); images.clear();
+    images.add('https://image.tmdb.org/t/p/original/logo.png', 'anonymous');
+    assert.equal(downloads.at(-1).crossOrigin, 'anonymous', 'Warm logo bytes in the same mode as the visible logo');
+    images.clear();
     const work = [], cache = new Map(); let canceled = 0;
     const client = new QueryClient();
     const warmer = api.createMetadataWarmup({ scope: 'session', client,
