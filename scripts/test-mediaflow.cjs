@@ -37,6 +37,7 @@ function find(node, predicate) {
 const render = () => host.render(ui.MediaFlowSettings);
 const mode = () => find(render(), node => node.type === 'SegmentedControl')[0];
 assert.deepEqual(Array.from(mode().props.options, option => option.label), ['Off', 'In-house', 'Custom']);
+assert.equal(mode().props.options.find(option => option.value === 'in-house').tooltip, 'Use Navigator’s hosted proxy');
 assert.equal(find(render(), node => node.type === 'Input').length, 0);
 mode().props.onValueChange('custom');
 let fields = find(render(), node => node.type === 'Input');

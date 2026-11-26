@@ -2,10 +2,11 @@
 
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { motion, useReducedMotion } from "motion/react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./segmented-control.module.css";
 
-export interface Segment { value: string; label: string; /** Optional content after the label, such as a badge. */ accessory?: ReactNode; }
+export interface Segment { value: string; label: string; /** Optional content after the label, such as a badge. */ accessory?: ReactNode; tooltip?: string; }
 export interface SegmentedControlProps {
   options: Segment[];
   value: string;
@@ -87,9 +88,15 @@ export default function SegmentedControl({ options, value, onValueChange, label,
       {selection && <motion.span className={styles.selection} initial={false}
         animate={{ x: selection.x, width: selection.width }}
         transition={reduced ? { duration: 0 } : motionTokens.spring.snappy} aria-hidden="true" />}
-      {options.map((option, index) => <button key={option.value} id={`${id}-${option.value}`} className={styles.button} type="button" data-value={option.value} aria-pressed={value === option.value} tabIndex={index === selectedIndex ? 0 : -1} onClick={() => onValueChange(option.value)} onKeyDown={onKeyDown} onPointerEnter={onOptionIntent ? () => onOptionIntent(option.value) : undefined} onFocus={onOptionIntent ? () => onOptionIntent(option.value) : undefined} draggable={false}>
+      {options.map((option, index) => {
+        const button = <button key={option.value} id={`${id}-${option.value}`} className={styles.button} type="button" data-value={option.value} aria-pressed={value === option.value} tabIndex={index === selectedIndex ? 0 : -1} onClick={() => onValueChange(option.value)} onKeyDown={onKeyDown} onPointerEnter={onOptionIntent ? () => onOptionIntent(option.value) : undefined} onFocus={onOptionIntent ? () => onOptionIntent(option.value) : undefined} draggable={false}>
         <span className={styles.label}><span data-segment-label>{option.label}</span>{option.accessory}</span>
-      </button>)}
+        </button>;
+        return option.tooltip ? <Tooltip key={option.value} delayDuration={500}>
+          <TooltipTrigger asChild>{button}</TooltipTrigger>
+          <TooltipContent sideOffset={6}>{option.tooltip}</TooltipContent>
+        </Tooltip> : button;
+      })}
     </div>
   </div>;
 }

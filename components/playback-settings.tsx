@@ -134,7 +134,6 @@ export function PlaybackSettings() {
       </FieldGroup>}
     </section> : <section aria-labelledby="playback-video" className={styles.section}>
       <h2 id="playback-video">Video and HDR</h2>
-      <p className={styles.description}>Changes apply to the next video</p>
       <FieldGroup className="min-w-0 gap-6">
         <Field orientation="horizontal">
           <FieldContent>
