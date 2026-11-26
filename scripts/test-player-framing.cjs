@@ -42,5 +42,6 @@ for (const file of ['components/season-episodes.tsx', 'components/episode-card.t
   const source = fs.readFileSync(file, 'utf8');
   assert.match(source, /artwork \+ " absolute inset-0 block w-full h-full object-contain"/, 'Episode stills have explicit bounds and retain their full contents');
 }
-assert.match(fs.readFileSync('components/desktop/tracks.tsx', 'utf8'), /className="text-white hover:text-white/);
-console.log('PASS: browser and native framing cycle, session routing, old-client fallback, Android-only volume removal, white track buttons and bounded episode artwork');
+assert.match(fs.readFileSync('components/desktop/tracks.tsx', 'utf8'), /variant="player-control"/, 'Track buttons use the shared player control style');
+assert.match(fs.readFileSync('components/ui/button.tsx', 'utf8'), /"player-control": "[^"]*text-foreground/, 'Player controls retain the player foreground color');
+console.log('PASS: browser and native framing cycle, session routing, old-client fallback, Android-only volume removal, shared player track controls and bounded episode artwork');
