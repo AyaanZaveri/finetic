@@ -173,13 +173,14 @@
 }
 
 .contentScrim {
+  --hero-scrim-direction: 96deg;
   position: absolute;
   inset: 0;
   z-index: 3;
   pointer-events: none;
   background:
     linear-gradient(
-      96deg,
+      var(--hero-scrim-direction),
       rgb(6 10 12 / 0.84) 0%,
       rgb(6 10 12 / 0.6) 36%,
       rgb(6 10 12 / 0.2) 64%,
@@ -198,7 +199,7 @@
 }
 
 :global(html:not(.dark)) .contentScrim {
-  background: linear-gradient(96deg,
+  background: linear-gradient(var(--hero-scrim-direction),
     color-mix(in oklab, var(--background) 94%, transparent) 0%,
     color-mix(in oklab, var(--background) 86%, transparent) 30%,
     color-mix(in oklab, var(--background) 32%, transparent) 64%,
@@ -217,10 +218,12 @@
   color: var(--muted-foreground);
   text-shadow: none;
 }
+
 :global(html:not(.dark)) .playButton {
   background: var(--foreground);
   color: var(--background);
 }
+
 @media (hover: hover) and (pointer: fine) {
   :global(html:not(.dark)) .playButton:hover { background: color-mix(in oklab, var(--foreground) 90%, var(--background)); }
 }
@@ -432,15 +435,21 @@
   .detailsIcon > svg { transition: none; filter: none; }
 }
 
-.controls {
+.controls::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
   background: rgb(12 15 17 / 0.66);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
+  pointer-events: none;
 }
 
 .controls {
   --hero-dot-slot: 0.875rem;
   --hero-active-extra: 1.25rem;
+  position: relative;
   display: inline-flex;
   align-items: center;
   align-self: flex-start;
@@ -451,6 +460,8 @@
 }
 
 .navButton {
+  position: relative;
+  isolation: isolate;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -463,7 +474,17 @@
   color: rgb(255 255 255 / 0.82);
   cursor: pointer;
   touch-action: manipulation;
-  transition: background-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
+  transition: color var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
+}
+
+.navButton::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
 .navButton:active {
@@ -471,10 +492,8 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .navButton:hover {
-    background: rgb(255 255 255 / 0.14);
-    color: #fff;
-  }
+  .navButton:hover { color: #fff; }
+  .navButton:hover::before { background-color: rgb(255 255 255 / 0.14); }
 }
 
 .dots {
@@ -513,7 +532,7 @@
   border-radius: 9999px;
   background: rgb(255 255 255 / 0.36);
   transform: translate(-50%, -50%);
-  clip-path: inset(0 calc((100% - 0.4375rem) / 2) 0 calc((100% - 0.4375rem) / 2) round 9999px);
+  clip-path: inset(0 calc((100% - 0.3125rem) / 2) round 9999px);
   transition: clip-path var(--duration-standard) var(--ease-in-out), background-color var(--duration-fast) var(--ease-out);
 }
 
@@ -523,6 +542,9 @@
 
 .controls[data-skeleton-controls] {
   pointer-events: none;
+}
+
+.controls[data-skeleton-controls]::before {
   background: color-mix(in oklab, var(--accent) 36%, var(--background));
 }
 
@@ -584,6 +606,85 @@
   }
 }
 
+@media (width < 48rem) {
+  .hero {
+    --hero-wordmark-height: 4.5rem;
+    min-height: clamp(30rem, min(134vw, 80svh), 44rem);
+  }
+
+  .artwork { object-position: center; }
+  /* Follow the centered copy while keeping the shared light and dark stops. */
+  .contentScrim { --hero-scrim-direction: to top; }
+
+  .content {
+    align-items: center;
+    padding-bottom: 2rem;
+  }
+
+  .copy,
+  .copyPanel {
+    align-items: center;
+    text-align: center;
+  }
+
+  .wordmark {
+    width: min(22rem, 100%);
+    --hero-wordmark-justify: center;
+    --hero-wordmark-origin: center bottom;
+  }
+
+  .skeletonWordmarkSlot { justify-content: center; }
+  .synopsis,
+  .skeletonSynopsis { display: none; }
+
+  .metadata {
+    flex-direction: column;
+    align-items: center;
+    margin-top: 1rem;
+  }
+
+  .metaFacts,
+  .genres { justify-content: center; }
+  .genres { max-width: 100%; }
+
+  .actions {
+    --hero-action-size: 3rem;
+    justify-content: center;
+    gap: .5rem;
+    margin-top: 1.25rem;
+  }
+
+  .playButton,
+  .detailsButton,
+  .actions > [data-slot="skeleton"] { min-height: var(--hero-action-size); }
+
+  .detailsButton,
+  .actions > [data-slot="skeleton"]:last-child { min-width: var(--hero-action-size); }
+
+  .playButton {
+    padding-inline: 1.375rem;
+    font-size: 1rem;
+  }
+
+  .controls {
+    align-self: center;
+    gap: 0;
+    padding-block: 0;
+    /* Balance the visible end gaps after the pause and dot hit areas. */
+    padding-inline: 0 calc(1.1875rem - var(--hero-dot-slot) / 2);
+  }
+
+  /* Keep the buttons taller than the visible pill. */
+  .controls::before { inset-block: .375rem; }
+  .navButton { width: 2.75rem; }
+  .navButton::before {
+    inset-block: .625rem;
+    inset-inline: .25rem;
+  }
+  .navButton,
+  .dots { height: 2.75rem; }
+}
+
 @media (min-width: 48rem) {
   .hero {
     --hero-wordmark-height: 5.5rem;
@@ -626,7 +727,7 @@
   .bottomBlur {
     display: none;
   }
-  .controls {
+  .controls::before {
     background: rgb(14 18 20 / 0.84);
   }
 }
@@ -635,7 +736,7 @@
   .bottomBlur {
     display: none;
   }
-  .controls {
+  .controls::before {
     background: rgb(12 14 16 / 0.92);
     border-color: rgb(255 255 255 / 0.28);
     -webkit-backdrop-filter: none;
@@ -653,6 +754,7 @@
     transition: opacity 100ms linear, visibility 0s;
   }
   .navButton,
+  .navButton::before,
   .dotButton,
   .dotTrack,
   .progress {
