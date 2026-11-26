@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAccountAccess } from "@/contexts/account-context";
 import { usePlaybackActions } from "@/contexts/MediaPlayerContext";
 import { backdropVariantUrl, mediaArtwork } from "@/lib/artwork";
-import { formatHeroMetadata, heroDetailsHref, selectHomeHeroItems, type HomeHeroItem } from "@/lib/home-hero";
+import { formatHeroMetadata, heroDetailsHref, HOME_HERO_ITEM_LIMIT, selectHomeHeroItems, type HomeHeroItem } from "@/lib/home-hero";
 import { projectPlaybackDetails } from "@/lib/media/playback-details";
 import { preloadPlayer } from "@/lib/preload-tools";
 import styles from "./home-hero.module.css";
@@ -34,6 +34,14 @@ function backdropSrcSet(source?: string): string | undefined {
     return ([780, 1280] as const)
         .map((width) => `${backdropVariantUrl(source, width)} ${width}w`)
         .join(", ");
+}
+
+function heroDotsWidth(count: number) {
+    return `calc(${count} * var(--hero-dot-slot) + var(--hero-active-extra))`;
+}
+
+function heroDotTransform(index: number, activeIndex: number) {
+    return `translateX(calc(${index} * var(--hero-dot-slot) + ${index === activeIndex ? 0.5 : index > activeIndex ? 1 : 0} * var(--hero-active-extra)))`;
 }
 
 export function HomeHero({ items }: { items: HomeHeroItem[] }) {
@@ -337,13 +345,13 @@ export function HomeHero({ items }: { items: HomeHeroItem[] }) {
                         >
                             {rotating ? <Pause aria-hidden="true" className="size-3.5 fill-current" /> : <Play aria-hidden="true" className="size-3.5 fill-current" />}
                         </button>
-                        <div className={styles.dots} style={{ width: `calc(${count} * var(--hero-dot-slot) + var(--hero-active-extra))` }}>
+                        <div className={styles.dots} style={{ width: heroDotsWidth(count) }}>
                             {items.map((item, index) => (
                                 <button
                                     key={`${item.type}:${item.id}`}
                                     type="button"
                                     className={styles.dotButton}
-                                    style={{ transform: `translateX(calc(${index} * var(--hero-dot-slot) + ${index === requestedIndex ? 0.5 : index > requestedIndex ? 1 : 0} * var(--hero-active-extra)))` }}
+                                    style={{ transform: heroDotTransform(index, requestedIndex) }}
                                     aria-label={`Show featured title ${index + 1}: ${item.name}`}
                                     aria-current={index === requestedIndex ? "true" : undefined}
                                     onFocus={(event) => { if (event.currentTarget.matches(":focus-visible")) setRotationOverride(false); }}
@@ -366,11 +374,13 @@ export function HomeHero({ items }: { items: HomeHeroItem[] }) {
 
 export function HomeHeroSkeleton() {
     return (
-        <section data-home-hero="" aria-label="Featured titles" aria-busy="true" className={styles.hero}>
+        <section data-home-hero="" data-hero-loading="" aria-label="Featured titles" aria-busy="true" className={styles.hero}>
             <div aria-hidden="true" className={styles.skeletonStage} />
             <div aria-hidden="true" className={styles.content}>
                 <div className={styles.copy}>
-                    <Skeleton animated={false} className={styles.skeletonWordmark} />
+                    <div className={styles.skeletonWordmarkSlot}>
+                        <Skeleton animated={false} className={styles.skeletonWordmark} />
+                    </div>
                     <div className={styles.metadata}>
                         <div className={styles.metaFacts}>
                             <Skeleton animated={false} className="h-3.5 w-12" />
@@ -380,16 +390,28 @@ export function HomeHeroSkeleton() {
                         <Skeleton animated={false} className="h-3.5 w-36 max-w-full" />
                     </div>
                     <div className={styles.skeletonSynopsis}>
-                        <Skeleton animated={false} className="h-3.5 w-full" />
-                        <Skeleton animated={false} className="h-3.5 w-11/12" />
-                        <Skeleton animated={false} className="hidden h-3.5 w-2/3 md:block" />
+                        <Skeleton animated={false} className="h-2.5 w-full" />
+                        <Skeleton animated={false} className="h-2.5 w-11/12" />
                     </div>
                     <div className={styles.actions}>
                         <Skeleton animated={false} className="h-10 w-24 rounded-full" />
                         <Skeleton animated={false} className="size-10 rounded-full" />
                     </div>
                 </div>
-                <Skeleton animated={false} className={`${styles.skeletonControls} h-8 w-36 rounded-full`} />
+                <div className={styles.controls} data-skeleton-controls="">
+                    <span className={styles.navButton}>
+                        <Pause aria-hidden="true" className="size-3.5 fill-current" />
+                    </span>
+                    <div className={styles.dots} style={{ width: heroDotsWidth(HOME_HERO_ITEM_LIMIT) }}>
+                        {Array.from({ length: HOME_HERO_ITEM_LIMIT }, (_, index) => (
+                            <span key={index} className={styles.dotButton}
+                                style={{ transform: heroDotTransform(index, 0) }}
+                                aria-current={index === 0 ? "true" : undefined}>
+                                <span className={styles.dotTrack} />
+                            </span>
+                        ))}
+                    </div>
+                </div>
             </div>
             <span className="sr-only" role="status">Loading featured titles…</span>
         </section>

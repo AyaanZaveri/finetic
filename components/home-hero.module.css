@@ -1,6 +1,9 @@
 .hero {
   --hero-dissolve-duration: 600ms;
   --hero-title-enter-duration: 300ms;
+  --hero-wordmark-height: 3.8rem;
+  --hero-synopsis-size: 0.875rem;
+  --hero-synopsis-leading: 1.6;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -26,22 +29,44 @@
   background: linear-gradient(to bottom, color-mix(in oklab, var(--muted) 44%, var(--background)), var(--background));
 }
 
+.skeletonWordmarkSlot {
+  display: flex;
+  align-items: flex-end;
+  height: calc(var(--hero-wordmark-height) * 1.35);
+  width: 100%;
+}
+
 .skeletonWordmark {
-  width: min(15rem, 76vw);
-  height: 4.5rem;
+  width: min(12.5rem, 76vw);
+  height: 3.5rem;
+  border-radius: 0.375rem;
 }
 
 .skeletonSynopsis {
   display: grid;
-  gap: 0.5rem;
+  grid-template-rows: repeat(2, calc(1em * var(--hero-synopsis-leading)));
+  align-items: center;
+  font-size: var(--hero-synopsis-size);
   width: 100%;
   max-width: 60ch;
   margin-top: 1rem;
 }
 
-.skeletonControls {
-  flex: none;
-  align-self: flex-start;
+.hero[data-hero-loading] [data-slot="skeleton"] {
+  background: color-mix(in oklab, var(--accent) 78%, var(--background));
+}
+
+.hero[data-hero-loading] .content {
+  animation: hero-skeleton-pulse 3.2s ease-in-out infinite;
+}
+
+@keyframes hero-skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.82; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero[data-hero-loading] .content { animation: none; }
 }
 
 /* Paint the fade over the complete artwork stack, just as detail pages do.
@@ -253,7 +278,6 @@
 
 .wordmark {
   width: min(19rem, 76vw);
-  --hero-wordmark-height: 3.8rem;
   --hero-wordmark-align: end;
   --hero-wordmark-justify: start;
   --hero-wordmark-origin: left bottom;
@@ -329,9 +353,9 @@
 .synopsis {
   margin: 1rem 0 0;
   max-width: min(100%, 60ch);
-  font-size: 0.875rem;
+  font-size: var(--hero-synopsis-size);
   font-weight: 400;
-  line-height: 1.6;
+  line-height: var(--hero-synopsis-leading);
   color: rgb(255 255 255 / 0.86);
   text-wrap: pretty;
   overflow-wrap: break-word;
@@ -488,6 +512,23 @@
   clip-path: inset(0 0 0 0 round 9999px);
 }
 
+.controls[data-skeleton-controls] {
+  pointer-events: none;
+  background: color-mix(in oklab, var(--accent) 36%, var(--background));
+}
+
+.controls[data-skeleton-controls] .navButton {
+  color: color-mix(in oklab, var(--muted-foreground) 58%, var(--background));
+}
+
+.controls[data-skeleton-controls] .dotTrack {
+  background: color-mix(in oklab, var(--muted-foreground) 28%, var(--background));
+}
+
+.controls[data-skeleton-controls] .dotButton[aria-current="true"] .dotTrack {
+  background: color-mix(in oklab, var(--muted-foreground) 48%, var(--background));
+}
+
 .progress {
   display: block;
   width: 100%;
@@ -536,6 +577,8 @@
 
 @media (min-width: 48rem) {
   .hero {
+    --hero-wordmark-height: 5.5rem;
+    --hero-synopsis-size: 1rem;
     min-height: clamp(31rem, 70svh, 44rem);
   }
 
@@ -553,18 +596,14 @@
 
   .wordmark {
     width: min(28rem, 46vw);
-    --hero-wordmark-height: 5.5rem;
   }
 
   .skeletonWordmark {
-    width: min(22rem, 46vw);
-    height: 7rem;
+    width: min(18rem, 46vw);
+    height: 5.5rem;
   }
 
-  .skeletonControls { align-self: flex-end; }
-
   .synopsis {
-    font-size: 1rem;
     -webkit-line-clamp: 3;
   }
 

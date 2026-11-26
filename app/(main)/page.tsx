@@ -209,7 +209,7 @@ async function HomeHeroBootstrap({ getPlan }: { getPlan: () => Promise<HomeDataP
     }];
   });
 
-  const candidates = selectHomeHeroItems(sources, 6);
+  const candidates = selectHomeHeroItems(sources);
   if (!candidates.length) return null;
 
   const heroItems = await enrichHomeHeroItems(candidates, plan.preferredProvider);

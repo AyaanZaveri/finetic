@@ -4,6 +4,7 @@ import { releaseYear } from "@/lib/media/release-year";
 import type { MediaItem } from "@/types/stremio";
 
 export type HomeHeroItem = MediaItem;
+export const HOME_HERO_ITEM_LIMIT = 6;
 
 export interface HomeHeroSource {
   items: MediaItem[];
@@ -27,7 +28,7 @@ export interface HeroMetadata {
  */
 export function selectHomeHeroItems(
     sources: HomeHeroSource[],
-    maxItems = 6,
+    maxItems = HOME_HERO_ITEM_LIMIT,
 ): HomeHeroItem[] {
     if (!Array.isArray(sources) || maxItems <= 0) return [];
 
