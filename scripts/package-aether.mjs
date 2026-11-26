@@ -10,7 +10,7 @@ const packagePath = join(root, "desktop", "macos", "aether");
 const libraryName = "libNavigatorAetherBridge.dylib";
 const env = { ...process.env, MACOSX_DEPLOYMENT_TARGET: "15.0" };
 const tool = (name, args, inherit = false) => execFileSync(name, args, {
-  env, encoding: "utf8", stdio: inherit ? "inherit" : ["ignore", "pipe", "pipe"],
+  env, encoding: "utf8", maxBuffer: 32 * 1024 * 1024, stdio: inherit ? "inherit" : ["ignore", "pipe", "pipe"],
 });
 const exists = async path => { try { await access(path); return true; } catch { return false; } };
 
@@ -25,9 +25,9 @@ async function verifyAetherFrameworks(frameworks) {
       if (match && !await exists(join(frameworks, match[1]))) throw new Error(`Unresolved AetherEngine dependency: ${match[1]}`);
     }
   }
-  const symbols = tool("nm", ["-gU", library]);
+  const symbols = new Set(tool("nm", ["-gUj", library]).split("\n"));
   for (const name of ["navigator_aether_create", "navigator_aether_command", "navigator_aether_destroy"]) {
-    if (!symbols.includes(`_${name}`)) throw new Error(`Missing Aether bridge C entry point: ${name}`);
+    if (!symbols.has(`_${name}`)) throw new Error(`Missing Aether bridge C entry point: ${name}`);
   }
   tool("codesign", ["--verify", "--strict", library], true);
 
