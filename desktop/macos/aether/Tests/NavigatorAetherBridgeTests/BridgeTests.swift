@@ -95,10 +95,27 @@ struct BridgeTests {
         try send("rate", ["rate": 1.5])
         #expect(events.state["muted"] as? Bool == true)
         #expect(events.state["rate"] as? Double == 1.5)
-        try send("thumbnail", ["request": 1, "position": 6.0])
-        try await events.waitFor({ events.has("thumbnail") }, seconds: 10)
-        let thumbnail = events.messages.last(where: { $0["type"] as? String == "thumbnail" })
-        #expect((thumbnail?["src"] as? String)?.hasPrefix("data:image/jpeg;base64,") == true)
+        // Aether's timestamped scrub API returns nil while the requested
+        // segment is still being produced. Wait for actual resident media;
+        // a nil reply is time-only, never a successful preview.
+        try await events.waitFor({
+            let ranges = events.state["bufferedRanges"] as? [[String: Double]] ?? []
+            return ranges.contains { ($0["start"] ?? .infinity) <= 6 && ($0["end"] ?? 0) > 6 }
+        })
+        var preview: String?
+        for request in 1...12 {
+            try send("thumbnail", ["request": request, "position": 6.0])
+            try await events.waitFor({
+                events.messages.contains { $0["type"] as? String == "thumbnail" && $0["request"] as? Int == request }
+            }, seconds: 3)
+            let answer = events.messages.last(where: { $0["type"] as? String == "thumbnail" && $0["request"] as? Int == request })
+            if let image = answer?["src"] as? String, image.hasPrefix("data:image/jpeg;base64,") {
+                preview = image
+                break
+            }
+            try await Task.sleep(for: .milliseconds(250))
+        }
+        #expect(preview != nil, "A retained segment must eventually produce a real JPEG preview")
         try send("play")
         try await events.waitFor({ (events.state["position"] as? Double ?? 0) > 6.2 })
         let beforeDelay = events.state["position"] as? Double ?? 6.2
