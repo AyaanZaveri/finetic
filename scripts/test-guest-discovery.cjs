@@ -79,7 +79,7 @@ async function main() {
     const { default: Home } = load('app/(main)/page.tsx', {
         ...components, react: React, 'react/jsx-runtime': require('react/jsx-runtime'),
         './media-section.module.css': { track: 'track' },
-        './home-page.module.css': { page: 'page', rows: 'rows' },
+        './home-page.module.css': { page: 'page', rows: 'rows', attribution: 'attribution', attributionLink: 'attributionLink', attributionProvider: 'attributionProvider' },
         '@/components/home-hero': { HomeHero: 'HomeHero', HomeHeroPending: 'HomeHeroPending' },
         '@/lib/server/home-hero': { enrichHomeHeroItems: async items => items },
         '@/lib/server/metadata-provider': { getMetadataProvider: async () => 'auto' },
@@ -98,7 +98,14 @@ async function main() {
     assert.ok(!all(guest).some(node => node.type === 'ContinueWatchingSection'));
     const publicSections = all(guest).find(node => node.type?.name === 'DiscoverySections');
     assert.ok(publicSections);
-    assert.ok(all(await publicSections.type()).some(node => node.type === 'HomeCatalogSectionsLazy'));
+    const discoveryNodes = all(await publicSections.type());
+    assert.ok(discoveryNodes.some(node => node.type === 'HomeCatalogSectionsLazy'));
+    const attribution = discoveryNodes.find(node => node.props?.className === 'attribution');
+    assert.ok(attribution, 'Discovery retains its provider attribution');
+    const providerLinks = all(attribution).filter(node => node.type === 'a');
+    assert.deepEqual(providerLinks.map(node => node.props.children), ['TMDB', 'JustWatch']);
+    assert.ok(providerLinks.every(node => node.props.className === 'attributionLink' && node.props.target === '_blank'));
+    assert.ok(attribution.props.children.includes(result.region), 'Regional streaming attribution stays intact');
     signedIn = true;
     const account = await Home();
     assert.equal(resumeCalls, 0, 'Home does not block on the client-cached resume request'); assert.equal(addonCalls, 1);

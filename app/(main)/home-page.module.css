@@ -21,3 +21,37 @@
     margin-top: -1.5rem;
   }
 }
+
+.attribution {
+  position: relative;
+  z-index: 10;
+  padding-block: 1rem;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+}
+
+.attributionProvider,
+.attributionLink {
+  font-weight: 600;
+  color: color-mix(in oklab, var(--foreground) 70%, var(--muted-foreground));
+}
+
+.attributionLink {
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.attributionLink:focus-visible {
+  color: var(--foreground);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .attributionLink:hover { color: var(--foreground); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .attributionLink { transition: none; }
+}

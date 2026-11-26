@@ -161,14 +161,14 @@ async function DiscoverySections({
     if (results.every(result => result.status === "error")) return <HomeCatalogsUnavailable />;
     return <>
       <HomeCatalogSectionsLazy initialSections={[]} initialRows={discovery.rows} remainingEntries={[]} batchSize={CATALOG_BATCH_SIZE} />
-      <p className="relative z-10 py-4 text-xs text-muted-foreground">Movie and TV data by Cinemeta</p>
+      <p className={homeStyles.attribution}>Movie and TV data by <span className={homeStyles.attributionProvider}>Cinemeta</span></p>
     </>;
   }
   return <>
     <HomeCatalogSectionsLazy initialSections={[]} initialRows={discovery.rows} remainingEntries={[]} batchSize={CATALOG_BATCH_SIZE} />
-    <p className="relative z-10 py-4 text-xs text-muted-foreground">
-      Movie and TV data by <a draggable={false} href="https://www.themoviedb.org" target="_blank" rel="noreferrer" className="underline underline-offset-4">TMDB</a>.
-      {" "}Streaming availability by <a draggable={false} href="https://www.justwatch.com" target="_blank" rel="noreferrer" className="underline underline-offset-4">JustWatch</a> ({discovery.region}).
+    <p className={homeStyles.attribution}>
+      Movie and TV data by <a draggable={false} href="https://www.themoviedb.org" target="_blank" rel="noopener noreferrer" className={homeStyles.attributionLink}>TMDB</a>.
+      {" "}Streaming availability by <a draggable={false} href="https://www.justwatch.com" target="_blank" rel="noopener noreferrer" className={homeStyles.attributionLink}>JustWatch</a> ({discovery.region}).
     </p>
   </>;
 }
