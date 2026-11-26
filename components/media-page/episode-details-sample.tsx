@@ -7,6 +7,7 @@ import { EpisodeDetailsView } from "./episode-details-view";
 export function EpisodeDetailsSample() {
   return (
     <EpisodeDetailsView
+      inertSample
       showName="Television series"
       title="An unexpected turn"
       seasonNumber={1}

@@ -11,9 +11,10 @@ import { IntentLink } from "@/components/intent-link";
 // Shared by real details and the inert sample so responsive geometry stays aligned.
 export function EpisodeDetailsView({
   titleId, showHref, showName, title, seasonNumber, episodeNumber,
-  released, rating, ratingMedia, thumbnail, actions, description,
+  released, rating, ratingMedia, thumbnail, actions, description, inertSample = false,
 }: {
   titleId?: string;
+  inertSample?: boolean;
   showHref?: string;
   showName: string;
   title: string;
@@ -75,7 +76,7 @@ export function EpisodeDetailsView({
                   {new Date(released).getFullYear()}
                 </Badge>
               )}
-              <MediaRatingBadge media={ratingMedia ?? { imdbRating: rating }} />
+              <MediaRatingBadge media={ratingMedia ?? { imdbRating: rating }} inertSample={inertSample} />
               <RottenTomatoesRatingBadge score={ratingMedia?.rottenTomatoesRating} />
               <ContentRatingBadge rating={ratingMedia?.contentRating} series />
             </div>
