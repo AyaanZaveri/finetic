@@ -9,6 +9,9 @@ export interface PlaybackPreferences {
   episodePrefetch: boolean;
   autoSelectWebStream: boolean;
   webGpuPlayback: boolean;
+  mediaFlowMode: "off" | "in-house" | "custom";
+  mediaFlowUrl: string;
+  mediaFlowPassword: string;
   nativeWebGpuDecoding: boolean;
   hdrOutput: boolean;
   hdrPeakNits: number;
@@ -24,6 +27,7 @@ export const DEFAULT_PLAYBACK_PREFERENCES: PlaybackPreferences = {
   continueWatchingPrefetch: true, metadataPrefetch: true,
   episodeAutoplay: true, episodePrefetch: true,
   autoSelectWebStream: false, webGpuPlayback: true, nativeWebGpuDecoding: false, hdrOutput: false, hdrPeakNits: 1000, nativeHdrPeakNits: null,
+  mediaFlowMode: "off", mediaFlowUrl: "", mediaFlowPassword: "",
   audioLanguage: "en", subtitleLanguage: "en", subtitleMode: "normal", subtitlesEnabledByDefault: false,
 };
 export const PLAYBACK_PREFERENCES_KEY = "navigator-playback-preferences";
@@ -70,6 +74,9 @@ export function normalizePlaybackPreferences(value: unknown): PlaybackPreference
     episodePrefetch: candidate.episodePrefetch !== false,
     autoSelectWebStream: candidate.autoSelectWebStream === true,
     webGpuPlayback: candidate.webGpuPlayback !== false,
+    mediaFlowMode: candidate.mediaFlowMode === "in-house" || candidate.mediaFlowMode === "custom" ? candidate.mediaFlowMode : "off",
+    mediaFlowUrl: typeof candidate.mediaFlowUrl === "string" ? candidate.mediaFlowUrl.slice(0, 2048) : "",
+    mediaFlowPassword: typeof candidate.mediaFlowPassword === "string" ? candidate.mediaFlowPassword.slice(0, 1024) : "",
     nativeWebGpuDecoding: candidate.nativeWebGpuDecoding === true,
     hdrOutput: candidate.hdrOutput === true,
     hdrPeakNits: typeof candidate.hdrPeakNits === "number" && Number.isFinite(candidate.hdrPeakNits)

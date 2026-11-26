@@ -7,6 +7,7 @@ import { Kbd } from "@/components/ui/kbd";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSettings } from "@/contexts/settings-context";
 import { PlaybackLanguageSettings } from "./playback-language-settings";
+import { MediaFlowSettings } from "./settings/mediaflow-settings";
 import { NumberField } from "@/components/arc/number-field/number-field";
 import { Switch } from "@/components/arc/switch/switch";
 import { Field, FieldGroup, FieldLabel, FieldContent, FieldDescription } from "@/components/ui/field";
@@ -112,6 +113,7 @@ export function PlaybackSettings() {
         </Field>}
       </FieldGroup>
     </section>
+    {!desktop && <MediaFlowSettings />}
     {desktop ? (desktop.platform === "macos" || desktop.platform === "windows") && <section aria-labelledby="playback-video" className={styles.section}>
       <h2 id="playback-video">Native HDR</h2>
       <p className={styles.description}>HDR turns on for supported videos and displays</p>

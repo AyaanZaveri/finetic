@@ -10,7 +10,7 @@ const audio = load('lib/media/audio-language.ts');
 const subtitles = load('lib/media/subtitle-preference.ts', { './audio-language': audio });
 const appearance = load('lib/subtitle-appearance.ts');
 const plain = value => JSON.parse(JSON.stringify(value));
-const defaults = { keyboardSeekBackwardSeconds: 10, keyboardSeekForwardSeconds: 10, continueWatchingPrefetch: true, metadataPrefetch: true, episodeAutoplay: true, episodePrefetch: true, autoSelectWebStream: false, webGpuPlayback: true, nativeWebGpuDecoding: false, hdrOutput: false, hdrPeakNits: 1000, nativeHdrPeakNits: null, audioLanguage: 'en', subtitleLanguage: 'en', subtitleMode: 'normal', subtitlesEnabledByDefault: false };
+const defaults = { keyboardSeekBackwardSeconds: 10, keyboardSeekForwardSeconds: 10, continueWatchingPrefetch: true, metadataPrefetch: true, episodeAutoplay: true, episodePrefetch: true, autoSelectWebStream: false, webGpuPlayback: true, nativeWebGpuDecoding: false, hdrOutput: false, hdrPeakNits: 1000, nativeHdrPeakNits: null, mediaFlowMode: 'off', mediaFlowUrl: '', mediaFlowPassword: '', audioLanguage: 'en', subtitleLanguage: 'en', subtitleMode: 'normal', subtitlesEnabledByDefault: false };
 assert.deepEqual(plain(preferences.readPlaybackPreferences()), defaults);
 assert.equal(preferences.normalizePlaybackPreferences({ keyboardSeekBackwardSeconds: NaN }).keyboardSeekBackwardSeconds, 10);
 assert.equal(preferences.normalizePlaybackPreferences({ keyboardSeekForwardSeconds: '5' }).keyboardSeekForwardSeconds, 10);
@@ -59,6 +59,13 @@ assert.equal(settings.value.playbackPreferences.hdrOutput, true, 'Keep the saved
 settings.value.updatePlaybackPreferences({ nativeHdrPeakNits: 1600 }); settings.render(); settings = mount();
 assert.equal(settings.value.playbackPreferences.nativeHdrPeakNits, 1600, 'The native target persists independently');
 assert.equal(settings.value.playbackPreferences.hdrPeakNits, 1000, 'Native brightness does not affect WebGPU');
+settings.value.updatePlaybackPreferences({ mediaFlowMode: 'custom', mediaFlowUrl: 'https://proxy.example', mediaFlowPassword: 'fixture' }); settings.render(); settings = mount();
+assert.equal(settings.value.playbackPreferences.mediaFlowMode, 'custom');
+assert.equal(settings.value.playbackPreferences.mediaFlowUrl, 'https://proxy.example');
+assert.equal(settings.value.playbackPreferences.mediaFlowPassword, 'fixture');
+settings.value.updatePlaybackPreferences({ mediaFlowMode: 'in-house' }); settings.render(); settings = mount();
+assert.equal(settings.value.playbackPreferences.mediaFlowUrl, 'https://proxy.example', 'Changing modes preserves custom proxy settings');
+assert.equal(preferences.normalizePlaybackPreferences({ mediaFlowMode: 'invalid' }).mediaFlowMode, 'off');
 assert.equal(preferences.normalizePlaybackPreferences({ nativeHdrPeakNits: '1600' }).nativeHdrPeakNits, null);
 assert.equal(preferences.normalizePlaybackPreferences({ macHdrPeakNits: 1600 }).nativeHdrPeakNits, 1600, 'Migrate the earlier Mac preference');
 assert.equal(preferences.normalizePlaybackPreferences({ macHdrPeakNits: 1600, nativeHdrPeakNits: null }).nativeHdrPeakNits, null);
@@ -341,6 +348,7 @@ function mountPlaybackSettings(desktop) {
     '@/components/ui/button': { Button: 'Button' },
     '@/components/ui/tooltip': { Tooltip: 'Tooltip', TooltipTrigger: 'TooltipTrigger', TooltipContent: 'TooltipContent' },
     './playback-language-settings': { PlaybackLanguageSettings: 'PlaybackLanguageSettings' },
+    './settings/mediaflow-settings': { MediaFlowSettings: 'MediaFlowSettings' },
   });
   const render = () => host.render(PlaybackSettings);
   render(); host.flush();
