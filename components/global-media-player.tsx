@@ -48,6 +48,7 @@ import { toast } from "sonner";
 import { getPlaybackTitles, isMeaningfulEpisodeTitle } from "@/lib/media/playback-titles";
 import { probeStreamMetadata } from "@/lib/media/stream-metadata";
 import { probeStreamPlayability } from "@/lib/media/stream-playability";
+import { resolveMediaFlowSource } from "@/lib/media/mediaflow-source";
 import { useStreamQueries } from "@/components/stream-query-provider";
 import { createPlaybackStreamRequest, fetchPlaybackStreams } from "@/lib/media/fetch-playback-streams";
 import { installWebStartupWatchdog } from "@/lib/media/web-startup-watchdog";
@@ -147,6 +148,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
   }, [nativePlayback, isPlayerVisible, currentMedia]);
 
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
+  const [routedStreamUrl, setRoutedStreamUrl] = useState<string | null>(null);
   const [loadedMediaDetails, setMediaDetails] = useState<MediaItem | null>(null);
   const mediaDetailsOwner = useRef<MediaToPlay | null>(null);
   const mediaDetails = mediaDetailsOwner.current === playbackRequest ? loadedMediaDetails
@@ -476,6 +478,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     setTimingOpenKey(null);
     setShowPlaybackStats(false);
     setStreamUrl(null);
+    setRoutedStreamUrl(null);
     setMediaDetails(null);
     subtitleSelectionRequest.current++;
     setSubtitleOptionsReady(false);
@@ -577,6 +580,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
     setVideoReady(false);
     setPlaybackError(null);
     setStreamUrl(null);
+    setRoutedStreamUrl(null);
     const initialDetails = initialPlaybackDetails(request);
     mediaDetailsOwner.current = activePlaybackRequestRef.current || request;
     const initialBackdrop = playbackBackdrop(request);
@@ -709,6 +713,10 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
         discoverSubtitlesEarly(target);
       });
       if (!isCurrent()) return;
+      const transportUrl = media.streamUrl && !nativePlayback && playbackPreferencesRef.current.mediaFlowMode && playbackPreferencesRef.current.mediaFlowMode !== "off"
+        ? await resolveMediaFlowSource(media.streamUrl, metadataAbort.signal, playbackPreferencesRef.current)
+        : media.streamUrl;
+      if (!isCurrent()) return;
       // Keep an episode title that arrived while the source request was pending.
       recordDesktopStage("stream-resolved");
       const earlyTitle = activeMedia.episodeTitle;
@@ -716,6 +724,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
       sourceReady = true;
       publishTitle();
       setRequestHeaders(media.requestHeaders ?? {});
+      setRoutedStreamUrl(transportUrl || null);
       setStreamUrl(media.streamUrl || null);
       setLoading(false);
       const streamSourceId = media.mediaSourceId || media.id;
@@ -1035,7 +1044,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
               key={`${streamUrl}:${playerAttempt}`}
               // @ts-ignore
               ref={videoRef}
-              src={streamUrl}
+              src={routedStreamUrl ?? streamUrl}
               {...(nativePlayback ? { requestHeaders, startPosition: currentMedia.type === "series" ? 0 : currentMedia.resumePositionTicks ?? 0,
                 onPreloadFallback: () => setVideoReady(false),
                 systemMedia: { title: primaryTitle, subtitle: showTitle || undefined,
@@ -1235,7 +1244,7 @@ export function GlobalMediaPlayer({ onToggleAIAsk }: GlobalMediaPlayerProps) {
           />
         )}
 
-        <PlayerControlBar title={primaryTitle} previewSource={streamUrl ?? undefined}
+        <PlayerControlBar title={primaryTitle} previewSource={routedStreamUrl ?? streamUrl ?? undefined}
           episode={isEpisodePlayback ? { showTitle, season, episodeNumber } : undefined}
           releaseYear={currentMedia.type === "movie" ? mediaDetails?.year : undefined}
           endTime={<PlayerEndTime key={`${streamUrl}:${playerAttempt}`} duration={duration} mediaRef={videoRef} />}

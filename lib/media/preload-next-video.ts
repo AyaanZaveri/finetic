@@ -2,6 +2,8 @@ import type { MediaToPlay } from "@/lib/atoms";
 import { desktopBridge } from "@/lib/desktop/bridge";
 import type { EpisodePreload } from "./episode-continuation";
 import { preloadWebVideo } from "./web-video-preload";
+import { resolveMediaFlowSource } from "./mediaflow-source";
+import { readPlaybackPreferences } from "./playback-preferences";
 
 export function videoPreloadAllowed(node?: HTMLVideoElement | null, seconds = 20): boolean {
     if (!node || node.paused || node.seeking || node.readyState < 3 || document.visibilityState === "hidden") return false;
@@ -30,7 +32,10 @@ export async function preloadNextVideo(media: MediaToPlay, native: boolean, dura
     if (!media.streamUrl || signal.aborted) return;
     if (!native) {
         if (Object.keys(media.requestHeaders || {}).length) return;
-        return preloadWebVideo(media.streamUrl, signal);
+        const preferences = readPlaybackPreferences();
+        const source = preferences.mediaFlowMode && preferences.mediaFlowMode !== "off"
+            ? await resolveMediaFlowSource(media.streamUrl, signal, preferences) : media.streamUrl;
+        return preloadWebVideo(source, signal);
     }
     // The packaged desktop already owns a loopback Next server. Reuse it rather
     // than spawning another mpv decoder or relying on WebKit's unrelated cache.

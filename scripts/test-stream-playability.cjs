@@ -10,6 +10,8 @@ const source = fs.readFileSync(require.resolve('../lib/media/stream-playability.
 const js = ts.transpile(source, { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 });
 function localRequire(name) {
   if (name === './webgpu-module') return { canUseWebGpu: () => false };
+  if (name === './mediaflow-source') return { resolveMediaFlowSource: async source => source };
+  if (name === './playback-preferences') return { readPlaybackPreferences: () => ({ mediaFlowMode: 'off' }) };
   if (name === './web-video-preload') return { createWebVideoSession: (...args) => createSession(...args) };
   if (name === './playback-probe-lock') return {};
   if (!name.startsWith('@/')) return require(name);

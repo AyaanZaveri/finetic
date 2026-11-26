@@ -1,9 +1,14 @@
+import { isMediaFlowSource } from "./mediaflow-url";
+
 const sources = new Map<string, { url: string; expires: number }>();
 
 /** Cache successful resolutions briefly for the probe, player, and audio retry.
  * Never persist signed media URLs or put them in browser request paths. */
 export async function resolveWebGpuSource(url: string, signal: AbortSignal): Promise<string> {
     signal.throwIfAborted();
+    // A MediaFlow URL already points at the byte-serving transport. Do not
+    // probe it through Navigator's redirect resolver or wrap it again.
+    if (isMediaFlowSource(url)) return url;
     for (const [key, source] of sources) if (source.expires <= Date.now()) sources.delete(key);
     const cached = sources.get(url);
     if (cached) return cached.url;

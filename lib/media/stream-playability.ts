@@ -1,4 +1,6 @@
 import { canUseWebGpu } from "./webgpu-module";
+import { resolveMediaFlowSource } from "./mediaflow-source";
+import { readPlaybackPreferences } from "./playback-preferences";
 import { createWebVideoSession } from "./web-video-preload";
 import { acquirePlaybackProbe } from "./playback-probe-lock";
 import type { WebGpuVideo } from "./webgpu-video";
@@ -167,9 +169,15 @@ export async function probeStreamPlayability(
   stream: StremioStream,
   options: { signal: AbortSignal; timeoutMs?: number; preferredAudioLanguage?: string; metadata?: Promise<StreamMetadata | undefined>; onAudioLanguage?: (_language: string) => void },
 ): Promise<Playability> {
-  const src = stream.url || stream.externalUrl;
+  let src = stream.url || stream.externalUrl;
   if (!src || options.signal.aborted || typeof document === "undefined"
     || Object.keys(stream.behaviorHints?.proxyHeaders?.request || {}).length) return "unknown";
+
+  const preferences = readPlaybackPreferences();
+  if (preferences.mediaFlowMode && preferences.mediaFlowMode !== "off") {
+    try { src = await resolveMediaFlowSource(src, options.signal, preferences); }
+    catch { return "unknown"; }
+  }
 
   const gpu = canUseWebGpu(src);
   const signal = gpu ? AbortSignal.any([options.signal, AbortSignal.timeout(options.timeoutMs ?? WEB_STREAM_CHECK_TIMEOUT_MS)]) : options.signal;

@@ -2,7 +2,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
-const context = { exports: {}, require, AbortController, AbortSignal, Headers, Response, ReadableStream, setTimeout, clearTimeout };
+const context = { exports: {}, require: name => name === './mediaflow-source' ? { resolveMediaFlowSource: async source => source }
+    : name === './playback-preferences' ? { readPlaybackPreferences: () => ({ mediaFlowMode: 'off' }) } : require(name),
+    AbortController, AbortSignal, Headers, Response, ReadableStream, setTimeout, clearTimeout };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/media/stream-metadata.ts', 'utf8'), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
 }).outputText, context);

@@ -1,5 +1,7 @@
 import type { Input, InputTrack } from "mediabunny";
 import type { StremioStream } from "@/types/stremio";
+import { resolveMediaFlowSource } from "./mediaflow-source";
+import { readPlaybackPreferences } from "./playback-preferences";
 
 export interface StreamTrackMetadata {
     codec: string | null;
@@ -28,8 +30,13 @@ export async function probeStreamMetadata(stream: StremioStream, options: {
     fetchFn?: typeof fetch;
     budget?: StreamProbeBudget;
 } = {}): Promise<StreamMetadata | undefined> {
-    const url = stream.url;
+    let url = stream.url;
     if (!url || options.signal?.aborted || Object.keys(stream.behaviorHints?.proxyHeaders?.request || {}).length) return;
+    const preferences = readPlaybackPreferences();
+    if (preferences.mediaFlowMode && preferences.mediaFlowMode !== "off") {
+        try { url = await resolveMediaFlowSource(url, options.signal ?? AbortSignal.timeout(15_000), preferences); }
+        catch { return; }
+    }
     const fileKey = stream.infoHash ? JSON.stringify([stream.infoHash.toLowerCase(), stream.fileIdx ?? stream.behaviorHints?.filename ?? "largest", stream.behaviorHints?.videoSize]) : url;
     const cached = cache.get(fileKey) || cache.get(url);
     if (cached && cached.expires > Date.now()) return cached.metadata;
