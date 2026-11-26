@@ -5,7 +5,7 @@ const ts = require('typescript');
 const { randomUUID } = require('node:crypto');
 const { load, hooks: fixtureHooks } = require('./test-support/react-hooks.cjs');
 function languageRequire(name) {
-    if (!['@/lib/media/audio-language', '@/lib/media/stream-release-info', '@/lib/media/stream-codecs', '@/lib/media/playback-limits', '@/lib/series-route'].includes(name)) return require(name);
+    if (!['@/lib/media/audio-language', '@/lib/media/stream-release-info', '@/lib/media/stream-codecs', '@/lib/media/stream-cache-status', '@/lib/media/playback-limits', '@/lib/series-route'].includes(name)) return require(name);
     const context = { exports: {}, require: languageRequire };
     vm.runInNewContext(ts.transpileModule(fs.readFileSync(name.replace('@/', '') + '.ts', 'utf8'), {
         compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },

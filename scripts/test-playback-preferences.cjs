@@ -265,7 +265,7 @@ const selectSubtitle = compile(selection, {
   for (const environment of ['web', 'native']) {
     const result = await resolvePlayback({ id: 'movie', type: 'movie' }, { environment, preferredAudioLanguage: 'fr',
       fetchStreams: async () => [{ url: 'https://test/english.mp4', title: 'English H264 AAC' }, { url: 'https://test/french.mp4', title: 'French H264 AAC' }] }, () => {});
-    assert.equal(result.streamUrl, 'https://test/french.mp4');
+    assert.equal(result.streamUrl, 'https://test/english.mp4', 'Ordinary Play respects add-on order even with a different audio preference');
   }
   preferences.savePlaybackPreferences({ ...defaults, audioLanguage: 'fr' });
   let receive; const commands = [];

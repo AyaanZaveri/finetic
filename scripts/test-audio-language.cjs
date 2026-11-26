@@ -39,7 +39,7 @@ const { resolvePlayback } = load('lib/media/resolve-playback.ts', name => name =
     const streams = [{ url: 'https://test/Russian.mp4', title: 'Russian H264 AAC' }, { url: 'https://test/English.mp4', title: 'English H264 AAC' }];
     for (const environment of ['native', 'web']) {
         const result = await resolvePlayback({ id: 'movie', type: 'movie' }, { environment, fetchStreams: async () => streams }, () => {});
-        assert.equal(result.streamUrl, streams[1].url);
+        assert.equal(result.streamUrl, streams[0].url, "Ordinary Play respects add-on order; preferred audio is applied to the selected source");
     }
     const result = await resolvePlayback({ id: 'movie', type: 'movie' }, {
         environment: 'web', autoSelectWebStream: true, fetchStreams: async () => streams.map(s => ({ ...s, title: 'H264 AAC' })), canPlayType: () => true,

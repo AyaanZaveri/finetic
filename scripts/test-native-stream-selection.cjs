@@ -1,6 +1,22 @@
 const assert = require('node:assert/strict');
 const { load } = require('./test-support/react-hooks.cjs');
 const { resolvePlayback } = load('lib/media/resolve-playback.ts', {}, { AbortController, DOMException, setTimeout, clearTimeout });
+const { getStreamCacheStatus } = load('lib/media/stream-cache-status.ts');
+for (const [fixture, expected] of [
+ [{ name: '[RD+]' }, 'cached'],
+ [{ name: '⚡️ 1080p' }, 'cached'],
+ [{ description: 'Cache hit' }, 'cached'],
+ [{ cached: true }, 'cached'],
+ [{ name: '[RD download]' }, 'uncached'],
+ [{ name: '[TB-]' }, 'uncached'],
+ [{ name: '🧲 1080p' }, 'uncached'],
+ [{ name: '⏳ 1080p' }, 'uncached'],
+ [{ description: 'Not yet cached' }, 'uncached'],
+ [{ isCached: false, name: '⚡️' }, 'uncached'],
+ [{ behaviorHints: { cached: false } }, 'uncached'],
+ [{ url: 'https://fixture.test/cached-or-uncached.mp4', behaviorHints: { filename: 'Cached.mp4' } }, 'unknown'],
+ [{ name: '1080p WEB-DL' }, 'unknown'],
+]) assert.equal(getStreamCacheStatus(fixture), expected, JSON.stringify(fixture));
 const flush = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
 function source() {
  let resolve, reject; const listeners = new Set();
@@ -22,7 +38,7 @@ async function main() {
  const first = source(); let result;
  const early = resolvePlayback(request, { ...deps, createStreamRequest: () => first }, () => {}).then(value => { result = value; return value; });
  first.publish([stream('fast', 0)], 1); await flush();
- assert.equal(result?.streamUrl, 'https://fixture.test/fast.mkv', 'A maximum-language-rank result from a settled prefix must start without waiting for lower-priority add-ons');
+ assert.equal(result?.streamUrl, 'https://fixture.test/fast.mkv', 'The first source in a settled prefix must start without waiting for lower-priority add-ons');
  assert.equal(result.streamRequest, first); assert.equal(first.listeners.size, 0);
  first.publish([stream('fast', 0), stream('late', 2)], 3, true); await early;
  for (const title of ['English', 'Multi English German', '1080p H264']) {
@@ -37,9 +53,20 @@ async function main() {
  for (const title of ['Multi English German', '1080p H264', 'German']) {
   const pending = source(); let selected;
   const playback = resolvePlayback({ ...request, streamRequest: pending }, deps, () => {}).then(value => { selected = value; return value; });
-  pending.publish([stream('unknown', 0, title)], 1); await flush(); assert.equal(selected, undefined, 'Unknown/mixed/other language must not outrun a later preferred language');
+  pending.publish([stream('unknown', 0, title)], 1); await flush(); assert.equal(selected?.streamUrl, 'https://fixture.test/unknown.mkv', 'Language metadata must not alter ordinary Play');
   pending.publish([stream('unknown', 0, title), stream('preferred', 1)], 3, true);
-  assert.equal((await playback).streamUrl, 'https://fixture.test/preferred.mkv');
+  assert.equal((await playback).streamUrl, 'https://fixture.test/unknown.mkv');
+ }
+ const firstListed = { ...stream('first-listed', 0, 'English Italian'), name: '4K ⚡', behaviorHints: { filename: 'Movie.2160p.ITA.ENG.mkv' } };
+ const laterListed = { ...stream('later-listed', 0, 'English'), name: '1080p ⚡' };
+ const mixedList = [firstListed, laterListed];
+ const selectCompleted = (streams, environment = 'native') => resolvePlayback(request, { ...deps, environment, fetchStreams: async () => streams }, () => {});
+ for (const environment of ['native', 'web']) {
+  assert.equal((await selectCompleted(mixedList, environment)).streamUrl, firstListed.url, 'Play must use the first listed source rather than reordering by language');
+  const firstUnmarked = { ...firstListed, name: '4K' };
+  assert.equal((await selectCompleted([firstUnmarked, laterListed], environment)).streamUrl, firstUnmarked.url, 'Do not guess debrid cache status or change the configured add-on order');
+  const direct = await resolvePlayback({ ...request, streamUrl: laterListed.url }, { ...deps, environment }, () => {});
+  assert.equal(direct.streamUrl, laterListed.url, 'An explicit selection reaches the exact selected source');
  }
  const cancelled = source(), abort = new AbortController();
  const cancellation = resolvePlayback({ ...request, streamRequest: cancelled }, { ...deps, signal: abort.signal }, () => {});
@@ -85,13 +112,13 @@ async function main() {
  for (const tags of [`720p.H264.${commonTags}`, `1080p.H265.${commonTags}`, `1080p.H264.${commonTags}-Other`]) {
   assert.equal((await preferReference(similarRelease('conflict', tags))).streamUrl, otherRelease.url, `Conflicting tags block even high similarity: ${tags}`);
  }
- // Every completion order and language-tier combination must keep the final winner.
+ // Every completion order and language-tier combination must keep the first provider source.
  const titles = ['German', '1080p H264', 'Multi English German', 'English'];
  const orders = [[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]];
  for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) for (let c = 0; c < 4; c++) {
   const tiers = [a,b,c];
   const candidates = tiers.map((tier,index) => stream(String(index), index, titles[tier]));
-  const expected = tiers.indexOf(Math.max(...tiers));
+  const expected = 0;
   for (const order of orders) {
    const provider = source(), settled = [false,false,false];
    const playback = resolvePlayback({ ...request, streamRequest: provider }, deps, () => {});
@@ -112,7 +139,7 @@ async function main() {
  const duplicates = source();
  const deduped = resolvePlayback({ ...request, streamRequest: duplicates }, deps, () => {});
  duplicates.publish([stream('same', 0, 'German'), stream('same', 1), stream('different', 2)], 3, true);
- assert.equal((await deduped).streamUrl, 'https://fixture.test/different.mkv', 'Duplicate URLs retain earlier-provider metadata before language ranking');
- console.log('PASS: progressive native selection preserves language/add-on order, keeps late results, avoids probes, and handles cancellation/errors/manual URLs');
+ assert.equal((await deduped).streamUrl, 'https://fixture.test/same.mkv', 'Duplicate URLs retain the first provider entry');
+ console.log('PASS: progressive native selection preserves provider order and continuation release preferences, keeps late results, avoids probes, and handles cancellation/errors/manual URLs');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

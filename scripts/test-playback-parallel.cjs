@@ -6,7 +6,7 @@ const ts = require('typescript');
 function languageRequire(name) {
     if (name === '@/lib/artwork') return utility('lib/artwork.ts');
     if (name === '@/lib/series-route') return utility('lib/series-route.ts');
-    if (['@/lib/media/stream-release-info', '@/lib/media/stream-codecs', '@/lib/media/playback-limits'].includes(name)) return utility(name.slice(2) + '.ts');
+    if (['@/lib/media/stream-release-info', '@/lib/media/stream-codecs', '@/lib/media/stream-cache-status', '@/lib/media/playback-limits'].includes(name)) return utility(name.slice(2) + '.ts');
     if (name !== '@/lib/media/audio-language') return require(name);
     const context = { exports: {}, require: languageRequire };
     vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/media/audio-language.ts', 'utf8'), {

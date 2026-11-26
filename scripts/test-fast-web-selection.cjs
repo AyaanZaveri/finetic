@@ -56,6 +56,38 @@ const base = { environment: 'web', autoSelectWebStream: true, canPlayType: () =>
     assert.equal(timers.size, 0);
     assert.ok(published.some(values => values.some(value => value.url === backup.url)));
 
+    const cacheSource = source(), probed = [];
+    const uncached = { ...stream('uncached'), name: '1080p ⏳ Uncached' };
+    const cached = { ...stream('cached'), name: '720p ⚡' };
+    const cachePlayback = resolvePlayback(request, { ...base, createStreamRequest: () => cacheSource,
+        verifyStream: async candidate => { probed.push(candidate.url); return 'supported'; },
+    }, () => {});
+    cacheSource.publish([uncached]); await flush();
+    assert.equal(probed.length, 0, 'Do not probe uncached URLs: probing can start a download');
+    cacheSource.publish([uncached, cached], true);
+    assert.equal((await cachePlayback).streamUrl, cached.url);
+    assert.deepEqual(probed, [cached.url]);
+    const allUncached = source();
+    allUncached.publish([uncached], true);
+    await assert.rejects(resolvePlayback(request, { ...base, createStreamRequest: () => allUncached,
+        verifyStream: async () => assert.fail('Uncached URL must never be probed'),
+    }, () => {}), /No playable streams|No compatible/);
+
+    const rankedCache = source(), unmarked = stream('unmarked');
+    const cachedProbe = deferred();
+    let chosenCache;
+    const prioritized = resolvePlayback(request, { ...base, createStreamRequest: () => rankedCache,
+        verifyStream: candidate => candidate === cached ? cachedProbe.promise : Promise.resolve('supported'),
+    }, () => {}).then(value => { chosenCache = value; return value; });
+    rankedCache.publish([unmarked, cached], true); await flush();
+    assert.equal(chosenCache, undefined, 'A quick unknown-cache result must not outrun a pending cached source');
+    cachedProbe.resolve('supported'); assert.equal((await prioritized).streamUrl, cached.url);
+    const unsupportedCache = source();
+    unsupportedCache.publish([unmarked, cached], true);
+    assert.equal((await resolvePlayback(request, { ...base, createStreamRequest: () => unsupportedCache,
+        verifyStream: async candidate => candidate === cached ? 'unsupported' : 'supported',
+    }, () => {})).streamUrl, unmarked.url, 'Allow an unmarked source if the cached source is incompatible');
+
     const canonical = source(); canonical.id = 'tmdb:123'; canonical.canonicalId = Promise.resolve('movie');
     canonical.publish([fast, backup], true);
     const fallback = await resolvePlayback({ ...request, streamRequest: canonical }, { ...base,

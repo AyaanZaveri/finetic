@@ -9,7 +9,7 @@ const { GET } = load('app/api/playback/id/route.ts', {
     '@/lib/tmdb-discovery': { resolveTMDBPlaybackId: async (id, type) => { assert.equal(id, 'tmdb:123'); assert.equal(type, 'movie'); return 'tt123'; } },
 }, { Error, URL, Response });
 function utility(file) {
-    const context = { exports: {}, require: () => utility('lib/media/audio-language.ts') };
+    const context = { exports: {}, require: name => utility(name.replace('@/', '') + '.ts') };
     vm.runInNewContext(ts.transpileModule(fs.readFileSync(file, 'utf8'), {
         compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
     }).outputText, context);

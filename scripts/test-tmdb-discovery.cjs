@@ -87,7 +87,11 @@ async function main() {
         'node:fs': { promises: { readFile: async () => { throw new Error('No test cache'); }, writeFile: async () => {} } },
         '@/app/actions/media': {
             getStreamAddonTargets: async () => [{ id: 'test-addon', name: 'Test', transportUrl: 'https://addon.test/manifest.json' }],
-            fetchStreamsFromAddon: async (...args) => { streamCalls.push(args); return [{ url: 'https://stream.test/example.mp4', name: '1080p' }]; },
+            fetchStreamsFromAddon: async (...args) => { streamCalls.push(args); return [
+                { url: 'https://stream.test/uncached.mp4', name: '[RD download] 1080p', title: '1080p H264 AAC WEB-DL' },
+                { url: 'https://stream.test/unknown.mp4', name: '1080p', title: '1080p H264 AAC' },
+                { url: 'https://stream.test/example.mp4', name: '[RD+] 720p' },
+            ]; },
             fetchMediaDetails: async () => { throw new Error('Add-on metadata is forbidden for Ask Navigator'); },
         },
         '@/app/actions/search': { searchItems: async () => { throw new Error('Add-on search is forbidden'); } },
@@ -212,8 +216,11 @@ async function main() {
     assert.equal(navigation.url, '/series/tt20/1/2');
     const streams = await mediaTools.getMediaStreams.execute({ mediaId: 'tmdb:20:1:2', mediaType: 'Episode' }, options);
     assert.equal(streams.mediaId, 'tt20:1:2');
+    assert.equal(streams.streamCount, 3, 'Explicit stream choices retain add-on results instead of guessing debrid cache status');
+    const selectedStream = streams.streams.find(stream => stream.name === '[RD+] 720p');
+    assert.ok(selectedStream?.streamId);
     assert.equal(streamCalls[0][0], 'tt20:1:2', 'Stream add-ons must receive the selected episode playback ID');
-    const play = await mediaTools.playMedia.execute({ mediaId: 'tmdb:20:1:2', mediaType: 'Episode', mediaName: 'Episode 2', streamId: streams.bestStream.streamId }, options);
+    const play = await mediaTools.playMedia.execute({ mediaId: 'tmdb:20:1:2', mediaType: 'Episode', mediaName: 'Episode 2', streamId: selectedStream.streamId }, options);
     assert.equal(play.seriesId, 'tt20');
     assert.equal(play.mediaSourceId, 'tt20:1:2');
     assert.equal(play.streamUrl, 'https://stream.test/example.mp4');

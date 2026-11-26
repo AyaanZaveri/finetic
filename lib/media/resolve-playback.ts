@@ -5,6 +5,7 @@ import type { StremioStream } from "@/types/stremio";
 import type { PlaybackStreamRequest, PlaybackStreamSnapshot } from "@/lib/media/fetch-playback-streams";
 import { parseStreamReleaseInfo } from "@/lib/media/stream-release-info";
 import { audioTrackMime } from "@/lib/media/stream-codecs";
+import { compareStreamCacheStatus, getStreamCacheStatus } from "@/lib/media/stream-cache-status";
 import { WEB_STREAM_CHECK_TIMEOUT_MS } from "@/lib/media/playback-limits";
 
 export type PlaybackPhase = "finding-episode" | "fetching-streams" | "checking-streams" | "loading-stream";
@@ -245,7 +246,7 @@ function selectFastWebStream(
             return streams.filter(stream => {
                 const url = urlOf(stream);
                 if (!/^https?:\/\//i.test(url || "") || seen.has(url) || dependencies.excludeUrls?.has(url)
-                    || decoded.get(url) === "unsupported") return false;
+                    || decoded.get(url) === "unsupported" || getStreamCacheStatus(stream) === "uncached") return false;
                 seen.add(url);
                 return true;
             });
@@ -276,7 +277,7 @@ function selectFastWebStream(
             const releaseRank = rankEpisodeReleases(candidates, languageTier, releasePreference);
             const byRelease = (a: StremioStream, b: StremioStream) => releaseRank(b) - releaseRank(a);
             // Probe release matches early. Final selection below still checks language and decoding.
-            candidates.sort((a, b) => byRelease(a, b) || score(b) - score(a));
+            candidates.sort((a, b) => compareStreamCacheStatus(a, b) || byRelease(a, b) || score(b) - score(a));
             dependencies.onCandidates?.(candidates);
             // Fast cached/CORS results can chain microtasks ahead of timers.
             const elapsed = workStartedAt === undefined ? 0 : Date.now() - workStartedAt;
@@ -289,12 +290,16 @@ function selectFastWebStream(
                     update();
                 }, WEB_STREAM_CHECK_TIMEOUT_MS);
             }
-            const verifiedCandidates = candidates.filter(stream => decoded.get(urlOf(stream)) === "supported"
+            const pending = (stream: StremioStream) => decoded.get(urlOf(stream)) === undefined || languagePending.has(urlOf(stream));
+            // Give known cached streams priority while their checks can still succeed.
+            const cachedCandidates = candidates.filter(stream => getStreamCacheStatus(stream) === "cached"
+                && (decoded.get(urlOf(stream)) === "supported" || (!workStopped && pending(stream))));
+            const eligible = cachedCandidates.length ? cachedCandidates : candidates;
+            const verifiedCandidates = eligible.filter(stream => decoded.get(urlOf(stream)) === "supported"
                 && (workStopped || !languagePending.has(urlOf(stream))))
                 .sort((a, b) => languageTier(b) - languageTier(a) || byRelease(a, b) || score(b) - score(a));
-            const pending = (stream: StremioStream) => decoded.get(urlOf(stream)) === undefined || languagePending.has(urlOf(stream));
-            const preferredPending = candidates.some(stream => languageTier(stream) > 0 && pending(stream));
-            const possibleMatchPending = candidates.some(stream => pending(stream)
+            const preferredPending = eligible.some(stream => languageTier(stream) > 0 && pending(stream));
+            const possibleMatchPending = eligible.some(stream => pending(stream)
                 && (preferredTrackAvailable.get(urlOf(stream)) ?? true));
             // Don't let a fast Russian/unknown source outrun a known preferred
             // language candidate. A known other language is a last resort only.
@@ -398,6 +403,9 @@ function rankNativeStreams(streams: StremioStream[], preferredAudioLanguage: str
         seen.add(url);
         return true;
     });
+    // Ordinary Play follows the exact add-on list order. Audio preferences
+    // select a track within the chosen file, not a different file.
+    if (!releasePreference) return candidates;
     for (const stream of candidates) if (!preferences.has(stream)) preferences.set(stream, streamLanguagePreference(stream, preferredAudioLanguage));
     const releaseRank = rankEpisodeReleases(candidates, stream => preferences.get(stream)!, releasePreference);
     return candidates.sort((a, b) => preferences.get(b)! - preferences.get(a)!
@@ -422,9 +430,10 @@ function selectNativeStream(source: PlaybackStreamRequest, dependencies: Playbac
             const best = candidates[0] as (StremioStream & { addonIndex?: number }) | undefined;
             const index = best?.addonIndex;
             const prefix = snapshot.settledPrefix;
-            // Rank 2 is the maximum language tier. Only settled earlier add-ons
-            // may beat it on ordering; legacy snapshots wait for completion.
-            const stable = best && preferences.get(best) === 2
+            // Ordinary Play can commit to the first playable source as soon as
+            // every earlier add-on is settled. Continuation retains its release
+            // match and language preference; legacy snapshots wait for completion.
+            const stable = best && (!releasePreference || preferences.get(best) === 2)
                 && typeof index === "number" && Number.isInteger(index) && index >= 0
                 && typeof prefix === "number" && Number.isInteger(prefix) && prefix <= snapshot.total && index < prefix;
             if (!snapshot.complete && !stable) return;
@@ -445,7 +454,7 @@ function selectNativeStream(source: PlaybackStreamRequest, dependencies: Playbac
     });
 }
 
-/** Prefer the requested audio language; retain add-on order within language tiers unless web compatibility selection is enabled. */
+/** Preserve provider order for ordinary Play; explicit compatibility checks and episode continuation can rank candidates. */
 const invalidatedWarmups = new WeakSet<object>();
 const warmupLeases = new WeakMap<object, { count: number }>();
 export function invalidatePlaybackWarmup(request: PlaybackStreamRequest | undefined) {
