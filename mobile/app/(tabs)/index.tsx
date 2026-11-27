@@ -38,7 +38,7 @@ export default function HomeScreen() {
             <Button onPress={() => void query.refetch()}><Text>Try again</Text></Button>
           </> : <Text className="text-xl font-nav-semibold">Browse movies and TV shows</Text>}
         </View>}
-        <View className="gap-5 pb-2">
+        <View className="gap-5 pb-2" style={{ paddingTop: hasHero ? 8 : 0, backgroundColor: theme.background }}>
           {query.data?.sections.map(section => <MediaSection key={section.key} section={section} onOpen={open} />)}
         </View>
       </ScrollView>
