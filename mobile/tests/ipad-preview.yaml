@@ -17,6 +17,9 @@ appId: app.navigator.mobile
 - takeScreenshot: ipad-home-landscape
 # Isolate the visual cases from touch-coordinate flakiness immediately after rotation.
 - openLink: navigator-mobile:///movie/tt16311594
+- tapOn:
+    text: Open
+    optional: true
 - extendedWaitUntil:
     visible:
       id: title-detail-name
@@ -25,6 +28,9 @@ appId: app.navigator.mobile
     timeout: 1500
 - takeScreenshot: ipad-title-landscape
 - openLink: navigator-mobile:///search
+- tapOn:
+    text: Open
+    optional: true
 - extendedWaitUntil:
     visible:
       id: search-input
@@ -45,6 +51,9 @@ appId: app.navigator.mobile
     timeout: 1200
 - takeScreenshot: ipad-search-portrait
 - openLink: navigator-mobile:///movie/tt16311594
+- tapOn:
+    text: Open
+    optional: true
 - extendedWaitUntil:
     visible:
       id: title-detail-name
@@ -55,6 +64,9 @@ appId: app.navigator.mobile
 - assertNotVisible:
     id: tablet-detail-poster
 - openLink: navigator-mobile:///series/tt22202452
+- tapOn:
+    text: Open
+    optional: true
 - extendedWaitUntil:
     visible:
       id: title-detail-name
