@@ -1,6 +1,8 @@
 .page { container: movie-detail-states / inline-size; width: 100%; box-sizing: border-box; padding: 24px; }
 .layout { display: flex; flex-direction: column; gap: 16px; max-width: 412px; margin-inline: auto; }
-.frame { display: block; width: 100%; min-width: 0; height: min(calc(100dvh - 48px), 820px); min-height: 320px; border: 0; }
+.frame { display: block; width: 100%; min-width: 0; height: min(calc(100dvh - 100px), 820px); min-height: 320px; border: 0; }
+.toolbar { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.toolbar > button { margin-inline-start: auto; }
 .switcher { all: unset; box-sizing: border-box; display: none; flex-direction: column; gap: 16px; max-height: calc(100dvh - 48px); overflow-y: auto; scrollbar-width: none; padding: 6px; border-radius: 14px; background: rgb(20 20 20 / .92); box-shadow: inset 0 0 0 1px rgb(255 255 255 / .1); font: 13px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; user-select: none; }
 .group { display: flex; flex-direction: column; gap: 2px; }
 .heading { display: flex; align-items: center; gap: 6px; padding: 4px 10px 6px; font-size: 11px; font-weight: 500; color: rgb(255 255 255 / .45); }
@@ -13,23 +15,30 @@
 .select option, .select optgroup { color: white; background: #141414; }
 .select svg { position: absolute; top: 50%; right: 14px; translate: 0 -50%; pointer-events: none; color: rgb(255 255 255 / .6); }
 @container movie-detail-states (min-width: 644px) {
-  .layout { display: grid; grid-template-columns: 208px 412px; justify-content: center; gap: 24px; align-items: start; max-width: none; }
-  .switcher { display: flex; position: sticky; top: 24px; }
+  .layout { display: grid; grid-template-columns: 208px 412px; grid-template-rows: auto minmax(0, 1fr); justify-content: center; column-gap: 24px; row-gap: 12px; align-items: start; max-width: none; }
+  .switcher { display: flex; position: sticky; top: 24px; grid-row: 1 / 3; }
+  .toolbar, .frame { grid-column: 2; }
   .select { display: none; }
+  .page[data-desktop-preview] .layout { grid-template-columns: 208px minmax(0, 1fr); }
 }
-.page[data-switcher-hidden] .switcher, .page[data-switcher-hidden] .select { display: none; }
+.page[data-desktop-preview] .layout { max-width: none; }
+.page[data-desktop-preview] .frame { height: calc(100dvh - 100px); }
+.page[data-switcher-hidden] .switcher, .page[data-switcher-hidden] .toolbar { display: none; }
 .page[data-switcher-hidden] .layout { display: flex; max-width: 412px; }
+.page[data-switcher-hidden] .frame { height: min(calc(100dvh - 48px), 820px); }
+.page[data-desktop-preview][data-switcher-hidden] .layout { max-width: none; }
+.page[data-desktop-preview][data-switcher-hidden] .frame { height: calc(100dvh - 48px); }
 
 @media (prefers-reduced-motion: reduce) { .switcher button { transition: none; } }
 
 @container movie-detail-states (max-width: 643px) {
-    .frame { height: calc(100dvh - 112px); }
+    .frame, .page[data-desktop-preview] .frame { height: calc(100dvh - 112px); }
 }
 @media (max-width: 480px) {
     .page { padding: 8px 0 0; }
-    .select { margin-inline: 8px; }
+    .toolbar { padding-inline: 8px; }
     .layout { gap: 8px; }
-    .frame { height: calc(100dvh - 50px); }
+    .frame, .page[data-desktop-preview] .frame { height: calc(100dvh - 88px); }
     .page[data-switcher-hidden] { padding: 0; }
     .page[data-switcher-hidden] .frame { height: 100dvh; }
 }

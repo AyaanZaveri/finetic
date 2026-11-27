@@ -2,7 +2,8 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ChevronDown, CornerDownRight } from "lucide-react";
+import { ChevronDown, CornerDownRight, Maximize2, Minimize2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { MovieDetailsView, MovieDetailsMessage, SimilarMoviesSection, SimilarMoviesSkeleton } from "@/components/media-page/movie-details-view";
 import titleStyles from "@/components/media-page/title-detail.module.css";
 import { SeriesDetailsFrame } from "@/components/media-page/series-details-frame";
@@ -18,6 +19,7 @@ import { JotaiProvider } from "@/components/jotai-provider";
 import { AccountProvider } from "@/components/account-provider";
 import { WatchHistoryProvider } from "@/contexts/watch-history-context";
 import { fixture, accountFixture, seriesFixture } from "./fixtures";
+import { streamFixture } from "./stream-fixtures";
 import { groups, readState, states, type StateId } from "./states";
 import styles from "./states.module.css";
 
@@ -26,7 +28,7 @@ const channel = "navigator-movie-detail-workbench";
 function keyboardCommand(event: KeyboardEvent) {
     const target = event.target;
     if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey
-        || (target instanceof Element && target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])'))) return;
+        || (target instanceof Element && target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [data-slot="drawer-popup"]'))) return;
     if (event.key.toLowerCase() === "h") return "hide";
     if (event.key === "ArrowDown" || event.key === "ArrowRight") return "next";
     if (event.key === "ArrowUp" || event.key === "ArrowLeft") return "previous";
@@ -74,6 +76,7 @@ function Stage({ id }: { id: StateId }) {
                          id === "error" || id === "not-found" ? <MovieDetailsMessage kind={id} /> :
                          id.startsWith("series-") ? <SeriesStage key={id} id={id} /> :
                          <MovieDetailsView key={id} movie={movie} previewProgress={account.progress}
+                            previewStreams={streamFixture(id)}
                             cast={cast.length ? <div className={`${titleStyles.sectionGutter} mt-2 px-4 md:px-10`}><CastScrollArea cast={cast} /></div> : null}
                             companies={<ProductionCompaniesSection companies={companies} />}
                             collection={<MovieCollectionSection collection={collection} />}
@@ -92,7 +95,13 @@ function StageFrame({ initialState }: { initialState: StateId }) {
     const active = useRef(initialState);
     const savedScroll = useRef(0);
     useEffect(() => {
-        document.querySelector("[data-page-scroll]")?.scrollTo(0, savedScroll.current);
+        const preview = id.startsWith("streams-") ? document.querySelector<HTMLElement>("[data-stream-preview]") : null;
+        if (preview) {
+            preview.scrollIntoView({ block: "center" });
+            if (id === "streams-drawer") preview.querySelector<HTMLButtonElement>('[data-slot="drawer-trigger"]')?.click();
+        } else {
+            document.querySelector("[data-page-scroll]")?.scrollTo(0, savedScroll.current);
+        }
     }, [id]);
     useEffect(() => {
         const receive = (event: MessageEvent) => {
@@ -122,7 +131,7 @@ function StageFrame({ initialState }: { initialState: StateId }) {
     return <Stage id={id} />;
 }
 
-function Switcher({ active }: { active: StateId }) {
+function Switcher({ active, desktop }: { active: StateId; desktop: boolean }) {
     const [initialState] = useState(active);
     const [hidden, setHidden] = useState(false);
     const nav = useRef<HTMLElement>(null);
@@ -168,7 +177,7 @@ function Switcher({ active }: { active: StateId }) {
         else if (top + button.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = top + button.offsetHeight - list.clientHeight;
     }, [active, hidden]);
 
-    return <div className={styles.page} data-switcher-hidden={hidden || undefined}>
+    return <div className={styles.page} data-switcher-hidden={hidden || undefined} data-desktop-preview={desktop || undefined}>
         <div className={styles.layout}>
             <nav ref={nav} className={styles.switcher} aria-label="States">
                 {groups.map(group => <div key={group.title} role="group" aria-labelledby={`states-${group.title}`} className={styles.group}>
@@ -177,6 +186,7 @@ function Switcher({ active }: { active: StateId }) {
                         onClick={() => choose(state.id)}>{state.label}</button>)}
                 </div>)}
             </nav>
+            <div className={styles.toolbar}>
             <div className={styles.select}>
                 <select aria-label="State" value={active} onChange={event => choose(readState(event.target.value))}>
                     {groups.map(group => <optgroup key={group.title} label={group.title}>
@@ -185,8 +195,19 @@ function Switcher({ active }: { active: StateId }) {
                 </select>
                 <ChevronDown aria-hidden="true" size={12} />
             </div>
-            <iframe ref={frame} src={`/states/movie-detail?__stage=1&__state=${initialState}`} className={styles.frame}
-                title="Mobile movie and TV show detail workbench" />
+            <Button type="button" variant="outline" size="sm" aria-pressed={desktop}
+                aria-controls="movie-detail-preview" onClick={() => {
+                    const url = new URL(location.href);
+                    if (desktop) url.searchParams.delete("__view");
+                    else url.searchParams.set("__view", "desktop");
+                    history.pushState(null, "", url);
+                }}>
+                {desktop ? <Minimize2 className="size-3.5 text-muted-foreground" aria-hidden="true" /> : <Maximize2 className="size-3.5 text-muted-foreground" aria-hidden="true" />}
+                {desktop ? "Exit desktop view" : "Desktop view"}
+            </Button>
+            </div>
+            <iframe id="movie-detail-preview" ref={frame} src={`/states/movie-detail?__stage=1&__state=${initialState}`} className={styles.frame}
+                title="Movie and TV show detail workbench" />
         </div>
     </div>;
 }
@@ -194,7 +215,7 @@ function Switcher({ active }: { active: StateId }) {
 function Workbench() {
     const params = useSearchParams();
     const active = readState(params.get("__state"));
-    return params.get("__stage") === "1" ? <StageFrame initialState={active} /> : <Switcher active={active} />;
+    return params.get("__stage") === "1" ? <StageFrame initialState={active} /> : <Switcher active={active} desktop={params.get("__view") === "desktop"} />;
 }
 
 export default function MovieDetailWorkbench() {

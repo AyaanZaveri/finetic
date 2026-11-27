@@ -20,6 +20,14 @@ export const groups = [
         { id: "resume", label: "Resume movie" },
         { id: "watched", label: "Watched movie" },
     ] },
+    { title: "Streams", states: [
+        { id: "streams-many", label: "250 streams" },
+        { id: "streams-drawer", label: "250 streams · Open drawer" },
+        { id: "streams-few", label: "Two streams" },
+        { id: "streams-loading", label: "Loading streams" },
+        { id: "streams-partial", label: "Add-ons still loading" },
+        { id: "streams-empty", label: "No streams" },
+    ] },
     { title: "Artwork", states: [
         { id: "no-logo", label: "No title artwork" },
         { id: "no-backdrop", label: "No backdrop" },
