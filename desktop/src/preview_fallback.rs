@@ -31,12 +31,14 @@ impl Decoder {
         let mut token = [0_u8; 16];
         getrandom::getrandom(&mut token).map_err(|_| "preview temporary directory".to_string())?;
         let directory = std::env::temp_dir().join(format!("navigator-preview-{}", token.iter().map(|b| format!("{b:02x}")).collect::<String>()));
-        let mut builder = std::fs::DirBuilder::new();
+        let builder = std::fs::DirBuilder::new();
         #[cfg(unix)]
-        {
+        let builder = {
             use std::os::unix::fs::DirBuilderExt;
+            let mut builder = builder;
             builder.mode(0o700);
-        }
+            builder
+        };
         builder.create(&directory).map_err(|_| "preview temporary directory".to_string())?;
         Ok(Self { mpv, loaded: false, directory })
     }
@@ -51,7 +53,10 @@ impl Decoder {
             let options = format!("start=+{seconds},hr-seek=yes");
             self.mpv.command(&["loadfile", url, "replace", "-1", &options])
         };
-        if command.is_err() { return None; }
+        if command.is_err() {
+            log::warn!("Seek preview fallback could not start its read");
+            return None;
+        }
         let until = Instant::now() + Duration::from_millis(4500);
         while Instant::now() < until && !cancelled() {
             match self.mpv.wait_event(0.05, |_| false) {
@@ -80,6 +85,9 @@ impl Decoder {
         }
         let _ = self.mpv.command(&["stop"]);
         self.loaded = false;
+        if !cancelled() {
+            log::warn!("Seek preview fallback did not complete before its deadline");
+        }
         None
     }
 }

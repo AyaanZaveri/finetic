@@ -11,7 +11,14 @@ use std::{
 };
 
 type Emit = Arc<dyn Fn(Value) + Send + Sync>;
-const INDEXED_FRAME_WAIT: Duration = Duration::from_millis(2500);
+// Leave most of the six-second UI deadline for the fallback decoder.
+const INDEXED_FRAME_WAIT: Duration = Duration::from_millis(1500);
+
+pub(crate) struct FallbackSource {
+    pub library: PathBuf,
+    pub url: String,
+    pub headers: BTreeMap<String, String>,
+}
 // A range read can race playback's initial read. Never treat a transient
 // failure as proof that a container has no usable preview index.
 fn open_index<T>(
@@ -64,7 +71,7 @@ impl Previews {
         url: String,
         headers: BTreeMap<String, String>,
         emit: Emit,
-        library: Option<PathBuf>,
+        fallback_source: Option<FallbackSource>,
     ) -> Self {
         let mut token = [0_u8; 16];
         let images = getrandom::getrandom(&mut token).ok().and_then(|_| {
@@ -132,8 +139,8 @@ impl Previews {
                 if state.closed {
                     return;
                 }
-                let fallback_allowed = library.is_some()
-                    && url::Url::parse(&url).ok().is_some_and(|parsed| matches!(parsed.scheme(), "http" | "https"));
+                let fallback_allowed = fallback_source.as_ref().is_some_and(|source|
+                    url::Url::parse(&source.url).ok().is_some_and(|parsed| matches!(parsed.scheme(), "http" | "https")));
                 match result {
                     Ok(decoder) => state.decoder = Some(decoder),
                     Err(error) => {
@@ -160,7 +167,8 @@ impl Previews {
                     send(&opened, Some(request), image);
                 }
                 if fallback_allowed {
-                    fallback_loop(&opened, &url, &headers, library.as_ref().unwrap());
+                    let source = fallback_source.as_ref().unwrap();
+                    fallback_loop(&opened, &source.url, &source.headers, &source.library);
                 }
             });
         Self { shared }

@@ -323,7 +323,21 @@ impl Player {
                         // before competing for network/CPU, and retain an early hover.
                         if session == desired {
                             if let Some((named, url, headers)) = preview_source.take() {
-                                if named == session { previews = Some(crate::thumbnails::Previews::new(named, url, headers, emit.clone(), Some(client.library_path().to_path_buf()))); }
+                                if named == session {
+                                    // Full demuxing can use long/open-ended HTTP reads.
+                                    // The shared preview endpoint is optimized for
+                                    // short sparse ranges and can reject overlapping
+                                    // reads. Only the rare fallback opens the original.
+                                    let (fallback_url, fallback_headers) = direct_source.as_ref()
+                                        .map(|(original, _, headers, _)| (original.clone(), headers.clone()))
+                                        .unwrap_or_else(|| (url.clone(), headers.clone()));
+                                    let fallback = crate::thumbnails::FallbackSource {
+                                        library: client.library_path().to_path_buf(),
+                                        url: fallback_url,
+                                        headers: fallback_headers,
+                                    };
+                                    previews = Some(crate::thumbnails::Previews::new(named, url, headers, emit.clone(), Some(fallback)));
+                                }
                             }
                             if let (Some(previews), Some((request, position))) = (&previews, pending_preview.take()) {
                                 previews.want(request, Some(position));
@@ -830,6 +844,27 @@ mod tests {
             }
             let position = mpv.get_property("time-pos", Kind::Double).and_then(|value| value.as_f64()).unwrap_or(0.0);
             assert!(position <= ready_at.elapsed().as_secs_f64() + 3.0, "Preview generation must not seek the main playback clock");
+            if filename == "avc-no-cues.mkv" {
+                // The fallback must coalesce rapid pointer movement, recover
+                // after a cancelled hover, and never publish old-session frames
+                // as the next episode's preview.
+                for (request, target) in [(10, Some(7.0)), (11, Some(9.0)), (12, None), (13, Some(21.0))] {
+                    player.send(Command::Thumbnail { session: "webdl-preview".into(), request, position: target });
+                }
+                let final_frame = wait_for(&inbox, |v| v["type"] == "thumbnail" && v["request"] == 13);
+                assert!(final_frame["src"].is_string());
+                assert_eq!(final_frame["position"], 21.0);
+                let replacement = crate::media_cache::tests::Origin::new(std::fs::read(directory.join("avc-stereo.mkv")).unwrap());
+                player.send(Command::Thumbnail { session: "webdl-preview".into(), request: 14, position: Some(27.0) });
+                player.send(Command::Load { session: "replacement-preview".into(), url: replacement.url.replace("/video.mp4", "/video.mkv"), headers: BTreeMap::new(), start_position: 0.0 });
+                wait_for(&inbox, |v| v["type"] == "ready" && v["session"] == "replacement-preview");
+                player.send(Command::Thumbnail { session: "replacement-preview".into(), request: 1, position: Some(18.0) });
+                let next = wait_for(&inbox, |v| v["type"] == "thumbnail" && v["request"] == 1 && v["session"] == "replacement-preview");
+                assert!(next["src"].is_string());
+                assert!(next["range"].is_object(), "The next episode returns to indexed extraction");
+                player.send(Command::Stop { session: "replacement-preview".into() });
+                println!("Preview cancellation, rapid scrubbing and replacement passed");
+            }
             player.begin_shutdown();
             player.join();
             if let Some(origin) = origin {
