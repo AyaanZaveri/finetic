@@ -1,0 +1,44 @@
+appId: app.navigator.mobile
+---
+- launchApp:
+    clearState: true
+- tapOn:
+    text: Wait
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: hero-current-0
+    timeout: 60000
+- startRecording:
+    path: hero-swipe
+    optional: true
+- swipe:
+    start: '86%, 28%'
+    end: '20%, 28%'
+    duration: 600
+- extendedWaitUntil:
+    visible:
+      id: hero-current-1
+    timeout: 15000
+- takeScreenshot: hero-after-swipe
+- swipe:
+    start: '45%, 28%'
+    end: '55%, 28%'
+    duration: 850
+- assertVisible:
+    id: hero-current-1
+- swipe:
+    start: '20%, 28%'
+    end: '85%, 28%'
+    duration: 600
+- extendedWaitUntil:
+    visible:
+      id: hero-current-0
+    timeout: 15000
+- tapOn:
+    id: hero-slide-2
+- extendedWaitUntil:
+    visible:
+      id: hero-current-2
+    timeout: 15000
+- stopRecording

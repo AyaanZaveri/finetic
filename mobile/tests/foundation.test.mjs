@@ -17,8 +17,10 @@ test('system haptic dispatch policy is platform-specific and opt-in', () => {
   for (const platform of ['android', 'ios', 'web']) assert.equal(hapticAction(platform, 'none'), null);
   assert.equal(hapticAction('android', 'selection'), 'android-selection');
   assert.equal(hapticAction('android', 'impact'), 'android-impact');
+  assert.equal(hapticAction('android', 'carousel'), 'android-carousel');
   assert.equal(hapticAction('ios', 'selection'), 'ios-selection');
   assert.equal(hapticAction('ios', 'impact'), 'ios-impact');
+  assert.equal(hapticAction('ios', 'carousel'), 'ios-selection');
   assert.equal(hapticAction('web', 'impact'), null);
 });
 

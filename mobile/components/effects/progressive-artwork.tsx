@@ -18,16 +18,17 @@ interface ProgressiveArtworkProps {
   backgroundColor: string;
   light?: boolean;
   prominentLightScrim?: boolean;
+  quality?: 'full' | 'preview';
   contentPosition?: ImageProps['contentPosition'];
 }
 
-export function ProgressiveArtwork({ uri, backgroundColor, light = false, prominentLightScrim = false, contentPosition = "center" }: ProgressiveArtworkProps) {
+export function ProgressiveArtwork({ uri, backgroundColor, light = false, prominentLightScrim = false, quality = 'full', contentPosition = "center" }: ProgressiveArtworkProps) {
   const reducedMotion = useReducedMotion();
   const focused = useIsFocused();
-  const layers = Platform.OS === "android" ? BLUR_LAYERS.filter((_, i) => i !== 1) : BLUR_LAYERS;
+  const layers = quality === "preview" ? [BLUR_LAYERS[1]] : Platform.OS === "android" ? BLUR_LAYERS.filter((_, i) => i !== 1) : BLUR_LAYERS;
   return (
     <View pointerEvents="none" accessible={false} style={[StyleSheet.absoluteFill, { backgroundColor }]}>
-      <Image source={uri} style={[StyleSheet.absoluteFill, light && { opacity: 0.88 }]} contentFit="cover" contentPosition={contentPosition} cachePolicy="memory-disk" transition={reducedMotion ? 0 : 300} />
+      <Image source={uri} style={[StyleSheet.absoluteFill, light && { opacity: 0.88 }]} contentFit="cover" contentPosition={contentPosition} cachePolicy="memory-disk" transition={reducedMotion || quality === "preview" ? 0 : 300} />
       {focused && layers.map(({ radius, start, end }) => (
         <MaskedView key={`${uri}-${radius}`} style={StyleSheet.absoluteFill}
           maskElement={<LinearGradient style={StyleSheet.absoluteFill} colors={['transparent', 'transparent', '#000', '#000']} locations={[0, start, end, 1]} />}>
