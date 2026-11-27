@@ -41,13 +41,13 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <BottomSheetModalProvider>
             {Platform.OS === 'android' ? (
-              <ExperimentalStack initialRouteName="index" screenOptions={{ headerShown: false }}>
-                <ExperimentalStack.Screen name="index" />
+              <ExperimentalStack initialRouteName="(tabs)" screenOptions={{ headerShown: false }}>
+                <ExperimentalStack.Screen name="(tabs)" />
                 <ExperimentalStack.Screen name="design-system" options={{ headerShown: true, title: 'Design system' }} />
               </ExperimentalStack>
             ) : (
-              <Stack initialRouteName="index" screenOptions={{ headerShown: false, headerShadowVisible: false }}>
-                <Stack.Screen name="index" />
+              <Stack initialRouteName="(tabs)" screenOptions={{ headerShown: false, headerShadowVisible: false }}>
+                <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="design-system" options={{ headerShown: true, title: 'Design system' }} />
               </Stack>
             )}

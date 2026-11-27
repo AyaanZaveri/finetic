@@ -1,3 +1,4 @@
+import { getMediaCast } from "@/lib/tmdb-cast";
 import { tmdbMediaItem } from "@/lib/tmdb-discovery";
 
 /** Public title metadata only. Playback and account data retain their existing session gates. */
@@ -11,11 +12,12 @@ export async function GET(request: Request) {
     }
     try {
         const item = await tmdbMediaItem(id, type, request.signal);
+        const cast = await getMediaCast(id, type, item.cast).catch(() => undefined);
         request.signal.throwIfAborted();
         return Response.json({ item: { id, type, name: item.name, poster: item.poster, background: item.background,
             logo: item.logo, description: item.description, year: item.year, releaseInfo: item.releaseInfo,
             communityRating: item.communityRating, ratingSource: item.ratingSource, genres: item.genres,
-            runtime: item.runtime, cast: item.cast, seasons: item.seasons } }, { headers });
+            runtime: item.runtime, cast: item.cast, director: item.director, writer: item.writer, castMembers: cast?.members, seasons: item.seasons } }, { headers });
     } catch {
         return Response.json({ error: "Title metadata is unavailable." }, { status: 503, headers });
     }

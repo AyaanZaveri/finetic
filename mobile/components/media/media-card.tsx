@@ -11,10 +11,9 @@ interface MediaCardProps {
   item: MediaItem;
   width: number;
   onOpen: (item: MediaItem) => void;
-  onQuickActions?: (item: MediaItem) => void;
 }
 
-export const MediaCard = memo(function MediaCard({ item, width, onOpen, onQuickActions }: MediaCardProps) {
+export const MediaCard = memo(function MediaCard({ item, width, onOpen }: MediaCardProps) {
   const scale = useSharedValue(1);
   const reducedMotion = useReducedMotion();
   const animated = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
@@ -24,8 +23,7 @@ export const MediaCard = memo(function MediaCard({ item, width, onOpen, onQuickA
     <Pressable testID={`media-card-${id}`} role="button" accessibilityLabel={`${item.name}${year ? `, ${year}` : ''}`} style={{ width }}
       onPressIn={() => scale.set(withTiming(pressScale(Platform.OS, reducedMotion), { duration: 110, easing: Easing.out(Easing.cubic), reduceMotion: ReduceMotion.System }))}
       onPressOut={() => scale.set(withTiming(1, { duration: 150, easing: Easing.out(Easing.cubic), reduceMotion: ReduceMotion.System }))}
-      onPress={() => { triggerHaptic('selection'); onOpen(item); }}
-      onLongPress={onQuickActions ? () => { triggerHaptic('impact'); onQuickActions(item); } : undefined}>
+      onPress={() => { triggerHaptic('selection'); onOpen(item); }}>
       <Animated.View style={animated}>
         <View className="overflow-hidden rounded-lg border-border bg-muted" style={[styles.poster, { borderWidth: StyleSheet.hairlineWidth }]}>
           <ArtworkImage uri={item.poster} fallback={item.background} recyclingKey={id} />

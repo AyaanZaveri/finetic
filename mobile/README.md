@@ -4,7 +4,7 @@ A separate Expo application for iPhone, iPad and Android. Navigator web and desk
 
 ## Development
 
-Home now loads guest discovery catalogs, renders the centered progressive-blur hero and media cards, and opens separate native movie and series details routes. Long-press a poster for a quick-action sheet. Playback and authentication are not implemented yet. The design-system preview is accessible from Home.
+Home now loads guest discovery catalogs, renders the centered progressive-blur hero and media cards, and opens separate native movie and series details routes. Home, Search and Settings use native bottom tabs. On iOS 26 the tab bar uses system Liquid Glass. Movie and TV pages match the artwork-led web phone layout. Playback and authentication are not implemented yet. The design-system preview is accessible from Settings.
 
 ```sh
 cd mobile

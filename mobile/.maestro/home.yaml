@@ -38,14 +38,36 @@ appId: app.navigator.mobile
     element:
       id: 'media-card-movie:tmdb:812583'
     direction: UP
-- longPressOn:
-    id: 'media-card-movie:tmdb:812583'
-- assertVisible:
-    id: title-sheet
-- takeScreenshot: home-quick-actions
 - tapOn:
-    id: quick-view-title
+    id: 'media-card-movie:tmdb:812583'
 - assertVisible:
     id: title-detail-page
 - tapOn:
     id: title-detail-back
+- tapOn: Search
+- extendedWaitUntil:
+    visible:
+      id: search-input
+    timeout: 30000
+- tapOn:
+    id: search-input
+- inputText: Pluribus
+- hideKeyboard
+- extendedWaitUntil:
+    visible:
+      id: 'media-card-series:tmdb:225171'
+    timeout: 30000
+- takeScreenshot: search
+- tapOn:
+    id: 'media-card-series:tmdb:225171'
+- assertVisible:
+    id: title-detail-page
+- tapOn:
+    id: title-detail-back
+- tapOn: Settings
+- assertVisible:
+    id: settings-page
+- takeScreenshot: settings
+- tapOn: Home
+- assertVisible:
+    id: home-scroll

@@ -51,6 +51,189 @@
           "Laura Elsworthy",
           "Daphne Cheung",
           "Hugh Wyld"
+        ],
+        "director": [
+          "Rian Johnson"
+        ],
+        "writer": [
+          "Rian Johnson"
+        ],
+        "castMembers": [
+          {
+            "id": "8784",
+            "name": "Daniel Craig",
+            "role": "Benoit Blanc",
+            "image": "https://image.tmdb.org/t/p/w185/iFerDZUmC5Fu26i4qI8xnUVEHc7.jpg"
+          },
+          {
+            "id": "1206334",
+            "name": "Josh O'Connor",
+            "role": "Fr. Jud Duplenticy",
+            "image": "https://image.tmdb.org/t/p/w185/pVv0zCvpNyuWoJcABq8RrM90FsK.jpg"
+          },
+          {
+            "id": "515",
+            "name": "Glenn Close",
+            "role": "Martha Delacroix",
+            "image": "https://image.tmdb.org/t/p/w185/4VHZ1GfLwN7MUgApy0LCBzdDF9L.jpg"
+          },
+          {
+            "id": "16851",
+            "name": "Josh Brolin",
+            "role": "Mons. Jefferson Wicks",
+            "image": "https://image.tmdb.org/t/p/w185/7QpneI3HoZCCDVPyWx3p3t7yeo7.jpg"
+          },
+          {
+            "id": "18973",
+            "name": "Mila Kunis",
+            "role": "Chief Geraldine Scott",
+            "image": "https://image.tmdb.org/t/p/w185/cJAHQWX9hVadDFx5WTSBIW0VjvP.jpg"
+          },
+          {
+            "id": "17604",
+            "name": "Jeremy Renner",
+            "role": "Dr. Nat Sharp",
+            "image": "https://image.tmdb.org/t/p/w185/yB84D1neTYXfWBaV0QOE9RF2VCu.jpg"
+          },
+          {
+            "id": "11703",
+            "name": "Kerry Washington",
+            "role": "Vera Draven, Esq.",
+            "image": "https://image.tmdb.org/t/p/w185/zgyjYlxmHG6Ntbg16JcTp8Vu8M3.jpg"
+          },
+          {
+            "id": "125660",
+            "name": "Andrew Scott",
+            "role": "Lee Ross",
+            "image": "https://image.tmdb.org/t/p/w185/4F8XpjyQCvtuu21WFm5d8RF5Rl.jpg"
+          },
+          {
+            "id": "1683343",
+            "name": "Cailee Spaeny",
+            "role": "Simone Vivane",
+            "image": "https://image.tmdb.org/t/p/w185/iHC2aQL4aRNVvgAbxnpbVtBPQBp.jpg"
+          },
+          {
+            "id": "1829245",
+            "name": "Daryl McCormack",
+            "role": "Cy Draven",
+            "image": "https://image.tmdb.org/t/p/w185/uxBEREn7HCDzhSNJaFw8MPdvXxo.jpg"
+          },
+          {
+            "id": "19159",
+            "name": "Thomas Haden Church",
+            "role": "Samson Holt",
+            "image": "https://image.tmdb.org/t/p/w185/74NK9HCYvNafMggSp1PAK5Nwkpe.jpg"
+          },
+          {
+            "id": "2954",
+            "name": "Jeffrey Wright",
+            "role": "Bp. Langstrom",
+            "image": "https://image.tmdb.org/t/p/w185/yGcuHGW4glqRpOPxgiCvjcren7F.jpg"
+          },
+          {
+            "id": "1602977",
+            "name": "Annie Hamilton",
+            "role": "Grace Wicks",
+            "image": "https://image.tmdb.org/t/p/w185/4GOG90jIBe3wt9mEHRNY7VrXtZw.jpg"
+          },
+          {
+            "id": "9140",
+            "name": "James Faulkner",
+            "role": "Rev. Prentice Wicks",
+            "image": "https://image.tmdb.org/t/p/w185/969qmhcUDkb0Ms8sduDXIymsqRe.jpg"
+          },
+          {
+            "id": "1486957",
+            "name": "Bridget Everett",
+            "role": "Louise",
+            "image": "https://image.tmdb.org/t/p/w185/2wXPFTxyf2vVwqHMvjiSLfQ727n.jpg"
+          },
+          {
+            "id": "48312",
+            "name": "Noah Segan",
+            "role": "Nikolai",
+            "image": "https://image.tmdb.org/t/p/w185/j1mjH6uOZlKaiQ18U4SaTnmnjMl.jpg"
+          },
+          {
+            "id": "557772",
+            "name": "Jamie Karitzis",
+            "role": "Geraldine's Deputy"
+          },
+          {
+            "id": "4931176",
+            "name": "Kit Burden",
+            "role": "Dcn. Clark",
+            "image": "https://image.tmdb.org/t/p/w185/fVMVROEoJGzU92exscYT3GZjHc.jpg"
+          },
+          {
+            "id": "2085743",
+            "name": "Gavin Spokes",
+            "role": "Rev. Frank",
+            "image": "https://image.tmdb.org/t/p/w185/ghzBWbusVNHllI8L87Qw0VB7at.jpg"
+          },
+          {
+            "id": "134466",
+            "name": "Paul Hilton",
+            "role": "Rev. Delancy",
+            "image": "https://image.tmdb.org/t/p/w185/qbvVlXTwvtEiHJB9C6CagBdMiWt.jpg"
+          },
+          {
+            "id": "24045",
+            "name": "Joseph Gordon-Levitt",
+            "role": "Baseball Announcer (voice)",
+            "image": "https://image.tmdb.org/t/p/w185/z2FA8js799xqtfiFjBTicFYdfk.jpg"
+          },
+          {
+            "id": "3771298",
+            "name": "Cecilia Blair",
+            "role": "Young Martha",
+            "image": "https://image.tmdb.org/t/p/w185/dcMtz3mS3iJQCcOjU8GGvKHE79W.jpg"
+          },
+          {
+            "id": "5803226",
+            "name": "Georgie Drain",
+            "role": "Young Wicks"
+          },
+          {
+            "id": "5803227",
+            "name": "Bertie Drain",
+            "role": "Young Wicks"
+          },
+          {
+            "id": "2984075",
+            "name": "Leo Abelo Perry",
+            "role": "Young Cy",
+            "image": "https://image.tmdb.org/t/p/w185/22yhaD35P2AzJ8nA7EMbuIyyHEw.jpg"
+          },
+          {
+            "id": "2770268",
+            "name": "Ray Bolton",
+            "role": "Vera's Father"
+          },
+          {
+            "id": "2168437",
+            "name": "Nicola Hughes",
+            "role": "Darla",
+            "image": "https://image.tmdb.org/t/p/w185/1U9QjsFAQ1SooUFok2gJmMONwDX.jpg"
+          },
+          {
+            "id": "1503073",
+            "name": "Laura Elsworthy",
+            "role": "Single Mother",
+            "image": "https://image.tmdb.org/t/p/w185/b7mAudgQRuHX2vzKreMWXTR07O9.jpg"
+          },
+          {
+            "id": "157990",
+            "name": "Daphne Cheung",
+            "role": "Masked Woman",
+            "image": "https://image.tmdb.org/t/p/w185/vsXomv8E7Erhw3UUQeObbJXcTqO.jpg"
+          },
+          {
+            "id": "3137079",
+            "name": "Hugh Wyld",
+            "role": "Upset Couple #1"
+          }
         ]
       },
       {
@@ -173,6 +356,28 @@
             "number": 1,
             "name": "Season 1",
             "episodeCount": 9
+          }
+        ],
+        "director": [],
+        "writer": [],
+        "castMembers": [
+          {
+            "id": "62765",
+            "name": "Rhea Seehorn",
+            "role": "Carol Sturka",
+            "image": "https://image.tmdb.org/t/p/w185/tql4gvY8NfYvmAdmdp1olkwJnrq.jpg"
+          },
+          {
+            "id": "210829",
+            "name": "Karolina Wydra",
+            "role": "Zosia",
+            "image": "https://image.tmdb.org/t/p/w185/141nqX6Ikw7sXgWAkMTEbLbzqpU.jpg"
+          },
+          {
+            "id": "1251536",
+            "name": "Carlos-Manuel Vesga",
+            "role": "Manousos Oviedo",
+            "image": "https://image.tmdb.org/t/p/w185/crm5YcUTtb5pXhZbJsATA8EAoPD.jpg"
           }
         ]
       },

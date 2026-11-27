@@ -2,6 +2,7 @@ appId: app.navigator.mobile
 ---
 - launchApp:
     clearState: true
+- tapOn: Settings
 - tapOn:
     id: open-design-system
 - assertVisible: 'Mobile foundation'

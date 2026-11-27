@@ -33,10 +33,10 @@ export function HomeHero({ items, onOpen }: { items: MediaItem[]; onOpen: (item:
   const background = resizeBackdrop(item.background, 1280);
   const rating = ratingLabel(item);
   return (
-    <View testID="home-hero" style={{ minHeight: heroHeight, paddingTop: top + 72, paddingBottom: 30, backgroundColor: theme.background }} className="relative overflow-hidden justify-end">
+    <View testID="home-hero" style={{ minHeight: heroHeight, paddingTop: top + 24, paddingBottom: 12, backgroundColor: theme.background }} className="relative overflow-hidden justify-end">
       {background && <ProgressiveArtwork key={background} uri={background} backgroundColor={theme.background} />}
       <LinearGradient pointerEvents="none" style={StyleSheet.absoluteFill} colors={['transparent', 'transparent', colorScheme === 'dark' ? 'rgba(10,10,10,0.16)' : 'rgba(255,255,255,0.04)', theme.background]} locations={[0, 0.74, 0.91, 1]} />
-      <View className="items-center justify-end gap-4 px-6" style={{ width: '100%' }}>
+      <View className="items-center justify-end gap-3 px-4" style={{ width: '100%' }}>
         <Wordmark key={mediaKey(item)} item={item} />
         <View className="items-center gap-1.5">
           <View className="flex-row flex-wrap items-center justify-center gap-3">
@@ -46,7 +46,7 @@ export function HomeHero({ items, onOpen }: { items: MediaItem[]; onOpen: (item:
           </View>
           {!!item.genres?.length && <Text className="text-center text-white/90 text-sm" numberOfLines={2}>{item.genres.slice(0, 3).join('  ·  ')}</Text>}
         </View>
-        <Button testID="hero-primary" size="lg" haptic="impact" onPress={() => onOpen(item)} accessibilityLabel={`View ${item.name}`} className="bg-white border-white rounded-[14px] px-6">
+        <Button testID="hero-primary" size="lg" haptic="impact" onPress={() => onOpen(item)} accessibilityLabel={`View ${item.name}`} className="bg-white border-white rounded-full px-6">
           <Text className="text-black text-base font-nav-medium">View</Text><Icon as={ArrowRight} className="text-black" size={18} />
         </Button>
         {items.length > 1 && <View className="flex-row items-center justify-center rounded-full bg-black/40 px-2" accessibilityLabel="Featured titles">
@@ -61,5 +61,5 @@ export function HomeHero({ items, onOpen }: { items: MediaItem[]; onOpen: (item:
 }
 const styles = StyleSheet.create({
   wordmark: { maxWidth: 330, width: '100%', height: 86 },
-  dotButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  dotButton: { minWidth: 44, minHeight: 32, alignItems: 'center', justifyContent: 'center' },
 });

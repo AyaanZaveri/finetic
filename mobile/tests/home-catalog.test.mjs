@@ -77,3 +77,35 @@ test('TMDB title detail uses the server metadata endpoint and exact identity', a
   assert.equal((await loadTitle('movie', 'tmdb:123')).id, 'tmdb:123');
   await assert.rejects(loadTitle('movie', 'https://example.com'), /Invalid title/);
 });
+
+test('search uses the backend ranking and filters out non-title results', async (t) => {
+  const {searchTitles} = await import('../lib/home-api.ts');
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    assert.ok(url.includes('/api/search/results?q=Pluribus&type=all&page=1'));
+    return json({results: [item('tmdb:123', 'series'), {id:'4', type:'person', name:'Person'}]});
+  });
+  assert.deepEqual((await searchTitles('Pluribus')).map(value => value.id), ['tmdb:123']);
+});
+
+test('search falls back to Cinemeta and preserves movie and series results', async (t) => {
+  const {searchTitles} = await import('../lib/home-api.ts');
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    if (url.includes('navigator-strm.vercel.app')) return new Response('Unavailable', {status: 503});
+    assert.ok(url.includes('/top/search=Star%20Wars.json'));
+    const type = url.includes('/series/') ? 'series' : 'movie';
+    return json({metas: [item(type === 'movie' ? 'tt123' : 'tt124', type)]});
+  });
+  assert.deepEqual((await searchTitles('Star Wars')).map(value => value.id), ['tt123', 'tt124']);
+});
+
+test('cast portraits are normalized and invalid URLs are omitted', () => {
+  const result = parseCatalog([{...item('tt1'), director:['Director'], castMembers:[
+    {id:'1', name:'Actor', image:'https://image.tmdb.org/t/p/w185/actor.jpg'},
+    {id:'2', name:'Other', image:'https://example.com/unsafe.jpg'},
+    {id:'3'},
+  ]}])[0];
+  assert.deepEqual(result.director, ['Director']);
+  assert.equal(result.castMembers.length, 2);
+  assert.equal(result.castMembers[0].image, 'https://image.tmdb.org/t/p/w185/actor.jpg');
+  assert.equal(result.castMembers[1].image, undefined);
+});

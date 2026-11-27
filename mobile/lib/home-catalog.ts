@@ -15,6 +15,9 @@ export interface MediaItem {
   genres?: string[];
   runtime?: string;
   cast?: string[];
+  director?: string[];
+  writer?: string[];
+  castMembers?: { id: string; name: string; role?: string; image?: string }[];
   seasons?: { number: number; name: string; episodeCount: number }[];
 }
 export interface HomeSection {
@@ -90,6 +93,14 @@ export function parseMedia(value: unknown, expected?: MediaType): MediaItem | nu
     genres: Array.isArray(item.genres) ? item.genres.flatMap(value => text(value) ?? []).slice(0, 4) : undefined,
     runtime: text(item.runtime),
     cast: Array.isArray(item.cast) ? item.cast.flatMap(value => text(value) ?? []).slice(0, 30) : undefined,
+    director: Array.isArray(item.director) ? item.director.flatMap(value => text(value) ?? []) : undefined,
+    writer: Array.isArray(item.writer) ? item.writer.flatMap(value => text(value) ?? []) : undefined,
+    castMembers: Array.isArray(item.castMembers) ? item.castMembers.flatMap(value => {
+      if (!value || typeof value !== 'object') return [];
+      const member = value as Record<string, unknown>;
+      const id = text(member.id), name = text(member.name);
+      return id && name ? [{ id, name, role: text(member.role), image: artworkUrl(member.image) }] : [];
+    }).slice(0, 30) : undefined,
     seasons: item.type === 'series' ? parseSeasons(item.seasons, item.videos) : undefined,
   };
 }

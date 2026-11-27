@@ -86,3 +86,25 @@ export async function loadTitle(type: MediaType, id: string, signal?: AbortSigna
   if (!item || item.id !== id) throw new Error('Title metadata is unavailable.');
   return item;
 }
+
+export async function searchTitles(query: string, signal?: AbortSignal): Promise<MediaItem[]> {
+  const q = query.trim();
+  if (!q) return [];
+  if (process.env.EXPO_PUBLIC_MOBILE_FIXTURES === '1') {
+    return parseCatalog(fixtures.flatMap(row => parseCatalog(row.mediaItems)).filter(item => item.name.toLowerCase().includes(q.toLowerCase())));
+  }
+  try {
+    const response = await requestJson(`${backendOrigin()}/api/search/results?${new URLSearchParams({ q, type: 'all', page: '1' })}`, signal) as { results?: unknown };
+    if (Array.isArray(response.results)) return parseCatalog(response.results);
+  } catch {
+    if (signal?.aborted) throw new Error('Search cancelled');
+  }
+  const catalogs = await Promise.allSettled((['movie', 'series'] as const).map(async type => {
+    const response = await requestJson(`https://v3-cinemeta.strem.io/catalog/${type}/top/search=${encodeURIComponent(q)}.json`, signal) as { metas?: unknown };
+    return parseCatalog(response.metas, type);
+  }));
+  if (signal?.aborted) throw new Error('Search cancelled');
+  if (catalogs.every(result => result.status === 'rejected')) throw new Error('Search is unavailable');
+  const [movies, series] = catalogs.map(result => result.status === 'fulfilled' ? result.value : []);
+  return Array.from({ length: Math.max(movies.length, series.length) }, (_, i) => [movies[i], series[i]]).flat().filter(Boolean);
+}
