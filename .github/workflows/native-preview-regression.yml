@@ -9,6 +9,8 @@ on:
       - 'desktop/src/thumbnails.rs'
       - 'desktop/src/player.rs'
       - 'desktop/src/media_cache.rs'
+      - 'desktop/src/preview_fallback.rs'
+      - 'desktop/src/mpv.rs'
       - 'scripts/generate-native-preview-fixtures.py'
 
 permissions:
@@ -69,4 +71,11 @@ jobs:
           RUST_LOG: warn
         run: |
           cargo test --manifest-path desktop/Cargo.toml --locked transient_index_reads_get_bounded_retries -- --nocapture
-          cargo test --manifest-path desktop/Cargo.toml --locked headless_webdl_preview_ -- --ignored --nocapture --test-threads=1
+          cargo test --manifest-path desktop/Cargo.toml --locked headless_webdl_preview_index_recovers_after_http_failure -- --ignored --nocapture
+          failed=0
+          for fixture in avc-stereo.mkv avc-surround-open-gop.mkv avc-front-cues.mkv hevc-control.mkv avc-no-cues.mkv; do
+            # Each fixture has a fresh application/library lifetime. A native
+            # crash cannot conceal the results for the remaining formats.
+            NAVIGATOR_TEST_PREVIEW_FILE="$fixture" cargo test --manifest-path desktop/Cargo.toml --locked headless_webdl_preview_formats -- --ignored --nocapture || failed=1
+          done
+          exit "$failed"

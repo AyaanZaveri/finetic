@@ -323,7 +323,7 @@ impl Player {
                         // before competing for network/CPU, and retain an early hover.
                         if session == desired {
                             if let Some((named, url, headers)) = preview_source.take() {
-                                if named == session { previews = Some(crate::thumbnails::Previews::new(named, url, headers, emit.clone())); }
+                                if named == session { previews = Some(crate::thumbnails::Previews::new(named, url, headers, emit.clone(), Some(client.library_path().to_path_buf()))); }
                             }
                             if let (Some(previews), Some((request, position))) = (&previews, pending_preview.take()) {
                                 previews.want(request, Some(position));
@@ -753,11 +753,16 @@ mod tests {
         let library = std::path::PathBuf::from(std::env::var("NAVIGATOR_TEST_LIBMPV").unwrap());
         aiostreams_thumbs::library_dirs(vec![library.parent().unwrap().to_path_buf()]);
         let directory = std::path::PathBuf::from(std::env::var("NAVIGATOR_TEST_PREVIEW_DIR").unwrap());
+        let selected = std::env::var("NAVIGATOR_TEST_PREVIEW_FILE").ok();
         let mut failures = Vec::new();
         for filename in ["avc-stereo.mkv", "avc-surround-open-gop.mkv", "avc-front-cues.mkv", "hevc-control.mkv", "avc-no-cues.mkv"] {
+            if selected.as_deref().is_some_and(|name| name != filename) { continue; }
             let fixture = directory.join(filename);
             let data = std::fs::read(&fixture).unwrap();
             println!("FORMAT {filename}: {} bytes", data.len());
+            // Production loads libmpv before opening the sparse decoder.
+            // Keep it alive across both diagnostic and real playback reads.
+            let mpv = Arc::new(Mpv::new(&library, &[("config", "no"), ("vo", "null"), ("ao", "null"), ("idle", "yes"), ("terminal", "no")]).unwrap());
             // Isolate the container parser and standalone keyframe decoder
             // from the native HTTP relay and video playback.
             match Source::open(fixture.to_str().unwrap(), Options::default()) {
@@ -779,7 +784,6 @@ mod tests {
             // readiness gate, preview workers, and published JPEG delivery.
             let origin = crate::media_cache::tests::Origin::new(data);
             let url = origin.url.replace("/video.mp4", "/video.mkv");
-            let mpv = Arc::new(Mpv::new(&library, &[("config", "no"), ("vo", "null"), ("ao", "null"), ("idle", "yes"), ("terminal", "no")]).unwrap());
             let (send, inbox) = mpsc::channel();
             let mut player = Player::start(mpv.clone(), move |value| { let _ = send.send(value); }, |_, _| {}).unwrap();
             player.send(Command::Load { session: "webdl-preview".into(), url, headers: BTreeMap::new(), start_position: 0.0 });
@@ -809,7 +813,7 @@ mod tests {
                 println!("PREVIEW {filename} target={target} ok={ok} elapsed_ms={} actual={:?} result={}",
                     started.elapsed().as_millis(), result.as_ref().and_then(|v| v["position"].as_f64()),
                     if result.is_none() { "timeout" } else if picture.is_none() { "unavailable" } else { "image" });
-                if !ok && filename != "avc-no-cues.mkv" {
+                if !ok {
                     failures.push(format!("{filename} at {target}s"));
                 }
             }

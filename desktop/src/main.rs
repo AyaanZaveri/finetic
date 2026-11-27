@@ -27,6 +27,7 @@ mod tao_shell;
 #[cfg(target_os = "macos")]
 mod macos_updater;
 mod thumbnails;
+mod preview_fallback;
 mod thumbnail_images;
 mod wake_lock;
 #[cfg(any(windows, target_os = "macos", test))]

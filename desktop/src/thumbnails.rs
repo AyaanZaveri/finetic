@@ -5,7 +5,8 @@ use base64::{Engine, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
 use std::{
     collections::BTreeMap,
-    sync::{Arc, Mutex, Weak},
+    path::PathBuf,
+    sync::{Arc, Condvar, Mutex, Weak},
     time::Duration,
 };
 
@@ -40,9 +41,11 @@ struct State {
     expected: Option<u64>,
     closed: bool,
     unavailable: bool,
+    fallback: bool,
 }
 struct Shared {
     state: Mutex<State>,
+    wake: Condvar,
     session: String,
     emit: Emit,
     images: Option<crate::thumbnail_images::ImageServer>,
@@ -58,6 +61,7 @@ impl Previews {
         url: String,
         headers: BTreeMap<String, String>,
         emit: Emit,
+        library: Option<PathBuf>,
     ) -> Self {
         let mut token = [0_u8; 16];
         let images = getrandom::getrandom(&mut token).ok().and_then(|_| {
@@ -70,12 +74,14 @@ impl Previews {
             session,
             emit,
             images,
+            wake: Condvar::new(),
             state: Mutex::new(State {
                 decoder: None,
                 wanted: None,
                 expected: None,
                 closed: false,
                 unavailable: false,
+                fallback: false,
             }),
         });
         let opened = shared.clone();
@@ -83,7 +89,7 @@ impl Previews {
             .name("preview-index".into())
             .spawn(move || {
                 let options = Options {
-                    headers: headers.into_iter().collect(),
+                    headers: headers.iter().map(|(name, value)| (name.clone(), value.clone())).collect(),
                     timeout: Duration::from_secs(4),
                     connect_timeout: Duration::from_secs(3),
                     max_bytes: Some(256 << 20),
@@ -134,12 +140,21 @@ impl Previews {
                         };
                         log::warn!("Seek preview index unavailable: {reason}");
                         state.unavailable = true;
+                        // The full demuxer can still seek files with absent or
+                        // unsupported cue tables. Only allow the same HTTP(S)
+                        // media source that the native player already accepted.
+                        state.fallback = library.is_some()
+                            && url::Url::parse(&url).ok().is_some_and(|parsed| matches!(parsed.scheme(), "http" | "https"));
                     }
                 }
                 let result = answer(&mut state, &opened);
+                let fallback = state.fallback;
                 drop(state);
                 if let Some((request, image)) = result {
                     send(&opened, Some(request), image);
+                }
+                if fallback {
+                    fallback_loop(&opened, &url, &headers, library.as_ref().unwrap());
                 }
             });
         Self { shared }
@@ -157,6 +172,7 @@ impl Previews {
         state.expected = None;
         let result = answer(&mut state, &self.shared);
         drop(state);
+        self.shared.wake.notify_all();
         if let Some((request, image)) = result {
             send(&self.shared, Some(request), image);
         }
@@ -164,20 +180,27 @@ impl Previews {
 }
 type Picture = (u64, String);
 fn picture(shared: &Shared, image: &Thumbnail) -> Picture {
+    store_picture(shared, image.time_ms, &image.jpeg)
+}
+fn store_picture(shared: &Shared, time: u64, jpeg: &[u8]) -> Picture {
     let src = shared
         .images
         .as_ref()
         .and_then(|images| {
             images
-                .cached(image.time_ms)
-                .or_else(|| images.insert(image.time_ms, &image.jpeg))
+                .cached(time)
+                .or_else(|| images.insert(time, jpeg))
         })
-        .unwrap_or_else(|| format!("data:image/jpeg;base64,{}", STANDARD.encode(&image.jpeg)));
-    (image.time_ms, src)
+        .unwrap_or_else(|| format!("data:image/jpeg;base64,{}", STANDARD.encode(jpeg)));
+    (time, src)
 }
 fn answer(state: &mut State, shared: &Shared) -> Option<(Request, Option<Picture>)> {
     let wanted = state.wanted?;
     if state.unavailable {
+        if state.fallback {
+            return shared.images.as_ref().and_then(|images| images.cached(wanted.position))
+                .map(|src| (wanted, Some((wanted.position, src))));
+        }
         return Some((wanted, None));
     }
     let decoder = state.decoder.as_ref()?;
@@ -194,6 +217,51 @@ fn answer(state: &mut State, shared: &Shared) -> Option<(Request, Option<Picture
     decoder
         .want(wanted.position, None)
         .map(|image| (wanted, Some(picture(shared, &image))))
+}
+
+fn fallback_loop(shared: &Shared, url: &str, headers: &BTreeMap<String, String>, library: &std::path::Path) {
+    let mut decoder = None;
+    let mut handled = None;
+    loop {
+        let wanted = {
+            let mut state = shared.state.lock().unwrap();
+            loop {
+                if state.closed { return; }
+                if let Some(wanted) = state.wanted {
+                    if handled != Some(wanted.id) { break wanted; }
+                }
+                state = shared.wake.wait(state).unwrap();
+            }
+        };
+        handled = Some(wanted.id);
+        if shared.images.as_ref().and_then(|images| images.cached(wanted.position)).is_some() {
+            // answer() publishes the synchronous cache hit.
+            continue;
+        }
+        if decoder.is_none() {
+            match crate::preview_fallback::Decoder::new(library, headers) {
+                Ok(value) => decoder = Some(value),
+                Err(_) => {
+                    log::warn!("Seek preview fallback decoder could not initialize");
+                    let mut state = shared.state.lock().unwrap();
+                    state.fallback = false;
+                    let result = answer(&mut state, shared);
+                    drop(state);
+                    if let Some((request, image)) = result { send(shared, Some(request), image); }
+                    return;
+                }
+            }
+        }
+        let jpeg = decoder.as_mut().unwrap().frame(url, wanted.position, || {
+            let state = shared.state.lock().unwrap();
+            state.closed || state.wanted.is_none()
+        });
+        let image = jpeg.as_ref().map(|bytes| store_picture(shared, wanted.position, bytes));
+        let state = shared.state.lock().unwrap();
+        let current = !state.closed && state.wanted.is_some_and(|request| request.id == wanted.id);
+        drop(state);
+        if current { send(shared, Some(wanted), image); }
+    }
 }
 fn publish(weak: &Weak<Shared>, image: Arc<Thumbnail>) {
     let Some(shared) = weak.upgrade() else {
@@ -244,6 +312,7 @@ impl Drop for Previews {
         state.closed = true;
         state.wanted = None;
         state.decoder = None;
+        self.shared.wake.notify_all();
     }
 }
 
@@ -303,6 +372,7 @@ mod tests {
     #[ignore = "generated synthetic MKV fixtures and pinned libmpv required"]
     fn headless_webdl_preview_index_recovers_after_http_failure() {
         let library = PathBuf::from(std::env::var("NAVIGATOR_TEST_LIBMPV").unwrap());
+        let _library_owner = crate::mpv::Mpv::new(&library, &[("config", "no"), ("vo", "null"), ("ao", "null"), ("idle", "yes"), ("terminal", "no")]).unwrap();
         aiostreams_thumbs::library_dirs(vec![library.parent().unwrap().to_path_buf()]);
         let directory = PathBuf::from(std::env::var("NAVIGATOR_TEST_PREVIEW_DIR").unwrap());
         let data = std::fs::read(directory.join("avc-stereo.mkv")).unwrap();
@@ -316,7 +386,7 @@ mod tests {
         origin.mode.store(3, std::sync::atomic::Ordering::SeqCst);
         let (send, inbox) = mpsc::channel();
         let previews = Previews::new("retry-webdl".into(), origin.url.clone(), BTreeMap::new(),
-            Arc::new(move |value| { let _ = send.send(value); }));
+            Arc::new(move |value| { let _ = send.send(value); }), None);
         previews.want(1, Some(18.0));
         let reply = inbox.recv_timeout(Duration::from_secs(6)).expect("Retry must deliver a thumbnail before the UI deadline");
         assert_eq!(reply["request"], 1);
@@ -349,6 +419,7 @@ mod tests {
                 Arc::new(move |value| {
                     let _ = send.send(value);
                 }),
+                None,
             );
             previews.want(1, Some(0.5));
             previews.want(2, Some(1.0));

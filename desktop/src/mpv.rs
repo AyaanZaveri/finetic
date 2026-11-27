@@ -4,7 +4,7 @@
 //! libmpv's client API, loaded at runtime so builds need no import library.
 
 use std::ffi::{CStr, CString, c_char, c_double, c_int, c_void};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::ptr;
 
 use libloading::Library;
@@ -179,6 +179,7 @@ pub enum Event {
 pub struct Mpv {
     api: Api,
     handle: Handle,
+    library: PathBuf,
 }
 
 // SAFETY: every client API function may be called from any thread.
@@ -205,7 +206,7 @@ impl Mpv {
         if handle.is_null() {
             return Err("mpv_create failed".into());
         }
-        let mpv = Self { api, handle };
+        let mpv = Self { api, handle, library: library.to_path_buf() };
         for (name, value) in options {
             let (n, v) = (cstring(name)?, cstring(value)?);
             // SAFETY: valid handle and strings.
@@ -221,6 +222,10 @@ impl Mpv {
 
     pub(crate) fn handle(&self) -> Handle {
         self.handle
+    }
+
+    pub(crate) fn library_path(&self) -> &Path {
+        &self.library
     }
 
     /// # Safety
