@@ -1,6 +1,9 @@
 appId: ${APP_ID}
 ---
 - tapOn:
+    text: 'Open'
+    optional: true
+- tapOn:
     text: 'Continue'
     optional: true
 - tapOn:
