@@ -3,6 +3,16 @@ appId: app.navigator.mobile
 - tapOn:
     text: Open
     optional: true
+- runFlow:
+    when:
+      visible: There was a problem loading the project.
+    commands:
+      - tapOn: Reload
+- runFlow:
+    when:
+      visible: Catalogs are unavailable
+    commands:
+      - tapOn: Try again
 - extendedWaitUntil:
     visible:
       id: ${TARGET_ID}

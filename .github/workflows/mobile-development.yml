@@ -149,6 +149,8 @@ jobs:
           path: mobile/test-results/dev-client/ios-app.tar.gz
           if-no-files-found: error
           retention-days: 30
+      - name: Warm iOS Metro bundle
+        run: bash scripts/warm-ios-metro.sh
       - name: Launch current JavaScript in the native client
         run: bash scripts/dev-client-ios.sh launch iPhone
       - name: Record iPhone visual walkthrough and screenshots
@@ -201,6 +203,9 @@ jobs:
       - name: Report cold cache
         if: steps.restore.outputs.hit != 'true'
         run: echo 'The iPhone job produces the universal client on a cold cache. iPad previews resume when that artifact is available.'
+      - name: Warm iPad Metro bundle
+        if: steps.restore.outputs.hit == 'true'
+        run: bash scripts/warm-ios-metro.sh
       - name: Launch current JavaScript on iPad
         if: steps.restore.outputs.hit == 'true'
         id: launch
