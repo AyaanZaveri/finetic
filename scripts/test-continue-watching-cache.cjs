@@ -38,6 +38,7 @@ let cachedAtMount = cachedItems;
 let resumeResult = { data: cachedItems, isPending: false, refetch: () => { refreshed++; } };
 const loadSection = h => load('components/home-continue-watching.tsx', {
     './media-section.module.css': { track: 'track' },
+    './media-card.module.css': { card: 'card', surface: 'surface', frame: 'frame' },
  react:h.react,'react/jsx-runtime':h.jsx,
  '@tanstack/react-query':{...require('@tanstack/react-query'),useMutationState:()=>pendingRemovals,useQuery:options=>options.queryKey[0]==='resume-movie-year'?{data:2014}:resumeResult},
  '@/components/stream-query-provider':{useStreamQueries:()=>({scope:'user:session',client:{getQueryData:()=>cachedAtMount}})},
@@ -74,7 +75,11 @@ cachedAtMount = undefined;
 h = hooks();
 ContinueWatchingSection = loadSection(h);
 resumeResult = { ...resumeResult, data: undefined, dataUpdatedAt: 0, isPending: true };
-assert.ok(nodes(h.render(ContinueWatchingSection)).some(node => node.type === 'skeleton'));
+const pendingRow = h.render(ContinueWatchingSection);
+assert.equal(pendingRow.type.name, 'MediaSectionSkeleton');
+const pendingCards = nodes(pendingRow.type(pendingRow.props));
+assert.ok(pendingCards.some(node => node.type === 'skeleton'));
+assert.ok(pendingCards.some(node => node.props?.['data-media-skeleton-frame'] === '' && node.props.className.includes('aspect-video')));
 h.flush();
 resumeResult = { ...resumeResult, data: [], isPending: false };
 assert.equal(h.render(ContinueWatchingSection),null,'An empty library hides the entire section');

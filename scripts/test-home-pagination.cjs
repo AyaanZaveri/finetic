@@ -19,6 +19,8 @@ function harness(count = 100) {
     react: h.react, 'react/jsx-runtime': h.jsx,
     '@/components/media-section': { MediaSection: 'MediaSection' },
     './home-catalog-skeleton.module.css': { placeholder: 'placeholder' },
+    './media-card.module.css': { card: 'card', skeletonCard: 'skeletonCard', surface: 'surface', frame: 'frame' },
+    './media-section.module.css': { viewport: 'viewport', track: 'track', skeletonHeading: 'skeletonHeading', skeletonHeadingText: 'skeletonHeadingText' },
     '@/components/ui/loading-placeholder': { LoadingPlaceholder: 'LoadingPlaceholder' },
     '@/components/ui/skeleton': { Skeleton: 'Skeleton' }, '@/components/ui/button': { Button: 'button' },
   }, {
@@ -170,8 +172,10 @@ function harness(count = 100) {
   const { HomeCatalogSectionsLazy } = load('components/home-catalog-sections-lazy.tsx', {
     '@/components/media-section': { MediaSection: ({ sectionName }) => React.createElement('section', null, sectionName) },
     './home-catalog-skeleton.module.css': { placeholder: 'placeholder' },
+    './media-card.module.css': { card: 'card', skeletonCard: 'skeletonCard', surface: 'surface', frame: 'frame' },
+    './media-section.module.css': { viewport: 'viewport', track: 'track', skeletonHeading: 'skeletonHeading', skeletonHeadingText: 'skeletonHeadingText' },
     '@/components/ui/loading-placeholder': { LoadingPlaceholder: ({ children }) => React.createElement('div', null, children) },
-    '@/components/ui/skeleton': { Skeleton: () => React.createElement('span', null) },
+    '@/components/ui/skeleton': { Skeleton: ({ animated, ...props }) => React.createElement('span', props) },
     '@/components/ui/button': { Button: 'button' },
   });
   const html = renderToStaticMarkup(React.createElement(HomeCatalogSectionsLazy, {
@@ -181,5 +185,10 @@ function harness(count = 100) {
   assert.ok(html.includes('Initial catalog'), 'Server-rendered initial catalogs stay visible');
   assert.equal((html.match(/data-home-catalog-row=/g) || []).length, 51, 'SSR emits one slot per known catalog');
   assert.equal((html.match(/data-home-catalog-placeholder=/g) || []).length, 50, 'All unready rows have a placeholder before hydration');
+  assert.match(html, /data-media-skeleton-card=/, 'Fast-scroll placeholders contain actual rounded media card frames');
+  assert.match(html, /data-media-skeleton-title=/, 'Pending card titles reserve their resolved text line');
+  assert.match(html, /data-media-skeleton-frame="" class="surface relative w-full aspect-\[2\/3\]"/);
+  assert.match(html, /data-media-skeleton-title="" class="h-3.5 w-3\/4 rounded-full"/);
+  assert.match(html, /data-media-skeleton-subtitle="" class="h-2.5 w-2\/5 rounded-full"/);
   console.log('PASS: persistent in-flow catalog slots, stable skeleton space, continuous flick loading, destination priority, bounded requests, no Load more button, retry, and cancellation.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

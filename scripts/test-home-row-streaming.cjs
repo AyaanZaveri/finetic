@@ -23,6 +23,8 @@ const section = key => ({ key, sectionName: `Catalog ${key}`, mediaItems: [{ id:
         '@/components/ui/button': { Button: 'button' },
         '@/components/ui/loading-placeholder': { LoadingPlaceholder: delayedPlaceholder },
         './home-catalog-skeleton.module.css': { placeholder: 'placeholder' },
+        './media-card.module.css': { card: 'card', skeletonCard: 'skeletonCard', surface: 'surface', frame: 'frame' },
+        './media-section.module.css': { viewport: 'viewport', track: 'track', skeletonHeading: 'skeletonHeading', skeletonHeadingText: 'skeletonHeadingText' },
     };
     const { HomeCatalogSectionsLazy } = load('components/home-catalog-sections-lazy.tsx', viewDependencies);
     const { default: Home } = load('app/(main)/page.tsx', {

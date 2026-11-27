@@ -26,3 +26,22 @@
   padding: 4px;
   list-style: none;
 }
+
+.skeletonHeading {
+  height: 1.75rem;
+  width: min(14rem, 60%);
+}
+
+.skeletonHeadingText {
+  width: 100%;
+  height: 1.25rem;
+}
+
+@media (min-width: 40rem) {
+  .skeletonHeading { height: 2rem; }
+  .skeletonHeadingText { height: 1.5rem; }
+}
+
+.viewport[data-media-skeleton-viewport] {
+  overflow: hidden;
+}

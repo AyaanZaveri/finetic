@@ -62,7 +62,15 @@ const { outputFiles } = await build({
                 const element = document.elementFromPoint(40, top + 16);
                 const painted = element?.closest(placeholder);
                 check(painted?.parentElement === allSlots[index], 'Landing at row ' + index + ' exposed an empty area');
-                check(getComputedStyle(painted, '::after').backgroundImage.includes('repeating-linear-gradient'), 'Placeholder has no visible poster shapes');
+                const rail = painted.querySelector('[data-media-skeleton-viewport]');
+                const poster = rail?.querySelector('[data-media-skeleton-frame]');
+                const title = rail?.querySelector('[data-media-skeleton-title]');
+                check(poster && title, 'Placeholder has no media card shapes');
+                const bounds = poster.getBoundingClientRect();
+                check(Math.abs(bounds.width - 144) < 1 && Math.abs(bounds.height - 216) < 1, 'Poster skeleton must match the 2:3 card size');
+                check(Math.abs(bounds.left - rail.getBoundingClientRect().left - 4) < 1, 'Poster skeleton must use the real track inset');
+                check(parseFloat(getComputedStyle(poster).borderTopLeftRadius) > 0, 'Poster skeleton must use the shared rounded frame');
+                check(parseFloat(getComputedStyle(title).borderTopLeftRadius) > 0, 'Text skeleton must be rounded');
             };
             for (const index of [36, 12, 65, 3, 48, 21]) {
                 jump(index);
@@ -104,6 +112,13 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><style>
     :root{--accent:#333;color:white;background:#111;font:16px sans-serif}
     body{margin:0}header{height:48px}main{height: min(720px,calc(100vh - 48px));width:100%}
     .prefix{height:380px}.flow-root{display:flow-root}[data-fixture-carousel]{min-height:360px}
+    /* This isolated esbuild fixture does not run the app's Tailwind pipeline. */
+    .relative{position:relative}.absolute{position:absolute}.inset-0{inset:0}.overflow-hidden{overflow:hidden}
+    .w-36{width:9rem}.w-full{width:100%}.aspect-\\[2\\/3\\]{aspect-ratio:2/3}
+    .mb-4{margin-bottom:1rem}.mb-8{margin-bottom:2rem}.flex{display:flex}.items-center{align-items:center}
+    .px-1{padding-inline:.25rem}.mt-2\\.5{margin-top:.625rem}.mt-0\\.5{margin-top:.125rem}
+    .h-5{height:1.25rem}.h-4{height:1rem}.h-3\\.5{height:.875rem}.h-2\\.5{height:.625rem}
+    .w-3\\/4{width:75%}.w-2\\/5{width:40%}.rounded-full{border-radius:9999px}.bg-accent{background:var(--accent)}
     ${css}</style></head><body><div id="fixture"></div><script src="/fixture.js"></script></body></html>`;
 const server = createServer((request, response) => {
     if (request.url === '/fixture.js') response.writeHead(200, { 'Content-Type': 'text/javascript' }).end(js);

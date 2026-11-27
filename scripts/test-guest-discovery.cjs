@@ -80,6 +80,8 @@ async function main() {
     const { default: Home } = load('app/(main)/page.tsx', {
         ...components, react: React, 'react/jsx-runtime': require('react/jsx-runtime'),
         './home-catalog-skeleton.module.css': { placeholder: 'placeholder' },
+        './media-card.module.css': {},
+        './media-section.module.css': {},
         './home-page.module.css': { page: 'page', rows: 'rows', attribution: 'attribution', attributionLink: 'attributionLink', attributionProvider: 'attributionProvider' },
         '@/components/home-hero': { HomeFeatured: 'HomeFeatured', HomeHeroSkeleton: 'HomeHeroSkeleton' },
         '@/lib/server/home-hero': { loadHomeHeroItems: async () => [] },
