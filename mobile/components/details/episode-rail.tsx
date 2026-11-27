@@ -8,6 +8,7 @@ import { THEME } from '@/lib/theme';
 import { BottomSheetModal, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { Check, ChevronDown } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
@@ -21,9 +22,13 @@ export function EpisodeRail({ item, season, onSeason, episodes, selected, onOpen
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme ?? 'light'];
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const availableWidth = width - insets.left - insets.right;
+  const roomy = availableWidth >= 720;
+  const sheetMargin = roomy ? (availableWidth - 560) / 2 : 0;
   const sheet = useRef<BottomSheetModal>(null);
   const [focused, setFocused] = useState<string>();
-  const cardWidth = Math.min(240, Math.max(160, Math.round(width * 0.53)));
+  const cardWidth = roomy ? Math.min(288, Math.round(availableWidth * 0.32)) : Math.min(240, Math.max(160, Math.round(availableWidth * 0.53)));
   const seasonName = item.seasons?.find(row => row.number === season)?.name ?? `Season ${season}`;
   return (
     <View className="gap-3" testID="episode-carousel">
@@ -31,7 +36,7 @@ export function EpisodeRail({ item, season, onSeason, episodes, selected, onOpen
         <Text>{seasonName}</Text><Icon as={ChevronDown} size={16} className="text-muted-foreground" />
       </Button>
       {loading ? <ActivityIndicator color={theme.foreground} /> : episodes.length ? <FlatList horizontal data={episodes} keyExtractor={value => value.id} showsHorizontalScrollIndicator={false} initialNumToRender={4} windowSize={4}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 6, gap: 12 }} style={{ marginHorizontal: -16 }}
+        contentContainerStyle={{ paddingHorizontal: roomy ? 6 : 16, paddingVertical: 6, gap: 12 }} style={{ marginHorizontal: roomy ? -6 : -16 }}
         renderItem={({ item: episode }) => {
           const active = selected === episode.id || focused === episode.id;
           return <Pressable testID={`episode-card-${episode.season}-${episode.number}`} style={{ width: cardWidth }} onFocus={() => setFocused(episode.id)} onBlur={() => setFocused(undefined)}
@@ -48,8 +53,8 @@ export function EpisodeRail({ item, season, onSeason, episodes, selected, onOpen
             </View>
           </Pressable>;
         }} /> : <Text variant="muted">Episode details are not available for this season.</Text>}
-      <BottomSheetModal ref={sheet} snapPoints={['45%', '75%']} enableDynamicSizing={false} backgroundStyle={{ backgroundColor: theme.card }} handleIndicatorStyle={{ backgroundColor: theme.mutedForeground }}>
-        <BottomSheetScrollView contentContainerStyle={{ padding: 16, gap: 8 }}>
+      <BottomSheetModal ref={sheet} style={{ marginLeft: insets.left + sheetMargin, marginRight: insets.right + sheetMargin }} topInset={insets.top} snapPoints={['45%', '75%']} enableDynamicSizing={false} backgroundStyle={{ backgroundColor: theme.card }} handleIndicatorStyle={{ backgroundColor: theme.mutedForeground }}>
+        <BottomSheetScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 16, gap: 8 }}>
           <Text role="heading" className="text-xl font-nav-semibold pb-2">Choose a season</Text>
           {item.seasons?.map(row => <Button key={row.number} variant={row.number === season ? 'secondary' : 'ghost'} className="justify-start" accessibilityState={{ selected: row.number === season }} onPress={() => { onSeason(row.number); sheet.current?.dismiss(); }} haptic="selection">
             <Text className="flex-1">{row.name}</Text><Text variant="muted">{row.episodeCount} episodes</Text>{row.number === season && <Icon as={Check} size={16} />}

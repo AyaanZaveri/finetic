@@ -1,0 +1,20 @@
+appId: app.navigator.mobile
+---
+- launchApp:
+    clearState: true
+- tapOn:
+    text: Wait
+    optional: true
+- tapOn: Settings
+- assertVisible:
+    id: settings-haptics
+- tapOn:
+    id: settings-haptics
+- assertVisible: Feedback is off.
+- stopApp
+- launchApp
+- tapOn: Settings
+- assertVisible: Feedback is off.
+- tapOn:
+    id: settings-haptics
+- assertVisible: Small selection ticks and button feedback.

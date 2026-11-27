@@ -8,13 +8,15 @@ import { selectFeatured, type MediaItem } from '@/lib/home-catalog';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from 'nativewind';
 import { THEME } from '@/lib/theme';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const roomy = width - insets.left - insets.right >= 720;
   const { provider } = useMetadataProvider();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -38,7 +40,7 @@ export default function HomeScreen() {
             <Button onPress={() => void query.refetch()}><Text>Try again</Text></Button>
           </> : <Text className="text-xl font-nav-semibold">Browse movies and TV shows</Text>}
         </View>}
-        <View className="gap-5 pb-2" style={{ paddingTop: hasHero ? 8 : 0, backgroundColor: theme.background }}>
+        <View className="pb-2" style={{ gap: roomy ? 32 : 20, paddingTop: hasHero ? (roomy ? 16 : 8) : 0, backgroundColor: theme.background }}>
           {query.data?.sections.map(section => <MediaSection key={section.key} section={section} onOpen={open} />)}
         </View>
       </ScrollView>

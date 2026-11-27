@@ -1,0 +1,23 @@
+appId: app.navigator.mobile
+---
+- launchApp
+- openLink: navigator-mobile:///movie/tt0088763
+- extendedWaitUntil:
+    visible:
+      id: tablet-detail-poster
+    timeout: 45000
+- assertVisible:
+    id: detail-play
+- assertVisible:
+    text: Back to the Future
+- takeScreenshot: movie-tablet-columns
+- openLink: navigator-mobile:///
+- extendedWaitUntil:
+    visible:
+      id: hero-primary
+    timeout: 45000
+- scrollUntilVisible:
+    element:
+      id: 'media-card-movie:tt.*'
+    direction: DOWN
+- takeScreenshot: home-tablet-catalog

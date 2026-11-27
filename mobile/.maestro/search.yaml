@@ -1,0 +1,45 @@
+appId: app.navigator.mobile
+---
+- launchApp:
+    clearState: true
+- tapOn:
+    text: Wait
+    optional: true
+- tapOn: Search
+- assertVisible:
+    id: search-input
+- assertVisible: 'Find your next watch'
+- takeScreenshot: search-empty
+- tapOn:
+    id: search-input
+- inputText: Pluribus
+- hideKeyboard
+- extendedWaitUntil:
+    visible:
+      id: 'media-card-series:tt22202452'
+    timeout: 30000
+- assertVisible:
+    id: search-filter-all
+- takeScreenshot: search-results
+- tapOn:
+    id: search-filter-movie
+- assertNotVisible:
+    id: 'media-card-series:tt22202452'
+- tapOn:
+    id: search-filter-series
+- assertVisible:
+    id: 'media-card-series:tt22202452'
+- takeScreenshot: search-series-filter
+- tapOn:
+    id: 'media-card-series:tt22202452'
+- assertVisible:
+    id: title-detail-page
+- tapOn:
+    id: title-detail-back
+- assertVisible:
+    id: search-input
+- tapOn:
+    id: search-clear
+- assertVisible: 'Find your next watch'
+- assertNotVisible:
+    id: 'media-card-series:tt22202452'

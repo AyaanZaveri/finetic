@@ -112,7 +112,9 @@ export function HomeHero({ items, onOpen }: { items: MediaItem[]; onOpen: (item:
   const detail = useQuery({ queryKey: ['title', entry?.type, entry?.id], queryFn: ({ signal }) => loadTitle(entry!.type, entry!.id, signal),
     enabled: !!entry, placeholderData: entry, staleTime: 5 * 60 * 1000, retry: false });
   const item = detail.data ?? entry;
-  const heroHeight = Math.min(704, Math.max(480, Math.min(width * 1.34, height * 0.8)));
+  const heroHeight = width >= 768
+    ? Math.min(520, Math.max(384, Math.min(width * 0.52, height * 0.60)))
+    : Math.min(704, Math.max(480, Math.min(width * 1.34, height * 0.8)));
   if (!item) return null;
   const blend = { base, progress, direct, count: items.length };
   const layers = indices.flatMap(index => {

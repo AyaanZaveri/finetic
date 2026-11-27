@@ -21,6 +21,28 @@ Keep `app/`, `components/`, `desktop/`, `ios/` and `android/` as the existing pr
 
 Every batch preserves the existing clients. Add focused tests and screenshots to the mobile CI suite as features arrive. Use real Cinemeta data in device previews and isolated mock responses in unit tests. Do not consider a batch device-verified until its tests have run on both platforms.
 
+## Current execution priorities
+
+Run the independent workstreams in parallel. The parent agent owns the shared
+design contract, integration and final native device verification. Inherit the
+parent model by default. Use a smaller model for a specific narrow task, not
+for variety.
+
+| Priority | Workstream | Deliverable and acceptance |
+|---|---|---|
+| P0 | Native visual and interaction QA | Standalone Android, iPhone and iPad screenshots from the same source revision, with live Cinemeta data. Keep the Android predictive-back test, dark/light screenshots, gesture recordings, and reliable emulator recovery. |
+| P1 | Interaction and haptics | Finger-linked hero crossfade, circular dots, single native selection tick per committed snap, persistent haptics setting, and tactile poster press-to-native-page handoff. No vibration on canceled gestures. |
+| P1 | Adaptive tablet layout | iPad and Android tablet layouts use sensible rail density, spacing and readable detail widths. Test portrait, landscape and compact phone layouts. |
+| P1 | Search | Match the web mobile design, use native keyboard controls, adaptive results, filters, loading, retry and empty states, and native title navigation. |
+| P2 | Metadata and episodes | Complete release date, rating and certification parity, season selection, episode thumbnail rail and focus ring. Keep Cinemeta default and optional TMDB; verify hosted TMDB contract before treating it as live. |
+| P3 | Account and library | Native settings categories, session and secure credential storage, library, likes, watch history and add-on configuration. Replace local-only like state with account-backed state when ready. |
+| P4 | Playback | Connect Play and Shuffle to real native playback sources. Reuse the existing engine capability contracts and test on physical devices. |
+| P5 | Final parity | Accessibility, responsiveness, device-specific animation feel, stability and release readiness. |
+
+Keep the work batch-sized. Do not start Ask Navigator, decorative color
+extraction, Aurora, or a web or desktop redesign. Do not treat simulated
+haptics, playback, HDR or frame pacing as hardware verification.
+
 ## Visual and native translation inventory
 
 | Existing implementation | Mobile direction and verification |

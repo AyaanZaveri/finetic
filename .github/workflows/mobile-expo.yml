@@ -68,6 +68,7 @@ jobs:
       - name: Start API 35 emulator
         run: bash scripts/prepare-android-device.sh
       - name: Capture standalone Android screenshots
+        id: android_capture
         continue-on-error: true
         run: bash scripts/capture-native-screens.sh android test-results/screens
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
@@ -100,6 +101,9 @@ jobs:
           path: mobile/test-results/
           if-no-files-found: ignore
           retention-days: 7
+      - name: Check Android screenshot capture
+        if: always() && steps.android_capture.outcome == 'failure'
+        run: exit 1
   ios:
     needs: foundation
     runs-on: macos-26
@@ -131,23 +135,31 @@ jobs:
           xcodebuild -workspace "$workspace" -scheme Navigator -configuration Release -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/navigator-ios" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO | tee test-results/ios-build.log
-      - name: Capture standalone iPhone screenshots
-        continue-on-error: true
+      - name: Locate built simulator app
         run: |
           app=$(find "$RUNNER_TEMP/navigator-ios/Build/Products/Release-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)
           test -n "$app"
-          device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(item["udid"] for runtime in reversed(list(d["devices"].values())) for item in runtime if item["name"].startswith("iPhone")))')
-          xcrun simctl boot "$device" || true
-          xcrun simctl bootstatus "$device" -b
-          xcrun simctl status_bar "$device" override --time '9:41' --dataNetwork wifi --wifiMode active --wifiBars 3 --cellularMode active --cellularBars 4 --batteryLevel 100 || true
-          xcrun simctl install "$device" "$app"
-          bash scripts/capture-native-screens.sh ios test-results/iPhone/screens "$device"
+          echo "SIMULATOR_APP=$app" >> "$GITHUB_ENV"
+      - name: Capture standalone iPhone screenshots
+        id: iphone_capture
+        continue-on-error: true
+        run: bash scripts/capture-native-screens.sh ios test-results/iPhone/screens iPhone "$SIMULATOR_APP"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         if: always()
         with:
           name: navigator-ios-screenshots
           path: mobile/test-results/iPhone/screens/
-          if-no-files-found: ignore
+          if-no-files-found: warn
+      - name: Capture standalone iPad screenshots and verify tablet layout
+        id: ipad_capture
+        continue-on-error: true
+        run: bash scripts/capture-native-screens.sh ios test-results/iPad/screens iPad "$SIMULATOR_APP"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always()
+        with:
+          name: navigator-ipad-screenshots
+          path: mobile/test-results/iPad/screens/
+          if-no-files-found: warn
       - name: iPhone and iPad component and interaction tests
         run: |
           app=$(find "$RUNNER_TEMP/navigator-ios/Build/Products/Release-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)
@@ -161,7 +173,6 @@ jobs:
             xcrun simctl bootstatus "$device" -b
             xcrun simctl status_bar "$device" override --time '9:41' --dataNetwork wifi --wifiMode active --wifiBars 3 --cellularMode active --cellularBars 4 --batteryLevel 100 || true
             xcrun simctl install "$device" "$app"
-            if [ "$family" = iPad ]; then bash scripts/capture-native-screens.sh ios "$folder/screens" "$device" || true; fi
             result=0
             maestro test --device "$device" --exclude-tags android-only --format junit --output "$folder/report.xml" --test-output-dir "$folder" --debug-output "$folder" .maestro || result=$?
             xcrun simctl io "$device" screenshot "$folder/final-screen.png" || true
@@ -176,3 +187,6 @@ jobs:
           path: mobile/test-results/
           if-no-files-found: ignore
           retention-days: 7
+      - name: Check iPhone and iPad screenshot capture
+        if: always() && (steps.iphone_capture.outcome == 'failure' || steps.ipad_capture.outcome == 'failure')
+        run: exit 1

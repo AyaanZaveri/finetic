@@ -36,7 +36,19 @@ if [ "$platform" = android ]; then
   }
   dark=yes; light=no
 elif [ "$platform" = ios ]; then
-  test -n "$device"
+  family=$device
+  case "$family" in
+    iPhone|iPad)
+      app=${4:?Supply the simulator app to install}
+      device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; groups=json.load(sys.stdin)["devices"]; print(next(item["udid"] for devices in reversed(list(groups.values())) for item in devices if item["name"].startswith(sys.argv[1])))' "$family")
+      xcrun simctl boot "$device" || true
+      xcrun simctl bootstatus "$device" -b
+      trap 'xcrun simctl shutdown "$device" || true' EXIT
+      xcrun simctl status_bar "$device" override --time '9:41' --dataNetwork wifi --wifiMode active --wifiBars 3 --batteryLevel 100 || true
+      xcrun simctl install "$device" "$app"
+      ;;
+    *) test -n "$device" ;;
+  esac
   appearance() { xcrun simctl ui "$device" appearance "$1"; }
   launch() {
     xcrun simctl terminate "$device" "$app_id" 2>/dev/null || true
@@ -54,12 +66,17 @@ else
   exit 1
 fi
 validate_png() {
-  python3 - "$1" <<'PYPNG'
+  python3 - "$1" "${family:-}" <<'PYPNG'
 from pathlib import Path
 import sys
 p = Path(sys.argv[1])
-if not p.is_file() or p.stat().st_size < 1024 or p.open('rb').read(8) != b'\x89PNG\r\n\x1a\n':
-    raise SystemExit(1)
+import struct
+data = p.read_bytes()
+if len(data) < 1024 or data[:8] != b'\x89PNG\r\n\x1a\n' or data[-8:-4] != b'IEND':
+    raise SystemExit('Incomplete screenshot: ' + str(p))
+width, height = struct.unpack('>II', data[16:24])
+if sys.argv[2] == 'iPad' and max(width, height) / min(width, height) > 1.65:
+    raise SystemExit(f'Unexpected iPad screenshot dimensions: {width} x {height}')
 PYPNG
 }
 capture() {
@@ -87,4 +104,18 @@ capture home-light '' || result=1
 capture movie-light 'movie/tt0088763' || result=1
 capture series-light 'series/tt12324366' || result=1
 ensure_device && appearance "$dark" || result=1
+if [ "${family:-}" = iPad ]; then
+  # Confirm that a live detail rendered with both tablet columns, then capture
+  # the loaded movie and the visible Home rail using Maestro's device driver.
+  tablet_results="$folder/../tablet"
+  maestro test --device "$device" --test-output-dir "$tablet_results" tests/tablet-layout.yaml || result=1
+  for name in movie-tablet-columns home-tablet-catalog; do
+    captured=$(find "$tablet_results" -name "$name.png" -print -quit)
+    if [ -n "$captured" ] && validate_png "$captured"; then
+      cp "$captured" "$folder/$name.png"
+    else
+      result=1
+    fi
+  done
+fi
 exit "$result"

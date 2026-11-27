@@ -1,3 +1,4 @@
+import { initializeHapticsPreference } from './haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useContext, useEffect, useState, type PropsWithChildren } from 'react';
 
@@ -13,7 +14,7 @@ export function MetadataProviderRoot({ children }: PropsWithChildren) {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     let active = true;
-    void AsyncStorage.getItem(STORAGE_KEY).then(value => {
+    void Promise.all([AsyncStorage.getItem(STORAGE_KEY).catch(() => null), initializeHapticsPreference()]).then(([value]) => {
       if (active && (value === 'cinemeta' || value === 'tmdb')) setChoice(value);
     }).catch(() => {}).finally(() => { if (active) setReady(true); });
     return () => { active = false; };
