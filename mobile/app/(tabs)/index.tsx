@@ -25,7 +25,7 @@ export default function HomeScreen() {
   const focused = useIsFocused();
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme ?? 'light'];
-  const query = useQuery({ queryKey: ['home-discovery', provider], queryFn: ({ signal }) => loadHome(signal, provider), staleTime: 5 * 60 * 1000, retry: false });
+  const query = useQuery({ queryKey: ['home-discovery', provider], queryFn: ({ signal }) => loadHome(signal, provider), staleTime: 5 * 60 * 1000, retry: 2, retryDelay: attempt => Math.min(1000 * 2 ** attempt, 4000) });
   const featured = useMemo(() => selectFeatured(query.data?.sections ?? []), [query.data]);
   const railTitles = useMemo(() => query.data?.sections.slice(0, 2).flatMap(section => section.mediaItems.slice(0, 3)) ?? [], [query.data]);
   useTitlePrefetch(focused ? railTitles : [], 6);

@@ -6,7 +6,10 @@ export function seasonSheetLayout(
   const availableWidth = Math.max(1, width - insets.left - insets.right);
   const margin = availableWidth >= 720 ? Math.max(12, (availableWidth - 560) / 2) : 12;
   const topInset = insets.top + 12;
-  const bottomInset = insets.bottom + 12;
+  // The system bottom inset already includes the home/gesture area. Do not
+  // add another full gutter on top of it; keep a small floor on edge-to-edge
+  // windows so the fourth rounded edge remains visible.
+  const bottomInset = Math.max(insets.bottom, availableWidth >= 720 ? 12 : 8);
   const availableHeight = Math.max(1, height - topInset - bottomInset);
   const rowHeight = Math.max(56, 48 * fontScale + 8);
   const contentHeight = Math.max(176, 100 + Math.max(0, seasonCount) * rowHeight);

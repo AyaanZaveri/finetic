@@ -6,4 +6,5 @@ appId: app.navigator.mobile
 - extendedWaitUntil:
     visible:
       id: ${TARGET_ID}
-    timeout: 45000
+    timeout: 65000
+- assertNotVisible: Uncaught Error
