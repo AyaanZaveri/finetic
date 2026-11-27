@@ -4,12 +4,12 @@ appId: app.navigator.mobile
 - openLink: navigator-mobile:///movie/tt0088763
 - extendedWaitUntil:
     visible:
-      id: tablet-detail-poster
+      id: title-detail-content
     timeout: 45000
 - assertVisible:
     id: detail-play
 - assertVisible:
-    text: Back to the Future
+    id: title-detail-name
 - takeScreenshot: movie-tablet-columns
 - openLink: navigator-mobile:///
 - extendedWaitUntil:

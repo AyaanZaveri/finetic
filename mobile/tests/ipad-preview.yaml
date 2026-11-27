@@ -51,3 +51,43 @@ appId: app.navigator.mobile
 - waitForAnimationToEnd:
     timeout: 1200
 - takeScreenshot: ipad-movie-portrait
+- assertNotVisible:
+    id: tablet-detail-poster
+- tapOn:
+    id: title-detail-back
+- tapOn:
+    id: search-clear
+- tapOn:
+    id: search-input
+- inputText: Pluribus
+- hideKeyboard
+- extendedWaitUntil:
+    visible:
+      id: 'media-card-series:tt22202452'
+    timeout: 30000
+- tapOn:
+    id: 'media-card-series:tt22202452'
+- extendedWaitUntil:
+    visible:
+      id: title-detail-name
+    timeout: 30000
+- setOrientation: LANDSCAPE_LEFT
+- waitForAnimationToEnd:
+    timeout: 1200
+- takeScreenshot: ipad-series-landscape
+- scrollUntilVisible:
+    element:
+      id: season-picker
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: season-picker
+- extendedWaitUntil:
+    visible:
+      id: season-option-1
+    timeout: 15000
+- waitForAnimationToEnd:
+    timeout: 1200
+- takeScreenshot: ipad-season-sheet
+- tapOn:
+    id: season-option-1

@@ -2,7 +2,6 @@ import { DetailActions, DetailBackControl } from './detail-actions';
 import { EpisodeRail, episodeCode } from './episode-rail';
 import { MediaRatingBadge } from './media-rating-badge';
 import { ProgressiveArtwork } from '@/components/effects/progressive-artwork';
-import { ArtworkImage } from '@/components/media/artwork-image';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
@@ -91,7 +90,6 @@ export function MediaDetailScreen({ type, id, episode }: { type: MediaType; id: 
   const roomy = availableWidth >= 720;
   const gutter = roomy ? 32 : 16;
   const bodyWidth = Math.max(1, availableWidth - 2 * gutter);
-  const sideBySide = roomy && bodyWidth / Math.max(1, fontScale) >= 640;
   const artHeight = roomy ? Math.min(520, Math.max(260, Math.min(height * 0.55, width * 0.52))) : Math.min(400, Math.max(288, width * 0.96));
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme ?? 'light'];
@@ -139,8 +137,7 @@ export function MediaDetailScreen({ type, id, episode }: { type: MediaType; id: 
           </View>
           <View style={{ paddingLeft: left, paddingRight: right }}>
             <View className="self-center" style={{ width: bodyWidth, gap: roomy ? 32 : 20 }}>
-              <View style={{ flexDirection: sideBySide ? 'row' : 'column', gap: roomy ? 32 : 20, alignItems: sideBySide ? 'flex-start' : 'stretch', justifyContent: sideBySide ? 'space-between' : roomy ? 'flex-start' : 'center' }}>
-                <View style={{ width: sideBySide ? undefined : '100%', flex: sideBySide ? 1 : undefined, flexShrink: 1, gap: 20, maxWidth: roomy ? 720 : undefined, alignSelf: roomy && !sideBySide ? 'flex-start' : 'center' }}>
+              <View testID="title-detail-content" style={{ width: '100%', gap: 20, maxWidth: roomy ? 680 : undefined, alignSelf: roomy ? 'flex-start' : 'center' }}>
                   {currentEpisode && <Text testID="episode-detail-name" className="text-xl font-nav-semibold" style={{ textAlign: roomy ? 'auto' : 'center' }}>{episodeCode(currentEpisode)} · {currentEpisode.name}</Text>}
                   <View className="flex-row flex-wrap items-center gap-2" style={{ justifyContent: roomy ? 'flex-start' : 'center' }}>
                     {releaseDate && <Badge variant="secondary"><Text>{releaseDate}</Text></Badge>}
@@ -153,11 +150,7 @@ export function MediaDetailScreen({ type, id, episode }: { type: MediaType; id: 
                     <DetailActions item={item} episode={currentEpisode ?? selectedEpisode} episodes={episodes} onShuffle={openEpisode} />
                   </View>
                   <Synopsis key={currentEpisode?.id ?? item.id} description={currentEpisode?.description || item.description || 'No description is available.'} />
-                  {!!(item.genres?.length || item.director?.length || item.writer?.length) && <TitleCredits item={item} fontScale={fontScale} width={sideBySide && !episode && item.poster ? bodyWidth - Math.min(224, bodyWidth * 0.26) - 32 : bodyWidth} />}
-                </View>
-                {sideBySide && !episode && item.poster && <View testID="tablet-detail-poster" accessible accessibilityRole="image" accessibilityLabel={`${item.name} poster`} className="overflow-hidden rounded-lg bg-muted" style={{ width: Math.min(224, bodyWidth * 0.26), aspectRatio: 2 / 3 }}>
-                  <ArtworkImage uri={item.poster} recyclingKey={item.id} />
-                </View>}
+                  {!!(item.genres?.length || item.director?.length || item.writer?.length) && <TitleCredits item={item} fontScale={fontScale} width={roomy ? Math.min(bodyWidth, 680) : bodyWidth} />}
               </View>
               {!!item.seasons?.length && <EpisodeRail blurTarget={blurTarget} item={item} season={season} onSeason={value => { setChosenSeason(value); setSelectedId(undefined); }} episodes={episodes} selected={selectedEpisode?.id} onOpen={openEpisode} loading={query.isFetching && !episodes.length || episodeQuery.isFetching} />}
               {!!credits?.length && <View className="gap-3">
