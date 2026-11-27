@@ -77,7 +77,7 @@ export function EpisodeRail({ item, season, onSeason, episodes, selected, onOpen
             </View>
           </Pressable>;
         }} /> : <Text variant="muted">Episode details are not available for this season.</Text>}
-      <BottomSheetModal ref={sheet} style={[styles.sheet, { marginLeft: sheetLayout.marginLeft, marginRight: sheetLayout.marginRight }]} detached bottomInset={sheetLayout.bottomInset} topInset={sheetLayout.topInset} snapPoints={[sheetLayout.snapHeight]} backdropComponent={SeasonBackdrop} enableDynamicSizing={false} backgroundComponent={SheetBackground} handleIndicatorStyle={{ backgroundColor: theme.mutedForeground }}>
+      <BottomSheetModal ref={sheet} accessible={false} style={[styles.sheet, { marginLeft: sheetLayout.marginLeft, marginRight: sheetLayout.marginRight }]} detached bottomInset={sheetLayout.bottomInset} topInset={sheetLayout.topInset} snapPoints={[sheetLayout.snapHeight]} backdropComponent={SeasonBackdrop} enableDynamicSizing={false} backgroundComponent={SheetBackground} handleIndicatorStyle={{ backgroundColor: theme.mutedForeground }}>
         <BottomSheetScrollView accessibilityViewIsModal accessible={false} contentContainerStyle={{ padding: 16, paddingBottom: 16, gap: 8 }}>
           <Text role="heading" className="text-xl font-nav-semibold pb-2">Choose a season</Text>
           {item.seasons?.map(row => <Button key={row.number} testID={`season-option-${row.number}`} variant={row.number === season ? 'secondary' : 'ghost'} className="justify-start" accessibilityState={{ selected: row.number === season }} onPress={() => { onSeason(row.number); sheet.current?.dismiss(); }} haptic="selection">

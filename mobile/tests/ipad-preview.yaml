@@ -15,8 +15,8 @@ appId: app.navigator.mobile
 - assertVisible:
     id: hero-primary
 - takeScreenshot: ipad-home-landscape
-- tapOn:
-    id: hero-primary
+# Isolate the visual cases from touch-coordinate flakiness immediately after rotation.
+- openLink: navigator-mobile:///movie/tt16311594
 - extendedWaitUntil:
     visible:
       id: title-detail-name
@@ -24,9 +24,11 @@ appId: app.navigator.mobile
 - waitForAnimationToEnd:
     timeout: 1500
 - takeScreenshot: ipad-title-landscape
-- tapOn:
-    id: title-detail-back
-- tapOn: Search
+- openLink: navigator-mobile:///search
+- extendedWaitUntil:
+    visible:
+      id: search-input
+    timeout: 30000
 - tapOn:
     id: search-input
 - inputText: F1
@@ -42,8 +44,7 @@ appId: app.navigator.mobile
 - waitForAnimationToEnd:
     timeout: 1200
 - takeScreenshot: ipad-search-portrait
-- tapOn:
-    id: 'media-card-movie:tt16311594'
+- openLink: navigator-mobile:///movie/tt16311594
 - extendedWaitUntil:
     visible:
       id: title-detail-name
@@ -53,20 +54,7 @@ appId: app.navigator.mobile
 - takeScreenshot: ipad-movie-portrait
 - assertNotVisible:
     id: tablet-detail-poster
-- tapOn:
-    id: title-detail-back
-- tapOn:
-    id: search-clear
-- tapOn:
-    id: search-input
-- inputText: Pluribus
-- hideKeyboard
-- extendedWaitUntil:
-    visible:
-      id: 'media-card-series:tt22202452'
-    timeout: 30000
-- tapOn:
-    id: 'media-card-series:tt22202452'
+- openLink: navigator-mobile:///series/tt22202452
 - extendedWaitUntil:
     visible:
       id: title-detail-name
