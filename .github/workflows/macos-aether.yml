@@ -12,6 +12,11 @@ on:
       - 'scripts/package-aether.mjs'
       - '.github/workflows/macos-aether.yml'
   workflow_dispatch:
+    inputs:
+      thumbnail_benchmark:
+        description: Compare Aether and libmpv thumbnail latency on the same macOS runner
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -23,7 +28,7 @@ concurrency:
 jobs:
   bridge:
     runs-on: xcode-27
-    timeout-minutes: 40
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Verify Swift toolchain
@@ -51,6 +56,23 @@ jobs:
           node-version: 26.7.0
       - name: Verify portable dynamic bridge bundle
         run: node scripts/package-aether.mjs "$RUNNER_TEMP/NavigatorAetherFixture.app/Contents" debug
+      - uses: dtolnay/rust-toolchain@3da603d4464771f1a8c3dd4acb41f03bc8107551 # 1.92.0
+        if: inputs.thumbnail_benchmark
+        with:
+          toolchain: 1.92.0
+      - name: Compare optimized thumbnail paths on this runner
+        if: inputs.thumbnail_benchmark
+        shell: bash
+        run: |
+          node scripts/fetch-desktop-libs.mjs
+          sysctl -n machdep.cpu.brand_string
+          sw_vers
+          export NAVIGATOR_THUMBNAIL_BENCHMARK=1
+          export NAVIGATOR_TEST_VIDEO=http://127.0.0.1:18765/fixture-long.mkv
+          export NAVIGATOR_TEST_LIBMPV="$PWD/desktop/vendor/macos-$(uname -m | sed 's/arm64/aarch64/;s/x86_64/x86_64/')/libmpv.2.dylib"
+          swift test -c release --package-path desktop/macos/aether --filter thumbnailSpeedComparison 2>&1 | tee "$RUNNER_TEMP/aether-thumbnail-benchmark.log"
+          cargo test --release --manifest-path desktop/Cargo.toml --locked headless_thumbnail_speed_comparison -- --ignored --nocapture 2>&1 | tee "$RUNNER_TEMP/libmpv-thumbnail-benchmark.log"
+          python3 scripts/summarize-thumbnail-benchmark.py "$RUNNER_TEMP/aether-thumbnail-benchmark.log" "$RUNNER_TEMP/libmpv-thumbnail-benchmark.log" | tee -a "$GITHUB_STEP_SUMMARY"
   shell:
     runs-on: macos-15
     timeout-minutes: 30

@@ -707,6 +707,43 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "set NAVIGATOR_TEST_LIBMPV and NAVIGATOR_TEST_VIDEO to the benchmark HTTP fixture"]
+    fn headless_thumbnail_speed_comparison() {
+        use base64::Engine as _;
+        let library = std::path::absolute(std::env::var("NAVIGATOR_TEST_LIBMPV").unwrap()).unwrap();
+        aiostreams_thumbs::library_dirs(vec![library.parent().unwrap().to_path_buf()]);
+        let mpv = Arc::new(Mpv::new(&library, &[("config", "no"), ("vo", "null"), ("ao", "null"), ("idle", "yes"), ("terminal", "no")]).unwrap());
+        let (send, inbox) = mpsc::channel();
+        let mut player = Player::start(mpv.clone(), move |value| { let _ = send.send(value); }, |_, _| {}).unwrap();
+        player.send(Command::Load { session: "benchmark".into(), url: std::env::var("NAVIGATOR_TEST_VIDEO").unwrap(), headers: BTreeMap::new(), start_position: 2.0 });
+        wait_for(&inbox, |v| v["type"] == "ready" && v["session"] == "benchmark");
+        std::thread::sleep(Duration::from_secs(4));
+        player.send(Command::Pause { session: "benchmark".into() });
+        wait_for(&inbox, |v| v["type"] == "state" && v["state"]["paused"] == true);
+        let clock = mpv.get_property("time-pos", Kind::Double).unwrap().as_f64().unwrap();
+        // Same targets and order as the Aether Swift bridge benchmark.
+        let targets = [("first-distant", 147.0), ("distant", 121.0), ("resident", 8.0), ("resident", 12.0), ("resident", 16.0), ("resident", 20.0), ("distant", 83.0), ("distant", 103.0), ("distant", 129.0), ("distant", 155.0), ("distant", 167.0)];
+        for (index, (group, target)) in targets.into_iter().chain(targets.into_iter().map(|(_, target)| ("revisit", target))).enumerate() {
+            let request = index as u64 + 1;
+            let started = Instant::now();
+            player.send(Command::Thumbnail { session: "benchmark".into(), request, position: Some(target) });
+            let reply = wait_for(&inbox, |v| v["type"] == "thumbnail" && v["request"] == request);
+            let src = reply["src"].as_str().expect("Preview must contain a JPEG");
+            let bytes = if let Some(data) = src.strip_prefix("data:image/jpeg;base64,") {
+                base64::engine::general_purpose::STANDARD.decode(data).unwrap()
+            } else {
+                ureq::get(src).call().unwrap().body_mut().read_to_vec().unwrap()
+            };
+            let elapsed = started.elapsed().as_secs_f64() * 1000.0;
+            assert!(bytes.starts_with(&[0xff, 0xd8, 0xff]));
+            println!("THUMBNAIL_BENCHMARK {}", json!({"engine":"libmpv", "group":group, "target":target, "ms":elapsed, "bytes":bytes.len(), "actual":reply["position"], "path":"indexed-keyframe"}));
+        }
+        assert!((mpv.get_property("time-pos", Kind::Double).unwrap().as_f64().unwrap() - clock).abs() < 0.5);
+        player.begin_shutdown();
+        player.join();
+    }
+
+    #[test]
     #[ignore = "set NAVIGATOR_TEST_LIBMPV and NAVIGATOR_TEST_VIDEO; local HTTP fixture"]
     fn headless_shared_playback_bytes_generate_new_previews_without_refetch() {
         let library = std::path::PathBuf::from(std::env::var("NAVIGATOR_TEST_LIBMPV").unwrap());

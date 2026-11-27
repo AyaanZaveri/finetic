@@ -20,6 +20,7 @@ struct BridgeTests {
     @MainActor
     private final class Events {
         var messages: [[String: Any]] = []
+        var thumbnailArrivals: [Int: TimeInterval] = [:]
         let callback: EventCallback = { context, bytes, count in
             guard let context, let bytes else { return }
             let address = UInt(bitPattern: context)
@@ -27,7 +28,11 @@ struct BridgeTests {
             MainActor.assumeIsolated {
                 guard let pointer = UnsafeMutableRawPointer(bitPattern: address),
                       let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
-                Unmanaged<Events>.fromOpaque(pointer).takeUnretainedValue().messages.append(value)
+                let events = Unmanaged<Events>.fromOpaque(pointer).takeUnretainedValue()
+                if value["type"] as? String == "thumbnail", let request = value["request"] as? Int {
+                    events.thumbnailArrivals[request] = ProcessInfo.processInfo.systemUptime
+                }
+                events.messages.append(value)
             }
         }
         var state: [String: Any] { messages.last(where: { $0["type"] as? String == "state" })?["state"] as? [String: Any] ?? [:] }
@@ -209,6 +214,57 @@ struct BridgeTests {
         try send("thumbnail", ["request": 4, "position": NSNull()])
         try await Task.sleep(for: .milliseconds(300))
         #expect(!events.messages.contains { $0["type"] as? String == "thumbnail" && $0["request"] as? Int == 3 })
+        try send("stop")
+    }
+
+    @Test func thumbnailSpeedComparison() async throws {
+        guard ProcessInfo.processInfo.environment["NAVIGATOR_THUMBNAIL_BENCHMARK"] == "1",
+              let source = ProcessInfo.processInfo.environment["NAVIGATOR_AETHER_FIXTURE"],
+              let base = URL(string: source)?.deletingLastPathComponent() else { return }
+        _ = NSApplication.shared
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 180), styleMask: [.titled], backing: .buffered, defer: false)
+        let parent = try #require(window.contentView)
+        let events = Events()
+        let bridge = try PlaybackBridge(parent: parent, callback: events.callback, context: Unmanaged.passUnretained(events).toOpaque())
+        defer { bridge.close(); window.orderOut(nil) }
+        window.orderFront(nil)
+        func send(_ type: String, _ fields: [String: Any] = [:]) throws {
+            var value = fields
+            value["type"] = type
+            value["session"] = "benchmark"
+            bridge.command(try JSONSerialization.data(withJSONObject: value))
+        }
+        try send("load", ["url": base.appendingPathComponent("fixture-long.mkv").absoluteString, "startPosition": 2.0])
+        try await events.waitFor({ events.has("ready") || events.has("error") })
+        try #require(!events.has("error"))
+        try await events.waitFor({ (events.state["buffered"] as? Double ?? 0) > 15 })
+        try await Task.sleep(for: .seconds(4))
+        try send("pause")
+        try await events.waitFor({ events.state["paused"] as? Bool == true })
+        let clock = try #require(events.state["position"] as? Double)
+        // Keep this sequence identical to the libmpv-path benchmark in player.rs.
+        let targets: [(String, Double)] = [("first-distant", 147), ("distant", 121), ("resident", 8), ("resident", 12), ("resident", 16), ("resident", 20), ("distant", 83), ("distant", 103), ("distant", 129), ("distant", 155), ("distant", 167)]
+        let samples = targets + targets.map { ("revisit", $0.1) }
+        for (index, sample) in samples.enumerated() {
+            let (group, target) = sample
+            let request = index + 1
+            let started = ProcessInfo.processInfo.systemUptime
+            try send("thumbnail", ["request": request, "position": target])
+            try await events.waitFor({ events.thumbnailArrivals[request] != nil }, seconds: 6)
+            let arrival = try #require(events.thumbnailArrivals[request])
+            let reply = try #require(events.messages.last(where: { $0["type"] as? String == "thumbnail" && $0["request"] as? Int == request }))
+            let prefix = "data:image/jpeg;base64,"
+            let decodeStart = ProcessInfo.processInfo.systemUptime
+            let src = try #require(reply["src"] as? String)
+            try #require(src.hasPrefix(prefix))
+            let bytes = try #require(Data(base64Encoded: String(src.dropFirst(prefix.count))))
+            let milliseconds = (arrival - started + ProcessInfo.processInfo.systemUptime - decodeStart) * 1000
+            try #require(NSBitmapImageRep(data: bytes) != nil)
+            let row: [String: Any] = ["engine": "aether", "group": group, "target": target, "ms": milliseconds, "bytes": bytes.count, "actual": reply["position"] ?? NSNull(), "path": reply["range"] == nil ? "extractor" : "retained-or-ladder"]
+            let encoded = try JSONSerialization.data(withJSONObject: row, options: [.sortedKeys])
+            print("THUMBNAIL_BENCHMARK \(String(decoding: encoded, as: UTF8.self))")
+        }
+        #expect(abs((events.state["position"] as? Double ?? -1) - clock) < 0.5)
         try send("stop")
     }
 }
