@@ -39,7 +39,7 @@ export default function FoundationScreen() {
             <Text className="text-xl font-nav-semibold" role="heading">Appearance</Text>
             <View className="flex-row gap-2">
               {(['light', 'dark', 'system'] as const).map((mode) => (
-                <Button key={mode} testID={`appearance-${mode}`} variant="outline" className="flex-1" haptic={haptics ? 'selection' : 'none'}
+                <Button key={mode} testID={`appearance-${mode}`} variant="outline" containerClassName="flex-1" haptic={haptics ? 'selection' : 'none'}
                   onPress={() => { setAppearance(mode); setColorScheme(mode); }} accessibilityLabel={`${mode} appearance`} accessibilityState={{ selected: appearance === mode }}>
                   {mode === appearance && <Icon as={Check} size={14} />}
                   <Text>{mode[0].toUpperCase() + mode.slice(1)}</Text>
@@ -59,8 +59,8 @@ export default function FoundationScreen() {
                 <Text>{confirmed ? 'Confirmed' : 'Primary action'}</Text>
               </Button>
               <View className="flex-row gap-2">
-                <Button testID="preview-clear" variant="outline" className="flex-1" onPress={() => setSample('')}><Text>Clear example</Text></Button>
-                <Button testID="preview-disabled" variant="destructive" className="flex-1" disabled><Text>Disabled</Text></Button>
+                <Button testID="preview-clear" variant="outline" containerClassName="flex-1" onPress={() => setSample('')}><Text>Clear example</Text></Button>
+                <Button testID="preview-disabled" variant="destructive" containerClassName="flex-1" disabled><Text>Disabled</Text></Button>
               </View>
               <Separator />
               <View className="min-h-12 flex-row items-center justify-between gap-4">

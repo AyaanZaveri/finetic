@@ -3,9 +3,9 @@ import { cn } from '@/lib/utils';
 import { triggerHaptic, type HapticFeedback } from '@/lib/haptics';
 import { pressScale } from '@/lib/interaction-policy';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { ActivityIndicator, Platform, Pressable, type ViewStyle, type StyleProp } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, View, type ViewStyle, type StyleProp } from 'react-native';
 import Animated, { Easing, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
-import { cssInterop, useColorScheme } from 'nativewind';
+import { useColorScheme } from 'nativewind';
 import { THEME } from '@/lib/theme';
 
 // Reusables source, adapted locally to Navigator's neutral actions and touch targets.
@@ -44,19 +44,16 @@ const buttonTextVariants = cva('text-sm font-nav-medium', {
   defaultVariants: { variant: 'default', size: 'default' },
 });
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-// NativeWind registers Pressable, but not newly created animated wrappers.
-cssInterop(AnimatedPressable, { className: 'style' });
-
 type ButtonProps = Omit<React.ComponentProps<typeof Pressable>, 'style'> &
   VariantProps<typeof buttonVariants> & {
     style?: StyleProp<ViewStyle>;
+    containerClassName?: string;
     loading?: boolean;
     haptic?: HapticFeedback;
   };
 
 function Button({
-  className, variant = 'default', size, style, loading = false, haptic = 'none',
+  className, containerClassName, variant = 'default', size, style, loading = false, haptic = 'none',
   disabled, children, onPress, onPressIn, onPressOut, accessibilityState, ...props
 }: ButtonProps) {
   const pressed = useSharedValue(1);
@@ -68,13 +65,15 @@ function Button({
   const spinnerColor = variant === 'default' ? theme.background : variant === 'destructive' ? theme.destructive : theme.foreground;
   return (
     <TextClassContext.Provider value={buttonTextVariants({ variant, size })}>
-      <AnimatedPressable
+      <View className={containerClassName}>
+        <Animated.View style={motion}>
+          <Pressable
         {...props}
         role="button"
         disabled={inert}
         accessibilityState={{ ...accessibilityState, disabled: !!inert, busy: loading }}
         className={cn(buttonVariants({ variant, size }), inert && 'opacity-50', className)}
-        style={[style, motion]}
+        style={style}
         onPressIn={(event) => {
           pressed.set(withTiming(pressScale(Platform.OS, reduceMotion), {
             duration: 110, easing: Easing.out(Easing.cubic), reduceMotion: ReduceMotion.System,
@@ -92,7 +91,9 @@ function Button({
         }}
       >
         {loading ? <ActivityIndicator color={spinnerColor} /> : children}
-      </AnimatedPressable>
+          </Pressable>
+        </Animated.View>
+      </View>
     </TextClassContext.Provider>
   );
 }

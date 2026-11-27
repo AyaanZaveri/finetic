@@ -9,10 +9,13 @@ appId: ${APP_ID}
 - tapOn:
     text: 'Got it'
     optional: true
+- tapOn:
+    text: 'Close'
+    optional: true
 - extendedWaitUntil:
     visible:
       id: hero-primary
-    timeout: 90000
+    timeout: 180000
 - takeScreenshot: home-hero
 - tapOn:
     id: hero-primary

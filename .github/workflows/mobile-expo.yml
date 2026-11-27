@@ -151,7 +151,7 @@ jobs:
     name: Android fast visual preview
     needs: foundation
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: mobile
@@ -178,6 +178,8 @@ jobs:
           bash scripts/start-preview-metro.sh
           adb reverse tcp:8081 tcp:8081
           adb shell am start -a android.intent.action.VIEW -d exp://127.0.0.1:8081 -p host.exp.exponent
+      - name: Wait for first Android bundle
+        run: bash scripts/wait-preview-bundle.sh Android
       - name: Capture preview screenshots
         run: maestro test -e APP_ID=host.exp.exponent --format junit --output test-results/report.xml --debug-output test-results --test-output-dir test-results .maestro-preview/home.yaml
       - name: Collect diagnostics
@@ -198,7 +200,7 @@ jobs:
     name: iOS fast visual preview
     needs: foundation
     runs-on: macos-26
-    timeout-minutes: 15
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: mobile
@@ -232,6 +234,8 @@ jobs:
           xcrun simctl install "$device" "$app"
           bash scripts/start-preview-metro.sh
           xcrun simctl openurl "$device" exp://127.0.0.1:8081
+      - name: Wait for first iOS bundle
+        run: bash scripts/wait-preview-bundle.sh iOS
       - name: Capture preview screenshots
         run: maestro test --device "$PREVIEW_DEVICE" -e APP_ID="$PREVIEW_APP_ID" --format junit --output test-results/report.xml --debug-output test-results --test-output-dir test-results .maestro-preview/home.yaml
       - name: Collect diagnostics
