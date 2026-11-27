@@ -5,7 +5,7 @@ appId: app.navigator.mobile
     visible:
       id: hero-primary
     timeout: 60000
-- takeScreenshot: ${CAPTURE_FOLDER}/walkthrough-home-dark
+- takeScreenshot: walkthrough-home-dark
 - swipe:
     start: '50%, 78%'
     end: '50%, 29%'
@@ -43,7 +43,7 @@ appId: app.navigator.mobile
     visible:
       id: title-detail-name
     timeout: 30000
-- takeScreenshot: ${CAPTURE_FOLDER}/walkthrough-poster-detail
+- takeScreenshot: walkthrough-poster-detail
 - waitForAnimationToEnd:
     timeout: 1400
 - tapOn:
@@ -66,7 +66,7 @@ appId: app.navigator.mobile
     visible:
       id: hero-current-1
     timeout: 15000
-- takeScreenshot: ${CAPTURE_FOLDER}/walkthrough-hero-second
+- takeScreenshot: walkthrough-hero-second
 - swipe:
     start: '20%, 28%'
     end: '86%, 28%'
@@ -102,12 +102,12 @@ appId: app.navigator.mobile
     visible:
       id: 'media-card-movie:tt16311594'
     timeout: 30000
-- takeScreenshot: ${CAPTURE_FOLDER}/walkthrough-search-f1
+- takeScreenshot: walkthrough-search-f1
 - tapOn:
     id: search-filter-series
 - waitForAnimationToEnd:
     timeout: 1000
-- takeScreenshot: ${CAPTURE_FOLDER}/walkthrough-search-series-dark
+- takeScreenshot: walkthrough-search-series-dark
 - tapOn:
     id: search-filter-movie
 - assertVisible:
@@ -129,6 +129,6 @@ appId: app.navigator.mobile
     id: settings-page
 - tapOn:
     id: setting-appearance-light
-- takeScreenshot: ${CAPTURE_FOLDER}/walkthrough-settings-light
+- takeScreenshot: walkthrough-settings-light
 - waitForAnimationToEnd:
     timeout: 1800

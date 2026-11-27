@@ -218,7 +218,7 @@ for chapter in dark light; do
   fi
   # Even if an assertion fails, finalize and retain the real partial clip.
   chapter_status=0
-  maestro test --device "$device" -e CAPTURE_FOLDER="$folder" --format junit --output "$folder/$chapter-report.xml" --test-output-dir "$folder/$chapter" --debug-output "$folder/$chapter" "tests/walkthrough-$chapter.yaml" || chapter_status=$?
+  maestro test --device "$device" --format junit --output "$folder/$chapter-report.xml" --test-output-dir "$folder/$chapter" "tests/walkthrough-$chapter.yaml" || chapter_status=$?
   stop_recorder || chapter_status=1
   printf '%s\n' "$chapter_status" > "$folder/$chapter-status.txt"
   if [ "$chapter_status" -ne 0 ]; then result=1; fi

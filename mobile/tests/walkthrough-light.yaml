@@ -5,7 +5,7 @@ appId: app.navigator.mobile
     visible:
       id: hero-primary
     timeout: 60000
-- takeScreenshot: ${CAPTURE_FOLDER}/walkthrough-home-light
+- takeScreenshot: walkthrough-home-light
 - swipe:
     start: '50%, 78%'
     end: '50%, 30%'
@@ -33,7 +33,7 @@ appId: app.navigator.mobile
     visible:
       id: 'media-card-series:tt22202452'
     timeout: 30000
-- takeScreenshot: ${CAPTURE_FOLDER}/walkthrough-search-pluribus
+- takeScreenshot: walkthrough-search-pluribus
 - tapOn:
     id: search-filter-series
 - assertVisible:
@@ -46,13 +46,13 @@ appId: app.navigator.mobile
     timeout: 30000
 - waitForAnimationToEnd:
     timeout: 1200
-- takeScreenshot: ${CAPTURE_FOLDER}/walkthrough-series-detail-light
+- takeScreenshot: walkthrough-series-detail-light
 - scrollUntilVisible:
     element:
       id: 'episode-card-1-1'
     direction: DOWN
     timeout: 25000
-- takeScreenshot: ${CAPTURE_FOLDER}/walkthrough-episode-rail
+- takeScreenshot: walkthrough-episode-rail
 - waitForAnimationToEnd:
     timeout: 1300
 - swipe:
@@ -79,7 +79,7 @@ appId: app.navigator.mobile
     visible:
       id: season-option-1
     timeout: 10000
-- takeScreenshot: ${CAPTURE_FOLDER}/walkthrough-season-sheet
+- takeScreenshot: walkthrough-season-sheet
 - tapOn:
     id: season-option-1
 - extendedWaitUntil:
@@ -96,7 +96,7 @@ appId: app.navigator.mobile
     visible:
       id: episode-detail-name
     timeout: 30000
-- takeScreenshot: ${CAPTURE_FOLDER}/walkthrough-episode-detail
+- takeScreenshot: walkthrough-episode-detail
 - waitForAnimationToEnd:
     timeout: 1600
 - tapOn:
@@ -127,4 +127,4 @@ appId: app.navigator.mobile
     duration: 700
 - waitForAnimationToEnd:
     timeout: 1200
-- takeScreenshot: ${CAPTURE_FOLDER}/walkthrough-home-bottom
+- takeScreenshot: walkthrough-home-bottom
