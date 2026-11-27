@@ -1,0 +1,155 @@
+name: Expo mobile checks
+on:
+  push:
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/mobile-expo.yml'
+  pull_request:
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/mobile-expo.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: expo-mobile-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+env:
+  CI: '1'
+  EXPO_NO_TELEMETRY: '1'
+  MAESTRO_CLI_NO_ANALYTICS: 'true'
+  COCOAPODS_DISABLE_STATS: 'true'
+jobs:
+  foundation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npx expo install --check
+  android:
+    needs: foundation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: mobile
+        shell: bash
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - name: Install Maestro
+        run: bash scripts/install-maestro.sh
+      - name: Build native Android app
+        run: |
+          mkdir -p test-results
+          npx expo prebuild --platform android --no-install
+          cd android
+          ./gradlew assembleRelease --no-daemon | tee ../test-results/android-build.log
+      - name: Start API 35 emulator
+        run: |
+          mkdir -p test-results
+          sudo chmod 666 /dev/kvm
+          image='system-images;android-35;google_apis;x86_64'
+          sdkmanager --install "$image"
+          echo no | avdmanager create avd --force --name navigator-ci --package "$image" --device pixel_6
+          nohup emulator -avd navigator-ci -no-window -gpu swiftshader_indirect -no-snapshot -no-audio -no-boot-anim > test-results/emulator.log 2>&1 &
+          timeout 240 adb wait-for-device
+          for i in $(seq 1 120); do
+            if [[ "$(adb shell getprop sys.boot_completed | tr -d '\r')" == '1' ]]; then break; fi
+            sleep 2
+          done
+          test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = '1'
+          adb shell input keyevent 82
+          adb install -r android/app/build/outputs/apk/release/app-release.apk
+      - name: Android component and interaction tests
+        run: |
+          mkdir -p test-results/phone test-results/large-text
+          maestro test --format junit --output test-results/phone/report.xml --test-output-dir test-results/phone --debug-output test-results/phone .maestro/foundation.yaml
+          adb shell settings put system font_scale 1.2
+          maestro test --format junit --output test-results/large-text/report.xml --test-output-dir test-results/large-text --debug-output test-results/large-text .maestro/foundation.yaml
+      - name: Collect Android diagnostics
+        if: always()
+        continue-on-error: true
+        run: |
+          mkdir -p test-results
+          adb logcat -d -t 2000 > test-results/logcat.txt
+          adb exec-out screencap -p > test-results/final-screen.png
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always()
+        with:
+          name: expo-android-results
+          path: mobile/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+  ios:
+    needs: foundation
+    runs-on: macos-26
+    timeout-minutes: 55
+    defaults:
+      run:
+        working-directory: mobile
+        shell: bash
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - name: Install Maestro
+        run: bash scripts/install-maestro.sh
+      - name: Generate native iOS app
+        run: |
+          mkdir -p test-results
+          npx expo prebuild --platform ios --no-install
+          cd ios
+          pod install | tee ../test-results/pods.log
+      - name: Build simulator app
+        run: |
+          workspace=$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)
+          test -n "$workspace"
+          xcodebuild -workspace "$workspace" -scheme Navigator -configuration Release -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/navigator-ios" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO | tee test-results/ios-build.log
+      - name: iPhone and iPad component and interaction tests
+        run: |
+          app=$(find "$RUNNER_TEMP/navigator-ios/Build/Products/Release-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)
+          test -n "$app"
+          for family in iPhone iPad; do
+            folder="test-results/$family"
+            mkdir -p "$folder"
+            device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); family=sys.argv[1]; print(next(item["udid"] for runtime in reversed(list(d["devices"].values())) for item in runtime if item["name"].startswith(family)))' "$family")
+            xcrun simctl boot "$device" || true
+            xcrun simctl bootstatus "$device" -b
+            xcrun simctl status_bar "$device" override --time '9:41' --dataNetwork wifi --wifiMode active --wifiBars 3 --cellularMode active --cellularBars 4 --batteryState unplugged --batteryLevel 100
+            xcrun simctl install "$device" "$app"
+            result=0
+            maestro test --device "$device" --format junit --output "$folder/report.xml" --test-output-dir "$folder" --debug-output "$folder" .maestro/foundation.yaml || result=$?
+            xcrun simctl io "$device" screenshot "$folder/final-screen.png" || true
+            xcrun simctl shutdown "$device" || true
+            if [ "$result" -ne 0 ]; then exit "$result"; fi
+          done
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always()
+        with:
+          name: expo-ios-results
+          path: mobile/test-results/
+          if-no-files-found: ignore
+          retention-days: 7

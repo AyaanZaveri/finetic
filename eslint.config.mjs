@@ -18,7 +18,7 @@ export default [
   ...compat.extends("eslint:recommended"),
   ...nextVitals,
   {
-    ignores: [".next/**", "out/**", "build/**", "next-env.d.ts"],
+    ignores: [".next/**", "out/**", "build/**", "next-env.d.ts", "mobile/**"],
   },
   {
     plugins: {

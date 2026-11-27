@@ -1,0 +1,56 @@
+appId: app.navigator.mobile
+---
+- launchApp:
+    clearState: true
+- assertVisible: 'Mobile foundation'
+- tapOn:
+    id: appearance-light
+- assertVisible: 'Controls'
+- takeScreenshot: light
+- scrollUntilVisible:
+    element:
+      id: preview-input
+    direction: DOWN
+- tapOn:
+    id: preview-input
+- inputText: 'The Expanse'
+- assertVisible: 'The Expanse'
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: preview-clear
+    direction: DOWN
+- tapOn:
+    id: preview-clear
+- assertNotVisible: 'The Expanse'
+- tapOn:
+    id: preview-action
+- assertVisible: 'Confirmed'
+- tapOn:
+    id: preview-action
+- assertVisible: 'Primary action'
+- assertVisible:
+    id: preview-disabled
+- scrollUntilVisible:
+    element:
+      id: preview-haptics
+    direction: DOWN
+- tapOn:
+    id: preview-haptics
+- scrollUntilVisible:
+    element:
+      text: 'Adaptive glass surface'
+    direction: DOWN
+- takeScreenshot: material-light
+- scrollUntilVisible:
+    element:
+      id: appearance-dark
+    direction: UP
+- tapOn:
+    id: appearance-dark
+- takeScreenshot: dark
+- scrollUntilVisible:
+    element:
+      text: 'Adaptive glass surface'
+    direction: DOWN
+- takeScreenshot: material-dark

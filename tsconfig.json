@@ -42,7 +42,8 @@
   ],
   "exclude": [
     "node_modules",
-    "dist"
+    "dist",
+    "mobile"
   ],
   "rules": {
     "@typescript-eslint/no-unused-vars": "warn"

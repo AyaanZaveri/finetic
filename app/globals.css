@@ -2,6 +2,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "../components/desktop/native-playback.css";
+@source not "../mobile";
 
 @custom-variant dark (&:is(.dark *));
 
