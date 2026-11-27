@@ -75,15 +75,17 @@ export default function SearchScreen() {
           <Text role="heading" className="text-3xl font-nav-semibold tracking-tight">Search</Text>
           <View style={{ width: '100%', maxWidth: 640 }}><SearchField value={value} onChangeText={changeText} onClear={clear} onSubmit={() => { setTerm(editedTerm); Keyboard.dismiss(); }} /></View>
         </View>
+        {showFilters && <View className="pb-5" style={{ paddingHorizontal: gutter }}>
+          <View style={{ width: '100%', maxWidth: 640 }}>
+            <SearchFilters value={filter} counts={presentation.counts} onChange={changeFilter} />
+          </View>
+        </View>}
         <FlatList ref={list} key={columns} testID="search-results" data={phase === 'results' ? presentation.items : EMPTY}
           keyExtractor={mediaKey} numColumns={columns} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
           contentInsetAdjustmentBehavior="automatic" automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
           contentContainerStyle={{ paddingHorizontal: gutter, paddingBottom: 24 }}
           columnWrapperStyle={columns > 1 ? { gap: columnGap } : undefined}
           ItemSeparatorComponent={RowSeparator} renderItem={renderItem} initialNumToRender={columns * 3}
-          ListHeaderComponent={showFilters ? <View className="pb-5" style={{ width: '100%', maxWidth: 640 }}>
-            <SearchFilters value={filter} counts={presentation.counts} onChange={changeFilter} />
-          </View> : null}
           ListEmptyComponent={<View className="items-center justify-center gap-3 px-2 py-8" style={styles.empty}>
             {phase === 'loading' ? <>
               <ActivityIndicator color={theme.foreground} />

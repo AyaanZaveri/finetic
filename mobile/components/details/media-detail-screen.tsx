@@ -21,10 +21,10 @@ import { ChevronDown, ChevronUp } from 'lucide-react-native';
 import { BlurTargetView } from 'expo-blur';
 import { useColorScheme } from 'nativewind';
 import { useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-function TitleIdentity({ item, width, roomy, left, right }: { item: MediaItem; width: number; roomy: boolean; left: number; right: number }) {
+function TitleIdentity({ item, width, roomy, left, right, light }: { item: MediaItem; width: number; roomy: boolean; left: number; right: number; light: boolean }) {
   const logo = useTitleLogo(item.logo);
   const padding = useMemo(() => estimateWordmarkPadding(logo?.thumbhash), [logo?.thumbhash]);
   const size = detailWordmarkSize(width, roomy, logo && logo.image.width / logo.image.height, padding);
@@ -34,7 +34,7 @@ function TitleIdentity({ item, width, roomy, left, right }: { item: MediaItem; w
       accessibilityLabel={item.name}
       testID="title-detail-name"
       style={{ width, alignSelf: 'center', alignItems: roomy ? 'flex-start' : 'center', justifyContent: 'flex-end', marginLeft: left, marginRight: right }}>
-      {logo ? <Image source={logo.image} style={{ width: size.width, height: size.height, marginBottom: -size.bottomOffset }} contentFit="contain" contentPosition="bottom" />
+      {logo ? <Image source={Platform.OS === 'ios' ? item.logo : logo.image} cachePolicy="memory-disk" transition={0} tintColor={Platform.OS === 'ios' && light ? '#272727' : undefined} style={{ width: size.width, height: size.height, marginBottom: -size.bottomOffset }} contentFit="contain" contentPosition="bottom" />
         : <Text className="text-[32px] font-nav-semibold tracking-tight leading-[37px]" style={{ textAlign: roomy ? 'auto' : 'center' }} role="heading">{item.name}</Text>}
     </View>
   );
@@ -90,7 +90,7 @@ export function MediaDetailScreen({ type, id, episode }: { type: MediaType; id: 
   const availableWidth = width - left - right;
   const roomy = availableWidth >= 720;
   const gutter = roomy ? 32 : 16;
-  const bodyWidth = Math.min(1024, availableWidth - 2 * gutter);
+  const bodyWidth = Math.max(1, availableWidth - 2 * gutter);
   const sideBySide = roomy && bodyWidth / Math.max(1, fontScale) >= 640;
   const artHeight = roomy ? Math.min(520, Math.max(260, Math.min(height * 0.55, width * 0.52))) : Math.min(400, Math.max(288, width * 0.96));
   const { colorScheme } = useColorScheme();
@@ -135,11 +135,11 @@ export function MediaDetailScreen({ type, id, episode }: { type: MediaType; id: 
               <LinearGradient style={StyleSheet.absoluteFill} colors={[light ? 'rgba(255,255,255,0.24)' : 'rgba(0,0,0,0.44)', 'transparent', 'transparent', theme.background, theme.background]} locations={[0, 0.32, 0.62, 0.96, 1]} />
             </View>}
             {art && <View pointerEvents="none" style={{ position: 'absolute', start: 0, end: 0, bottom: 0, height: 5, backgroundColor: theme.background }} />}
-            <TitleIdentity item={item} width={bodyWidth} roomy={roomy} left={left} right={right} />
+            <TitleIdentity item={item} light={light} width={bodyWidth} roomy={roomy} left={left} right={right} />
           </View>
           <View style={{ paddingLeft: left, paddingRight: right }}>
             <View className="self-center" style={{ width: bodyWidth, gap: roomy ? 32 : 20 }}>
-              <View style={{ flexDirection: sideBySide ? 'row' : 'column', gap: roomy ? 32 : 20, alignItems: sideBySide ? 'flex-start' : 'stretch', justifyContent: roomy ? 'flex-start' : 'center' }}>
+              <View style={{ flexDirection: sideBySide ? 'row' : 'column', gap: roomy ? 32 : 20, alignItems: sideBySide ? 'flex-start' : 'stretch', justifyContent: sideBySide ? 'space-between' : roomy ? 'flex-start' : 'center' }}>
                 <View style={{ width: sideBySide ? undefined : '100%', flex: sideBySide ? 1 : undefined, flexShrink: 1, gap: 20, maxWidth: roomy ? 720 : undefined, alignSelf: roomy && !sideBySide ? 'flex-start' : 'center' }}>
                   {currentEpisode && <Text testID="episode-detail-name" className="text-xl font-nav-semibold" style={{ textAlign: roomy ? 'auto' : 'center' }}>{episodeCode(currentEpisode)} · {currentEpisode.name}</Text>}
                   <View className="flex-row flex-wrap items-center gap-2" style={{ justifyContent: roomy ? 'flex-start' : 'center' }}>

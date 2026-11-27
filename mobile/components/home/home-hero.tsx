@@ -34,7 +34,7 @@ function Wordmark({ item, light, roomy }: { item: MediaItem; light: boolean; roo
   // Keep the same title slot while a cold logo decodes. The shared ImageRef
   // cache lets the detail route reuse this image without a second decode.
   return <View style={[styles.wordmark, roomy && styles.roomyWordmark]}>
-    {logo ? <Image source={logo.image} accessibilityLabel={item.name} style={StyleSheet.absoluteFill} contentFit="contain" contentPosition={roomy ? leading : 'center'} /> : fallback}
+    {logo ? <Image source={Platform.OS === 'ios' ? item.logo : logo.image} cachePolicy="memory-disk" transition={0} tintColor={Platform.OS === 'ios' && light ? '#272727' : undefined} accessibilityLabel={item.name} style={StyleSheet.absoluteFill} contentFit="contain" contentPosition={roomy ? leading : 'center'} /> : fallback}
   </View>;
 }
 

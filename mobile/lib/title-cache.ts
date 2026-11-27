@@ -2,6 +2,7 @@ import { queryOptions, useQuery, useQueryClient, type QueryClient } from '@tanst
 import { Image, type ImageRef } from 'expo-image';
 import { useColorScheme } from 'nativewind';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { artworkUrl, mediaKey, resizeBackdrop, type MediaItem } from './home-catalog';
 import { mergeTitleDetails } from './detail-presentation';
 import { createPrefetchScheduler, rememberTitleSummary, selectPrefetchTitles, titleQueryOptions } from './title-cache-core';
@@ -28,6 +29,10 @@ function logoQueryOptions(uri: string | undefined, light: boolean) {
         // cache. ImageRef is immediately renderable by Expo Image on navigation.
         // Tint the native ref during decoding. On iOS, assigning tintColor on
         // the consuming view can occur after a SharedRef is already rendered.
+        // The iOS SharedRef setter renders before some view props and can
+        // crop a wordmark when the view is resized. Warm the ordinary URI
+        // cache too, then render that cached URI on iOS for correct layout.
+        if (Platform.OS === 'ios') await Image.prefetch(uri, 'memory-disk');
         const image = await Image.loadAsync(uri, { maxWidth: 1000, maxHeight: 500, tintColor: light ? '#272727' : undefined });
         if (!image || !image.width || !image.height) return null;
         const thumbhash = await Image.generateThumbhashAsync(image).catch(() => undefined);
