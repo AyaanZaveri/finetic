@@ -17,6 +17,7 @@ import { MediaPlayButton } from "@/components/media-page/play-button";
 import { formatRuntime } from "@/lib/format-runtime";
 import type { ResumeProgress } from "@/lib/media/resume-playback";
 import type { MediaItem } from "@/types/stremio";
+import type { PlaybackStreamSnapshot } from "@/lib/media/fetch-playback-streams";
 
 import type { ReactNode } from "react";
 export function SimilarMoviesSkeleton() {
@@ -54,7 +55,7 @@ export function MovieDetailsMessage({ kind }: { kind: "not-found" | "error" }) {
   return <div className={`${titleStyles.message} p-4`}>{kind === "not-found" ? "Movie not found" : "Couldn’t load this movie. Reload to try again."}</div>;
 }
 
-export function MovieDetailsView({ movie, cast, companies, collection, recommendations, previewProgress }: { movie: MediaItem; cast?: ReactNode; companies?: ReactNode; collection?: ReactNode; recommendations?: ReactNode; previewProgress?: ResumeProgress | null }) {
+export function MovieDetailsView({ movie, cast, companies, collection, recommendations, previewProgress, previewStreams }: { movie: MediaItem; cast?: ReactNode; companies?: ReactNode; collection?: ReactNode; recommendations?: ReactNode; previewProgress?: ResumeProgress | null; previewStreams?: PlaybackStreamSnapshot }) {
   return (
       <div className={`${backdropStyles.page} ${titleStyles.page} relative min-h-screen overflow-hidden pb-8`}>
         <VibrantAuroraBackground
@@ -193,7 +194,7 @@ export function MovieDetailsView({ movie, cast, companies, collection, recommend
           </section>
 
           <div className="mt-8 w-full">
-            <MediaActions movie={movie} preview={previewProgress !== undefined} />
+            <MediaActions movie={movie} preview={previewProgress !== undefined} previewStreams={previewStreams} />
           </div>
         </div>
 

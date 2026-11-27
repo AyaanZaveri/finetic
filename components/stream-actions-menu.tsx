@@ -10,8 +10,9 @@ import { useActionMenuHighlight } from "@/components/use-action-menu-highlight";
 import accountSurface from "@/components/account-ui/surface.module.css";
 import glass from "@/components/arc/floating-surface.module.css";
 
-export function StreamActionsMenu({ label, url, downloadUrl, filename, children }: {
+export function StreamActionsMenu({ label, url, downloadUrl, filename, children, portalContainer }: {
   label: string; url?: string; downloadUrl?: string; filename?: string; children: ReactElement;
+  portalContainer?: HTMLElement | null;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -73,7 +74,7 @@ export function StreamActionsMenu({ label, url, downloadUrl, filename, children 
           const rect = event.currentTarget.getBoundingClientRect();
           event.currentTarget.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: rect.left + 12, clientY: rect.top + 12 }));
         }}>{children}</ContextMenuTrigger>
-      <ContextMenuContent aria-label={`Actions for ${label}`} collisionPadding={12} className={`w-64 ${glass.surface}`}
+      <ContextMenuContent portalContainer={portalContainer} data-base-ui-swipe-ignore="" aria-label={`Actions for ${label}`} collisionPadding={12} className={`w-64 ${glass.surface}`}
         onCloseAutoFocus={event => {
           if (!returnFocus.current?.isConnected) return;
           event.preventDefault(); returnFocus.current.focus({ preventScroll: true });

@@ -205,8 +205,8 @@ export function PlayerSelectionControls({ media, streamUrl, playingEpisode, chap
                             }} />
                     )}
                     {panel.view === "streams" && (
-                        <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-4 pt-1 pb-4">
-                            <MediaActions key={media.id} media={media} streamSelection={{ currentUrl: streamUrl, onSelect: stream => {
+                        <div className="flex min-h-0 flex-1 flex-col px-4 pt-1">
+                            <MediaActions key={media.id} media={media} pickerContainer={popup} streamSelection={{ currentUrl: streamUrl, onSelect: stream => {
                                 close((stream.url || stream.externalUrl) === streamUrl ? undefined : () => onStreamSelect(stream));
                             } }} />
                         </div>

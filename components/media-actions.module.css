@@ -9,61 +9,92 @@
   gap: 0;
 }
 
-.toolbar {
+.previewHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.picker {
+  flex: 1;
+  min-height: 0;
+}
+
+.pickerToolbar {
   --control-height-md: 2.5rem;
   --text-sm: 0.875rem;
   --accent: var(--primary);
   --accent-strong: var(--primary);
   display: flex;
   min-width: 0;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
+  flex: none;
+  flex-direction: column;
   gap: var(--space-2);
 }
 
-.controls {
-  display: flex;
-  flex: 1 1 40rem;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
+.pickerSelects {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-2);
 }
 
-.search {
-  --search-field-surface: var(--stream-card-surface);
-  flex: 1 1 28rem;
-  max-width: 40rem;
-  width: 100%;
-  min-width: 0;
-  line-height: var(--leading-body);
+.pickerResults {
+  min-height: 0;
+  flex: 1;
+  margin-block-start: var(--space-3);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding-block-end: var(--space-4);
+  scroll-padding-block: var(--space-2);
 }
 
-.facet {
-  flex: 0 1 23rem;
-  min-width: 0;
-  max-width: 100%;
-  margin: 0;
-  padding: 0;
-  border: 0;
+.pickerResults .streamList {
+  padding-block-start: 0;
 }
 
-/* Match the search and select's control row, even when chips wrap. */
-.chips {
-  --chip-selected-surface: color-mix(in oklab, var(--primary) 84%, black);
-  --chip-selected-border: var(--chip-selected-surface);
-  --chip-selected-foreground: #fff;
-  min-height: var(--control-height-md);
-  align-items: center;
-  align-content: center;
+.pickerResults .emptyState {
+  margin-block-start: 0;
 }
 
-.feedback {
-  flex: 0 1 auto;
-  min-width: 0;
-  margin-inline-start: auto;
-  text-align: end;
+.titleDrawer[data-slot="drawer-popup"][data-swipe-axis="x"] {
+  --drawer-content-width: min(32rem, calc(100% - 2 * var(--drawer-inset, 1rem)));
+}
+
+.titleOverlay[data-slot="drawer-overlay"] {
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+}
+
+:global(.dark) .titleDrawer[data-slot="drawer-popup"] {
+  --dropdown-opacity: 72%;
+}
+
+.titleDrawer[data-slot="drawer-popup"][data-swipe-direction="down"] {
+  --drawer-inset: 0.5rem;
+  --drawer-content-height: var(--drawer-content-max-height);
+  border-radius: 1rem;
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .titleOverlay[data-slot="drawer-overlay"] {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .titleDrawer[data-slot="drawer-popup"],
+  :global(.dark) .titleDrawer[data-slot="drawer-popup"] {
+    --dropdown-opacity: 100%;
+    --floating-blur: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .titleOverlay[data-slot="drawer-overlay"] {
+    transition: opacity var(--duration-instant) var(--ease-standard);
+  }
 }
 
 .loading {
@@ -128,6 +159,7 @@
 .root[data-stream-picker] .streamRow {
   -webkit-user-select: none;
   user-select: none;
+  padding: 0.5rem 0.75rem;
 }
 
 .streamRow[aria-current="true"]::after {
@@ -204,25 +236,6 @@
   .streamRow:enabled:active {
     transform: scale(var(--stream-press-scale, 0.998));
   }
-}
-
-@container (max-width: 40rem) {
-  .toolbar {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: end;
-  }
-
-  .controls { display: contents; }
-
-  .search {
-    grid-column: 1 / -1;
-    max-width: none;
-  }
-
-  .facet { grid-column: 1; }
-  .feedback { grid-column: 2; align-self: end; padding-block-end: .375rem; }
-  .loading { white-space: nowrap; }
 }
 
 .streamMetadata {

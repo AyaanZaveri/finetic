@@ -52,10 +52,17 @@ async function navigate(emptyProvider) {
             '@/components/ui/skeleton': { Skeleton: 'skeleton' },
             '@/components/arc/search-field/search-field': { SearchField: 'search' },
             '@/components/arc/chip-group/chip-group': { ChipGroup: 'chips' },
+            '@/components/arc/select/select': { Select: 'select' },
+            '@/components/stream-filter-popover': {},
             './media-actions.module.css': {},
+            './player-selection-controls.module.css': {},
+            '@/components/arc/floating-surface.module.css': {},
+            '@/components/account-ui/drawer.module.css': {},
+            '@/components/ui/drawer': {},
             '@/components/stream-summary': { StreamSummary: 'summary' },
             '@/components/stream-actions-menu': { StreamActionsMenu: 'stream-actions-menu' },
             '@/components/ui/button': { Button: 'button' },
+            '@/components/ui/avatar': {},
             '@/components/sign-in-for-streams': { SignInForStreams: 'sign-in' },
         });
         pageHost.render(MediaActions, page.props.children.props); pageHost.flush();

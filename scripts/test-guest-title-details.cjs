@@ -47,6 +47,7 @@ async function main() {
         react: h.react, 'react/jsx-runtime': h.jsx,
         '@/contexts/account-context': { useAccountAccess: () => ({ authenticated: false }) },
         '@/components/ui/button': { Button: 'button' },
+        '@/components/ui/avatar': {},
         '@/components/sign-in-for-streams': { SignInForStreams: 'sign-in-for-streams' },
         '@/contexts/MediaPlayerContext': { usePlaybackActions: () => ({}) },
         '@/components/playback-page-provider': { usePlaybackPage: () => null },
@@ -58,6 +59,11 @@ async function main() {
         'lucide-react': {}, '@/components/arc/search-field/search-field': {}, '@/components/arc/chip-group/chip-group': {},
         '@/components/stream-actions-menu': { StreamActionsMenu: 'stream-actions-menu' },
         './media-actions.module.css': {}, '@/components/stream-summary': {},
+        './player-selection-controls.module.css': {}, '@/components/arc/floating-surface.module.css': {},
+        '@/components/account-ui/drawer.module.css': {},
+        '@/components/ui/drawer': {},
+        '@/components/arc/select/select': {},
+        '@/components/stream-filter-popover': {},
     });
     assert.equal(h.render(ui.MediaActions, { media: title }).type, 'sign-in-for-streams');
     h.flush();

@@ -94,10 +94,13 @@ function ContextMenuSubContent({
 
 function ContextMenuContent({
     className,
+    portalContainer,
     ...props
-}: React.ComponentProps<typeof ContextMenuPrimitive.Content>) {
+}: React.ComponentProps<typeof ContextMenuPrimitive.Content> & {
+    portalContainer?: React.ComponentProps<typeof ContextMenuPrimitive.Portal>["container"];
+}) {
     return (
-        <ContextMenuPrimitive.Portal>
+        <ContextMenuPrimitive.Portal container={portalContainer}>
             <ContextMenuPrimitive.Content
                 data-slot="context-menu-content"
                 className={cn(
