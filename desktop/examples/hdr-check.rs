@@ -20,6 +20,9 @@ mod platform;
 #[path = "../src/player.rs"]
 mod player;
 #[cfg(target_os = "macos")]
+#[path = "../src/preview_fallback.rs"]
+mod preview_fallback;
+#[cfg(target_os = "macos")]
 #[path = "../src/protocol.rs"]
 mod protocol;
 #[cfg(target_os = "macos")]
