@@ -12,7 +12,8 @@ export function seasonSheetLayout(
   const bottomInset = Math.max(insets.bottom, availableWidth >= 720 ? 12 : 8);
   const availableHeight = Math.max(1, height - topInset - bottomInset);
   const rowHeight = Math.max(56, 48 * fontScale + 8);
-  const contentHeight = Math.max(176, 100 + Math.max(0, seasonCount) * rowHeight);
+  const headerAndPadding = 92 + Math.max(0, fontScale - 1) * 32;
+  const contentHeight = Math.max(148, headerAndPadding + Math.max(0, seasonCount) * rowHeight);
   return {
     marginLeft: insets.left + margin,
     marginRight: insets.right + margin,

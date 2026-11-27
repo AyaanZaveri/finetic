@@ -4,7 +4,7 @@ import { seasonSheetLayout } from '../lib/season-sheet.ts';
 
 test('a one-season drawer is compact and detached from all safe-area edges', () => {
   const layout = seasonSheetLayout(402, 874, { left: 0, right: 0, top: 62, bottom: 34 }, 1);
-  assert.deepEqual(layout, { marginLeft: 12, marginRight: 12, topInset: 74, bottomInset: 34, snapHeight: 176 });
+  assert.deepEqual(layout, { marginLeft: 12, marginRight: 12, topInset: 74, bottomInset: 34, snapHeight: 148 });
 });
 
 test('long season lists and large text stay within the viewport and tablet width', () => {
