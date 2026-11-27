@@ -8,18 +8,24 @@ import { useRouter } from 'expo-router';
 import { ChevronRight } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
 import { useState } from 'react';
-import { Platform, ScrollView, View } from 'react-native';
+import { Platform, ScrollView, Switch as NativeSwitch, View } from 'react-native';
+import { THEME } from '@/lib/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function SettingsScreen() {
   const { top } = useSafeAreaInsets();
   const { provider, setProvider } = useMetadataProvider();
   const hapticsEnabled = useHapticsPreference();
-  const { setColorScheme } = useColorScheme();
+  const { colorScheme, setColorScheme } = useColorScheme();
+  const theme = THEME[colorScheme ?? 'light'];
+  const changeHaptics = (value: boolean) => {
+    void setHapticsEnabled(value);
+    if (value && Platform.OS !== 'ios') triggerHaptic('selection');
+  };
   const [appearance, setAppearance] = useState<'system' | 'light' | 'dark'>('system');
   const router = useRouter();
   return (
-    <ScrollView testID="settings-page" className="flex-1 bg-background" contentContainerStyle={{ paddingTop: Platform.OS === "ios" ? 12 : top + 12, paddingHorizontal: 16, paddingBottom: 16, width: "100%", maxWidth: 680, alignSelf: "center" }}>
+    <ScrollView testID="settings-page" className="flex-1 bg-background" contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ paddingTop: Platform.OS === "ios" ? 12 : top + 12, paddingHorizontal: 16, paddingBottom: 24, width: "100%", maxWidth: 680, alignSelf: "center" }}>
       <Text role="heading" className="text-3xl font-nav-semibold tracking-tight">Settings</Text>
       <View className="gap-3 pt-6">
         <Text role="heading" className="text-lg font-nav-medium">Appearance</Text>
@@ -32,10 +38,8 @@ export default function SettingsScreen() {
             <Text className="font-nav-medium">Haptic feedback</Text>
             <Text variant="muted">{hapticsEnabled ? 'Small selection ticks and button feedback.' : 'Feedback is off.'}</Text>
           </View>
-          <Switch testID="settings-haptics" accessibilityLabel="Haptic feedback" checked={hapticsEnabled} onCheckedChange={value => {
-            void setHapticsEnabled(value);
-            if (value) triggerHaptic('selection');
-          }} />
+          {Platform.OS === 'ios' ? <NativeSwitch testID="settings-haptics" accessibilityLabel="Haptic feedback" value={hapticsEnabled} onValueChange={changeHaptics} trackColor={{ true: theme.primary }} /> :
+            <Switch testID="settings-haptics" accessibilityLabel="Haptic feedback" checked={hapticsEnabled} onCheckedChange={changeHaptics} />}
         </View>
         <Text role="heading" className="text-lg font-nav-medium pt-4">Metadata provider</Text>
         <View className="flex-row gap-2">

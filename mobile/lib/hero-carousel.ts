@@ -22,6 +22,13 @@ export function incomingIndex(base: number, direction: number, direct: number, c
   return direction > 0 && direct >= 0 ? direct : carouselIndex(base + (direction < 0 ? -1 : 1), count);
 }
 
+/** A cold incoming slide cannot participate in the blend until its entire
+ * progressive artwork composition has decoded (or reached its error fallback). */
+export function readySlideProgress<T extends number>(progress: T, base: number, direct: number, count: number, ready: readonly number[]): T | 0 {
+  'worklet';
+  return progress === 0 || ready.includes(incomingIndex(base, progress, direct, count)) ? progress : 0;
+}
+
 export function slideWeight(index: number, base: number, progress: number, direct: number, count: number): number {
   'worklet';
   const blend = Math.min(1, Math.abs(progress));

@@ -44,7 +44,7 @@ export default function SearchScreen() {
     enabled: !!term && term === editedTerm, staleTime: 5 * 60 * 1000, retry: false,
   });
   const { gutter, columns, cardWidth, columnGap } = searchGridLayout(measuredWidth || width - left - right, fontScale);
-  const presentation = useMemo(() => searchPresentation(term === editedTerm ? query.data ?? EMPTY : EMPTY, filter), [term, editedTerm, query.data, filter]);
+  const presentation = useMemo(() => searchPresentation(term === editedTerm ? query.data ?? EMPTY : EMPTY, filter, term), [term, editedTerm, query.data, filter]);
   const phase = searchPhase(value, term, query.isPending, query.isError, presentation.counts.all, presentation.items.length);
   const showFilters = phase === 'results' || phase === 'filtered-empty' || phase === 'empty';
   const scrollToTop = useCallback(() => list.current?.scrollToOffset({ offset: 0, animated: false }), []);
@@ -62,7 +62,7 @@ export default function SearchScreen() {
     router.push({ pathname: item.type === 'movie' ? '/movie/[id]' : '/series/[id]', params: { id: item.id } });
   }, [client, router]);
   const renderItem = useCallback(({ item }: { item: MediaItem }) =>
-    <MediaCard item={item} width={cardWidth} onOpen={open} titleLines={2} showType />, [cardWidth, open]);
+    <MediaCard item={item} width={cardWidth} onOpen={open} titleLines={2} showType={cardWidth >= 132} />, [cardWidth, open]);
   const browse = () => { Keyboard.dismiss(); router.navigate('/(tabs)'); };
 
   return (
@@ -78,9 +78,8 @@ export default function SearchScreen() {
           contentContainerStyle={{ paddingHorizontal: gutter, paddingBottom: 24 }}
           columnWrapperStyle={columns > 1 ? { gap: columnGap } : undefined}
           ItemSeparatorComponent={RowSeparator} renderItem={renderItem} initialNumToRender={columns * 3}
-          ListHeaderComponent={phase !== 'idle' ? <View className="gap-4 pb-5">
-            <Text role="heading" className="text-2xl font-nav-semibold tracking-tight" numberOfLines={3} accessibilityLabel={`Results for ${editedTerm}`}>Results for “{editedTerm}”</Text>
-            {showFilters && <SearchFilters value={filter} counts={presentation.counts} onChange={changeFilter} />}
+          ListHeaderComponent={showFilters ? <View className="pb-5">
+            <SearchFilters value={filter} counts={presentation.counts} onChange={changeFilter} />
           </View> : null}
           ListEmptyComponent={<View className="items-center justify-center gap-3 px-2 py-8" style={styles.empty}>
             {phase === 'loading' ? <>

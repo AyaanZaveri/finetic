@@ -9,8 +9,15 @@ import { BottomSheetModal, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { Check, ChevronDown } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { useRef, useState, type PropsWithChildren } from 'react';
+import { ActivityIndicator, FlatList, Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { FullWindowOverlay } from 'react-native-screens';
+
+// The iOS native stack otherwise leaves the root portal outside the active
+// screen accessibility tree. Use the native window overlay as a modal.
+function SeasonSheetOverlay({ children }: PropsWithChildren) {
+  return <FullWindowOverlay unstable_accessibilityContainerViewIsModal>{children}</FullWindowOverlay>;
+}
 
 export const episodeCode = (episode: Pick<MediaEpisode, 'season' | 'number'>) =>
   `S${String(episode.season).padStart(2, '0')}E${String(episode.number).padStart(2, '0')}`;
@@ -25,7 +32,7 @@ export function EpisodeRail({ item, season, onSeason, episodes, selected, onOpen
   const insets = useSafeAreaInsets();
   const availableWidth = width - insets.left - insets.right;
   const roomy = availableWidth >= 720;
-  const sheetMargin = roomy ? (availableWidth - 560) / 2 : 0;
+  const sheetMargin = roomy ? Math.max(12, (availableWidth - 560) / 2) : 12;
   const sheet = useRef<BottomSheetModal>(null);
   const [focused, setFocused] = useState<string>();
   const cardWidth = roomy ? Math.min(288, Math.round(availableWidth * 0.32)) : Math.min(240, Math.max(160, Math.round(availableWidth * 0.53)));
@@ -53,8 +60,8 @@ export function EpisodeRail({ item, season, onSeason, episodes, selected, onOpen
             </View>
           </Pressable>;
         }} /> : <Text variant="muted">Episode details are not available for this season.</Text>}
-      <BottomSheetModal ref={sheet} style={{ marginLeft: insets.left + sheetMargin, marginRight: insets.right + sheetMargin }} topInset={insets.top} snapPoints={['45%', '75%']} enableDynamicSizing={false} backgroundStyle={{ backgroundColor: theme.card }} handleIndicatorStyle={{ backgroundColor: theme.mutedForeground }}>
-        <BottomSheetScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 16, gap: 8 }}>
+      <BottomSheetModal ref={sheet} containerComponent={Platform.OS === 'ios' ? SeasonSheetOverlay : undefined} style={{ marginLeft: insets.left + sheetMargin, marginRight: insets.right + sheetMargin }} detached bottomInset={insets.bottom + 12} topInset={insets.top + 12} snapPoints={['40%', '70%']} enableDynamicSizing={false} backgroundStyle={{ backgroundColor: theme.card, borderRadius: 28 }} handleIndicatorStyle={{ backgroundColor: theme.mutedForeground }}>
+        <BottomSheetScrollView contentContainerStyle={{ padding: 16, paddingBottom: 16, gap: 8 }}>
           <Text role="heading" className="text-xl font-nav-semibold pb-2">Choose a season</Text>
           {item.seasons?.map(row => <Button key={row.number} testID={`season-option-${row.number}`} variant={row.number === season ? 'secondary' : 'ghost'} className="justify-start" accessibilityState={{ selected: row.number === season }} onPress={() => { onSeason(row.number); sheet.current?.dismiss(); }} haptic="selection">
             <Text className="flex-1">{row.name}</Text><Text variant="muted">{row.episodeCount} episodes</Text>{row.number === season && <Icon as={Check} size={16} />}

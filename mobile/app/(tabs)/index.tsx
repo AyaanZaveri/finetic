@@ -8,7 +8,7 @@ import { selectFeatured, type MediaItem } from '@/lib/home-catalog';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Platform, RefreshControl, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from 'nativewind';
 import { THEME } from '@/lib/theme';
@@ -30,8 +30,11 @@ export default function HomeScreen() {
   }, [queryClient, router]);
   const hasHero = featured.length > 0;
   return (
-    <View className="flex-1 bg-background">
-      <ScrollView testID="home-scroll" className="flex-1" contentContainerStyle={{ paddingBottom: 16 }}
+    <ScrollView testID="home-scroll" className="flex-1 bg-background"
+        contentInsetAdjustmentBehavior={Platform.OS === 'ios' ? 'never' : 'automatic'}
+        // The hero already includes its top safe area. On iOS, preserve the
+        // full-bleed artwork and reserve the native floating tab bar at the end.
+        contentContainerStyle={{ paddingBottom: Platform.OS === 'ios' ? Math.max(insets.bottom, 90) + 16 : 24 }}
         refreshControl={<RefreshControl refreshing={query.isRefetching} tintColor={theme.foreground} onRefresh={() => void query.refetch()} />}>
         {hasHero && <HomeHero key={provider} items={featured} onOpen={open} />}
         {!hasHero && <View className="items-center justify-center gap-4 px-8" style={{ minHeight: 380, paddingTop: insets.top + 64 }}>
@@ -43,7 +46,6 @@ export default function HomeScreen() {
         <View className="pb-2" style={{ gap: roomy ? 32 : 20, paddingTop: hasHero ? (roomy ? 16 : 8) : 0, backgroundColor: theme.background }}>
           {query.data?.sections.map(section => <MediaSection key={section.key} section={section} onOpen={open} />)}
         </View>
-      </ScrollView>
-    </View>
+    </ScrollView>
   );
 }

@@ -1,4 +1,4 @@
-import { carouselIndex, dragProgress, incomingIndex, snapDirection } from '@/lib/hero-carousel';
+import { carouselIndex, dragProgress, incomingIndex, readySlideProgress, snapDirection } from '@/lib/hero-carousel';
 import { triggerHaptic } from '@/lib/haptics';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { I18nManager } from 'react-native';
@@ -9,14 +9,32 @@ import { scheduleOnRN, scheduleOnUI } from 'react-native-worklets';
 export function useHeroCarousel(count: number, width: number) {
   const [selection, setSelection] = useState(0);
   const [tapTarget, setTapTarget] = useState<number | null>(null);
+  const [readyIndices, setReadyIndices] = useState<ReadonlySet<number>>(() => new Set());
   const selectedRef = useRef(0);
   const base = useSharedValue(0);
   const progress = useSharedValue(0);
   const direct = useSharedValue(-1);
+  const readyArtwork = useSharedValue<number[]>([]);
   const start = useSharedValue(0);
   const dragging = useSharedValue(false);
   const settling = useSharedValue(false);
   const direction = I18nManager.isRTL ? 1 : -1;
+
+  const onArtworkReady = useCallback((index: number, ready: boolean) => {
+    scheduleOnUI(() => {
+      'worklet';
+      const previous = readyArtwork.get();
+      if (previous.includes(index) === ready) return;
+      readyArtwork.set(ready ? [...previous, index] : previous.filter(value => value !== index));
+    });
+    setReadyIndices(previous => {
+      if (previous.has(index) === ready) return previous;
+      const next = new Set(previous);
+      if (ready) next.add(index);
+      else next.delete(index);
+      return next;
+    });
+  }, [readyArtwork]);
 
   const commit = useCallback((index: number) => {
     if (index !== selectedRef.current) {
@@ -56,12 +74,14 @@ export function useHeroCarousel(count: number, width: number) {
       settling.set(false);
     })
     .onUpdate(event => {
-      progress.set(dragProgress(start.get(), event.translationX * direction, width));
+      const next = dragProgress(start.get(), event.translationX * direction, width);
+      progress.set(readySlideProgress(next, base.get(), direct.get(), count, readyArtwork.get()));
     })
     .onEnd((event, success) => {
       dragging.set(false);
       const velocity = event.velocityX * direction;
-      const snap = success ? snapDirection(progress.get(), velocity, width) : 0;
+      const proposedSnap = success ? snapDirection(progress.get(), velocity, width) : 0;
+      const snap = readySlideProgress(proposedSnap, base.get(), direct.get(), count, readyArtwork.get());
       const next = snap ? incomingIndex(base.get(), snap, direct.get(), count) : base.get();
       settling.set(true);
       progress.set(withSpring(snap, {
@@ -87,15 +107,25 @@ export function useHeroCarousel(count: number, width: number) {
           scheduleOnRN(clearTap);
         }
       }));
-    }), [count, width, direction, base, progress, start, direct, dragging, settling, commit, clearTap]);
+    }), [count, width, direction, base, progress, start, direct, readyArtwork, dragging, settling, commit, clearTap]);
 
   const choose = useCallback((index: number) => {
     if (index === selectedRef.current) return;
     setTapTarget(index);
   }, []);
 
+  const tapReady = tapTarget !== null && readyIndices.has(tapTarget);
   useEffect(() => {
-    if (tapTarget === null || tapTarget === selection) return;
+    if (tapTarget === null || tapReady) return;
+    // Image errors count as settled. A network stall should not leave a stale
+    // dot request queued to surprise the viewer after they resume browsing.
+    const timeout = setTimeout(() => setTapTarget(previous => previous === tapTarget ? null : previous), 8000);
+    return () => clearTimeout(timeout);
+  }, [tapTarget, tapReady]);
+  useEffect(() => {
+    // Non-adjacent dot taps first mount the target artwork. Wait until the
+    // entire blur composite is ready, rather than fading into a placeholder.
+    if (tapTarget === null || tapTarget === selection || !tapReady) return;
     const target = tapTarget;
     // A dot tap is a short crossfade, not a swipe through all intermediate titles.
     scheduleOnUI(() => {
@@ -110,7 +140,7 @@ export function useHeroCarousel(count: number, width: number) {
         duration: 200, easing: Easing.bezier(0.23, 1, 0.32, 1), reduceMotion: ReduceMotion.System,
       }, finished => { if (finished) scheduleOnRN(commit, target); }));
     });
-  }, [tapTarget, selection, count, base, direct, progress, settling, commit]);
+  }, [tapTarget, tapReady, selection, count, base, direct, progress, settling, commit]);
 
   const indices = useMemo(() => Array.from(new Set([
     carouselIndex(selection, count),
@@ -119,5 +149,5 @@ export function useHeroCarousel(count: number, width: number) {
     ...(tapTarget === null ? [] : [tapTarget]),
   ])).filter(index => index < count), [selection, count, tapTarget]);
 
-  return { selection, base, progress, direct, indices, choose, pan };
+  return { selection, base, progress, direct, indices, choose, pan, onArtworkReady };
 }

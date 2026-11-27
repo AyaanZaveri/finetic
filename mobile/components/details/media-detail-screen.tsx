@@ -1,5 +1,6 @@
 import { DetailActions, DetailBackControl } from './detail-actions';
 import { EpisodeRail, episodeCode } from './episode-rail';
+import { MediaRatingBadge } from './media-rating-badge';
 import { ProgressiveArtwork } from '@/components/effects/progressive-artwork';
 import { ArtworkImage } from '@/components/media/artwork-image';
 import { Badge } from '@/components/ui/badge';
@@ -7,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { loadCertification, loadSeasonEpisodes, loadTitle } from '@/lib/home-api';
-import { formatReleaseDate, ratingLabel, resizeBackdrop, validMediaId, type MediaEpisode, type MediaItem, type MediaType } from '@/lib/home-catalog';
+import { formatReleaseDate, resizeBackdrop, validMediaId, type MediaEpisode, type MediaItem, type MediaType } from '@/lib/home-catalog';
+import { creditLabelWidth, detailWordmarkSize, mergeTitleDetails } from '@/lib/detail-presentation';
 import { THEME } from '@/lib/theme';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
@@ -20,12 +22,35 @@ import { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-function TitleIdentity({ item, light }: { item: MediaItem; light: boolean }) {
+function TitleIdentity({ item, light, width, roomy }: { item: MediaItem; light: boolean; width: number; roomy: boolean }) {
   const [loaded, setLoaded] = useState(false);
+  const [aspect, setAspect] = useState<number>();
+  const size = detailWordmarkSize(width, roomy, aspect);
   return (
     <View className="items-center justify-end px-4" accessible accessibilityLabel={item.name} testID="title-detail-name">
-      {item.logo && <Image source={item.logo} style={{ width: '84%', maxWidth: 320, height: 72, opacity: loaded ? 1 : 0, ...(loaded ? {} : { position: 'absolute' }) }} tintColor={light ? "#272727" : undefined} contentFit="contain" contentPosition="bottom" cachePolicy="memory-disk" onLoad={() => setLoaded(true)} onError={() => setLoaded(false)} />}
+      {item.logo && <Image source={item.logo} style={{ ...size, opacity: loaded ? 1 : 0, ...(loaded ? {} : { position: 'absolute' }) }} tintColor={light ? "#272727" : undefined} contentFit="contain" contentPosition="bottom" cachePolicy="memory-disk" onLoad={({ source }) => { setAspect(source.width / source.height); setLoaded(true); }} onError={() => setLoaded(false)} />}
       {(!item.logo || !loaded) && <Text className="text-center text-[32px] font-nav-semibold tracking-tight leading-[37px]" role="heading">{item.name}</Text>}
+    </View>
+  );
+}
+
+function TitleCredits({ item, fontScale, width }: { item: MediaItem; fontScale: number; width: number }) {
+  const labelWidth = creditLabelWidth(!!item.director?.length, fontScale);
+  // At high text sizes the values need the full available line width.
+  const stacked = labelWidth + 8 > width * 0.3;
+  const labelStyle = stacked ? undefined : { width: labelWidth };
+  return (
+    <View className="gap-3">
+      {!!item.genres?.length && <View className={stacked ? 'gap-1' : 'flex-row items-start gap-2'}>
+        <Text className="text-sm text-muted-foreground" style={stacked ? undefined : { width: labelWidth, paddingTop: 4 }}>Genres</Text>
+        <View className={stacked ? 'flex-row flex-wrap gap-2' : 'flex-1 min-w-0 flex-row flex-wrap gap-2'}>
+          {item.genres.map(genre => <Badge key={genre} variant="secondary" className="max-w-full px-2.5 py-1"><Text className="shrink">{genre}</Text></Badge>)}
+        </View>
+      </View>}
+      {([['Director', item.director], ['Writer', item.writer]] as const).map(([label, values]) => !!values?.length && <View key={label} className={stacked ? 'gap-1' : 'flex-row items-start gap-2'}>
+        <Text className="text-sm text-muted-foreground" style={labelStyle}>{label}</Text>
+        <Text className={stacked ? 'text-sm' : 'flex-1 min-w-0 text-sm'}>{values.join(', ')}</Text>
+      </View>)}
     </View>
   );
 }
@@ -71,7 +96,7 @@ export function MediaDetailScreen({ type, id, episode }: { type: MediaType; id: 
   const cached = queryClient.getQueryData<MediaItem>(['title-summary', type, id]);
   const query = useQuery({ queryKey: ['title', type, id], queryFn: ({ signal }) => loadTitle(type, id, signal),
     enabled: validMediaId(id), placeholderData: cached, staleTime: 5 * 60 * 1000, retry: false });
-  const item = query.data ?? cached;
+  const item = mergeTitleDetails(cached, query.data);
   const certificationQuery = useQuery({ queryKey: ['certification', type, id], queryFn: async ({ signal }) => (await loadCertification(type, id, signal)) ?? null,
     enabled: !!item && !item.contentRating && validMediaId(id), retry: false, staleTime: 30 * 60 * 1000 });
   const certification = item?.contentRating ?? certificationQuery.data;
@@ -89,23 +114,21 @@ export function MediaDetailScreen({ type, id, episode }: { type: MediaType; id: 
   };
   const art = currentEpisode?.thumbnail ?? resizeBackdrop(item?.background, 1280) ?? item?.poster;
   const goBack = () => { if (router.canGoBack()) router.back(); else router.replace('/'); };
-  const rating = item ? ratingLabel(item) : undefined;
-  const hasIMDbRating = Number(item?.imdbRating) > 0 && Number(item?.imdbRating) <= 10;
   const seasonCount = item?.seasons?.filter(row => row.number > 0).length ?? 0;
-  const releaseDate = type === 'series' ? formatReleaseDate(currentEpisode?.released ?? item?.released ?? item?.releaseInfo, item?.year) : item?.year?.toString();
+  const releaseDate = formatReleaseDate(currentEpisode?.released ?? item?.released ?? item?.releaseInfo, item?.year);
   const credits = item?.castMembers?.length ? item.castMembers : item?.cast?.map(name => ({ id: name, name, image: undefined, role: undefined }));
   return (
     <View testID="title-detail-page" className="flex-1 bg-background">
       <BlurTargetView ref={blurTarget} style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ paddingBottom: bottom + 24 }} className="flex-1" showsVerticalScrollIndicator={false}>
         {item ? <>
-          <View className="relative overflow-hidden justify-end pb-6" style={{ minHeight: art ? artHeight : top + 112, paddingTop: top + 48 }}>
+          <View className="relative overflow-hidden justify-end" style={{ minHeight: art ? artHeight : top + 112, paddingTop: top + 48, paddingBottom: roomy ? 16 : 6 }}>
             {art && <View pointerEvents="none" style={{ position: 'absolute', top: 0, start: 0, end: 0, bottom: 4, overflow: 'hidden' }}>
               <ProgressiveArtwork key={art} uri={art} backgroundColor={theme.background} light={light} contentPosition={{ top: '38%', left: '50%' }} />
               <LinearGradient style={StyleSheet.absoluteFill} colors={[light ? 'rgba(255,255,255,0.24)' : 'rgba(0,0,0,0.44)', 'transparent', 'transparent', theme.background, theme.background]} locations={[0, 0.32, 0.62, 0.96, 1]} />
             </View>}
             {art && <View pointerEvents="none" style={{ position: 'absolute', start: 0, end: 0, bottom: 0, height: 5, backgroundColor: theme.background }} />}
-            <TitleIdentity key={item.id + (item.logo ?? '')} item={item} light={light} />
+            <TitleIdentity key={item.id + (item.logo ?? '')} item={item} light={light} width={availableWidth - 2 * gutter} roomy={roomy} />
           </View>
           <View style={{ paddingLeft: left, paddingRight: right }}>
             <View className="self-center" style={{ width: bodyWidth, gap: roomy ? 32 : 20 }}>
@@ -120,20 +143,14 @@ export function MediaDetailScreen({ type, id, episode }: { type: MediaType; id: 
                     {releaseDate && <Badge variant="secondary"><Text>{releaseDate}</Text></Badge>}
                     {type === 'series' && seasonCount > 0 && !episode && <Badge variant="secondary"><Text>{seasonCount} {seasonCount === 1 ? 'Season' : 'Seasons'}</Text></Badge>}
                     {(type === 'movie' || episode) && (currentEpisode?.runtime || item.runtime) && <Badge variant="secondary"><Text>{currentEpisode?.runtime || item.runtime}</Text></Badge>}
-                    {rating && <Badge variant="secondary"><Text className="font-nav-bold" style={{ color: hasIMDbRating ? (light ? '#916700' : '#f5c518') : theme.primary }}>{hasIMDbRating ? 'IMDb' : 'TMDB'}</Text><Text>{rating}</Text></Badge>}
+                    <MediaRatingBadge item={item} light={light} />
                     {certification && <Badge variant="outline" className="rounded-md"><Text>{certification}</Text></Badge>}
                   </View>
                   <View style={{ width: '100%', maxWidth: roomy ? 360 : undefined, alignSelf: sideBySide && !episode ? 'flex-start' : 'center' }}>
                     <DetailActions item={item} episode={currentEpisode ?? selectedEpisode} episodes={episodes} onShuffle={openEpisode} />
                   </View>
                   <Synopsis key={currentEpisode?.id ?? item.id} description={currentEpisode?.description || item.description || 'No description is available.'} />
-                  <View className="gap-3">
-                    {!!item.genres?.length && <View className="flex-row flex-wrap items-center gap-2">
-                      <Text className="text-sm text-muted-foreground mr-1">Genres</Text>
-                      {item.genres.map(genre => <Badge key={genre} variant="secondary" className="px-2.5 py-1"><Text>{genre}</Text></Badge>)}
-                    </View>}
-                    {([['Director', item.director], ['Writer', item.writer]] as const).map(([label, values]) => !!values?.length && <View key={label} className="flex-row gap-2"><Text className="w-[82px] text-sm text-muted-foreground">{label}</Text><Text className="flex-1 text-sm">{values.join(', ')}</Text></View>)}
-                  </View>
+                  {!!(item.genres?.length || item.director?.length || item.writer?.length) && <TitleCredits item={item} fontScale={fontScale} width={sideBySide && !episode && item.poster ? bodyWidth - Math.min(224, bodyWidth * 0.26) - 32 : bodyWidth} />}
                 </View>
               </View>
               {!!item.seasons?.length && <EpisodeRail item={item} season={season} onSeason={value => { setChosenSeason(value); setSelectedId(undefined); }} episodes={episodes} selected={selectedEpisode?.id} onOpen={openEpisode} loading={query.isFetching && !episodes.length || episodeQuery.isFetching} />}

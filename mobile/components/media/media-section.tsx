@@ -18,7 +18,7 @@ export function MediaSection({ section, onOpen }: { section: HomeSection; onOpen
   const cardWidth = roomy ? 144 : Math.min(152, Math.max(116, Math.floor((availableWidth - 32 - 2.35 * GAP) / 2.7)));
   const renderItem = useCallback(({ item }: { item: MediaItem }) => <MediaCard item={item} width={cardWidth} onOpen={onOpen} />, [cardWidth, onOpen]);
   return (
-    <View className="gap-2" testID={`catalog-${section.key}`}>
+    <View className="gap-3" testID={`catalog-${section.key}`}>
       <Text role="heading" className={roomy ? "text-2xl font-nav-semibold tracking-tight" : "text-xl font-nav-semibold tracking-tight"} style={padding}>{section.sectionName}</Text>
       <FlatList horizontal showsHorizontalScrollIndicator={false} data={section.mediaItems} keyExtractor={mediaKey} renderItem={renderItem}
         ItemSeparatorComponent={Separator} contentContainerStyle={{ ...padding, paddingBottom: 4 }} initialNumToRender={Math.ceil(availableWidth / (cardWidth + GAP)) + 1} windowSize={5}

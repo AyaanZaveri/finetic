@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { carouselIndex, dragProgress, incomingIndex, slideWeight, snapDirection } from '../lib/hero-carousel.ts';
+import { carouselIndex, dragProgress, incomingIndex, readySlideProgress, slideWeight, snapDirection } from '../lib/hero-carousel.ts';
 
 test('hero drag blends artwork and indicator weights linearly under the finger', () => {
   assert.equal(dragProgress(0, 180, 360), 0.5);
@@ -32,4 +32,13 @@ test('carousel wraps in both directions, and a dot tap blends directly', () => {
   assert.equal(incomingIndex(0, 1, 4, 6), 4);
   assert.equal(slideWeight(4, 0, 0.5, 4, 6), 0.5);
   assert.equal(slideWeight(1, 0, 0.5, 4, 6), 0);
+});
+
+test('cold slides never replace a ready outgoing image during drag or snap', () => {
+  assert.equal(readySlideProgress(0.5, 0, -1, 6, [0, 5]), 0);
+  assert.equal(readySlideProgress(1, 0, -1, 6, [0, 5]), 0);
+  assert.equal(readySlideProgress(-0.5, 0, -1, 6, [0, 5]), -0.5);
+  assert.equal(readySlideProgress(0.5, 0, -1, 6, [0, 1, 5]), 0.5);
+  assert.equal(readySlideProgress(1, 0, 3, 6, [0, 1, 5]), 0);
+  assert.equal(readySlideProgress(1, 0, 3, 6, [0, 1, 3, 5]), 1);
 });

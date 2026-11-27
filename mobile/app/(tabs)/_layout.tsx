@@ -11,7 +11,7 @@ export default function TabLayout() {
       backgroundColor: theme.background, indicatorColor: theme.muted,
       labelVisibilityMode: 'labeled' as const,
     } : {})}>
-      <NativeTabs.Trigger name="index" testID="tab-home">
+      <NativeTabs.Trigger name="index" testID="tab-home" disableAutomaticContentInsets={Platform.OS === 'ios'}>
         <NativeTabs.Trigger.Icon sf={{ default: 'house', selected: 'house.fill' }} md="home" />
         <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>

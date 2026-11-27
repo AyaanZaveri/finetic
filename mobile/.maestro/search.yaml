@@ -20,6 +20,7 @@ appId: app.navigator.mobile
     timeout: 30000
 - assertVisible:
     id: search-filter-all
+- assertNotVisible: 'Results for.*'
 - takeScreenshot: search-results
 - tapOn:
     id: search-filter-movie

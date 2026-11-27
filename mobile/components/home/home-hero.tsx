@@ -1,22 +1,26 @@
 import { ProgressiveArtwork } from '@/components/effects/progressive-artwork';
+import { GlassSurface } from '@/components/effects/glass-surface';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { useHeroCarousel } from './use-hero-carousel';
 import { slideWeight } from '@/lib/hero-carousel';
+import { mergeTitleDetails } from '@/lib/detail-presentation';
 import { mediaKey, ratingLabel, resizeBackdrop, type MediaItem } from '@/lib/home-catalog';
 import { loadTitle } from '@/lib/home-api';
 import { useQuery } from '@tanstack/react-query';
 import { THEME } from '@/lib/theme';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useIsFocused } from 'expo-router';
 import { ArrowRight, CalendarDays, Clock, Star, Tag } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
-import { useState } from 'react';
-import { PixelRatio, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { useCallback, useLayoutEffect, useState } from 'react';
+import { PixelRatio, Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
-import Animated, { interpolateColor, useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
+import Animated, { interpolateColor, ReduceMotion, useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { scheduleOnUI } from 'react-native-worklets';
 
 type BlendState = { base: SharedValue<number>; progress: SharedValue<number>; direct: SharedValue<number>; count: number };
 
@@ -48,20 +52,36 @@ function HeroMetadata({ item, light }: { item: MediaItem; light: boolean }) {
   );
 }
 
-function ArtworkLayer({ item, index, current, light, blend }: {
-  item: MediaItem; index: number; current: boolean; light: boolean; blend: BlendState;
+function ArtworkLayer({ background, index, light, blend, onArtworkReady }: {
+  background: string | undefined; index: number; light: boolean; blend: BlendState;
+  onArtworkReady: (index: number, ready: boolean) => void;
 }) {
   const theme = THEME[light ? 'light' : 'dark'];
-  const background = resizeBackdrop(item.background, 1280);
   const { base, progress, direct, count } = blend;
+  const reveal = useSharedValue(0);
+  const onReady = useCallback(() => {
+    scheduleOnUI(() => {
+      'worklet';
+      reveal.set(base.get() === index ? withTiming(1, { duration: 300, reduceMotion: ReduceMotion.System }) : 1);
+    });
+    onArtworkReady(index, true);
+  }, [base, index, onArtworkReady, reveal]);
+  useLayoutEffect(() => {
+    if (!background) onReady();
+    return () => onArtworkReady(index, false);
+  }, [background, index, onReady, onArtworkReady]);
   const animated = useAnimatedStyle(() => {
     // The outgoing image stays opaque underneath. The incoming opaque layer
-    // blends over it, so 50% progress is a true 50/50 image blend.
-    return { opacity: index === base.get() ? 1 : slideWeight(index, base.get(), progress.get(), direct.get(), count), zIndex: index === base.get() ? 0 : 1 };
+    // blends over it only after its entire progressive blur is ready.
+    const outgoing = index === base.get();
+    return {
+      opacity: reveal.get() * (outgoing ? 1 : slideWeight(index, base.get(), progress.get(), direct.get(), count)),
+      zIndex: outgoing ? 0 : 1,
+    };
   });
   return (
     <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: theme.background }, animated]}>
-      {background && <ProgressiveArtwork key={background} uri={background} backgroundColor={theme.background} light={light} prominentLightScrim quality={current ? 'full' : 'preview'} />}
+      {background && <ProgressiveArtwork uri={background} backgroundColor={theme.background} light={light} prominentLightScrim quality="carousel" onReady={onReady} />}
     </Animated.View>
   );
 }
@@ -107,25 +127,32 @@ export function HomeHero({ items, onOpen }: { items: MediaItem[]; onOpen: (item:
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme ?? 'light'];
   const light = colorScheme !== 'dark';
-  const { selection, base, progress, direct, indices, choose, pan } = useHeroCarousel(items.length, width);
+  const focused = useIsFocused();
+  const { selection, base, progress, direct, indices, choose, pan, onArtworkReady } = useHeroCarousel(items.length, width);
   const entry = items[selection % Math.max(1, items.length)];
   const detail = useQuery({ queryKey: ['title', entry?.type, entry?.id], queryFn: ({ signal }) => loadTitle(entry!.type, entry!.id, signal),
     enabled: !!entry, placeholderData: entry, staleTime: 5 * 60 * 1000, retry: false });
-  const item = detail.data ?? entry;
+  const item = mergeTitleDetails(entry, detail.data);
   const heroHeight = width >= 768
     ? Math.min(520, Math.max(384, Math.min(width * 0.52, height * 0.60)))
     : Math.min(704, Math.max(480, Math.min(width * 1.34, height * 0.8)));
   if (!item) return null;
   const blend = { base, progress, direct, count: items.length };
   const layers = indices.flatMap(index => {
-    const layer = index === selection ? item : items[index];
-    return layer ? [{ index, item: layer }] : [];
+    // Metadata can be enriched by a title lookup after the snap. Its backdrop
+    // must not replace the catalog artwork that was already decoded mid-swipe.
+    const catalogItem = items[index];
+    const layer = index === selection ? item : catalogItem;
+    return layer && catalogItem ? [{ index, item: layer, catalogItem }] : [];
   });
   return (
     <GestureDetector gesture={pan}>
       <View collapsable={false} testID="home-hero" style={{ minHeight: heroHeight, paddingTop: top + 24, paddingBottom: 12, backgroundColor: theme.background }} className="relative overflow-hidden justify-end">
         <View pointerEvents="none" style={styles.artworkStage}>
-          {layers.map(layer => <ArtworkLayer key={mediaKey(layer.item)} item={layer.item} index={layer.index} current={layer.index === selection} light={light} blend={blend} />)}
+          {layers.filter(layer => focused || layer.index === selection).map(layer => {
+            const background = resizeBackdrop(layer.catalogItem.background, 1280);
+            return <ArtworkLayer key={mediaKey(layer.catalogItem) + ':' + (background ?? '')} background={background} index={layer.index} light={light} blend={blend} onArtworkReady={onArtworkReady} />;
+          })}
           <LinearGradient style={[StyleSheet.absoluteFill, { zIndex: 2 }]} colors={['transparent', 'transparent', light ? 'rgba(255,255,255,0.04)' : 'rgba(10,10,10,0.16)', theme.background, theme.background]} locations={[0, 0.74, 0.89, 0.96, 1]} />
         </View>
         <View pointerEvents="none" style={[styles.artworkEnd, { backgroundColor: theme.background }]} />
@@ -137,7 +164,9 @@ export function HomeHero({ items, onOpen }: { items: MediaItem[]; onOpen: (item:
             <Text className="text-[15px] font-nav-medium" style={{ color: light ? '#ffffff' : '#0a0a0a' }}>View</Text><Icon as={ArrowRight} color={light ? '#ffffff' : '#0a0a0a'} size={16} />
           </Button>
           {items.length > 1 && <View className="flex-row items-center justify-center px-1.5" style={styles.carouselControls} accessibilityLabel="Featured titles">
-            <View pointerEvents="none" style={[styles.carouselPill, { backgroundColor: light ? '#0000000d' : '#ffffff0d' }]} />
+            {Platform.OS === 'ios'
+              ? <GlassSurface pointerEvents="none" style={[styles.carouselPill, { padding: 0 }]} fallbackStyle={{ borderWidth: 0, backgroundColor: theme.secondary }} />
+              : <View pointerEvents="none" style={[styles.carouselPill, { backgroundColor: light ? '#0000000d' : '#ffffff0d' }]} />}
             {items.map((entry, index) => <SlideDot key={mediaKey(entry)} item={entry} index={index} selected={index === selection} light={light} blend={blend} onChoose={choose} />)}
           </View>}
         </View>
@@ -150,7 +179,7 @@ const styles = StyleSheet.create({
   wordmark: { maxWidth: 330, width: '100%', height: 86 },
   artworkStage: { position: 'absolute', top: 0, start: 0, end: 0, bottom: 4, overflow: 'hidden' },
   artworkEnd: { position: 'absolute', start: 0, end: 0, bottom: 0, height: 5 },
-  copyPanel: { alignItems: 'center', justifyContent: 'flex-end', gap: 8, width: '100%' },
+  copyPanel: { alignItems: 'center', justifyContent: 'flex-end', gap: 14, width: '100%' },
   copyOverlay: { position: 'absolute', bottom: 0, start: 0, end: 0 },
   carouselControls: { marginTop: 2, minHeight: 44 },
   carouselPill: { position: 'absolute', start: 0, end: 0, top: 6, bottom: 6, borderRadius: 999 },
