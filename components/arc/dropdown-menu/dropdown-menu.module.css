@@ -40,7 +40,7 @@
 .badge { padding: 1px 5px; border-radius: 4px; font-size: .625rem; letter-spacing: .04em; }
 .leading { display: inline-flex; flex: 0 0 18px; width: 18px; height: 16px; align-items: center; justify-content: center; color: var(--muted-foreground); }
 .flag { display: block; flex: none; width: 18px; height: 12px; object-fit: contain; border-radius: 2px; outline: 1px solid rgb(0 0 0 / .1); outline-offset: -1px; }
-.separator { height: 1px; margin: 5px 6px; background: var(--border); }
+.separator { height: 1px; margin: 5px -5px; background: var(--border); }
 :global(.dark) .flag { outline-color: rgb(255 255 255 / .1); }
 @keyframes menu-exit { to { --menu-exit: 1; } }
 @media (prefers-reduced-motion: reduce) { .menu, .menu[data-state="closed"] { transform: none; transition: opacity var(--duration-instant) linear; } }

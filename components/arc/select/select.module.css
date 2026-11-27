@@ -15,13 +15,15 @@
 .trigger[data-state="open"] .chevron { transform: rotate(180deg); }
 .hint { color: var(--text-muted); font-size: var(--text-xs); }
 /* Radix holds the animation until the menu is positioned, so it always grows from the trigger edge. */
-.content { --select-opacity: 90%; --menu-x: 0px; --menu-y: -6px; box-sizing: border-box; z-index: var(--layer-overlay); width: var(--radix-select-trigger-width); min-width: var(--radix-select-trigger-width); max-width: min(24rem, calc(100vw - 20px)); max-height: min(320px, var(--radix-select-content-available-height)); overflow: hidden; border: 1px solid var(--border); border-radius: calc(var(--radius-control) + 2px); padding: 6px; background: color-mix(in oklab, var(--surface-raised) var(--select-opacity), transparent); color: var(--foreground); box-shadow: var(--shadow-floating); transform-origin: var(--radix-select-content-transform-origin); animation: select-in var(--duration-standard) var(--ease-enter) both; }
+.content { --select-opacity: 90%; --menu-x: 0px; --menu-y: -6px; --select-item-inset: calc(6px + var(--keyboard-focus-halo-width)); box-sizing: border-box; z-index: var(--layer-overlay); width: var(--radix-select-trigger-width); min-width: var(--radix-select-trigger-width); max-width: min(24rem, calc(100vw - 20px)); max-height: min(320px, var(--radix-select-content-available-height)); overflow: hidden; border: 1px solid var(--border); border-radius: calc(var(--radius-control) + 2px); padding-block: 6px; background: color-mix(in oklab, var(--surface-raised) var(--select-opacity), transparent); color: var(--foreground); box-shadow: var(--shadow-floating); transform-origin: var(--radix-select-content-transform-origin); animation: select-in var(--duration-standard) var(--ease-enter) both; }
 .content[data-side="top"] { --menu-y: 6px; }
 .content[data-side="left"] { --menu-x: 6px; --menu-y: 0px; }
 .content[data-side="right"] { --menu-x: -6px; --menu-y: 0px; }
 .content[data-state="closed"] { animation: select-out var(--duration-instant) var(--ease-standard) both; }
-.viewport { padding: var(--keyboard-focus-halo-width); }
-.item { position: relative; display: flex; gap: 8px; align-items: center; min-height: 36px; border-radius: calc(var(--radius-control) - 4px); padding: 0 34px 0 11px; color: var(--foreground); font-size: var(--text-sm); cursor: default; outline: none; user-select: none; transition: background-color var(--duration-instant) var(--ease-standard), color var(--duration-instant) var(--ease-standard); }
+.viewport { padding-block: var(--keyboard-focus-halo-width); }
+.separator { height: 1px; margin-block: 4px; background: var(--border); }
+.item { position: relative; display: flex; gap: 8px; align-items: center; min-height: 36px; margin-inline: var(--select-item-inset); border-radius: calc(var(--radius-control) - 4px); padding: 0 34px 0 11px; color: var(--foreground); font-size: var(--text-sm); cursor: default; outline: none; user-select: none; transition: background-color var(--duration-instant) var(--ease-standard), color var(--duration-instant) var(--ease-standard); }
+.item[data-label-weight="medium"], .valueText > [data-label-weight="medium"] { font-weight: 500; }
 .item[data-highlighted] { background: color-mix(in oklab, var(--surface-raised) 96%, var(--foreground) 4%); }
 .item[data-disabled] { opacity: .45; }
 .indicator { position: absolute; right: 10px; display: inline-flex; align-items: center; color: var(--foreground); animation: indicator-in var(--duration-standard) var(--ease-enter) 40ms both; }

@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useId, useState } from "react";
+import { Fragment, forwardRef, useId, useState } from "react";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
@@ -20,7 +20,7 @@ export interface SelectProps extends Omit<ComponentPropsWithoutRef<typeof Select
   id?: string;
   className?: string;
   portalContainer?: ComponentPropsWithoutRef<typeof SelectPrimitive.Portal>["container"];
-  options: { value: string; label: string; disabled?: boolean; icon?: ReactNode; badge?: string }[];
+  options: { value: string; label: string; disabled?: boolean; icon?: ReactNode; badge?: string; separatorBefore?: boolean; labelWeight?: "medium" }[];
 }
 
 /** The shown value rolls in the direction of the list: a later option rises from below, an earlier one drops from above. */
@@ -64,7 +64,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
                     {options[index]?.icon && <span className={styles.optionIcon} aria-hidden="true">{options[index].icon}</span>}
                     <span className={styles.valueText} aria-hidden="true">
                         <AnimatePresence initial={false} custom={direction}>
-                            <motion.span key={currentValue ? `value-${currentValue}` : "placeholder"} data-placeholder={currentValue ? undefined : ""} custom={direction} variants={reduceMotion ? valueFade : valueRoll} initial="enter" animate="center" exit="exit">{shown}</motion.span>
+                            <motion.span key={currentValue ? `value-${currentValue}` : "placeholder"} data-placeholder={currentValue ? undefined : ""} data-label-weight={options[index]?.labelWeight} custom={direction} variants={reduceMotion ? valueFade : valueRoll} initial="enter" animate="center" exit="exit">{shown}</motion.span>
                         </AnimatePresence>
                     </span>
                     {options[index]?.badge && <Badge variant="outline" className={styles.badge} aria-hidden="true">{options[index].badge}</Badge>}
@@ -80,14 +80,17 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
                         </SelectPrimitive.ScrollUpButton>
                         <SelectPrimitive.Viewport className={styles.viewport}>
                             {options.map((option) => (
-                                <SelectPrimitive.Item key={option.value} value={option.value} disabled={option.disabled} className={styles.item}>
-                                    {option.icon && <span className={styles.optionIcon} aria-hidden="true">{option.icon}</span>}
-                                    <SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
-                                    {option.badge && <Badge variant="outline" className={styles.badge} aria-hidden="true">{option.badge}</Badge>}
-                                    <SelectPrimitive.ItemIndicator className={styles.indicator}>
-                                        <Check size={16} strokeWidth={1.75} aria-hidden="true" />
-                                    </SelectPrimitive.ItemIndicator>
-                                </SelectPrimitive.Item>
+                                <Fragment key={option.value}>
+                                    {option.separatorBefore && <SelectPrimitive.Separator className={styles.separator} />}
+                                    <SelectPrimitive.Item value={option.value} disabled={option.disabled} className={styles.item} data-label-weight={option.labelWeight}>
+                                        {option.icon && <span className={styles.optionIcon} aria-hidden="true">{option.icon}</span>}
+                                        <SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
+                                        {option.badge && <Badge variant="outline" className={styles.badge} aria-hidden="true">{option.badge}</Badge>}
+                                        <SelectPrimitive.ItemIndicator className={styles.indicator}>
+                                            <Check size={16} strokeWidth={1.75} aria-hidden="true" />
+                                        </SelectPrimitive.ItemIndicator>
+                                    </SelectPrimitive.Item>
+                                </Fragment>
                             ))}
                         </SelectPrimitive.Viewport>
                         <SelectPrimitive.ScrollDownButton className={styles.scrollButton}>
