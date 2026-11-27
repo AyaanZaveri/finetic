@@ -7,10 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
-import { loadCertification, loadSeasonEpisodes, loadTitle } from '@/lib/home-api';
+import { loadCertification, loadSeasonEpisodes } from '@/lib/home-api';
 import { formatReleaseDate, resizeBackdrop, validMediaId, type MediaEpisode, type MediaItem, type MediaType } from '@/lib/home-catalog';
-import { creditLabelWidth, detailWordmarkSize, mergeTitleDetails } from '@/lib/detail-presentation';
+import { creditLabelWidth, detailIdentityGap, detailWordmarkSize, estimateWordmarkPadding, mergeTitleDetails } from '@/lib/detail-presentation';
 import { THEME } from '@/lib/theme';
+import { titleQueryOptions, titleSummaryKey, useTitleLogo } from '@/lib/title-cache';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { Image } from 'expo-image';
@@ -19,18 +20,22 @@ import { useRouter } from 'expo-router';
 import { ChevronDown, ChevronUp } from 'lucide-react-native';
 import { BlurTargetView } from 'expo-blur';
 import { useColorScheme } from 'nativewind';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-function TitleIdentity({ item, light, width, roomy }: { item: MediaItem; light: boolean; width: number; roomy: boolean }) {
-  const [loaded, setLoaded] = useState(false);
-  const [aspect, setAspect] = useState<number>();
-  const size = detailWordmarkSize(width, roomy, aspect);
+function TitleIdentity({ item, width, roomy, left, right }: { item: MediaItem; width: number; roomy: boolean; left: number; right: number }) {
+  const logo = useTitleLogo(item.logo);
+  const padding = useMemo(() => estimateWordmarkPadding(logo?.thumbhash), [logo?.thumbhash]);
+  const size = detailWordmarkSize(width, roomy, logo && logo.image.width / logo.image.height, padding);
   return (
-    <View className="items-center justify-end px-4" accessible accessibilityLabel={item.name} testID="title-detail-name">
-      {item.logo && <Image source={item.logo} style={{ ...size, opacity: loaded ? 1 : 0, ...(loaded ? {} : { position: 'absolute' }) }} tintColor={light ? "#272727" : undefined} contentFit="contain" contentPosition="bottom" cachePolicy="memory-disk" onLoad={({ source }) => { setAspect(source.width / source.height); setLoaded(true); }} onError={() => setLoaded(false)} />}
-      {(!item.logo || !loaded) && <Text className="text-center text-[32px] font-nav-semibold tracking-tight leading-[37px]" role="heading">{item.name}</Text>}
+    <View
+      accessible
+      accessibilityLabel={item.name}
+      testID="title-detail-name"
+      style={{ width, alignSelf: 'center', alignItems: roomy ? 'flex-start' : 'center', justifyContent: 'flex-end', marginLeft: left, marginRight: right }}>
+      {logo ? <Image source={logo.image} style={{ width: size.width, height: size.height, marginBottom: -size.bottomOffset }} contentFit="contain" contentPosition="bottom" />
+        : <Text className="text-[32px] font-nav-semibold tracking-tight leading-[37px]" style={{ textAlign: roomy ? 'auto' : 'center' }} role="heading">{item.name}</Text>}
     </View>
   );
 }
@@ -94,9 +99,8 @@ export function MediaDetailScreen({ type, id, episode }: { type: MediaType; id: 
   const blurTarget = useRef<View>(null);
   const [chosenSeason, setChosenSeason] = useState<number | undefined>(episode?.season);
   const [selectedId, setSelectedId] = useState<string>();
-  const cached = queryClient.getQueryData<MediaItem>(['title-summary', type, id]);
-  const query = useQuery({ queryKey: ['title', type, id], queryFn: ({ signal }) => loadTitle(type, id, signal),
-    enabled: validMediaId(id), placeholderData: cached, staleTime: 5 * 60 * 1000, retry: false });
+  const cached = queryClient.getQueryData<MediaItem>(titleSummaryKey(type, id));
+  const query = useQuery({ ...titleQueryOptions(type, id), enabled: validMediaId(id), placeholderData: cached });
   const item = mergeTitleDetails(cached, query.data);
   const certificationQuery = useQuery({ queryKey: ['certification', type, id], queryFn: async ({ signal }) => (await loadCertification(type, id, signal)) ?? null,
     enabled: !!item && !item.contentRating && validMediaId(id), retry: false, staleTime: 30 * 60 * 1000 });
@@ -125,38 +129,37 @@ export function MediaDetailScreen({ type, id, episode }: { type: MediaType; id: 
       <BlurTargetView ref={blurTarget} style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ paddingBottom: bottom + 24 }} className="flex-1" showsVerticalScrollIndicator={false}>
         {item ? <>
-          <View className="relative overflow-hidden justify-end" style={{ minHeight: art ? artHeight : top + 112, paddingTop: top + 48, paddingBottom: roomy ? 16 : 6 }}>
+          <View className="relative justify-end" style={{ minHeight: art ? artHeight : top + 112, paddingTop: top + 48, paddingBottom: detailIdentityGap(roomy) }}>
             {art && <View pointerEvents="none" style={{ position: 'absolute', top: 0, start: 0, end: 0, bottom: 4, overflow: 'hidden' }}>
               <ProgressiveArtwork key={art} uri={art} backgroundColor={theme.background} light={light} contentPosition={{ top: '38%', left: '50%' }} />
               <LinearGradient style={StyleSheet.absoluteFill} colors={[light ? 'rgba(255,255,255,0.24)' : 'rgba(0,0,0,0.44)', 'transparent', 'transparent', theme.background, theme.background]} locations={[0, 0.32, 0.62, 0.96, 1]} />
             </View>}
             {art && <View pointerEvents="none" style={{ position: 'absolute', start: 0, end: 0, bottom: 0, height: 5, backgroundColor: theme.background }} />}
-            <TitleIdentity key={item.id + (item.logo ?? '')} item={item} light={light} width={availableWidth - 2 * gutter} roomy={roomy} />
+            <TitleIdentity item={item} width={bodyWidth} roomy={roomy} left={left} right={right} />
           </View>
           <View style={{ paddingLeft: left, paddingRight: right }}>
             <View className="self-center" style={{ width: bodyWidth, gap: roomy ? 32 : 20 }}>
-              <View style={{ flexDirection: sideBySide ? 'row' : 'column', gap: roomy ? 32 : 20, alignItems: sideBySide ? 'center' : 'stretch', justifyContent: 'center' }}>
-                {sideBySide && !episode && item.poster && <View testID="tablet-detail-poster" accessible accessibilityRole="image" accessibilityLabel={`${item.name} poster`} className="overflow-hidden rounded-lg bg-muted" style={{ width: Math.min(224, bodyWidth * 0.26), aspectRatio: 2 / 3 }}>
-                  <ArtworkImage uri={item.poster} recyclingKey={item.id} />
-                </View>}
-                <View style={{ width: '100%', flexShrink: 1, gap: 20, maxWidth: roomy ? 720 : undefined, alignSelf: 'center' }}>
-                  {sideBySide && !episode && <Text role="heading" className="text-3xl font-nav-semibold tracking-tight">{item.name}</Text>}
-                  {currentEpisode && <Text testID="episode-detail-name" className="text-center text-xl font-nav-semibold">{episodeCode(currentEpisode)} · {currentEpisode.name}</Text>}
-                  <View className="flex-row flex-wrap items-center gap-2" style={{ justifyContent: sideBySide && !episode ? 'flex-start' : 'center' }}>
+              <View style={{ flexDirection: sideBySide ? 'row' : 'column', gap: roomy ? 32 : 20, alignItems: sideBySide ? 'flex-start' : 'stretch', justifyContent: roomy ? 'flex-start' : 'center' }}>
+                <View style={{ width: sideBySide ? undefined : '100%', flex: sideBySide ? 1 : undefined, flexShrink: 1, gap: 20, maxWidth: roomy ? 720 : undefined, alignSelf: roomy && !sideBySide ? 'flex-start' : 'center' }}>
+                  {currentEpisode && <Text testID="episode-detail-name" className="text-xl font-nav-semibold" style={{ textAlign: roomy ? 'auto' : 'center' }}>{episodeCode(currentEpisode)} · {currentEpisode.name}</Text>}
+                  <View className="flex-row flex-wrap items-center gap-2" style={{ justifyContent: roomy ? 'flex-start' : 'center' }}>
                     {releaseDate && <Badge variant="secondary"><Text>{releaseDate}</Text></Badge>}
                     {type === 'series' && seasonCount > 0 && !episode && <Badge variant="secondary"><Text>{seasonCount} {seasonCount === 1 ? 'Season' : 'Seasons'}</Text></Badge>}
                     {(type === 'movie' || episode) && (currentEpisode?.runtime || item.runtime) && <Badge variant="secondary"><Text>{currentEpisode?.runtime || item.runtime}</Text></Badge>}
                     <MediaRatingBadge item={item} light={light} />
-                    {certification && <Badge variant="outline" className="rounded-md"><Text>{certification}</Text></Badge>}
+                    {certification && <Badge variant="secondary"><Text>{certification}</Text></Badge>}
                   </View>
-                  <View style={{ width: '100%', maxWidth: roomy ? 360 : undefined, alignSelf: sideBySide && !episode ? 'flex-start' : 'center' }}>
+                  <View style={{ width: '100%', maxWidth: roomy ? 360 : undefined, alignSelf: roomy ? 'flex-start' : 'center' }}>
                     <DetailActions item={item} episode={currentEpisode ?? selectedEpisode} episodes={episodes} onShuffle={openEpisode} />
                   </View>
                   <Synopsis key={currentEpisode?.id ?? item.id} description={currentEpisode?.description || item.description || 'No description is available.'} />
                   {!!(item.genres?.length || item.director?.length || item.writer?.length) && <TitleCredits item={item} fontScale={fontScale} width={sideBySide && !episode && item.poster ? bodyWidth - Math.min(224, bodyWidth * 0.26) - 32 : bodyWidth} />}
                 </View>
+                {sideBySide && !episode && item.poster && <View testID="tablet-detail-poster" accessible accessibilityRole="image" accessibilityLabel={`${item.name} poster`} className="overflow-hidden rounded-lg bg-muted" style={{ width: Math.min(224, bodyWidth * 0.26), aspectRatio: 2 / 3 }}>
+                  <ArtworkImage uri={item.poster} recyclingKey={item.id} />
+                </View>}
               </View>
-              {!!item.seasons?.length && <EpisodeRail item={item} season={season} onSeason={value => { setChosenSeason(value); setSelectedId(undefined); }} episodes={episodes} selected={selectedEpisode?.id} onOpen={openEpisode} loading={query.isFetching && !episodes.length || episodeQuery.isFetching} />}
+              {!!item.seasons?.length && <EpisodeRail blurTarget={blurTarget} item={item} season={season} onSeason={value => { setChosenSeason(value); setSelectedId(undefined); }} episodes={episodes} selected={selectedEpisode?.id} onOpen={openEpisode} loading={query.isFetching && !episodes.length || episodeQuery.isFetching} />}
               {!!credits?.length && <View className="gap-3">
                 <Text role="heading" className="text-xl font-nav-semibold">Cast</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 16 }}>

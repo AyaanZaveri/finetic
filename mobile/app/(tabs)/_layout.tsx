@@ -7,7 +7,7 @@ export default function TabLayout() {
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme ?? 'light'];
   return (
-    <NativeTabs tintColor={theme.foreground} {...(Platform.OS === 'android' ? {
+    <NativeTabs tintColor={theme.foreground} sidebarAdaptable={false} {...(Platform.OS === 'android' ? {
       backgroundColor: theme.background, indicatorColor: theme.muted,
       labelVisibilityMode: 'labeled' as const,
     } : {})}>

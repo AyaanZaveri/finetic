@@ -1,0 +1,53 @@
+appId: app.navigator.mobile
+---
+# Run on the already-installed, fingerprint-matched development client.
+- setOrientation: PORTRAIT
+- extendedWaitUntil:
+    visible:
+      id: hero-primary
+    timeout: 60000
+- waitForAnimationToEnd:
+    timeout: 1500
+- takeScreenshot: ipad-home-portrait
+- setOrientation: LANDSCAPE_LEFT
+- waitForAnimationToEnd:
+    timeout: 1500
+- assertVisible:
+    id: hero-primary
+- takeScreenshot: ipad-home-landscape
+- tapOn:
+    id: hero-primary
+- extendedWaitUntil:
+    visible:
+      id: title-detail-name
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 1500
+- takeScreenshot: ipad-title-landscape
+- tapOn:
+    id: title-detail-back
+- tapOn: Search
+- tapOn:
+    id: search-input
+- inputText: F1
+- hideKeyboard
+- extendedWaitUntil:
+    visible:
+      id: 'media-card-movie:tt16311594'
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 1200
+- takeScreenshot: ipad-search-landscape
+- setOrientation: PORTRAIT
+- waitForAnimationToEnd:
+    timeout: 1200
+- takeScreenshot: ipad-search-portrait
+- tapOn:
+    id: 'media-card-movie:tt16311594'
+- extendedWaitUntil:
+    visible:
+      id: title-detail-name
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 1200
+- takeScreenshot: ipad-movie-portrait

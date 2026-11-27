@@ -89,13 +89,21 @@ jobs:
       - name: Record Android visual walkthrough and screenshots
         env:
           NAVIGATOR_DEV_CLIENT: '1'
-        run: bash scripts/record-native-walkthrough.sh android test-results/dev-walkthrough
+        run: |
+          if bash scripts/record-native-walkthrough.sh android test-results/dev-walkthrough; then exit 0; fi
+          if [ "$(timeout 5 adb get-state 2>/dev/null || true)" = device ]; then exit 1; fi
+          # A disconnected emulator is runner infrastructure, not an assertion
+          # failure. Retry once with the same cached APK and Metro bundle.
+          echo 'Android emulator disconnected; retrying once on a fresh emulator.'
+          cp test-results/emulator.log test-results/emulator-first-attempt.log 2>/dev/null || true
+          bash scripts/record-native-walkthrough.sh android test-results/dev-walkthrough-retry
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         if: always()
         with:
           name: navigator-android-dev-walkthrough
           path: |
-            mobile/test-results/dev-walkthrough/
+            mobile/test-results/dev-walkthrough*/
+            mobile/test-results/emulator*.log
             mobile/test-results/dev-client/metro.log
             mobile/test-results/dev-client/android-ready-*/
           if-no-files-found: warn
@@ -153,6 +161,62 @@ jobs:
           name: navigator-ios-dev-walkthrough
           path: |
             mobile/test-results/dev-walkthrough/
+            mobile/test-results/dev-client/ios-metro.log
+            mobile/test-results/dev-client/ios-ready-*/
+            mobile/test-results/dev-client/ios-failed-ready.png
+          if-no-files-found: warn
+          retention-days: 7
+  ipad:
+    # An iPad uses the same universal iOS simulator binary. Never compile a
+    # second one just for a different screen size. Run independently when cached.
+    needs: foundation
+    if: github.event_name != 'pull_request'
+    concurrency:
+      group: expo-mobile-preview-ipad-${{ github.ref_name }}
+      cancel-in-progress: false
+    runs-on: macos-26
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mobile
+        shell: bash
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - name: Install Maestro
+        run: bash scripts/install-maestro.sh
+      - name: Compute native fingerprint
+        id: fingerprint
+        run: echo "hash=$(node scripts/dev-client-fingerprint.mjs ios)" >> "$GITHUB_OUTPUT"
+      - name: Restore universal iOS development client
+        id: restore
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/restore-dev-client.sh ios "${{ steps.fingerprint.outputs.hash }}"
+      - name: Report cold cache
+        if: steps.restore.outputs.hit != 'true'
+        run: echo 'The iPhone job produces the universal client on a cold cache. iPad previews resume when that artifact is available.'
+      - name: Launch current JavaScript on iPad
+        if: steps.restore.outputs.hit == 'true'
+        id: launch
+        run: bash scripts/dev-client-ios.sh launch iPad
+      - name: Capture live portrait and landscape layouts
+        if: steps.launch.outcome == 'success'
+        run: |
+          xcrun simctl ui "$DEV_CLIENT_IOS_DEVICE" appearance dark
+          maestro test --device "$DEV_CLIENT_IOS_DEVICE" --test-output-dir test-results/ipad-preview --format junit --output test-results/ipad-report.xml tests/ipad-preview.yaml
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always() && steps.restore.outputs.hit == 'true'
+        with:
+          name: navigator-ipad-dev-screenshots
+          path: |
+            mobile/test-results/ipad-preview/
+            mobile/test-results/ipad-report.xml
             mobile/test-results/dev-client/ios-metro.log
             mobile/test-results/dev-client/ios-ready-*/
             mobile/test-results/dev-client/ios-failed-ready.png

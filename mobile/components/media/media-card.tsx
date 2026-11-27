@@ -37,7 +37,7 @@ export const MediaCard = memo(function MediaCard({ item, width, onOpen, titleLin
       onPressOut={() => scale.set(withSpring(1, RELEASE_SPRING))}
       onPress={() => { triggerHaptic('selection'); onOpen(item); }}>
       <Animated.View style={animated}>
-        <View className="overflow-hidden rounded-lg border-border bg-muted" style={[styles.poster, { borderWidth: StyleSheet.hairlineWidth }]}>
+        <View className="overflow-hidden rounded-lg bg-muted" style={styles.poster}>
           <ArtworkImage uri={item.poster} fallback={item.background} recyclingKey={id} />
         </View>
         <View className="gap-0.5 pt-2">

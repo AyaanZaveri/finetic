@@ -3,10 +3,11 @@ import { MediaSection } from '@/components/media/media-section';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { useMetadataProvider } from '@/lib/metadata-provider';
+import { rememberTitleSummary, useTitlePrefetch } from '@/lib/title-cache';
 import { loadHome } from '@/lib/home-api';
 import { selectFeatured, type MediaItem } from '@/lib/home-catalog';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
+import { useIsFocused, useRouter } from 'expo-router';
 import { useCallback, useMemo } from 'react';
 import { ActivityIndicator, Platform, RefreshControl, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,15 +18,19 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const roomy = width - insets.left - insets.right >= 720;
+  const topTabBar = Platform.OS === 'ios' && Platform.isPad && roomy;
   const { provider } = useMetadataProvider();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const focused = useIsFocused();
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme ?? 'light'];
   const query = useQuery({ queryKey: ['home-discovery', provider], queryFn: ({ signal }) => loadHome(signal, provider), staleTime: 5 * 60 * 1000, retry: false });
   const featured = useMemo(() => selectFeatured(query.data?.sections ?? []), [query.data]);
+  const railTitles = useMemo(() => query.data?.sections.slice(0, 2).flatMap(section => section.mediaItems.slice(0, 3)) ?? [], [query.data]);
+  useTitlePrefetch(focused ? railTitles : [], 6);
   const open = useCallback((item: MediaItem) => {
-    queryClient.setQueryData(['title-summary', item.type, item.id], item);
+    rememberTitleSummary(queryClient, item);
     router.push({ pathname: item.type === 'movie' ? '/movie/[id]' : '/series/[id]', params: { id: item.id } });
   }, [queryClient, router]);
   const hasHero = featured.length > 0;
@@ -34,7 +39,7 @@ export default function HomeScreen() {
         contentInsetAdjustmentBehavior={Platform.OS === 'ios' ? 'never' : 'automatic'}
         // The hero already includes its top safe area. On iOS, preserve the
         // full-bleed artwork and reserve the native floating tab bar at the end.
-        contentContainerStyle={{ paddingBottom: Platform.OS === 'ios' ? Math.max(insets.bottom, 90) + 16 : 24 }}
+        contentContainerStyle={{ paddingBottom: Platform.OS === 'ios' && !topTabBar ? Math.max(insets.bottom, 90) + 16 : Math.max(insets.bottom, 16) + 8 }}
         refreshControl={<RefreshControl refreshing={query.isRefetching} tintColor={theme.foreground} onRefresh={() => void query.refetch()} />}>
         {hasHero && <HomeHero key={provider} items={featured} onOpen={open} />}
         {!hasHero && <View className="items-center justify-center gap-4 px-8" style={{ minHeight: 380, paddingTop: insets.top + 64 }}>
