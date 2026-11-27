@@ -15,7 +15,7 @@ export function SearchFilters({ value, counts, onChange }: {
   counts: Record<SearchFilter, number>;
   onChange: (value: SearchFilter) => void;
 }) {
-  return <View className="flex-row flex-wrap gap-1 self-start rounded-[16px] border border-border bg-muted p-1" accessibilityLabel="Result types">
+  return <View className="flex-row flex-wrap gap-1 self-start rounded-[16px] border border-border bg-muted p-1" accessible={false}>
     {filters.map(filter => {
       const selected = filter.value === value;
       const count = counts[filter.value];

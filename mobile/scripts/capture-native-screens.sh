@@ -79,12 +79,37 @@ if sys.argv[2] == 'iPad' and max(width, height) / min(width, height) > 1.65:
     raise SystemExit(f'Unexpected iPad screenshot dimensions: {width} x {height}')
 PYPNG
 }
+wait_for_screen() {
+  local route=$1 target
+  case "$route" in
+    '') target=hero-primary ;;
+    movie/*) target=title-detail-name ;;
+    series/*/*/*) target=episode-detail-name ;;
+    series/*) target=title-detail-name ;;
+    search) target=search-input ;;
+    settings) target=settings-page ;;
+    *) return 1 ;;
+  esac
+  if [ "$platform" = ios ]; then
+    # The simulator can show a system confirmation for a custom URL scheme.
+    # Wait for an actual application accessibility element, not a splash.
+    maestro test --device "$device" -e TARGET_ID="$target" --test-output-dir "$folder/../readiness" tests/capture-ready.yaml
+  else
+    local attempt
+    for attempt in 1 2 3; do
+      if timeout 12 adb shell uiautomator dump /sdcard/navigator-screen.xml >/dev/null 2>&1 &&
+        timeout 5 adb shell cat /sdcard/navigator-screen.xml | grep -F "$target" >/dev/null; then return 0; fi
+      sleep 3
+    done
+    return 1
+  fi
+}
 capture() {
   local name=$1 route=$2 attempt
   for attempt in 1 2; do
     if ensure_device && appearance "$mode" && launch "$route"; then
       sleep 12
-      if shot "$name" && validate_png "$folder/$name.png"; then return 0; fi
+      if wait_for_screen "$route" && shot "$name" && validate_png "$folder/$name.png"; then return 0; fi
     fi
     rm -f "$folder/$name.png"
     echo "Attempt $attempt failed: $name"

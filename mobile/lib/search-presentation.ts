@@ -9,7 +9,8 @@ const COLUMN_GAP = 16;
 export function searchGridLayout(width: number, fontScale = 1) {
   const gutter = width >= 1024 ? 32 : width >= 640 ? 24 : 16;
   const available = Math.max(1, width - 2 * gutter);
-  const minimum = (width >= 1024 ? 144 : 136) * Math.max(1, Math.min(fontScale, 1.5));
+  const textAdjustment = Math.max(1, Math.min(1 + (fontScale - 1) / 2, 1.5));
+  const minimum = (width >= 1024 ? 144 : 136) * textAdjustment;
   const columns = Math.max(1, Math.floor((available + COLUMN_GAP) / (minimum + COLUMN_GAP)));
   return { gutter, columns, cardWidth: (available - (columns - 1) * COLUMN_GAP) / columns, columnGap: COLUMN_GAP };
 }

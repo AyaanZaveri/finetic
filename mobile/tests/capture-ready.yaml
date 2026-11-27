@@ -1,0 +1,9 @@
+appId: app.navigator.mobile
+---
+- tapOn:
+    text: Open
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: ${TARGET_ID}
+    timeout: 45000

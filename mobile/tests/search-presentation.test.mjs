@@ -22,6 +22,7 @@ test('grid fills the available content width at phone, tablet and split-view siz
 });
 
 test('larger text uses fewer columns without overflowing narrow screens', () => {
+  assert.equal(searchGridLayout(360, 1.2).columns, 2);
   assert.equal(searchGridLayout(320, 2).columns, 1);
   assert.equal(searchGridLayout(768, 2).columns, 3);
   const { gutter, columns, cardWidth, columnGap } = searchGridLayout(320, 2);
