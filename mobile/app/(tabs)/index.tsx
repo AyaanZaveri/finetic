@@ -2,6 +2,7 @@ import { HomeHero } from '@/components/home/home-hero';
 import { MediaSection } from '@/components/media/media-section';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
+import { useMetadataProvider } from '@/lib/metadata-provider';
 import { loadHome } from '@/lib/home-api';
 import { selectFeatured, type MediaItem } from '@/lib/home-catalog';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -14,11 +15,12 @@ import { THEME } from '@/lib/theme';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const { provider } = useMetadataProvider();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme ?? 'light'];
-  const query = useQuery({ queryKey: ['home-discovery'], queryFn: ({ signal }) => loadHome(signal), staleTime: 5 * 60 * 1000, retry: false });
+  const query = useQuery({ queryKey: ['home-discovery', provider], queryFn: ({ signal }) => loadHome(signal, provider), staleTime: 5 * 60 * 1000, retry: false });
   const featured = useMemo(() => selectFeatured(query.data?.sections ?? []), [query.data]);
   const open = useCallback((item: MediaItem) => {
     queryClient.setQueryData(['title-summary', item.type, item.id], item);
@@ -29,7 +31,7 @@ export default function HomeScreen() {
     <View className="flex-1 bg-background">
       <ScrollView testID="home-scroll" className="flex-1" contentContainerStyle={{ paddingBottom: 16 }}
         refreshControl={<RefreshControl refreshing={query.isRefetching} tintColor={theme.foreground} onRefresh={() => void query.refetch()} />}>
-        {hasHero && <HomeHero items={featured} onOpen={open} />}
+        {hasHero && <HomeHero key={provider} items={featured} onOpen={open} />}
         {!hasHero && <View className="items-center justify-center gap-4 px-8" style={{ minHeight: 380, paddingTop: insets.top + 64 }}>
           {query.isPending ? <><ActivityIndicator color={theme.foreground} /><Text variant="muted">Loading titles…</Text></> : query.isError ? <>
             <Text className="text-center text-xl font-nav-semibold">Catalogs are unavailable</Text><Text className="text-center text-muted-foreground">Check your connection and try again.</Text>

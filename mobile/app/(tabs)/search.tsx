@@ -2,6 +2,7 @@ import { MediaCard } from '@/components/media/media-card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
+import { useMetadataProvider } from '@/lib/metadata-provider';
 import { searchTitles } from '@/lib/home-api';
 import { mediaKey, type MediaItem } from '@/lib/home-catalog';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -12,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function SearchScreen() {
   const { top } = useSafeAreaInsets();
+  const { provider } = useMetadataProvider();
   const { width } = useWindowDimensions();
   const [value, setValue] = useState('');
   const [term, setTerm] = useState('');
@@ -21,7 +23,7 @@ export default function SearchScreen() {
     const timer = setTimeout(() => setTerm(value.trim()), 300);
     return () => clearTimeout(timer);
   }, [value]);
-  const query = useQuery({ queryKey: ['title-search', term], queryFn: ({ signal }) => searchTitles(term, signal), enabled: !!term, retry: false });
+  const query = useQuery({ queryKey: ['title-search', provider, term], queryFn: ({ signal }) => searchTitles(term, signal, provider), enabled: !!term, retry: false });
   const columns = Math.max(2, Math.floor((width - 32) / 128));
   const cardWidth = (width - 32 - (columns - 1) * 12) / columns;
   const open = useCallback((item: MediaItem) => {

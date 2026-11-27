@@ -72,7 +72,7 @@ test('Cinemeta details require the exact requested title identity', async (t) =>
     return json({meta: {...item('tt123'), cast: ['Actor']}});
   });
   assert.equal((await loadTitle('movie', 'tt123')).id, 'tt123');
-  await assert.rejects(loadTitle('movie', 'tmdb:123'), /Invalid title/);
+  await assert.rejects(loadTitle('movie', 'invalid'), /Invalid title/);
 });
 
 test('search uses live Cinemeta and interleaves movie and series results', async (t) => {
@@ -96,4 +96,22 @@ test('cast portraits are normalized and invalid URLs are omitted', () => {
   assert.equal(result.castMembers.length, 2);
   assert.equal(result.castMembers[0].image, 'https://image.tmdb.org/t/p/w185/actor.jpg');
   assert.equal(result.castMembers[1].image, undefined);
+});
+
+
+test('TMDB is opt-in while Cinemeta remains the default', async (t) => {
+  const {loadHome, loadTitle, searchTitles} = await import('../lib/home-api.ts');
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    assert.ok(url.startsWith('https://navigator-strm.vercel.app'));
+    if (url.includes('/api/discovery/home')) {
+      const type = url.endsWith('movies') ? 'movie' : 'series';
+      return json({status:'ready', section:{sectionName:'Discovery',mediaItems:[item('tmdb:123',type)]}});
+    }
+    if (url.includes('/api/search/results')) return json({provider:'TMDB',results:[item('tmdb:123')]});
+    assert.ok(url.includes('/api/discovery/title'));
+    return json({item:item('tmdb:123')});
+  });
+  assert.equal((await loadHome(undefined, 'tmdb')).sections.length, 6);
+  assert.equal((await searchTitles('Movie', undefined, 'tmdb'))[0].id, 'tmdb:123');
+  assert.equal((await loadTitle('movie', 'tmdb:123')).id, 'tmdb:123');
 });

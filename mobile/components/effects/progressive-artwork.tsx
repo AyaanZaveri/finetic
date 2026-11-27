@@ -1,7 +1,8 @@
 import MaskedView from '@react-native-masked-view/masked-view';
 import { Image, type ImageProps } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
+import { useIsFocused } from 'expo-router';
 import { useReducedMotion } from 'react-native-reanimated';
 
 // A blur-radius ramp using the known image. Each successive layer blends in a
@@ -21,13 +22,15 @@ interface ProgressiveArtworkProps {
 
 export function ProgressiveArtwork({ uri, backgroundColor, light = false, contentPosition = "center" }: ProgressiveArtworkProps) {
   const reducedMotion = useReducedMotion();
+  const focused = useIsFocused();
+  const layers = Platform.OS === "android" ? BLUR_LAYERS.filter((_, i) => i !== 1) : BLUR_LAYERS;
   return (
     <View pointerEvents="none" accessible={false} style={[StyleSheet.absoluteFill, { backgroundColor }]}>
       <Image source={uri} style={[StyleSheet.absoluteFill, light && { opacity: 0.88 }]} contentFit="cover" contentPosition={contentPosition} cachePolicy="memory-disk" transition={reducedMotion ? 0 : 300} />
-      {BLUR_LAYERS.map(({ radius, start, end }) => (
+      {focused && layers.map(({ radius, start, end }) => (
         <MaskedView key={`${uri}-${radius}`} style={StyleSheet.absoluteFill}
           maskElement={<LinearGradient style={StyleSheet.absoluteFill} colors={['transparent', 'transparent', '#000', '#000']} locations={[0, start, end, 1]} />}>
-          <Image source={uri} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition={contentPosition} cachePolicy="memory-disk" blurRadius={radius} />
+          <Image source={uri} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition={contentPosition} cachePolicy="disk" blurRadius={radius} />
         </MaskedView>
       ))}
       <LinearGradient style={StyleSheet.absoluteFill} colors={light

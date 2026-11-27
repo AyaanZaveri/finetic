@@ -40,10 +40,9 @@ jobs:
       - run: npm test
       - run: npx expo install --check
   android:
-    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[preview-only]') }}
     needs: foundation
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: mobile
@@ -68,7 +67,9 @@ jobs:
           ./gradlew assembleRelease --no-daemon | tee ../test-results/android-build.log
       - name: Start API 35 emulator
         run: |
-          bash scripts/start-android-emulator.sh navigator-ci
+          NAVIGATOR_EMULATOR_MEMORY=3072 bash scripts/start-android-emulator.sh navigator-ci
+          adb shell wm size 720x1600
+          adb shell wm density 280
           adb install -r android/app/build/outputs/apk/release/app-release.apk
           adb shell cmd overlay enable com.android.internal.systemui.navbar.gestural
           for i in $(seq 1 10); do
@@ -76,12 +77,23 @@ jobs:
             sleep 1
           done
           test "$(adb shell settings get secure navigation_mode | tr -d '\r')" = 2
+      - name: Capture standalone Android screenshots
+        continue-on-error: true
+        run: bash scripts/capture-native-screens.sh android test-results/screens
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always()
+        with:
+          name: navigator-android-screenshots
+          path: mobile/test-results/screens/
+          if-no-files-found: ignore
       - name: Android component and interaction tests
         run: |
           mkdir -p test-results/phone test-results/large-text
-          maestro test --format junit --output test-results/phone/report.xml --test-output-dir test-results/phone --debug-output test-results/phone .maestro
+          result=0
+          maestro test --format junit --output test-results/phone/report.xml --test-output-dir test-results/phone --debug-output test-results/phone .maestro || result=$?
           adb shell settings put system font_scale 1.2
-          maestro test --format junit --output test-results/large-text/report.xml --test-output-dir test-results/large-text --debug-output test-results/large-text .maestro
+          maestro test --format junit --output test-results/large-text/report.xml --test-output-dir test-results/large-text --debug-output test-results/large-text .maestro || result=$?
+          exit "$result"
       - name: Collect Android diagnostics
         if: always()
         continue-on-error: true
@@ -97,10 +109,9 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
   ios:
-    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[preview-only]') }}
     needs: foundation
     runs-on: macos-26
-    timeout-minutes: 55
+    timeout-minutes: 65
     defaults:
       run:
         working-directory: mobile
@@ -128,10 +139,28 @@ jobs:
           xcodebuild -workspace "$workspace" -scheme Navigator -configuration Release -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/navigator-ios" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO | tee test-results/ios-build.log
+      - name: Capture standalone iPhone screenshots
+        continue-on-error: true
+        run: |
+          app=$(find "$RUNNER_TEMP/navigator-ios/Build/Products/Release-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)
+          test -n "$app"
+          device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(item["udid"] for runtime in reversed(list(d["devices"].values())) for item in runtime if item["name"].startswith("iPhone")))')
+          xcrun simctl boot "$device" || true
+          xcrun simctl bootstatus "$device" -b
+          xcrun simctl status_bar "$device" override --time '9:41' --dataNetwork wifi --wifiMode active --wifiBars 3 --cellularMode active --cellularBars 4 --batteryLevel 100 || true
+          xcrun simctl install "$device" "$app"
+          bash scripts/capture-native-screens.sh ios test-results/iPhone/screens "$device"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always()
+        with:
+          name: navigator-ios-screenshots
+          path: mobile/test-results/iPhone/screens/
+          if-no-files-found: ignore
       - name: iPhone and iPad component and interaction tests
         run: |
           app=$(find "$RUNNER_TEMP/navigator-ios/Build/Products/Release-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)
           test -n "$app"
+          suite_result=0
           for family in iPhone iPad; do
             folder="test-results/$family"
             mkdir -p "$folder"
@@ -140,124 +169,18 @@ jobs:
             xcrun simctl bootstatus "$device" -b
             xcrun simctl status_bar "$device" override --time '9:41' --dataNetwork wifi --wifiMode active --wifiBars 3 --cellularMode active --cellularBars 4 --batteryLevel 100 || true
             xcrun simctl install "$device" "$app"
+            if [ "$family" = iPad ]; then bash scripts/capture-native-screens.sh ios "$folder/screens" "$device" || true; fi
             result=0
             maestro test --device "$device" --exclude-tags android-only --format junit --output "$folder/report.xml" --test-output-dir "$folder" --debug-output "$folder" .maestro || result=$?
             xcrun simctl io "$device" screenshot "$folder/final-screen.png" || true
             xcrun simctl shutdown "$device" || true
-            if [ "$result" -ne 0 ]; then exit "$result"; fi
+            if [ "$result" -ne 0 ]; then suite_result=$result; fi
           done
+          exit "$suite_result"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         if: always()
         with:
           name: expo-ios-results
-          path: mobile/test-results/
-          if-no-files-found: ignore
-          retention-days: 7
-  android-preview:
-    name: Android fast visual preview
-    needs: foundation
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    defaults:
-      run:
-        working-directory: mobile
-        shell: bash
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: mobile/package-lock.json
-      - run: npm ci
-      - name: Install Maestro and Expo Go
-        run: |
-          bash scripts/install-maestro.sh
-          bash scripts/verify-download.sh https://github.com/expo/expo-go-releases/releases/download/Expo-Go-56.0.4/Expo-Go-56.0.4.apk "$RUNNER_TEMP/expo-go.apk" dd5eea2fb16ab83dd60b3d3767210702ecee3b67b4947e5e2367965e0d92a833
-      - name: Configure Android SDK
-        run: bash scripts/configure-android-sdk.sh
-      - name: Start emulator and Metro
-        run: |
-          NAVIGATOR_EMULATOR_MEMORY=3072 bash scripts/start-android-emulator.sh navigator-preview
-          adb shell wm size 720x1600
-          adb shell wm density 280
-          adb shell cmd uimode night yes
-          adb install "$RUNNER_TEMP/expo-go.apk"
-          bash scripts/start-preview-metro.sh
-          adb reverse tcp:8081 tcp:8081
-          adb shell am start -a android.intent.action.VIEW -d exp://127.0.0.1:8081 -p host.exp.exponent
-      - name: Wait for first Android bundle
-        run: bash scripts/wait-preview-bundle.sh Android
-      - name: Capture preview screenshots
-        run: maestro test -e APP_ID=host.exp.exponent --format junit --output test-results/report.xml --debug-output test-results --test-output-dir test-results .maestro-preview/home.yaml
-      - name: Collect diagnostics
-        if: always()
-        continue-on-error: true
-        run: |
-          mkdir -p test-results
-          timeout 15 adb logcat -d -t 2000 > test-results/logcat.txt || true
-          timeout 15 adb exec-out screencap -p > test-results/final-screen.png || rm -f test-results/final-screen.png
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
-        if: always()
-        with:
-          name: expo-android-preview
-          path: mobile/test-results/
-          if-no-files-found: ignore
-          retention-days: 7
-  ios-preview:
-    name: iOS fast visual preview
-    needs: foundation
-    runs-on: macos-26
-    timeout-minutes: 25
-    defaults:
-      run:
-        working-directory: mobile
-        shell: bash
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: mobile/package-lock.json
-      - run: npm ci
-      - name: Install Maestro and Expo Go
-        run: |
-          bash scripts/install-maestro.sh
-          bash scripts/verify-download.sh https://github.com/expo/expo-go-releases/releases/download/Expo-Go-56.0.4/Expo-Go-56.0.4.tar.gz "$RUNNER_TEMP/expo-go.tar.gz" e6ed55f7ad9c31c81e819addcb79ed8f0cd629950517d84328e377f182104eed
-          mkdir -p "$RUNNER_TEMP/expo-go/ExpoGo.app"
-          tar -xzf "$RUNNER_TEMP/expo-go.tar.gz" -C "$RUNNER_TEMP/expo-go/ExpoGo.app"
-      - name: Start iPhone simulator and Metro
-        run: |
-          mkdir -p test-results
-          app="$RUNNER_TEMP/expo-go/ExpoGo.app"
-          test -f "$app/Info.plist"
-          app_id=$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app/Info.plist")
-          device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(item["udid"] for runtime in reversed(list(d["devices"].values())) for item in runtime if item["name"].startswith("iPhone")))')
-          echo "PREVIEW_DEVICE=$device" >> "$GITHUB_ENV"
-          echo "PREVIEW_APP_ID=$app_id" >> "$GITHUB_ENV"
-          xcrun simctl boot "$device" || true
-          xcrun simctl bootstatus "$device" -b
-          xcrun simctl ui "$device" appearance dark
-          xcrun simctl install "$device" "$app"
-          bash scripts/start-preview-metro.sh
-          xcrun simctl openurl "$device" exp://127.0.0.1:8081
-      - name: Wait for first iOS bundle
-        run: bash scripts/wait-preview-bundle.sh iOS
-      - name: Capture preview screenshots
-        run: maestro test --device "$PREVIEW_DEVICE" -e APP_ID="$PREVIEW_APP_ID" --format junit --output test-results/report.xml --debug-output test-results --test-output-dir test-results .maestro-preview/home.yaml
-      - name: Collect diagnostics
-        if: always()
-        continue-on-error: true
-        run: |
-          mkdir -p test-results
-          if [ -n "${PREVIEW_DEVICE:-}" ]; then
-            xcrun simctl io "$PREVIEW_DEVICE" screenshot test-results/final-screen.png
-          fi
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
-        if: always()
-        with:
-          name: expo-ios-preview
           path: mobile/test-results/
           if-no-files-found: ignore
           retention-days: 7

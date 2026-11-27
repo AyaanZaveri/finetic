@@ -1,5 +1,6 @@
 import '@/global.css';
 
+import { MetadataProviderRoot } from '@/lib/metadata-provider';
 import { NAV_THEME } from '@/lib/theme';
 import { ThemeProvider } from 'expo-router/react-navigation';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
@@ -39,6 +40,7 @@ export default function RootLayout() {
       <ThemeProvider value={NAV_THEME[colorScheme ?? 'light']}>
         <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
         <QueryClientProvider client={queryClient}>
+          <MetadataProviderRoot>
           <BottomSheetModalProvider>
             {Platform.OS === 'android' ? (
               <ExperimentalStack initialRouteName="(tabs)" screenOptions={{ headerShown: false }}>
@@ -53,6 +55,7 @@ export default function RootLayout() {
             )}
             <PortalHost />
           </BottomSheetModalProvider>
+          </MetadataProviderRoot>
         </QueryClientProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
