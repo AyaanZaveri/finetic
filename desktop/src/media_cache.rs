@@ -1233,7 +1233,9 @@ pub(crate) mod tests {
     #[test]
     fn concurrent_previews_reuse_inflight_bytes_without_delaying_playback() {
         let expected = data();
-        let origin = Origin::new(expected.clone());
+        // A previous connection's graceful shutdown must not delay the
+        // intentionally slow range response in this concurrency test.
+        let origin = Origin::new_typed(expected.clone(), "video/mp4");
         let source = MediaSource::new(&origin.url, &Headers::new()).unwrap();
         get(&source.playback_url(), Some("bytes=0-99"));
         origin.mode.store(4, Ordering::SeqCst);
