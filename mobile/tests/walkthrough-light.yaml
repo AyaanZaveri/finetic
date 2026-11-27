@@ -79,6 +79,8 @@ appId: app.navigator.mobile
     visible:
       id: season-option-1
     timeout: 10000
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: walkthrough-season-sheet
 - tapOn:
     id: season-option-1
