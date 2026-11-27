@@ -11,9 +11,9 @@ Keep `app/`, `components/`, `desktop/`, `ios/` and `android/` as the existing pr
 | Batch | Scope | Status |
 |---|---|---|
 | 1 | SDK and router, themes, fonts, locally owned components, haptics and native glass surface, component preview | Implemented, device verification pending |
-| 2 | Artwork image, progressive blur, media cards, detail sheet and navigation shell | Implemented, device verification pending |
+| 2 | Artwork image, progressive blur, media cards, contextual action sheet and native navigation shell | Implemented, device verification pending |
 | 3 | Public Cinemeta/TMDB API client, Home hero and catalog rails; Continue Watching after account integration | Core Home implemented, remaining account features pending |
-| 4 | Search, movie, series, episodes, seasons and people | Pending |
+| 4 | Movie and series detail routes, search, episodes, seasons and people | Movie/series summary pages implemented; search and episode drill-down pending |
 | 5 | Session and secure storage, library, watch history and addons | Pending |
 | 6 | Settings categories and provider connections | Pending |
 | 7 | Native playback adapters, player chrome and lifecycle | Pending |

@@ -20,12 +20,39 @@ appId: ${APP_ID}
 - tapOn:
     id: hero-primary
 - assertVisible:
-    id: title-sheet
-- takeScreenshot: home-title-sheet
+    id: title-detail-page
+- takeScreenshot: movie-detail
 - tapOn:
-    id: title-sheet-close
+    id: title-detail-back
+- tapOn:
+    id: hero-slide-1
+- tapOn:
+    id: hero-primary
+- assertVisible:
+    id: title-detail-page
+- takeScreenshot: series-detail
+- tapOn:
+    id: title-detail-back
 - scrollUntilVisible:
     element:
       id: 'media-card-movie:tmdb:812583'
     direction: DOWN
+- swipe:
+    direction: UP
+    duration: 430
 - takeScreenshot: home-cards
+- scrollUntilVisible:
+    element:
+      id: 'media-card-movie:tmdb:812583'
+    direction: UP
+- longPressOn:
+    id: 'media-card-movie:tmdb:812583'
+- assertVisible:
+    id: title-sheet
+- takeScreenshot: home-quick-actions
+- tapOn:
+    id: title-sheet-close
+- tapOn:
+    id: open-design-system
+- assertVisible: 'Mobile foundation'
+- takeScreenshot: design-system

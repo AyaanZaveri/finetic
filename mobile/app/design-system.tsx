@@ -8,7 +8,6 @@ import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
 import { triggerHaptic } from '@/lib/haptics';
-import { Stack } from 'expo-router';
 import { Check, Moon, Search, Sun } from 'lucide-react-native';
 import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
@@ -26,7 +25,6 @@ export default function FoundationScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Design system' }} />
       <ScrollView className="flex-1 bg-background" contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: insets.bottom + 24 }}>
         <View className="mx-auto w-full max-w-lg gap-6">

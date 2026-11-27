@@ -6,8 +6,8 @@ import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { loadHome } from '@/lib/home-api';
 import { selectFeatured, type MediaItem } from '@/lib/home-catalog';
-import { useQuery } from '@tanstack/react-query';
-import { Stack, useRouter } from 'expo-router';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { Settings2 } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
@@ -19,17 +19,21 @@ import { THEME } from '@/lib/theme';
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme ?? 'light'];
   const [selected, setSelected] = useState<MediaItem | null>(null);
   const query = useQuery({ queryKey: ['home-discovery'], queryFn: ({ signal }) => loadHome(signal), staleTime: 5 * 60 * 1000, retry: false });
   const featured = useMemo(() => selectFeatured(query.data?.sections ?? []), [query.data]);
-  const open = useCallback((item: MediaItem) => setSelected(item), []);
+  const open = useCallback((item: MediaItem) => {
+    queryClient.setQueryData(['title-summary', item.type, item.id], item);
+    router.push({ pathname: item.type === 'movie' ? '/movie/[id]' : '/series/[id]', params: { id: item.id } });
+  }, [queryClient, router]);
+  const quickActions = useCallback((item: MediaItem) => setSelected(item), []);
   const close = useCallback(() => setSelected(null), []);
   const hasHero = featured.length > 0;
   return (
     <View className="flex-1 bg-background">
-      <Stack.Screen options={{ headerShown: false }} />
       <ScrollView testID="home-scroll" className="flex-1" contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
         refreshControl={<RefreshControl refreshing={query.isRefetching} tintColor={theme.foreground} onRefresh={() => void query.refetch()} />}>
         {hasHero && <HomeHero items={featured} onOpen={open} />}
@@ -40,7 +44,7 @@ export default function HomeScreen() {
           </> : <Text className="text-xl font-nav-semibold">Browse movies and TV shows</Text>}
         </View>}
         <View className="gap-7 pb-3">
-          {query.data?.sections.map(section => <MediaSection key={section.key} section={section} onOpen={open} />)}
+          {query.data?.sections.map(section => <MediaSection key={section.key} section={section} onOpen={open} onQuickActions={quickActions} />)}
         </View>
       </ScrollView>
       <View className="absolute left-0 right-0 flex-row items-center justify-between px-4" style={{ top: insets.top + 8 }} pointerEvents="box-none">
@@ -51,7 +55,7 @@ export default function HomeScreen() {
           <Icon as={Settings2} size={21} className={hasHero ? 'text-white' : 'text-foreground'} />
         </Button>
       </View>
-      <TitleSheet item={selected} onDismiss={close} />
+      <TitleSheet item={selected} onDismiss={close} onView={open} />
     </View>
   );
 }

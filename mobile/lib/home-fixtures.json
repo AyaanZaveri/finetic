@@ -19,6 +19,38 @@
           "Thriller",
           "Mystery",
           "Comedy"
+        ],
+        "cast": [
+          "Daniel Craig",
+          "Josh O'Connor",
+          "Glenn Close",
+          "Josh Brolin",
+          "Mila Kunis",
+          "Jeremy Renner",
+          "Kerry Washington",
+          "Andrew Scott",
+          "Cailee Spaeny",
+          "Daryl McCormack",
+          "Thomas Haden Church",
+          "Jeffrey Wright",
+          "Annie Hamilton",
+          "James Faulkner",
+          "Bridget Everett",
+          "Noah Segan",
+          "Jamie Karitzis",
+          "Kit Burden",
+          "Gavin Spokes",
+          "Paul Hilton",
+          "Joseph Gordon-Levitt",
+          "Cecilia Blair",
+          "Georgie Drain",
+          "Bertie Drain",
+          "Leo Abelo Perry",
+          "Ray Bolton",
+          "Nicola Hughes",
+          "Laura Elsworthy",
+          "Daphne Cheung",
+          "Hugh Wyld"
         ]
       },
       {
@@ -130,6 +162,18 @@
         "genres": [
           "Drama",
           "Sci-Fi & Fantasy"
+        ],
+        "cast": [
+          "Rhea Seehorn",
+          "Karolina Wydra",
+          "Carlos-Manuel Vesga"
+        ],
+        "seasons": [
+          {
+            "number": 1,
+            "name": "Season 1",
+            "episodeCount": 9
+          }
         ]
       },
       {

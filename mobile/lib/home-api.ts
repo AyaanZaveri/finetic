@@ -1,4 +1,4 @@
-import { parseCatalog, type HomeSection, type MediaType } from './home-catalog';
+import { parseCatalog, parseMedia, validMediaId, type HomeSection, type MediaItem, type MediaType } from './home-catalog';
 import fixtures from './home-fixtures.json';
 
 const DEFAULT_ORIGIN = 'https://navigator-strm.vercel.app';
@@ -69,4 +69,20 @@ export async function loadHome(signal?: AbortSignal): Promise<HomeFeed> {
   const hasTMDB = !!movies || !!series || additional.some(Boolean);
   const hasCinemeta = !!fallbackMovies || !!fallbackSeries;
   return { sections, provider: hasTMDB ? hasCinemeta ? 'Mixed' : 'TMDB' : 'Cinemeta' };
+}
+
+export async function loadTitle(type: MediaType, id: string, signal?: AbortSignal): Promise<MediaItem> {
+  if (!validMediaId(id)) throw new Error('Invalid title.');
+  if (process.env.EXPO_PUBLIC_MOBILE_FIXTURES === '1') {
+    const match = fixtures.flatMap(row => parseCatalog(row.mediaItems)).find(item => item.id === id && item.type === type);
+    const item = parseMedia(match, type);
+    if (item) return item;
+    throw new Error('Title not found.');
+  }
+  const response = id.startsWith('tmdb:')
+    ? await requestJson(`${backendOrigin()}/api/discovery/title?${new URLSearchParams({ id, type })}`, signal) as { item?: unknown }
+    : await requestJson(`https://v3-cinemeta.strem.io/meta/${type}/${id}.json`, signal) as { meta?: unknown };
+  const item = parseMedia(response && typeof response === 'object' ? 'item' in response ? response.item : 'meta' in response ? response.meta : undefined : undefined, type);
+  if (!item || item.id !== id) throw new Error('Title metadata is unavailable.');
+  return item;
 }

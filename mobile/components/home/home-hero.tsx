@@ -6,7 +6,7 @@ import { mediaKey, ratingLabel, resizeBackdrop, type MediaItem } from '@/lib/hom
 import { THEME } from '@/lib/theme';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Info, Star } from 'lucide-react-native';
+import { ArrowRight, Star } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
@@ -30,7 +30,7 @@ export function HomeHero({ items, onOpen }: { items: MediaItem[]; onOpen: (item:
   const item = items[selection % Math.max(1, items.length)];
   const heroHeight = Math.min(704, Math.max(480, Math.min(width * 1.34, height * 0.8)));
   if (!item) return null;
-  const background = resizeBackdrop(item.background);
+  const background = resizeBackdrop(item.background, 1280);
   const rating = ratingLabel(item);
   return (
     <View testID="home-hero" style={{ minHeight: heroHeight, paddingTop: top + 72, paddingBottom: 30, backgroundColor: theme.background }} className="relative overflow-hidden justify-end">
@@ -46,8 +46,8 @@ export function HomeHero({ items, onOpen }: { items: MediaItem[]; onOpen: (item:
           </View>
           {!!item.genres?.length && <Text className="text-center text-white/90 text-sm" numberOfLines={2}>{item.genres.slice(0, 3).join('  ·  ')}</Text>}
         </View>
-        <Button testID="hero-primary" size="lg" haptic="impact" onPress={() => onOpen(item)} className="bg-white border-white rounded-[14px] px-6">
-          <Icon as={Info} className="text-black" size={18} /><Text className="text-black text-base font-nav-medium">View details</Text>
+        <Button testID="hero-primary" size="lg" haptic="impact" onPress={() => onOpen(item)} accessibilityLabel={`View ${item.name}`} className="bg-white border-white rounded-[14px] px-6">
+          <Text className="text-black text-base font-nav-medium">View</Text><Icon as={ArrowRight} className="text-black" size={18} />
         </Button>
         {items.length > 1 && <View className="flex-row items-center justify-center rounded-full bg-black/40 px-2" accessibilityLabel="Featured titles">
           {items.map((entry, index) => <Pressable key={mediaKey(entry)} accessibilityLabel={`Featured title ${index + 1}: ${entry.name}`} accessibilityState={{ selected: index === selection }} role="button" testID={`hero-slide-${index}`}

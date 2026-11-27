@@ -14,6 +14,8 @@ export interface MediaItem {
   ratingSource?: string;
   genres?: string[];
   runtime?: string;
+  cast?: string[];
+  seasons?: { number: number; name: string; episodeCount: number }[];
 }
 export interface HomeSection {
   key: string;
@@ -30,8 +32,8 @@ export function artworkUrl(value: unknown): string | undefined {
   return typeof value === 'string' && (TMDB_IMAGE.test(value) || CINEMETA_IMAGE.test(value)) ? value : undefined;
 }
 
-export function resizeBackdrop(url: string | undefined): string | undefined {
-  return artworkUrl(url)?.replace(/\/t\/p\/[^/]+\//, '/t/p/w780/');
+export function resizeBackdrop(url: string | undefined, width: 780 | 1280 = 780): string | undefined {
+  return artworkUrl(url)?.replace(/\/t\/p\/[^/]+\//, `/t/p/w${width}/`);
 }
 
 function text(value: unknown): string | undefined {
@@ -44,13 +46,41 @@ export function releaseYear(item: { year?: unknown; releaseInfo?: unknown }): nu
   return Number.isInteger(parsed) && parsed >= 1888 && parsed <= new Date().getFullYear() + 1 ? parsed : undefined;
 }
 
+export function validMediaId(id: unknown): id is string {
+  return typeof id === 'string' && /^(?:tt\d{1,12}|tmdb:[1-9]\d{0,11})$/.test(id);
+}
+
+function parseSeasons(seasons: unknown, videos: unknown): MediaItem['seasons'] {
+  if (Array.isArray(seasons)) {
+    return seasons.flatMap(value => {
+      if (!value || typeof value !== 'object') return [];
+      const { number, name, episodeCount } = value as Record<string, unknown>;
+      if (typeof number !== 'number' || !Number.isSafeInteger(number) || number < 0 || number > 10000 ||
+          typeof episodeCount !== 'number' || !Number.isSafeInteger(episodeCount) || episodeCount < 1) return [];
+      return [{ number, name: text(name) ?? (number ? `Season ${number}` : 'Specials'), episodeCount }];
+    }).sort((a, b) => a.number - b.number);
+  }
+  if (!Array.isArray(videos)) return undefined;
+  const grouped = new Map<number, Set<number>>();
+  for (const video of videos) {
+    if (!video || typeof video !== 'object') continue;
+    const { season, episode } = video as Record<string, unknown>;
+    if (typeof season !== 'number' || !Number.isSafeInteger(season) || season < 0 || season > 10000 ||
+        typeof episode !== 'number' || !Number.isSafeInteger(episode) || episode < 1) continue;
+    const episodes = grouped.get(season) ?? new Set<number>();
+    episodes.add(episode);
+    grouped.set(season, episodes);
+  }
+  return [...grouped.entries()].sort(([a], [b]) => a - b).map(([number, episodes]) => ({ number, name: number ? `Season ${number}` : 'Specials', episodeCount: episodes.size }));
+}
+
 export function parseMedia(value: unknown, expected?: MediaType): MediaItem | null {
   if (!value || typeof value !== 'object') return null;
   const item = value as Record<string, unknown>;
   if ((item.type !== 'movie' && item.type !== 'series') || (expected && item.type !== expected)) return null;
   const id = text(item.id);
   const name = text(item.name);
-  if (!id || !name || !/^(?:tt\d+|tmdb:\d+)$/.test(id)) return null;
+  if (!validMediaId(id) || !name) return null;
   const rating = typeof item.communityRating === 'number' && item.communityRating > 0 && item.communityRating <= 10 ? item.communityRating : undefined;
   return {
     id, type: item.type, name,
@@ -59,6 +89,8 @@ export function parseMedia(value: unknown, expected?: MediaType): MediaItem | nu
     imdbRating: text(item.imdbRating), communityRating: rating, ratingSource: text(item.ratingSource),
     genres: Array.isArray(item.genres) ? item.genres.flatMap(value => text(value) ?? []).slice(0, 4) : undefined,
     runtime: text(item.runtime),
+    cast: Array.isArray(item.cast) ? item.cast.flatMap(value => text(value) ?? []).slice(0, 30) : undefined,
+    seasons: item.type === 'series' ? parseSeasons(item.seasons, item.videos) : undefined,
   };
 }
 

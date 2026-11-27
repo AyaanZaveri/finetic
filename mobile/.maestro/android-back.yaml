@@ -1,0 +1,26 @@
+appId: app.navigator.mobile
+tags:
+  - android-only
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: hero-primary
+    timeout: 30000
+- tapOn:
+    id: hero-primary
+- assertVisible:
+    id: title-detail-page
+- swipe:
+    start: '1%, 50%'
+    end: '64%, 50%'
+    duration: 700
+- assertVisible:
+    id: hero-primary
+- takeScreenshot: android-after-edge-back
+- tapOn:
+    id: hero-primary
+- pressKey: Back
+- assertVisible:
+    id: hero-primary

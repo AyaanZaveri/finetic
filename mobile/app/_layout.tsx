@@ -6,11 +6,12 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PortalHost } from '@rn-primitives/portal';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { ExperimentalStack, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'nativewind';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 export { ErrorBoundary } from 'expo-router';
@@ -39,7 +40,15 @@ export default function RootLayout() {
         <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
         <QueryClientProvider client={queryClient}>
           <BottomSheetModalProvider>
-            <Stack screenOptions={{ headerShadowVisible: false }} />
+            {Platform.OS === 'android' ? (
+              <ExperimentalStack screenOptions={{ headerShown: false }}>
+                <ExperimentalStack.Screen name="design-system" options={{ headerShown: true, title: 'Design system' }} />
+              </ExperimentalStack>
+            ) : (
+              <Stack screenOptions={{ headerShown: false, headerShadowVisible: false }}>
+                <Stack.Screen name="design-system" options={{ headerShown: true, title: 'Design system' }} />
+              </Stack>
+            )}
             <PortalHost />
           </BottomSheetModalProvider>
         </QueryClientProvider>

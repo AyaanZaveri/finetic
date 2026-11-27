@@ -3,10 +3,12 @@ on:
   push:
     paths:
       - 'mobile/**'
+      - 'app/api/discovery/title/**'
       - '.github/workflows/mobile-expo.yml'
   pull_request:
     paths:
       - 'mobile/**'
+      - 'app/api/discovery/title/**'
       - '.github/workflows/mobile-expo.yml'
   workflow_dispatch:
 permissions:
@@ -69,6 +71,12 @@ jobs:
         run: |
           bash scripts/start-android-emulator.sh navigator-ci
           adb install -r android/app/build/outputs/apk/release/app-release.apk
+          adb shell cmd overlay enable com.android.internal.systemui.navbar.gestural
+          for i in $(seq 1 10); do
+            if [[ "$(adb shell settings get secure navigation_mode | tr -d '\r')" == 2 ]]; then break; fi
+            sleep 1
+          done
+          test "$(adb shell settings get secure navigation_mode | tr -d '\r')" = 2
       - name: Android component and interaction tests
         run: |
           mkdir -p test-results/phone test-results/large-text
@@ -135,7 +143,7 @@ jobs:
             xcrun simctl status_bar "$device" override --time '9:41' --dataNetwork wifi --wifiMode active --wifiBars 3 --cellularMode active --cellularBars 4 --batteryLevel 100 || true
             xcrun simctl install "$device" "$app"
             result=0
-            maestro test --device "$device" --format junit --output "$folder/report.xml" --test-output-dir "$folder" --debug-output "$folder" .maestro || result=$?
+            maestro test --device "$device" --exclude-tags android-only --format junit --output "$folder/report.xml" --test-output-dir "$folder" --debug-output "$folder" .maestro || result=$?
             xcrun simctl io "$device" screenshot "$folder/final-screen.png" || true
             xcrun simctl shutdown "$device" || true
             if [ "$result" -ne 0 ]; then exit "$result"; fi

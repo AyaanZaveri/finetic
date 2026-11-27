@@ -56,3 +56,24 @@ test('a malformed response on both sources returns a retriable error', async (t)
   t.mock.method(globalThis, 'fetch', async () => json({invalid: true}));
   await assert.rejects(loadHome(), /No catalogs are available/);
 });
+
+test('Cinemeta title details aggregate distinct valid episodes into seasons', async (t) => {
+  const {loadTitle} = await import('../lib/home-api.ts');
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    assert.equal(url, 'https://v3-cinemeta.strem.io/meta/series/tt123.json');
+    return json({meta: {...item('tt123', 'series'), cast: ['Actor'], videos: [{season: 1, episode: 1}, {season: 1, episode: 1}, {season: 1, episode: 2}, {season: 2, episode: 1}, {season: -1, episode: 1}]}});
+  });
+  const title = await loadTitle('series', 'tt123');
+  assert.deepEqual(title.seasons, [{number:1,name:'Season 1',episodeCount:2},{number:2,name:'Season 2',episodeCount:1}]);
+  assert.deepEqual(title.cast, ['Actor']);
+});
+
+test('TMDB title detail uses the server metadata endpoint and exact identity', async (t) => {
+  const {loadTitle} = await import('../lib/home-api.ts');
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    assert.ok(url.includes('/api/discovery/title?id=tmdb%3A123&type=movie'));
+    return json({item: {...item('tmdb:123'), cast: ['Actor']}});
+  });
+  assert.equal((await loadTitle('movie', 'tmdb:123')).id, 'tmdb:123');
+  await assert.rejects(loadTitle('movie', 'https://example.com'), /Invalid title/);
+});
