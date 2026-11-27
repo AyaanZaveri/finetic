@@ -744,6 +744,83 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "generated synthetic MKV fixtures and pinned libmpv required"]
+    fn headless_webdl_preview_formats() {
+        use base64::Engine as _;
+        use aiostreams_thumbs::{Source, Settings};
+        use aiostreams_container::Options;
+        let _ = env_logger::try_init();
+        let library = std::path::PathBuf::from(std::env::var("NAVIGATOR_TEST_LIBMPV").unwrap());
+        aiostreams_thumbs::library_dirs(vec![library.parent().unwrap().to_path_buf()]);
+        let directory = std::path::PathBuf::from(std::env::var("NAVIGATOR_TEST_PREVIEW_DIR").unwrap());
+        let mut failures = Vec::new();
+        for filename in ["avc-stereo.mkv", "avc-surround-open-gop.mkv", "avc-front-cues.mkv", "hevc-control.mkv", "avc-no-cues.mkv"] {
+            let fixture = directory.join(filename);
+            let data = std::fs::read(&fixture).unwrap();
+            println!("FORMAT {filename}: {} bytes", data.len());
+            // Isolate the container parser and standalone keyframe decoder
+            // from the native HTTP relay and video playback.
+            match Source::open(fixture.to_str().unwrap(), Options::default()) {
+                Ok(mut source) => {
+                    println!("INDEX {filename}: {} entries", source.keyframes().entries.len());
+                    let mut renderer = source.renderer(Settings { width: 448, quality: 72, ..Settings::default() });
+                    for second in [5_u64, 11, 18, 25] {
+                        let index = source.keyframes().at(second * 1000);
+                        let at = source.keyframes().entries[index].time_ms;
+                        match source.packet(index).and_then(|packet| renderer.render(&packet)) {
+                            Ok(jpeg) => println!("PACKET {filename} target={second} keyframe={at} jpeg={}", jpeg.len()),
+                            Err(error) => println!("PACKET_ERROR {filename} target={second} keyframe={at}: {error}"),
+                        }
+                    }
+                }
+                Err(error) => println!("INDEX_ERROR {filename}: {error}"),
+            }
+            // Use the actual Player, including its internal byte relay,
+            // readiness gate, preview workers, and published JPEG delivery.
+            let origin = crate::media_cache::tests::Origin::new(data);
+            let url = origin.url.replace("/video.mp4", "/video.mkv");
+            let mpv = Arc::new(Mpv::new(&library, &[("config", "no"), ("vo", "null"), ("ao", "null"), ("idle", "yes"), ("terminal", "no")]).unwrap());
+            let (send, inbox) = mpsc::channel();
+            let mut player = Player::start(mpv.clone(), move |value| { let _ = send.send(value); }, |_, _| {}).unwrap();
+            player.send(Command::Load { session: "webdl-preview".into(), url, headers: BTreeMap::new(), start_position: 0.0 });
+            wait_for(&inbox, |v| v["type"] == "ready" && v["session"] == "webdl-preview");
+            for (index, target) in [18.0, 5.0, 11.0, 25.0, 18.0].into_iter().enumerate() {
+                let request = index as u64 + 1;
+                let started = Instant::now();
+                player.send(Command::Thumbnail { session: "webdl-preview".into(), request, position: Some(target) });
+                let mut result = None;
+                while started.elapsed() < Duration::from_secs(6) {
+                    if let Ok(value) = inbox.recv_timeout(Duration::from_millis(100)) {
+                        if value["type"] == "thumbnail" && value["request"] == request {
+                            result = Some(value);
+                            break;
+                        }
+                    }
+                }
+                let picture = result.as_ref().and_then(|value| value["src"].as_str());
+                let bytes = picture.and_then(|src| {
+                    if let Some(data) = src.strip_prefix("data:image/jpeg;base64,") {
+                        base64::engine::general_purpose::STANDARD.decode(data).ok()
+                    } else {
+                        ureq::get(src).call().ok()?.body_mut().read_to_vec().ok()
+                    }
+                });
+                let ok = bytes.as_ref().is_some_and(|bytes| bytes.starts_with(&[0xff, 0xd8, 0xff]));
+                println!("PREVIEW {filename} target={target} ok={ok} elapsed_ms={} actual={:?} result={}",
+                    started.elapsed().as_millis(), result.as_ref().and_then(|v| v["position"].as_f64()),
+                    if result.is_none() { "timeout" } else if picture.is_none() { "unavailable" } else { "image" });
+                if !ok && filename != "avc-no-cues.mkv" {
+                    failures.push(format!("{filename} at {target}s"));
+                }
+            }
+            player.begin_shutdown();
+            player.join();
+            println!("ORIGIN {filename}: {} requests, {} bytes", origin.requests.load(Ordering::SeqCst), origin.transferred.load(Ordering::SeqCst));
+        }
+        assert!(failures.is_empty(), "Native indexed previews failed: {failures:?}");
+    }
+
+    #[test]
     #[ignore = "set NAVIGATOR_TEST_LIBMPV and NAVIGATOR_TEST_VIDEO; local HTTP fixture"]
     fn headless_shared_playback_bytes_generate_new_previews_without_refetch() {
         let library = std::path::PathBuf::from(std::env::var("NAVIGATOR_TEST_LIBMPV").unwrap());

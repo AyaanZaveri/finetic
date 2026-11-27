@@ -1,0 +1,72 @@
+name: Native preview container regression
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [native-preview-regression]
+    paths:
+      - '.github/workflows/native-preview-regression.yml'
+      - 'desktop/src/thumbnails.rs'
+      - 'desktop/src/player.rs'
+      - 'desktop/src/media_cache.rs'
+      - 'scripts/generate-native-preview-fixtures.py'
+
+permissions:
+  contents: read
+
+jobs:
+  previews:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            library: desktop/vendor/windows-x86_64/libmpv-2.dll
+          - os: macos-15
+            library: desktop/vendor/macos-aarch64/libmpv.2.dylib
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    env:
+      CARGO_BUILD_JOBS: "2"
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 26.7.0
+      - uses: dtolnay/rust-toolchain@3da603d4464771f1a8c3dd4acb41f03bc8107551
+      - name: Download pinned playback libraries
+        run: node scripts/fetch-desktop-libs.mjs
+      - name: Install FFmpeg if needed (macOS)
+        if: runner.os == 'macOS'
+        run: command -v ffmpeg >/dev/null || brew install ffmpeg
+      - name: Install FFmpeg if needed (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+            choco install ffmpeg --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            "$env:ChocolateyInstall\bin" >> $env:GITHUB_PATH
+          }
+      - name: Generate matching synthetic media formats
+        shell: bash
+        run: python scripts/generate-native-preview-fixtures.py "$RUNNER_TEMP/preview-fixtures"
+      - name: Resolve native paths for this runner
+        shell: bash
+        env:
+          LIBMPV_PATH: ${{ matrix.library }}
+        run: |
+          node --input-type=module <<'JS'
+          import { resolve, join } from 'node:path';
+          import { appendFileSync } from 'node:fs';
+          appendFileSync(process.env.GITHUB_ENV, `NAVIGATOR_TEST_LIBMPV=${resolve(process.env.LIBMPV_PATH)}\nNAVIGATOR_TEST_PREVIEW_DIR=${join(process.env.RUNNER_TEMP, 'preview-fixtures')}\n`);
+          JS
+      - name: Exercise native index, decode, HTTP cache, and playback paths
+        shell: bash
+        env:
+          RUST_LOG: warn
+        run: |
+          cargo test --manifest-path desktop/Cargo.toml --locked transient_index_reads_get_bounded_retries -- --nocapture
+          cargo test --manifest-path desktop/Cargo.toml --locked headless_webdl_preview_ -- --ignored --nocapture --test-threads=1

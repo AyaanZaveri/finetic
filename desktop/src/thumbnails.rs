@@ -10,6 +10,25 @@ use std::{
 };
 
 type Emit = Arc<dyn Fn(Value) + Send + Sync>;
+// A range read can race playback's initial read. Never treat a transient
+// failure as proof that a container has no usable preview index.
+fn open_index<T>(
+    mut open: impl FnMut() -> aiostreams_thumbs::Result<T>,
+    mut retry: impl FnMut() -> bool,
+) -> aiostreams_thumbs::Result<T> {
+    let mut attempts = 0;
+    loop {
+        match open() {
+            Err(error) if error.is_transient() && attempts < 2 => {
+                attempts += 1;
+                if !retry() {
+                    return Err(error);
+                }
+            }
+            result => return result,
+        }
+    }
+}
 #[derive(Clone, Copy)]
 struct Request {
     id: u64,
@@ -83,17 +102,39 @@ impl Previews {
                     fetches: crate::media_cache::PREVIEW_READ_SLOTS,
                     ..Settings::default()
                 };
-                let weak = Arc::downgrade(&opened);
-                let result = Session::open(&url, options, settings, move |thumbnail| {
-                    publish(&weak, thumbnail)
-                });
+                let result = open_index(
+                    || {
+                        let weak = Arc::downgrade(&opened);
+                        Session::open(&url, options.clone(), settings.clone(), move |thumbnail| {
+                            publish(&weak, thumbnail)
+                        })
+                    },
+                    || {
+                        if opened.state.lock().unwrap().closed {
+                            return false;
+                        }
+                        std::thread::sleep(Duration::from_millis(400));
+                        !opened.state.lock().unwrap().closed
+                    },
+                );
                 let mut state = opened.state.lock().unwrap();
                 if state.closed {
                     return;
                 }
                 match result {
                     Ok(decoder) => state.decoder = Some(decoder),
-                    Err(_) => state.unavailable = true,
+                    Err(error) => {
+                        // Error text can contain provider URLs or credentials.
+                        let reason = match error {
+                            aiostreams_thumbs::Error::Container(aiostreams_container::Error::Http(_)) => "range read failed",
+                            aiostreams_thumbs::Error::Container(aiostreams_container::Error::NoIndex) => "no keyframe index",
+                            aiostreams_thumbs::Error::Container(aiostreams_container::Error::Budget) => "index read budget exhausted",
+                            aiostreams_thumbs::Error::Decode(_) => "unsupported decoder configuration",
+                            _ => "unsupported or malformed container",
+                        };
+                        log::warn!("Seek preview index unavailable: {reason}");
+                        state.unavailable = true;
+                    }
                 }
                 let result = answer(&mut state, &opened);
                 drop(state);
@@ -210,6 +251,84 @@ impl Drop for Previews {
 mod tests {
     use super::*;
     use std::{path::PathBuf, sync::mpsc, time::Instant};
+
+    #[test]
+    fn transient_index_reads_get_bounded_retries() {
+        use aiostreams_container::Error as ContainerError;
+        use aiostreams_thumbs::Error;
+        let mut attempts = 0;
+        let result = open_index(
+            || {
+                attempts += 1;
+                if attempts < 3 {
+                    Err(Error::Container(ContainerError::Http("temporary range failure".into())))
+                } else {
+                    Ok(42)
+                }
+            },
+            || true,
+        );
+        assert_eq!(result.unwrap(), 42);
+        assert_eq!(attempts, 3);
+        let mut failures = 0;
+        assert!(open_index(
+            || {
+                failures += 1;
+                Err::<(), _>(Error::Container(ContainerError::Http("offline".into())))
+            },
+            || true,
+        ).is_err());
+        assert_eq!(failures, 3);
+        let mut unsupported = 0;
+        assert!(open_index(
+            || {
+                unsupported += 1;
+                Err::<(), _>(Error::Container(ContainerError::NoIndex))
+            },
+            || panic!("A missing index must not cause repeated downloads"),
+        ).is_err());
+        assert_eq!(unsupported, 1);
+        let mut cancelled = 0;
+        assert!(open_index(
+            || {
+                cancelled += 1;
+                Err::<(), _>(Error::Container(ContainerError::Http("closed".into())))
+            },
+            || false,
+        ).is_err());
+        assert_eq!(cancelled, 1);
+    }
+
+    #[test]
+    #[ignore = "generated synthetic MKV fixtures and pinned libmpv required"]
+    fn headless_webdl_preview_index_recovers_after_http_failure() {
+        let library = PathBuf::from(std::env::var("NAVIGATOR_TEST_LIBMPV").unwrap());
+        aiostreams_thumbs::library_dirs(vec![library.parent().unwrap().to_path_buf()]);
+        let directory = PathBuf::from(std::env::var("NAVIGATOR_TEST_PREVIEW_DIR").unwrap());
+        let data = std::fs::read(directory.join("avc-stereo.mkv")).unwrap();
+        let origin = crate::media_cache::tests::Origin::new(data.clone());
+        origin.mode.store(3, std::sync::atomic::Ordering::SeqCst);
+        let first = Session::open(&origin.url, Options::default(), Settings::default(), |_| {});
+        assert!(first.err().is_some_and(|error| error.is_transient()), "The old one-shot index open fails on an actual HTTP 503");
+        drop(origin);
+
+        let origin = crate::media_cache::tests::Origin::new(data);
+        origin.mode.store(3, std::sync::atomic::Ordering::SeqCst);
+        let (send, inbox) = mpsc::channel();
+        let previews = Previews::new("retry-webdl".into(), origin.url.clone(), BTreeMap::new(),
+            Arc::new(move |value| { let _ = send.send(value); }));
+        previews.want(1, Some(18.0));
+        let reply = inbox.recv_timeout(Duration::from_secs(6)).expect("Retry must deliver a thumbnail before the UI deadline");
+        assert_eq!(reply["request"], 1);
+        let src = reply["src"].as_str().expect("The transient HTTP failure cannot disable preview extraction");
+        let jpeg = if let Some(data) = src.strip_prefix("data:image/jpeg;base64,") {
+            STANDARD.decode(data).unwrap()
+        } else {
+            ureq::get(src).call().unwrap().body_mut().read_to_vec().unwrap()
+        };
+        assert!(jpeg.starts_with(&[0xff, 0xd8, 0xff]));
+        println!("WEB-DL preview recovered from an actual HTTP 503 and delivered a JPEG");
+    }
 
     #[test]
     #[ignore = "set NAVIGATOR_TEST_LIBMPV and NAVIGATOR_TEST_HDR_DIR"]
