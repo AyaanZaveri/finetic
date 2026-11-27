@@ -1,0 +1,25 @@
+appId: ${APP_ID}
+---
+- tapOn:
+    text: 'Continue'
+    optional: true
+- tapOn:
+    text: 'Got it'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: hero-primary
+    timeout: 90000
+- takeScreenshot: home-hero
+- tapOn:
+    id: hero-primary
+- assertVisible:
+    id: title-sheet
+- takeScreenshot: home-title-sheet
+- tapOn:
+    id: title-sheet-close
+- scrollUntilVisible:
+    element:
+      id: 'media-card-movie:tmdb:812583'
+    direction: DOWN
+- takeScreenshot: home-cards

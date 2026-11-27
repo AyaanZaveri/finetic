@@ -1,0 +1,35 @@
+appId: app.navigator.mobile
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: hero-primary
+    timeout: 30000
+- takeScreenshot: home-hero
+- tapOn:
+    id: hero-primary
+- assertVisible:
+    id: title-sheet
+- assertVisible: 'Wake Up Dead Man: A Knives Out Mystery'
+- takeScreenshot: home-title-sheet
+- tapOn:
+    id: title-sheet-close
+- tapOn:
+    id: hero-slide-1
+- takeScreenshot: home-second-feature
+- scrollUntilVisible:
+    element:
+      text: 'Trending movies'
+    direction: DOWN
+- scrollUntilVisible:
+    element:
+      id: 'media-card-movie:tmdb:812583'
+    direction: DOWN
+- takeScreenshot: home-cards
+- tapOn:
+    id: 'media-card-movie:tmdb:812583'
+- assertVisible:
+    id: title-sheet
+- tapOn:
+    id: title-sheet-close

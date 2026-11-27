@@ -2,6 +2,8 @@ import '@/global.css';
 
 import { NAV_THEME } from '@/lib/theme';
 import { ThemeProvider } from 'expo-router/react-navigation';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PortalHost } from '@rn-primitives/portal';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
@@ -12,6 +14,8 @@ import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 export { ErrorBoundary } from 'expo-router';
+
+const queryClient = new QueryClient();
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -33,8 +37,12 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider value={NAV_THEME[colorScheme ?? 'light']}>
         <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-        <Stack screenOptions={{ headerShadowVisible: false }} />
-        <PortalHost />
+        <QueryClientProvider client={queryClient}>
+          <BottomSheetModalProvider>
+            <Stack screenOptions={{ headerShadowVisible: false }} />
+            <PortalHost />
+          </BottomSheetModalProvider>
+        </QueryClientProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
   );
