@@ -26,8 +26,7 @@ const audio: Array<[RegExp, string]> = [
   [/\bvorbis\b/i, 'Vorbis'], [/\bflac\b/i, 'FLAC'], [/\bpcm\b/i, 'PCM'], [/\bmp3\b/i, 'MP3'], [/\bdts\b/i, 'DTS'],
 ];
 
-export function parseStreamReleaseInfo(stream: StremioStream): StreamReleaseInfo {
-  const result: StreamReleaseInfo = { videoCodecs: [], audioCodecs: [] };
+function releaseContexts(stream: StremioStream, extended = false) {
   const filename = stream.behaviorHints?.filename;
   const basename = stream.url?.split(/[?#]/, 1)[0]?.split('/').pop();
   const mediaName = (v?: string) => v && /\.(?:mkv|mp4|m4v|avi|mov|webm|ts|m2ts|wmv|flv|m3u8)$/i.test(v) ? v : undefined;
@@ -40,7 +39,9 @@ export function parseStreamReleaseInfo(stream: StremioStream): StreamReleaseInfo
     const tags = [...text.matchAll(/\[([^\]]+)\]/g)].map(m => m[1]);
     // A resolution/source starts a release tail; words in the movie-name prefix
     // (e.g. AAC (2020) 1080p) must not become codec declarations.
-    let start = text.search(/\b(?:\d{3,4}p|4k|8k|bluray|blu[ ._-]?ray|web[ ._-]?(?:dl|rip)|hdtv|remux|dvdrip)\b/i);
+    let start = text.search(extended
+      ? /\b(?:\d{3,4}p|4k|8k|uhd|blu[ ._-]?ray|bd[ ._-]?rip|br[ ._-]?rip|web[ ._-]?(?:dl|rip)|hdtv|remux|dvd[ ._-]?rip)\b/i
+      : /\b(?:\d{3,4}p|4k|8k|bluray|blu[ ._-]?ray|web[ ._-]?(?:dl|rip)|hdtv|remux|dvdrip)\b/i);
     const videoStart = Math.min(...video.map(([pattern]) => text.search(pattern)).filter(index => index >= 0));
     if (Number.isFinite(videoStart) && (start < 0 || videoStart < start)) {
       const section = text.slice(videoStart, start < 0 ? undefined : start);
@@ -57,6 +58,12 @@ export function parseStreamReleaseInfo(stream: StremioStream): StreamReleaseInfo
     const context = [...tags, tail].join(' ');
     return { context, structured: Boolean(context.trim()) };
   });
+  return { parsed, inputs, filename, urlName, mediaName };
+}
+
+export function parseStreamReleaseInfo(stream: StremioStream): StreamReleaseInfo {
+  const result: StreamReleaseInfo = { videoCodecs: [], audioCodecs: [] };
+  const { parsed, inputs, filename, urlName, mediaName } = releaseContexts(stream);
   // Filename and meaningful media URL are authoritative; lower-priority text fills absent fields.
   const field = <T,>(get: (p: typeof parsed[number]) => T | undefined): T | undefined => {
     for (const p of parsed) { const value = get(p); if (value !== undefined) return value; }
@@ -79,4 +86,49 @@ export function parseStreamReleaseInfo(stream: StremioStream): StreamReleaseInfo
   if (/\bvideo[ ._-]?only\b/i.test(metadata)) result.videoOnly = true;
   if (/\baudio[ ._-]?only\b/i.test(metadata)) result.audioOnly = true;
   return result;
+}
+
+// Filter only explicit release tags. These labels describe the add-on's
+// metadata, not verified decoder capabilities or the actual media bitstream.
+export function getStreamFilterTags(stream: StremioStream): Set<string> {
+  const { parsed } = releaseContexts(stream, true);
+  const firstMatches = (patterns: Array<[RegExp, string]>): string[] => {
+    for (const { context } of parsed) {
+      const matches = patterns.filter(([pattern]) => pattern.test(context)).map(([, label]) => label);
+      if (matches.length) return matches;
+    }
+    return [];
+  };
+  const tags = new Set<string>();
+  const resolution = parsed.map(({ context }) => context.match(/\b(4320p|2160p|1440p|1080p|720p|576p|480p|360p|8k|4k|uhd)\b/i)?.[1].toLowerCase()).find(Boolean);
+  if (resolution) tags.add(resolution === '4k' || resolution === 'uhd' ? '2160p' : resolution === '8k' ? '4320p' : resolution);
+  for (const tag of firstMatches([
+    [/\b(?:blu[ .-]?ray|bd[ .-]?rip|br[ .-]?rip)\b/i, 'bluray'],
+    [/\bremux\b/i, 'remux'],
+    [/\bweb[ .-]?dl\b/i, 'webdl'],
+    [/\bweb[ .-]?rip\b/i, 'webrip'],
+    [/\bhdtv(?:rip)?\b/i, 'hdtv'],
+    [/\bdvd[ .-]?(?:rip|mux)\b/i, 'dvd'],
+  ])) tags.add(tag);
+  const ranges = firstMatches([
+    [/\b(?:dv|dovi|dolby[ .-]?vision)\b/i, 'dolby-vision'],
+    [/\bhdr10(?:\+|[ .-]?plus)/i, 'hdr10plus'],
+    [/\bhdr10\b(?!\+|[ .-]?plus)/i, 'hdr10'],
+    [/\b(?:hdr|hlg)\b/i, 'hdr'],
+    [/\bsdr\b/i, 'sdr'],
+  ]);
+  for (const tag of ranges) tags.add(tag);
+  if (ranges.some(tag => tag !== 'sdr')) tags.add('hdr');
+  for (const tag of firstMatches([
+    [/\batmos\b/i, 'atmos'],
+    [/\btrue[ .-]?hd\b/i, 'truehd'],
+    [/\bdts[ .:-]?x\b/i, 'dts-x'],
+    [/\bdts[ .-]?hd\b/i, 'dts-hd'],
+  ])) tags.add(tag);
+  for (const tag of firstMatches([
+    [/\b(?:hevc|[hx][ .-]?265)\b/i, 'hevc'],
+    [/\b(?:avc|[hx][ .-]?264)\b/i, 'h264'],
+    [/\bav1\b/i, 'av1'],
+  ])) tags.add(tag);
+  return tags;
 }
