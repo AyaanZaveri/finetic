@@ -1,0 +1,106 @@
+appId: app.navigator.mobile
+---
+# Recorder launches the app on Home in light appearance.
+- extendedWaitUntil:
+    visible:
+      id: hero-primary
+    timeout: 60000
+- swipe:
+    start: '50%, 78%'
+    end: '50%, 30%'
+    duration: 800
+- waitForAnimationToEnd:
+    timeout: 1200
+- swipe:
+    start: '50%, 28%'
+    end: '50%, 78%'
+    duration: 800
+- waitForAnimationToEnd:
+    timeout: 1200
+- swipe:
+    start: '50%, 78%'
+    end: '50%, 34%'
+    duration: 800
+- tapOn: Search
+- assertVisible:
+    id: search-input
+- tapOn:
+    id: search-input
+- inputText: Pluribus
+- hideKeyboard
+- extendedWaitUntil:
+    visible:
+      id: 'media-card-series:tt22202452'
+    timeout: 30000
+- tapOn:
+    id: search-filter-series
+- assertVisible:
+    id: 'media-card-series:tt22202452'
+- tapOn:
+    id: 'media-card-series:tt22202452'
+- extendedWaitUntil:
+    visible:
+      id: title-detail-name
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 1200
+- scrollUntilVisible:
+    element:
+      id: 'episode-card-1-1'
+    direction: DOWN
+    timeout: 25000
+- waitForAnimationToEnd:
+    timeout: 1300
+- swipe:
+    from:
+      id: 'episode-card-1-1'
+      point: '85%, 45%'
+    direction: LEFT
+    duration: 800
+- waitForAnimationToEnd:
+    timeout: 1300
+- swipe:
+    from:
+      id: 'episode-card-1-2'
+      point: '20%, 45%'
+    direction: RIGHT
+    duration: 800
+- extendedWaitUntil:
+    visible:
+      id: 'episode-card-1-1'
+    timeout: 12000
+- tapOn:
+    id: season-picker
+- extendedWaitUntil:
+    visible: Choose a season
+    timeout: 10000
+- tapOn: Season 1
+- extendedWaitUntil:
+    visible:
+      id: 'episode-card-1-1'
+    timeout: 15000
+- tapOn:
+    id: 'episode-card-1-1'
+- extendedWaitUntil:
+    visible:
+      id: episode-detail-name
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 1600
+- tapOn:
+    id: title-detail-back
+- tapOn:
+    id: title-detail-back
+- tapOn: Settings
+- tapOn:
+    id: setting-appearance-dark
+- waitForAnimationToEnd:
+    timeout: 1600
+- tapOn: Home
+- scrollUntilVisible:
+    element:
+      id: hero-primary
+    direction: UP
+    timeout: 15000
+- waitForAnimationToEnd:
+    timeout: 1600

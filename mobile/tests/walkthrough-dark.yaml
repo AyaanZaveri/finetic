@@ -1,0 +1,120 @@
+appId: app.navigator.mobile
+---
+# Recorder launches the installed standalone app on Home in dark appearance.
+- extendedWaitUntil:
+    visible:
+      id: hero-primary
+    timeout: 60000
+- swipe:
+    start: '50%, 78%'
+    end: '50%, 29%'
+    duration: 850
+- waitForAnimationToEnd:
+    timeout: 1400
+- swipe:
+    start: '50%, 27%'
+    end: '50%, 77%'
+    duration: 750
+- waitForAnimationToEnd:
+    timeout: 1400
+- swipe:
+    start: '50%, 77%'
+    end: '50%, 34%'
+    duration: 850
+- scrollUntilVisible:
+    element:
+      id: 'media-card-movie:tt.*'
+    direction: UP
+    timeout: 15000
+# A sustained press lets the 0.97-scale spring be visible before release.
+- longPressOn:
+    id: 'media-card-movie:tt.*'
+    index: 0
+- runFlow:
+    when:
+      notVisible:
+        id: title-detail-page
+    commands:
+      - tapOn:
+          id: 'media-card-movie:tt.*'
+          index: 0
+- extendedWaitUntil:
+    visible:
+      id: title-detail-name
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 1400
+- tapOn:
+    id: title-detail-back
+- swipe:
+    start: '50%, 24%'
+    end: '50%, 83%'
+    duration: 750
+- scrollUntilVisible:
+    element:
+      id: hero-primary
+    direction: UP
+    timeout: 15000
+# A slow swipe exposes the finger-linked crossfade mid-gesture.
+- swipe:
+    start: '86%, 28%'
+    end: '20%, 28%'
+    duration: 1100
+- extendedWaitUntil:
+    visible:
+      id: hero-current-1
+    timeout: 15000
+- swipe:
+    start: '20%, 28%'
+    end: '86%, 28%'
+    duration: 850
+- extendedWaitUntil:
+    visible:
+      id: hero-current-0
+    timeout: 15000
+- tapOn:
+    id: hero-slide-1
+- extendedWaitUntil:
+    visible:
+      id: hero-current-1
+    timeout: 15000
+- tapOn:
+    id: hero-primary
+- extendedWaitUntil:
+    visible:
+      id: title-detail-name
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 1400
+- tapOn:
+    id: title-detail-back
+- tapOn: Search
+- assertVisible:
+    id: search-input
+- tapOn:
+    id: search-input
+- inputText: F1
+- hideKeyboard
+- extendedWaitUntil:
+    visible:
+      id: 'media-card-movie:tt16311594'
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 1000
+- tapOn:
+    id: 'media-card-movie:tt16311594'
+- extendedWaitUntil:
+    visible:
+      id: title-detail-name
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 1800
+- tapOn:
+    id: title-detail-back
+- tapOn: Settings
+- assertVisible:
+    id: settings-page
+- tapOn:
+    id: setting-appearance-light
+- waitForAnimationToEnd:
+    timeout: 1800

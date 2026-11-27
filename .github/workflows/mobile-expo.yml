@@ -67,6 +67,17 @@ jobs:
           ./gradlew assembleRelease --no-daemon | tee ../test-results/android-build.log
       - name: Start API 35 emulator
         run: bash scripts/prepare-android-device.sh
+      - name: Record native Android walkthrough
+        id: android_walkthrough
+        continue-on-error: true
+        run: bash scripts/record-native-walkthrough.sh android test-results/walkthrough
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always()
+        with:
+          name: navigator-android-walkthrough
+          path: mobile/test-results/walkthrough/
+          if-no-files-found: warn
+          retention-days: 7
       - name: Capture standalone Android screenshots
         id: android_capture
         continue-on-error: true
@@ -98,11 +109,13 @@ jobs:
         if: always()
         with:
           name: expo-android-results
-          path: mobile/test-results/
+          path: |
+            mobile/test-results/
+            !mobile/test-results/walkthrough/**
           if-no-files-found: ignore
           retention-days: 7
-      - name: Check Android screenshot capture
-        if: always() && steps.android_capture.outcome == 'failure'
+      - name: Check Android walkthrough and screenshot capture
+        if: always() && (steps.android_capture.outcome == 'failure' || steps.android_walkthrough.outcome == 'failure')
         run: exit 1
   ios:
     needs: foundation
@@ -140,6 +153,17 @@ jobs:
           app=$(find "$RUNNER_TEMP/navigator-ios/Build/Products/Release-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)
           test -n "$app"
           echo "SIMULATOR_APP=$app" >> "$GITHUB_ENV"
+      - name: Record native iPhone walkthrough
+        id: iphone_walkthrough
+        continue-on-error: true
+        run: bash scripts/record-native-walkthrough.sh ios test-results/iPhone/walkthrough "$SIMULATOR_APP"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always()
+        with:
+          name: navigator-ios-walkthrough
+          path: mobile/test-results/iPhone/walkthrough/
+          if-no-files-found: warn
+          retention-days: 7
       - name: Capture standalone iPhone screenshots
         id: iphone_capture
         continue-on-error: true
@@ -184,9 +208,11 @@ jobs:
         if: always()
         with:
           name: expo-ios-results
-          path: mobile/test-results/
+          path: |
+            mobile/test-results/
+            !mobile/test-results/iPhone/walkthrough/**
           if-no-files-found: ignore
           retention-days: 7
-      - name: Check iPhone and iPad screenshot capture
-        if: always() && (steps.iphone_capture.outcome == 'failure' || steps.ipad_capture.outcome == 'failure')
+      - name: Check iPhone walkthrough and iPad screenshot capture
+        if: always() && (steps.iphone_capture.outcome == 'failure' || steps.ipad_capture.outcome == 'failure' || steps.iphone_walkthrough.outcome == 'failure')
         run: exit 1
