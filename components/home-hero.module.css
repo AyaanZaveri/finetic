@@ -418,22 +418,28 @@
   grid-area: 1 / 1;
   width: 1rem;
   height: 1rem;
-  transition: opacity var(--duration-standard) var(--ease-out), filter var(--duration-standard) var(--ease-out);
 }
 
-.detailsArrow { opacity: 0; filter: blur(2px); }
+.detailsArrow { opacity: 0; }
 
 @media (hover: hover) and (pointer: fine) {
-  .detailsButton:hover .detailsInfo { opacity: 0; filter: blur(2px); }
-  .detailsButton:hover .detailsArrow { opacity: 1; filter: none; }
+  .detailsIcon > svg { transition: opacity var(--duration-instant) var(--ease-out); }
+  .detailsButton:hover .detailsInfo { opacity: 0; }
+  .detailsButton:hover .detailsArrow { opacity: 1; }
 }
 
-.detailsButton:focus-visible .detailsInfo { opacity: 0; filter: blur(2px); }
-.detailsButton:focus-visible .detailsArrow { opacity: 1; filter: none; }
-
-@media (prefers-reduced-motion: reduce) {
-  .detailsIcon > svg { transition: none; filter: none; }
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .detailsIcon > svg {
+    transition: opacity var(--duration-instant) var(--ease-out), transform var(--duration-instant) var(--ease-out);
+  }
+  .detailsArrow { transform: translateX(-3px); }
+  .detailsButton:hover .detailsInfo { transform: translateX(3px); }
+  .detailsButton:hover .detailsArrow { transform: translateX(0); }
 }
+
+.detailsButton:focus-visible .detailsIcon > svg { transition: none; transform: none; }
+.detailsButton:focus-visible .detailsInfo { opacity: 0; }
+.detailsButton:focus-visible .detailsArrow { opacity: 1; }
 
 .controls::before {
   content: "";

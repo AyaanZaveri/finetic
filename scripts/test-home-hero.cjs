@@ -350,6 +350,15 @@ queueMicrotask(() => {
 const css = require('postcss').parse(require('node:fs').readFileSync('components/home-hero.module.css', 'utf8'));
 const rule = selector => css.nodes.find(node => node.type === 'rule' && node.selector === selector);
 const property = (selector, name) => rule(selector).nodes.find(node => node.prop === name)?.value;
+const iconMotion = [];
+css.walkRules(node => {
+  if (/\.details(?:Icon|Info|Arrow)\b/.test(node.selector)) iconMotion.push(node);
+});
+assert.ok(iconMotion.every(node => !node.nodes.some(decl => decl.prop === 'filter' || decl.prop === 'transition' && decl.value.includes('filter'))), 'The details icon stays sharp during the swap');
+const slide = css.nodes.find(node => node.type === 'atrule' && node.params === '(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)');
+assert.ok(slide.nodes.some(node => node.selector === '.detailsButton:hover .detailsArrow' && node.nodes.some(decl => decl.prop === 'transform' && decl.value === 'translateX(0)')));
+assert.ok(slide.nodes.some(node => node.selector === '.detailsIcon > svg' && node.nodes.some(decl => decl.prop === 'transition' && decl.value.includes('transform var(--duration-instant)'))), 'The slide uses fast, reversible transitions only on hover-capable pointers with motion enabled');
+assert.equal(property('.detailsButton:focus-visible .detailsIcon > svg', 'transition'), 'none', 'Keyboard focus changes the icon immediately');
 assert.equal(property('.backdropSlide', 'mix-blend-mode'), 'plus-lighter', 'Overlapping fades do not dip through black');
 assert.equal(property('.backdropSlide', 'opacity'), '0');
 assert.equal(property('.backdropSlide[data-hero-backdrop-active="true"]', 'opacity'), '1');
