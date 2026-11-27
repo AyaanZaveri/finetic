@@ -67,8 +67,8 @@ export function MediaDetailScreen({ type, id }: { type: MediaType; id: string })
       <ScrollView contentContainerStyle={{ paddingBottom: bottom + 24 }} className="flex-1" showsVerticalScrollIndicator={false}>
         {item ? <>
           <View className="relative overflow-hidden justify-end pb-6" style={{ minHeight: art ? Math.min(400, Math.max(288, width * 0.96)) : top + 112, paddingTop: top + 48 }}>
-            {art && <ProgressiveArtwork key={art} uri={art} backgroundColor={theme.background} contentPosition={{ top: '38%', left: '50%' }} />}
-            {art && <LinearGradient pointerEvents="none" style={StyleSheet.absoluteFill} colors={['rgba(0,0,0,0.44)', 'transparent', 'transparent', theme.background]} locations={[0, 0.32, 0.62, 1]} />}
+            {art && <ProgressiveArtwork key={art} uri={art} backgroundColor={theme.background} light={colorScheme !== "dark"} contentPosition={{ top: '38%', left: '50%' }} />}
+            {art && <LinearGradient pointerEvents="none" style={StyleSheet.absoluteFill} colors={[colorScheme === 'dark' ? 'rgba(0,0,0,0.44)' : 'rgba(255,255,255,0.24)', 'transparent', 'transparent', theme.background]} locations={[0, 0.32, 0.62, 1]} />}
             <TitleIdentity key={item.id + (item.logo ?? '')} item={item} useLogo={colorScheme === 'dark' && !!item.background} />
           </View>
           <View className="gap-5 px-4">

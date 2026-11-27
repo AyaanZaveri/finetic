@@ -61,8 +61,6 @@ jobs:
       - name: Configure Android SDK
         run: bash scripts/configure-android-sdk.sh
       - name: Build native Android app
-        env:
-          EXPO_PUBLIC_MOBILE_FIXTURES: '1'
         run: |
           mkdir -p test-results
           npx expo prebuild --platform android --no-install
@@ -124,8 +122,6 @@ jobs:
           cd ios
           pod install | tee ../test-results/pods.log
       - name: Build simulator app
-        env:
-          EXPO_PUBLIC_MOBILE_FIXTURES: '1'
         run: |
           workspace=$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)
           test -n "$workspace"
@@ -192,8 +188,6 @@ jobs:
           adb shell am start -a android.intent.action.VIEW -d exp://127.0.0.1:8081 -p host.exp.exponent
       - name: Wait for first Android bundle
         run: bash scripts/wait-preview-bundle.sh Android
-      - name: Capture independent Android screen images
-        run: bash scripts/capture-android-preview.sh
       - name: Capture preview screenshots
         run: maestro test -e APP_ID=host.exp.exponent --format junit --output test-results/report.xml --debug-output test-results --test-output-dir test-results .maestro-preview/home.yaml
       - name: Collect diagnostics

@@ -12,14 +12,14 @@ Keep `app/`, `components/`, `desktop/`, `ios/` and `android/` as the existing pr
 |---|---|---|
 | 1 | SDK and router, themes, fonts, locally owned components, haptics and native glass surface, component preview | Implemented, device verification pending |
 | 2 | Artwork image, progressive blur, media cards, native tabs and navigation shell | Implemented, device verification pending |
-| 3 | Public Cinemeta/TMDB API client, Home hero and catalog rails; Continue Watching after account integration | Core Home implemented, remaining account features pending |
+| 3 | Public Cinemeta API client, Home hero and catalog rails; Continue Watching after account integration | Core Home implemented, remaining account features pending |
 | 4 | Movie and series detail routes, search, episodes, seasons and people | Movie/series summary pages and title search implemented; episode drill-down pending |
 | 5 | Session and secure storage, library, watch history and addons | Pending |
 | 6 | Settings categories and provider connections | Pending |
 | 7 | Native playback adapters, player chrome and lifecycle | Pending |
 | 8 | End-to-end feature parity, screenshots on device classes, accessibility and physical device validation | Pending |
 
-Every batch preserves the existing clients. Add focused tests and screenshots to the mobile CI suite as features arrive. Keep fixtures deterministic and leave live-service checks separate. Do not consider a batch device-verified until its tests have run on both platforms.
+Every batch preserves the existing clients. Add focused tests and screenshots to the mobile CI suite as features arrive. Use real Cinemeta data in device previews and isolated mock responses in unit tests. Do not consider a batch device-verified until its tests have run on both platforms.
 
 ## Visual and native translation inventory
 

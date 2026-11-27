@@ -50,7 +50,7 @@ export function releaseYear(item: { year?: unknown; releaseInfo?: unknown }): nu
 }
 
 export function validMediaId(id: unknown): id is string {
-  return typeof id === 'string' && /^(?:tt\d{1,12}|tmdb:[1-9]\d{0,11})$/.test(id);
+  return typeof id === 'string' && /^tt\d{1,12}$/.test(id);
 }
 
 function parseSeasons(seasons: unknown, videos: unknown): MediaItem['seasons'] {

@@ -28,10 +28,9 @@ test('hero interleaves unique movie and series titles with backdrop artwork', ()
   assert.deepEqual(selectFeatured(sections, 1).map(value => value.id), ['tt1']);
 });
 
-test('missing TMDB data falls back to public Cinemeta without a token', async (t) => {
+test('Home loads both live Cinemeta catalogs without a token', async (t) => {
   t.mock.method(globalThis, 'fetch', async (url) => {
-    if (url.includes('navigator-strm.vercel.app')) return new Response('Unavailable', {status: 429, headers: {'content-type': 'text/html'}});
-    assert.ok(url.startsWith('https://cinemeta-catalogs.strem.io/'));
+    assert.ok(url.startsWith('https://v3-cinemeta.strem.io/catalog/'));
     const type = url.includes('/series/') ? 'series' : 'movie';
     return json({metas: [item(type === 'movie' ? 'tt123' : 'tt124', type)]});
   });
@@ -40,16 +39,14 @@ test('missing TMDB data falls back to public Cinemeta without a token', async (t
   assert.deepEqual(result.sections.map(row => row.key), ['cinemeta-movie', 'cinemeta-series']);
 });
 
-test('working backend returns all six TMDB feeds and no Cinemeta requests', async (t) => {
-  const mock = t.mock.method(globalThis, 'fetch', async (url) => {
-    assert.ok(url.includes('/api/discovery/home?feed=tmdb-'));
-    const type = url.endsWith('movies') ? 'movie' : 'series';
-    return json({status: 'ready', section: {sectionName: 'Discovery', mediaItems: [item('tmdb:100', type)]}});
+test('Home uses the alternate Cinemeta catalog endpoint on failure', async (t) => {
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    if (url.includes('v3-cinemeta')) return new Response('Unavailable', {status: 503});
+    assert.ok(url.startsWith('https://cinemeta-catalogs.strem.io/top/catalog/'));
+    const type = url.includes('/series/') ? 'series' : 'movie';
+    return json({metas: [item(type === 'movie' ? 'tt123' : 'tt124', type)]});
   });
-  const result = await loadHome();
-  assert.equal(result.provider, 'TMDB');
-  assert.equal(result.sections.length, 6);
-  assert.equal(mock.mock.callCount(), 6);
+  assert.equal((await loadHome()).sections.length, 2);
 });
 
 test('a malformed response on both sources returns a retriable error', async (t) => {
@@ -68,29 +65,20 @@ test('Cinemeta title details aggregate distinct valid episodes into seasons', as
   assert.deepEqual(title.cast, ['Actor']);
 });
 
-test('TMDB title detail uses the server metadata endpoint and exact identity', async (t) => {
+test('Cinemeta details require the exact requested title identity', async (t) => {
   const {loadTitle} = await import('../lib/home-api.ts');
   t.mock.method(globalThis, 'fetch', async (url) => {
-    assert.ok(url.includes('/api/discovery/title?id=tmdb%3A123&type=movie'));
-    return json({item: {...item('tmdb:123'), cast: ['Actor']}});
+    assert.equal(url, 'https://v3-cinemeta.strem.io/meta/movie/tt123.json');
+    return json({meta: {...item('tt123'), cast: ['Actor']}});
   });
-  assert.equal((await loadTitle('movie', 'tmdb:123')).id, 'tmdb:123');
-  await assert.rejects(loadTitle('movie', 'https://example.com'), /Invalid title/);
+  assert.equal((await loadTitle('movie', 'tt123')).id, 'tt123');
+  await assert.rejects(loadTitle('movie', 'tmdb:123'), /Invalid title/);
 });
 
-test('search uses the backend ranking and filters out non-title results', async (t) => {
+test('search uses live Cinemeta and interleaves movie and series results', async (t) => {
   const {searchTitles} = await import('../lib/home-api.ts');
   t.mock.method(globalThis, 'fetch', async (url) => {
-    assert.ok(url.includes('/api/search/results?q=Pluribus&type=all&page=1'));
-    return json({results: [item('tmdb:123', 'series'), {id:'4', type:'person', name:'Person'}]});
-  });
-  assert.deepEqual((await searchTitles('Pluribus')).map(value => value.id), ['tmdb:123']);
-});
-
-test('search falls back to Cinemeta and preserves movie and series results', async (t) => {
-  const {searchTitles} = await import('../lib/home-api.ts');
-  t.mock.method(globalThis, 'fetch', async (url) => {
-    if (url.includes('navigator-strm.vercel.app')) return new Response('Unavailable', {status: 503});
+    assert.ok(url.startsWith('https://v3-cinemeta.strem.io/catalog/'));
     assert.ok(url.includes('/top/search=Star%20Wars.json'));
     const type = url.includes('/series/') ? 'series' : 'movie';
     return json({metas: [item(type === 'movie' ? 'tt123' : 'tt124', type)]});

@@ -14,7 +14,8 @@ appId: app.navigator.mobile
     id: hero-primary
 - assertVisible:
     id: title-detail-page
-- assertVisible: 'Wake Up Dead Man: A Knives Out Mystery'
+- assertVisible:
+    id: title-detail-name
 - takeScreenshot: movie-detail
 - tapOn:
     id: title-detail-back
@@ -25,13 +26,14 @@ appId: app.navigator.mobile
     id: hero-primary
 - assertVisible:
     id: title-detail-page
-- assertVisible: 'Pluribus'
+- assertVisible:
+    id: title-detail-name
 - takeScreenshot: series-detail
 - tapOn:
     id: title-detail-back
 - scrollUntilVisible:
     element:
-      id: 'media-card-movie:tmdb:812583'
+      id: 'media-card-movie:tt.*'
     direction: DOWN
 - swipe:
     direction: UP
@@ -39,10 +41,10 @@ appId: app.navigator.mobile
 - takeScreenshot: home-cards
 - scrollUntilVisible:
     element:
-      id: 'media-card-movie:tmdb:812583'
+      id: 'media-card-movie:tt.*'
     direction: UP
 - tapOn:
-    id: 'media-card-movie:tmdb:812583'
+    id: 'media-card-movie:tt.*'
 - assertVisible:
     id: title-detail-page
 - tapOn:
@@ -58,11 +60,11 @@ appId: app.navigator.mobile
 - hideKeyboard
 - extendedWaitUntil:
     visible:
-      id: 'media-card-series:tmdb:225171'
+      id: 'media-card-series:tt22202452'
     timeout: 30000
 - takeScreenshot: search
 - tapOn:
-    id: 'media-card-series:tmdb:225171'
+    id: 'media-card-series:tt22202452'
 - assertVisible:
     id: title-detail-page
 - tapOn:
@@ -71,6 +73,18 @@ appId: app.navigator.mobile
 - assertVisible:
     id: settings-page
 - takeScreenshot: settings
+- tapOn:
+    id: setting-appearance-light
+- tapOn: Home
+- scrollUntilVisible:
+    element:
+      id: hero-primary
+    direction: UP
+- takeScreenshot: home-light
+- tapOn: Settings
+- tapOn:
+    id: setting-appearance-dark
 - tapOn: Home
 - assertVisible:
     id: home-scroll
+- takeScreenshot: home-dark
