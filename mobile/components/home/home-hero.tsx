@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
   artworkEnd: { position: 'absolute', start: 0, end: 0, bottom: 0, height: 5 },
   copyPanel: { alignItems: 'center', justifyContent: 'flex-end', gap: 8, width: '100%' },
   copyOverlay: { position: 'absolute', bottom: 0, start: 0, end: 0 },
-  carouselControls: { marginTop: 10, minHeight: 44 },
+  carouselControls: { marginTop: 2, minHeight: 44 },
   carouselPill: { position: 'absolute', start: 0, end: 0, top: 6, bottom: 6, borderRadius: 999 },
   dotButton: { minWidth: 24, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
 });
