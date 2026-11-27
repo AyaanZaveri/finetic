@@ -3,7 +3,7 @@
 use std::{
     collections::BTreeMap,
     io::{self, Read, Write},
-    net::{SocketAddr, TcpListener, TcpStream},
+    net::{Shutdown, SocketAddr, TcpListener, TcpStream},
     sync::{
         Arc, Condvar, Mutex,
         atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -341,7 +341,11 @@ impl MediaSource {
                         .name("media-read".into())
                         .spawn(move || {
                             let _slot = Slot(&source.playback_connections);
-                            let _ = serve(socket, &source, &prefix, &extension, address);
+                            let mut socket = socket;
+                            match serve(&mut socket, &source, &prefix, &extension, address) {
+                                Ok(()) => finish_response(&mut socket),
+                                Err(error) => log::debug!("Media relay response interrupted: {:?}", error.kind()),
+                            }
                         })
                         .is_err()
                     {
@@ -540,6 +544,15 @@ fn reply(socket: &mut TcpStream, status: u16, headers: &[(String, String)]) -> i
     }
     socket.write_all(b"\r\n")
 }
+// Send an explicit FIN after a complete response. In particular, Winsock may
+// reset a connection when a socket is dropped before its peer finishes reading
+// the last bytes. Give the peer a bounded opportunity to close its side too.
+fn finish_response(socket: &mut TcpStream) {
+    if socket.shutdown(Shutdown::Write).is_ok() {
+        let _ = socket.set_read_timeout(Some(Duration::from_millis(100)));
+        let _ = socket.read(&mut [0_u8; 1024]);
+    }
+}
 fn reject(socket: &mut TcpStream, status: u16) -> io::Result<()> {
     reply(socket, status, &[("Content-Length".into(), "0".into())])
 }
@@ -667,7 +680,7 @@ fn relay(
     Ok(())
 }
 fn serve(
-    mut socket: TcpStream,
+    mut socket: &mut TcpStream,
     source: &Shared,
     prefix: &str,
     extension: &str,
@@ -1003,7 +1016,10 @@ pub(crate) mod tests {
                             .is_ok()
                         {
                             bytes.fetch_add(end - start + 1, Ordering::SeqCst);
+                            finish_response(&mut socket);
                         }
+                    } else {
+                        finish_response(&mut socket);
                     }
             });
             let thread = std::thread::spawn(move || {
@@ -1252,6 +1268,27 @@ pub(crate) mod tests {
         assert_eq!(status, 206);
         assert_eq!(bytes, expected[100000..110001]);
         drop(stalled);
+    }
+    #[test]
+    fn short_tail_ranges_end_with_clean_eof() {
+        let expected = data();
+        let origin = Origin::new_typed(expected.clone(), "video/mp4");
+        let source = MediaSource::new(&origin.url, &Headers::new()).unwrap();
+        let url = url::Url::parse(&source.fallback_preview_url()).unwrap();
+        let address = format!("{}:{}", url.host_str().unwrap(), url.port().unwrap());
+        // Exercise both an origin read and repeated cached tail reads. Read
+        // until TCP EOF, not merely until the advertised Content-Length.
+        for length in [169, 1, 376, 169] {
+            let start = expected.len() - length;
+            let mut socket = TcpStream::connect(&address).unwrap();
+            socket.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
+            write!(socket, "GET {} HTTP/1.1\r\nHost: {address}\r\nRange: bytes={start}-\r\n\r\n", url.path()).unwrap();
+            let mut response = Vec::new();
+            socket.read_to_end(&mut response).unwrap();
+            let body = response.windows(4).position(|bytes| bytes == b"\r\n\r\n").unwrap() + 4;
+            assert!(response.starts_with(b"HTTP/1.1 206"));
+            assert_eq!(&response[body..], &expected[start..]);
+        }
     }
     #[test]
     fn authenticated_head_and_retirement_during_an_inflight_read() {

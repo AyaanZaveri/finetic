@@ -73,10 +73,11 @@ jobs:
       - name: Exercise native index, decode, HTTP cache, and playback paths
         shell: bash
         env:
-          RUST_LOG: warn
+          RUST_LOG: warn,navigator_desktop::media_cache=debug
         run: |
           cargo test --manifest-path desktop/Cargo.toml --locked transient_index_reads_get_bounded_retries -- --nocapture
           cargo test --manifest-path desktop/Cargo.toml --locked full_preview_completes_a_range_when_sparse_read_would_yield -- --nocapture
+          cargo test --manifest-path desktop/Cargo.toml --locked short_tail_ranges_end_with_clean_eof -- --nocapture
           cargo test --manifest-path desktop/Cargo.toml --locked headless_webdl_preview_index_recovers_after_http_failure -- --ignored --nocapture
           failed=0
           for fixture in avc-stereo.mkv avc-surround-open-gop.mkv avc-front-cues.mkv hevc-control.mkv avc-no-cues.mkv avc-bad-cue-offsets.mkv avc-tail.mp4 avc-front.mp4 avc-fragmented.mp4 avc.mov vp9.webm; do
