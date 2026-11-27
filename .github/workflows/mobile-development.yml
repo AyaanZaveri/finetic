@@ -97,6 +97,7 @@ jobs:
           path: |
             mobile/test-results/dev-walkthrough/
             mobile/test-results/dev-client/metro.log
+            mobile/test-results/dev-client/android-ready-*/
           if-no-files-found: warn
           retention-days: 7
   ios:
@@ -153,5 +154,7 @@ jobs:
           path: |
             mobile/test-results/dev-walkthrough/
             mobile/test-results/dev-client/ios-metro.log
+            mobile/test-results/dev-client/ios-ready-*/
+            mobile/test-results/dev-client/ios-failed-ready.png
           if-no-files-found: warn
           retention-days: 7

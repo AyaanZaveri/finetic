@@ -12,6 +12,7 @@ import { formatReleaseDate, resizeBackdrop, validMediaId, type MediaEpisode, typ
 import { creditLabelWidth, detailWordmarkSize, mergeTitleDetails } from '@/lib/detail-presentation';
 import { THEME } from '@/lib/theme';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -118,6 +119,8 @@ export function MediaDetailScreen({ type, id, episode }: { type: MediaType; id: 
   const releaseDate = formatReleaseDate(currentEpisode?.released ?? item?.released ?? item?.releaseInfo, item?.year);
   const credits = item?.castMembers?.length ? item.castMembers : item?.cast?.map(name => ({ id: name, name, image: undefined, role: undefined }));
   return (
+    // Keep season-sheet portals in this native stack screen's accessibility tree.
+    <BottomSheetModalProvider>
     <View testID="title-detail-page" className="flex-1 bg-background">
       <BlurTargetView ref={blurTarget} style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ paddingBottom: bottom + 24 }} className="flex-1" showsVerticalScrollIndicator={false}>
@@ -176,5 +179,6 @@ export function MediaDetailScreen({ type, id, episode }: { type: MediaType; id: 
         <DetailBackControl onBack={goBack} blurTarget={blurTarget} />
       </View>
     </View>
+    </BottomSheetModalProvider>
   );
 }
