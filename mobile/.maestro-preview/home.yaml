@@ -61,7 +61,9 @@ appId: ${APP_ID}
 - takeScreenshot: home-quick-actions
 - tapOn:
     id: title-sheet-close
-- tapOn:
-    id: open-design-system
+- openLink: exp://127.0.0.1:8081/--/design-system
+- extendedWaitUntil:
+    visible: 'Mobile foundation'
+    timeout: 30000
 - assertVisible: 'Mobile foundation'
 - takeScreenshot: design-system

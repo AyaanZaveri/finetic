@@ -40,6 +40,7 @@ jobs:
       - run: npm test
       - run: npx expo install --check
   android:
+    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[preview-only]') }}
     needs: foundation
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -98,6 +99,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
   ios:
+    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[preview-only]') }}
     needs: foundation
     runs-on: macos-26
     timeout-minutes: 55
