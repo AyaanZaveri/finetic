@@ -755,7 +755,7 @@ mod tests {
         let directory = std::path::PathBuf::from(std::env::var("NAVIGATOR_TEST_PREVIEW_DIR").unwrap());
         let selected = std::env::var("NAVIGATOR_TEST_PREVIEW_FILE").ok();
         let mut failures = Vec::new();
-        for filename in ["avc-stereo.mkv", "avc-surround-open-gop.mkv", "avc-front-cues.mkv", "hevc-control.mkv", "avc-no-cues.mkv", "avc-long-webdl.mkv"] {
+        for filename in ["avc-stereo.mkv", "avc-surround-open-gop.mkv", "avc-front-cues.mkv", "hevc-control.mkv", "avc-no-cues.mkv", "avc-bad-cue-offsets.mkv", "avc-long-webdl.mkv"] {
             if selected.as_deref().is_some_and(|name| name != filename) { continue; }
             let long = filename == "avc-long-webdl.mkv";
             if long && selected.is_none() { continue; }
@@ -770,16 +770,23 @@ mod tests {
                 Ok(mut source) => {
                     println!("INDEX {filename}: {} entries", source.keyframes().entries.len());
                     let mut renderer = source.renderer(Settings { width: 448, quality: 72, ..Settings::default() });
+                    let mut packet_errors = 0;
                     for second in [5_u64, 11, 18, 25] {
                         let index = source.keyframes().at(second * 1000);
                         let at = source.keyframes().entries[index].time_ms;
                         match source.packet(index).and_then(|packet| renderer.render(&packet)) {
                             Ok(jpeg) => println!("PACKET {filename} target={second} keyframe={at} jpeg={}", jpeg.len()),
-                            Err(error) => println!("PACKET_ERROR {filename} target={second} keyframe={at}: {error}"),
+                            Err(error) => { packet_errors += 1; println!("PACKET_ERROR {filename} target={second} keyframe={at}: {error}"); }
                         }
                     }
+                    if filename == "avc-bad-cue-offsets.mkv" {
+                        assert!(packet_errors > 0, "Damaged cue fixture must reproduce the sparse packet failure");
+                    }
                 }
-                Err(error) => println!("INDEX_ERROR {filename}: {error}"),
+                Err(error) => {
+                    println!("INDEX_ERROR {filename}: {error}");
+                    assert_ne!(filename, "avc-bad-cue-offsets.mkv", "The packet failure fixture must open its index successfully");
+                }
             }
             // Use the actual Player, including its internal byte relay,
             // readiness gate, preview workers, and published JPEG delivery.

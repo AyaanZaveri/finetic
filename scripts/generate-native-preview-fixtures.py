@@ -41,3 +41,47 @@ ffmpeg("-i", str(source), "-map", "0", "-c", "copy", "-cues_to_front", "1",
 # as a diagnostic control, separate from the normal indexed WEB-DL cases.
 ffmpeg("-i", str(source), "-map", "0", "-c", "copy", "-live", "1",
        str(directory / "avc-no-cues.mkv"))
+
+
+def vint(data, offset, identifier=False):
+    first = data[offset]
+    width = next(n for n in range(1, 9) if first & (0x80 >> (n - 1)))
+    value = int.from_bytes(data[offset:offset + width], "big")
+    return (value if identifier else value & ((1 << (7 * width)) - 1)), width
+
+
+def elements(data, start, end):
+    while start < end:
+        identifier, id_width = vint(data, start, True)
+        length, size_width = vint(data, start + id_width)
+        body = start + id_width + size_width
+        limit = min(end, body + length)
+        yield identifier, body, limit
+        start = limit
+
+
+# Reproduce a sparse-reader packet error after a successful index open.
+# CueClusterPosition stays correct, but CueRelativePosition points at the
+# cluster timestamp rather than the video block. The full demuxer can seek
+# using the cluster and read the actual frame.
+damaged = bytearray(source.read_bytes())
+relative_offsets = 0
+for segment_id, segment_start, segment_end in elements(damaged, 0, len(damaged)):
+    if segment_id != 0x18538067:
+        continue
+    for element, start, end in elements(damaged, segment_start, segment_end):
+        if element != 0x1C53BB6B:
+            continue
+        for point, p_start, p_end in elements(damaged, start, end):
+            if point != 0xBB:
+                continue
+            for positions, t_start, t_end in elements(damaged, p_start, p_end):
+                if positions != 0xB7:
+                    continue
+                for field, f_start, f_end in elements(damaged, t_start, t_end):
+                    if field == 0xF0:
+                        damaged[f_start:f_end] = bytes(f_end - f_start)
+                        relative_offsets += 1
+assert relative_offsets > 0, "FFmpeg fixture must have CueRelativePosition entries"
+(directory / "avc-bad-cue-offsets.mkv").write_bytes(damaged)
+print(f"Damaged {relative_offsets} relative cue offsets for packet failure fixture", flush=True)

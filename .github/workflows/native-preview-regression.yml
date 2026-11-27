@@ -74,7 +74,7 @@ jobs:
           cargo test --manifest-path desktop/Cargo.toml --locked transient_index_reads_get_bounded_retries -- --nocapture
           cargo test --manifest-path desktop/Cargo.toml --locked headless_webdl_preview_index_recovers_after_http_failure -- --ignored --nocapture
           failed=0
-          for fixture in avc-stereo.mkv avc-surround-open-gop.mkv avc-front-cues.mkv hevc-control.mkv avc-no-cues.mkv; do
+          for fixture in avc-stereo.mkv avc-surround-open-gop.mkv avc-front-cues.mkv hevc-control.mkv avc-no-cues.mkv avc-bad-cue-offsets.mkv; do
             # Each fixture has a fresh application/library lifetime. A native
             # crash cannot conceal the results for the remaining formats.
             NAVIGATOR_TEST_PREVIEW_FILE="$fixture" cargo test --manifest-path desktop/Cargo.toml --locked headless_webdl_preview_formats -- --ignored --nocapture || failed=1

@@ -7,10 +7,11 @@ use std::{
     collections::BTreeMap,
     path::PathBuf,
     sync::{Arc, Condvar, Mutex, Weak},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 type Emit = Arc<dyn Fn(Value) + Send + Sync>;
+const INDEXED_FRAME_WAIT: Duration = Duration::from_millis(2500);
 // A range read can race playback's initial read. Never treat a transient
 // failure as proof that a container has no usable preview index.
 fn open_index<T>(
@@ -42,6 +43,8 @@ struct State {
     closed: bool,
     unavailable: bool,
     fallback: bool,
+    requested_at: Instant,
+    answered: bool,
 }
 struct Shared {
     state: Mutex<State>,
@@ -82,6 +85,8 @@ impl Previews {
                 closed: false,
                 unavailable: false,
                 fallback: false,
+                requested_at: Instant::now(),
+                answered: false,
             }),
         });
         let opened = shared.clone();
@@ -127,6 +132,8 @@ impl Previews {
                 if state.closed {
                     return;
                 }
+                let fallback_allowed = library.is_some()
+                    && url::Url::parse(&url).ok().is_some_and(|parsed| matches!(parsed.scheme(), "http" | "https"));
                 match result {
                     Ok(decoder) => state.decoder = Some(decoder),
                     Err(error) => {
@@ -143,17 +150,16 @@ impl Previews {
                         // The full demuxer can still seek files with absent or
                         // unsupported cue tables. Only allow the same HTTP(S)
                         // media source that the native player already accepted.
-                        state.fallback = library.is_some()
-                            && url::Url::parse(&url).ok().is_some_and(|parsed| matches!(parsed.scheme(), "http" | "https"));
+                        state.fallback = fallback_allowed;
                     }
                 }
                 let result = answer(&mut state, &opened);
-                let fallback = state.fallback;
+                if result.is_some() { state.answered = true; }
                 drop(state);
                 if let Some((request, image)) = result {
                     send(&opened, Some(request), image);
                 }
-                if fallback {
+                if fallback_allowed {
                     fallback_loop(&opened, &url, &headers, library.as_ref().unwrap());
                 }
             });
@@ -170,7 +176,10 @@ impl Previews {
             position: (seconds * 1000.0) as u64,
         });
         state.expected = None;
+        state.requested_at = Instant::now();
+        state.answered = false;
         let result = answer(&mut state, &self.shared);
+        if result.is_some() { state.answered = true; }
         drop(state);
         self.shared.wake.notify_all();
         if let Some((request, image)) = result {
@@ -226,10 +235,28 @@ fn fallback_loop(shared: &Shared, url: &str, headers: &BTreeMap<String, String>,
             let mut state = shared.state.lock().unwrap();
             loop {
                 if state.closed { return; }
+                let mut wait = Duration::from_secs(10);
                 if let Some(wanted) = state.wanted {
-                    if handled != Some(wanted.id) { break wanted; }
+                    if state.fallback {
+                        if handled != Some(wanted.id) { break wanted; }
+                    } else if state.decoder.is_some() && !state.answered {
+                        // Sparse packet failures are reported only to the
+                        // decoder's logs, not via its frame callback. If the
+                        // pointer settles without an answer, switch to the
+                        // full demuxer rather than time out forever.
+                        let remaining = INDEXED_FRAME_WAIT.saturating_sub(state.requested_at.elapsed());
+                        if remaining.is_zero() {
+                            log::warn!("Seek preview keyframe did not finish; using native demuxer fallback");
+                            state.decoder = None;
+                            state.expected = None;
+                            state.unavailable = true;
+                            state.fallback = true;
+                            break wanted;
+                        }
+                        wait = remaining;
+                    }
                 }
-                let (next, idle) = shared.wake.wait_timeout(state, Duration::from_secs(10)).unwrap();
+                let (next, idle) = shared.wake.wait_timeout(state, wait).unwrap();
                 state = next;
                 if idle.timed_out() && decoder.is_some() {
                     // Release unused demux/decode buffers without holding the
@@ -280,12 +307,15 @@ fn publish(weak: &Weak<Shared>, image: Arc<Thumbnail>) {
         return;
     };
     let (wanted, current) = {
-        let state = shared.state.lock().unwrap();
-        if state.closed {
+        let mut state = shared.state.lock().unwrap();
+        if state.closed || state.fallback {
             return;
         }
-        (state.wanted, state.expected == Some(image.time_ms))
+        let current = state.expected == Some(image.time_ms);
+        if current { state.answered = true; }
+        (state.wanted, current)
     };
+    shared.wake.notify_all();
     // Retain useful completed work even when the pointer has moved on.
     let image = picture(&shared, &image);
     if let Some(wanted) = wanted {
