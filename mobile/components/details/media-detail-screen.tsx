@@ -1,5 +1,4 @@
 import { ProgressiveArtwork } from '@/components/effects/progressive-artwork';
-import { ArtworkImage } from '@/components/media/artwork-image';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
@@ -27,12 +26,21 @@ function TitleIdentity({ item, useLogo }: { item: MediaItem; useLogo: boolean })
   );
 }
 
+function CastAvatar({ name, image }: { name: string; image?: string }) {
+  const [failed, setFailed] = useState(false);
+  const initials = name.trim().split(/\s+/).slice(0, 2).map(part => Array.from(part)[0]).join('');
+  return <View className="size-20 overflow-hidden rounded-full bg-muted items-center justify-center">
+    <Text className="text-xl font-nav-medium text-muted-foreground">{initials}</Text>
+    {image && !failed && <Image source={image} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" onError={() => setFailed(true)} />}
+  </View>;
+}
+
 function Synopsis({ description }: { description: string }) {
   const [expanded, setExpanded] = useState(false);
   const [clamped, setClamped] = useState(false);
   return (
     <View className="gap-1">
-      <Text className="absolute opacity-0 text-[15px] leading-[23px]" accessible={false} importantForAccessibility="no-hide-descendants" onTextLayout={event => setClamped(event.nativeEvent.lines.length > 3)}>{description}</Text>
+      <Text className="absolute left-0 right-0 opacity-0 text-[15px] leading-[23px]" accessible={false} importantForAccessibility="no-hide-descendants" onTextLayout={event => setClamped(event.nativeEvent.lines.length > 3)}>{description}</Text>
       <Text className="text-[15px] leading-[23px]" numberOfLines={expanded ? undefined : 3}>{description}</Text>
       {clamped && <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={() => setExpanded(value => !value)} hitSlop={8} className="self-start min-h-9 justify-center"><Text className="text-sm font-nav-medium">{expanded ? 'Read less' : 'Read more'}</Text></Pressable>}
     </View>
@@ -83,11 +91,11 @@ export function MediaDetailScreen({ type, id }: { type: MediaType; id: string })
             </View>}
             {!!credits?.length && <View className="gap-3">
               <Text role="heading" className="text-xl font-nav-semibold">Cast</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
-                {credits.map(person => <View key={person.id} className="w-[104px] gap-1.5">
-                  <View className="overflow-hidden rounded-lg bg-muted aspect-[2/3]"><ArtworkImage uri={person.image} recyclingKey={person.id} /></View>
-                  <Text className="text-sm font-nav-medium" numberOfLines={2}>{person.name}</Text>
-                  {person.role && <Text variant="muted" numberOfLines={2}>{person.role}</Text>}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 16 }}>
+                {credits.map(person => <View key={person.id} className="w-24 items-center gap-1.5">
+                  <CastAvatar name={person.name} image={person.image} />
+                  <Text className="text-center text-sm font-nav-semibold" numberOfLines={2}>{person.name}</Text>
+                  {person.role && <Text variant="muted" className="text-center" numberOfLines={2}>{person.role}</Text>}
                 </View>)}
               </ScrollView>
             </View>}

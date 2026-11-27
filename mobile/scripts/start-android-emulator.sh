@@ -18,7 +18,7 @@ fi
 test -f "$ANDROID_AVD_HOME/$name.avd/config.ini"
 emulator -list-avds | grep -Fx "$name"
 adb start-server
-nohup emulator -avd "$name" -no-window -gpu swiftshader -no-snapshot -no-audio -no-boot-anim -accel on -memory 4096 > test-results/emulator.log 2>&1 &
+nohup emulator -avd "$name" -no-window -gpu swiftshader -no-snapshot -no-audio -no-boot-anim -accel on -memory "${NAVIGATOR_EMULATOR_MEMORY:-4096}" > test-results/emulator.log 2>&1 &
 pid=$!
 for i in $(seq 1 150); do
   if ! kill -0 "$pid" 2>/dev/null; then
@@ -27,7 +27,9 @@ for i in $(seq 1 150); do
     exit 1
   fi
   if [[ "$(timeout 5 adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)" == '1' ]]; then
+    adb shell settings put global anr_show_background 0
     adb shell input keyevent 82
+    sleep 12
     adb devices -l
     exit 0
   fi

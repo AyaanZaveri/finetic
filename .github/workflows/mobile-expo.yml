@@ -182,7 +182,9 @@ jobs:
         run: bash scripts/configure-android-sdk.sh
       - name: Start emulator and Metro
         run: |
-          bash scripts/start-android-emulator.sh navigator-preview
+          NAVIGATOR_EMULATOR_MEMORY=3072 bash scripts/start-android-emulator.sh navigator-preview
+          adb shell wm size 720x1600
+          adb shell wm density 280
           adb shell cmd uimode night yes
           adb install "$RUNNER_TEMP/expo-go.apk"
           bash scripts/start-preview-metro.sh
@@ -190,6 +192,8 @@ jobs:
           adb shell am start -a android.intent.action.VIEW -d exp://127.0.0.1:8081 -p host.exp.exponent
       - name: Wait for first Android bundle
         run: bash scripts/wait-preview-bundle.sh Android
+      - name: Capture independent Android screen images
+        run: bash scripts/capture-android-preview.sh
       - name: Capture preview screenshots
         run: maestro test -e APP_ID=host.exp.exponent --format junit --output test-results/report.xml --debug-output test-results --test-output-dir test-results .maestro-preview/home.yaml
       - name: Collect diagnostics

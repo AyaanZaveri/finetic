@@ -4,6 +4,9 @@ tags:
 ---
 - launchApp:
     clearState: true
+- tapOn:
+    text: Wait
+    optional: true
 - extendedWaitUntil:
     visible:
       id: hero-primary

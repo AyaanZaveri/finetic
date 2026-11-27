@@ -2,6 +2,9 @@ appId: app.navigator.mobile
 ---
 - launchApp:
     clearState: true
+- tapOn:
+    text: Wait
+    optional: true
 - extendedWaitUntil:
     visible:
       id: hero-primary
