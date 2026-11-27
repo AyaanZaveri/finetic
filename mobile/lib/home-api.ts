@@ -1,4 +1,4 @@
-import { parseCatalog, parseMedia, validMediaId, type HomeSection, type MediaItem, type MediaType } from './home-catalog';
+import { parseCatalog, parseEpisodes, parseMedia, validMediaId, type HomeSection, type MediaEpisode, type MediaItem, type MediaType } from './home-catalog';
 
 import type { MetadataProvider } from './metadata-provider';
 
@@ -93,4 +93,24 @@ export async function searchTitles(query: string, signal?: AbortSignal, provider
   if (catalogs.every(result => result.status === 'rejected')) throw new Error('Search is unavailable');
   const [movies, series] = catalogs.map(result => result.status === 'fulfilled' ? result.value : []);
   return Array.from({ length: Math.max(movies.length, series.length) }, (_, i) => [movies[i], series[i]]).flat().filter(Boolean);
+}
+
+
+export async function loadSeasonEpisodes(id: string, season: number, signal?: AbortSignal): Promise<MediaEpisode[]> {
+  if (!validMediaId(id) || !Number.isSafeInteger(season) || season < 0 || season > 9999) throw new Error('Invalid season.');
+  if (!id.startsWith('tmdb:')) {
+    return (await loadTitle('series', id, signal)).episodes?.filter(episode => episode.season === season) ?? [];
+  }
+  const response = await requestJson(`${backendOrigin()}/api/discovery/title?${new URLSearchParams({ id, type: 'series', season: String(season) })}`, signal) as { episodes?: unknown };
+  return parseEpisodes(response.episodes, id).filter(episode => episode.season === season);
+}
+
+
+/** Supplement missing age certification without changing the user's catalog provider. */
+export async function loadCertification(type: MediaType, id: string, signal?: AbortSignal): Promise<string | undefined> {
+  if (!validMediaId(id)) return undefined;
+  try {
+    const response = await requestJson(`${backendOrigin()}/api/discovery/title?${new URLSearchParams({ id, type, certification: '1' })}`, signal) as { contentRating?: { value?: unknown } };
+    return typeof response.contentRating?.value === 'string' ? response.contentRating.value : undefined;
+  } catch { return undefined; }
 }

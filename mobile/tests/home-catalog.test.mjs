@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { artworkUrl, parseCatalog, selectFeatured, ratingLabel, resizeBackdrop } from '../lib/home-catalog.ts';
+import { artworkUrl, parseCatalog, parseEpisodes, formatReleaseDate, selectFeatured, ratingLabel, resizeBackdrop } from '../lib/home-catalog.ts';
 import { loadHome } from '../lib/home-api.ts';
 
 const poster = 'https://images.metahub.space/poster/small/tt123/img';
@@ -114,4 +114,38 @@ test('TMDB is opt-in while Cinemeta remains the default', async (t) => {
   assert.equal((await loadHome(undefined, 'tmdb')).sections.length, 6);
   assert.equal((await searchTitles('Movie', undefined, 'tmdb'))[0].id, 'tmdb:123');
   assert.equal((await loadTitle('movie', 'tmdb:123')).id, 'tmdb:123');
+});
+
+
+test('live series episode records preserve title, coordinates, date and artwork', () => {
+  const rows = parseEpisodes([
+    {season:2, episode:1, title:'Second season', thumbnail:'https://episodes.metahub.space/tt123/2/1/w780.jpg', released:'2026-02-01T09:00:00Z'},
+    {season:1, number:2, name:'Episode two', overview:'Synopsis'},
+    {season:1, episode:2, name:'Duplicate'}, {season:-1, episode:1}, {season:1, episode:0}
+  ], 'tt123');
+  assert.deepEqual(rows.map(row => row.id), ['tt123:1:2','tt123:2:1']);
+  assert.equal(rows[0].description, 'Synopsis');
+  assert.equal(rows[1].thumbnail, 'https://episodes.metahub.space/tt123/2/1/w780.jpg');
+  assert.equal(formatReleaseDate(rows[1].released), 'Feb 1, 2026');
+  assert.equal(parseCatalog([{...item('tt123','series'), year:'2023–', contentRating:{value:'TV-PG',region:'US'}}])[0].contentRating,'TV-PG');
+});
+
+test('optional TMDB season requests return matching episode coordinates', async (t) => {
+  const {loadSeasonEpisodes} = await import('../lib/home-api.ts');
+  t.mock.method(globalThis,'fetch',async url => {
+    assert.ok(url.includes('/api/discovery/title?id=tmdb%3A123&type=series&season=2'));
+    return json({episodes:[{season:2,episode:3,name:'Episode three',runtime:44},{season:1,episode:1,name:'Wrong season'}]});
+  });
+  const episodes = await loadSeasonEpisodes('tmdb:123',2);
+  assert.equal(episodes.length,1);
+  assert.equal(episodes[0].runtime,'44 min');
+});
+
+test('optional age certification supplements live Cinemeta without changing its provider', async (t) => {
+  const {loadCertification} = await import('../lib/home-api.ts');
+  t.mock.method(globalThis, 'fetch', async url => {
+    assert.ok(url.includes('/api/discovery/title?id=tt123&type=series&certification=1'));
+    return json({contentRating:{value:'TV-PG',region:'US'}});
+  });
+  assert.equal(await loadCertification('series','tt123'),'TV-PG');
 });

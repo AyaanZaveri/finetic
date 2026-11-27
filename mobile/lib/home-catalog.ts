@@ -1,4 +1,14 @@
 export type MediaType = 'movie' | 'series';
+export interface MediaEpisode {
+  id: string;
+  season: number;
+  number: number;
+  name: string;
+  description?: string;
+  thumbnail?: string;
+  released?: string;
+  runtime?: string;
+}
 export interface MediaItem {
   id: string;
   type: MediaType;
@@ -9,6 +19,8 @@ export interface MediaItem {
   description?: string;
   year?: number;
   releaseInfo?: string;
+  released?: string;
+  contentRating?: string;
   imdbRating?: string;
   communityRating?: number;
   ratingSource?: string;
@@ -19,6 +31,7 @@ export interface MediaItem {
   writer?: string[];
   castMembers?: { id: string; name: string; role?: string; image?: string }[];
   seasons?: { number: number; name: string; episodeCount: number }[];
+  episodes?: MediaEpisode[];
 }
 export interface HomeSection {
   key: string;
@@ -29,10 +42,11 @@ export interface HomeSection {
 export const mediaKey = (item: MediaItem) => `${item.type}:${item.id}`;
 
 const TMDB_IMAGE = /^https:\/\/image\.tmdb\.org\/t\/p\/(?:w\d+|original)\/[\w.-]+\.(?:jpg|jpeg|png|webp|svg)$/i;
+const CINEMETA_EPISODE = /^https:\/\/episodes\.metahub\.space\/tt\d+\/\d+\/\d+\/w\d+\.(?:jpg|jpeg|png|webp)$/i;
 const CINEMETA_IMAGE = /^https:\/\/images\.metahub\.space\/(?:poster|background|logo)\/(?:small|medium|large|original)\/tt\d+\/img$/i;
 
 export function artworkUrl(value: unknown): string | undefined {
-  return typeof value === 'string' && (TMDB_IMAGE.test(value) || CINEMETA_IMAGE.test(value)) ? value : undefined;
+  return typeof value === 'string' && (TMDB_IMAGE.test(value) || CINEMETA_IMAGE.test(value) || CINEMETA_EPISODE.test(value)) ? value : undefined;
 }
 
 export function resizeBackdrop(url: string | undefined, width: 780 | 1280 = 780): string | undefined {
@@ -44,7 +58,7 @@ function text(value: unknown): string | undefined {
 }
 
 export function releaseYear(item: { year?: unknown; releaseInfo?: unknown }): number | undefined {
-  const raw = item.year ?? (typeof item.releaseInfo === 'string' ? /^\s*(\d{4})\b/.exec(item.releaseInfo)?.[1] : undefined);
+  const raw = [item.year, item.releaseInfo].map(value => typeof value === 'string' ? /^\s*(\d{4})/.exec(value)?.[1] : value).find(value => value != null);
   const parsed = Number(raw);
   return Number.isInteger(parsed) && parsed >= 1888 && parsed <= new Date().getFullYear() + 1 ? parsed : undefined;
 }
@@ -77,6 +91,32 @@ function parseSeasons(seasons: unknown, videos: unknown): MediaItem['seasons'] {
   return [...grouped.entries()].sort(([a], [b]) => a - b).map(([number, episodes]) => ({ number, name: number ? `Season ${number}` : 'Specials', episodeCount: episodes.size }));
 }
 
+export function parseEpisodes(values: unknown, seriesId: string): MediaEpisode[] {
+  if (!Array.isArray(values)) return [];
+  const seen = new Set<string>();
+  return values.flatMap(value => {
+    if (!value || typeof value !== 'object') return [];
+    const row = value as Record<string, unknown>;
+    const season = row.season, number = row.episode ?? row.number;
+    if (typeof season !== 'number' || !Number.isSafeInteger(season) || season < 0 || season > 10000 ||
+        typeof number !== 'number' || !Number.isSafeInteger(number) || number < 1 || number > 10000) return [];
+    const id = `${seriesId}:${season}:${number}`;
+    if (seen.has(id)) return [];
+    seen.add(id);
+    return [{ id, season, number, name: text(row.title) ?? text(row.name) ?? `Episode ${number}`,
+      description: text(row.description) ?? text(row.overview), thumbnail: artworkUrl(row.thumbnail), released: text(row.released),
+      runtime: text(row.runtime) ?? (typeof row.runtime === 'number' && row.runtime > 0 ? `${row.runtime} min` : undefined) }];
+  }).sort((a, b) => a.season - b.season || a.number - b.number);
+}
+
+export function formatReleaseDate(value?: string, year?: number): string | undefined {
+  if (value && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+    const date = new Date(value.slice(0, 10) + 'T00:00:00Z');
+    if (!Number.isNaN(date.valueOf())) return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(date);
+  }
+  return year?.toString();
+}
+
 export function parseMedia(value: unknown, expected?: MediaType): MediaItem | null {
   if (!value || typeof value !== 'object') return null;
   const item = value as Record<string, unknown>;
@@ -88,7 +128,8 @@ export function parseMedia(value: unknown, expected?: MediaType): MediaItem | nu
   return {
     id, type: item.type, name,
     poster: artworkUrl(item.poster), background: artworkUrl(item.background), logo: artworkUrl(item.logo),
-    description: text(item.description), year: releaseYear(item), releaseInfo: text(item.releaseInfo),
+    description: text(item.description), year: releaseYear(item), releaseInfo: text(item.releaseInfo), released: text(item.released),
+    contentRating: text(item.contentRating) ?? (item.contentRating && typeof item.contentRating === "object" ? text((item.contentRating as Record<string, unknown>).value) : undefined) ?? text(item.certification),
     imdbRating: text(item.imdbRating), communityRating: rating, ratingSource: text(item.ratingSource),
     genres: Array.isArray(item.genres) ? item.genres.flatMap(value => text(value) ?? []).slice(0, 4) : undefined,
     runtime: text(item.runtime),
@@ -102,6 +143,7 @@ export function parseMedia(value: unknown, expected?: MediaType): MediaItem | nu
       return id && name ? [{ id, name, role: text(member.role), image: artworkUrl(member.image) }] : [];
     }).slice(0, 30) : undefined,
     seasons: item.type === 'series' ? parseSeasons(item.seasons, item.videos) : undefined,
+    episodes: item.type === 'series' ? parseEpisodes(item.videos ?? item.episodes, id) : undefined,
   };
 }
 

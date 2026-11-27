@@ -66,17 +66,7 @@ jobs:
           cd android
           ./gradlew assembleRelease --no-daemon | tee ../test-results/android-build.log
       - name: Start API 35 emulator
-        run: |
-          NAVIGATOR_EMULATOR_MEMORY=3072 bash scripts/start-android-emulator.sh navigator-ci
-          adb shell wm size 720x1600
-          adb shell wm density 280
-          adb install -r android/app/build/outputs/apk/release/app-release.apk
-          adb shell cmd overlay enable com.android.internal.systemui.navbar.gestural
-          for i in $(seq 1 10); do
-            if [[ "$(adb shell settings get secure navigation_mode | tr -d '\r')" == 2 ]]; then break; fi
-            sleep 1
-          done
-          test "$(adb shell settings get secure navigation_mode | tr -d '\r')" = 2
+        run: bash scripts/prepare-android-device.sh
       - name: Capture standalone Android screenshots
         continue-on-error: true
         run: bash scripts/capture-native-screens.sh android test-results/screens
@@ -99,6 +89,8 @@ jobs:
         continue-on-error: true
         run: |
           mkdir -p test-results
+          free -m > test-results/host-memory.txt || true
+          sudo dmesg | tail -100 > test-results/host-kernel.txt || true
           timeout 15 adb logcat -d -t 2000 > test-results/logcat.txt || true
           timeout 15 adb exec-out screencap -p > test-results/final-screen.png || rm -f test-results/final-screen.png
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f

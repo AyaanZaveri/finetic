@@ -67,6 +67,18 @@ appId: app.navigator.mobile
     id: 'media-card-series:tt22202452'
 - assertVisible:
     id: title-detail-page
+- scrollUntilVisible:
+    element:
+      id: 'episode-card-1-1'
+    direction: DOWN
+- takeScreenshot: episode-carousel
+- tapOn:
+    id: 'episode-card-1-1'
+- assertVisible:
+    id: episode-detail-name
+- takeScreenshot: episode-detail
+- tapOn:
+    id: title-detail-back
 - tapOn:
     id: title-detail-back
 - tapOn: Settings
