@@ -5,7 +5,7 @@ import { pressScale } from '@/lib/interaction-policy';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { ActivityIndicator, Platform, Pressable, type ViewStyle, type StyleProp } from 'react-native';
 import Animated, { Easing, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
-import { useColorScheme } from 'nativewind';
+import { cssInterop, useColorScheme } from 'nativewind';
 import { THEME } from '@/lib/theme';
 
 // Reusables source, adapted locally to Navigator's neutral actions and touch targets.
@@ -45,6 +45,8 @@ const buttonTextVariants = cva('text-sm font-nav-medium', {
 });
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+// NativeWind registers Pressable, but not newly created animated wrappers.
+cssInterop(AnimatedPressable, { className: 'style' });
 
 type ButtonProps = Omit<React.ComponentProps<typeof Pressable>, 'style'> &
   VariantProps<typeof buttonVariants> & {
