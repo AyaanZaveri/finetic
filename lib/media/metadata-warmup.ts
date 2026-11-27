@@ -1,4 +1,4 @@
-import { episodeHeroStillUrl, publicArtworkUrl } from "@/lib/artwork";
+import { detailPosterUrl, episodeHeroStillUrl, publicArtworkUrl } from "@/lib/artwork";
 import type { MediaToPlay } from "@/lib/atoms";
 import type { MetadataQueries } from "./metadata-queries";
 import { metadataTarget } from "./metadata";
@@ -32,7 +32,12 @@ export function createMetadataImageQueue() {
             const key = JSON.stringify([source, crossOrigin]);
             if (recent.has(key)) return;
             recent.add(key); if (recent.size > 256) recent.delete(recent.values().next().value!);
-            queue.push({ source, crossOrigin }); pump();
+            queue.push({ source, crossOrigin });
+            if (queue.length > 16) {
+                const dropped = queue.shift()!;
+                recent.delete(JSON.stringify([dropped.source, dropped.crossOrigin]));
+            }
+            pump();
         },
         clear() { queue.length = 0; for (const cancel of [...active]) cancel(); recent.clear(); },
     };
@@ -49,7 +54,11 @@ export function createMetadataWarmup(queries: MetadataQueries) {
         const logo = cached.title?.data.artwork.logo;
         images.add(logo, publicArtworkUrl(logo) ? "anonymous" : undefined);
         images.add(episodeHeroStillUrl(cached.episode?.data.still));
-        if (intent && !playbackBackdrop(media)) images.add(cached.title?.data.artwork.backdrop);
+        if (intent) {
+            const artwork = cached.title?.data.artwork;
+            images.add(artwork?.backdrop);
+            images.add(detailPosterUrl(artwork?.poster));
+        }
     };
     const pump = () => {
         while (allowed && active.size < 2 && queue.length) {

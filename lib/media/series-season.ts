@@ -6,9 +6,11 @@ type Entry = {
     settled: boolean;
     refs: number;
     expires: number;
+    episodes?: Episode[];
 };
 const seasons = new Map<string, Entry>();
 const MAX_SEASONS = 48;
+let speculative = 0;
 function trimSettled() {
     while (seasons.size > MAX_SEASONS) {
         const oldest = [...seasons].find(([, entry]) => entry.settled);
@@ -19,6 +21,25 @@ function trimSettled() {
 
 export function invalidateSeriesSeasons() {
     seasons.clear();
+}
+
+export function peekSeriesSeason(id: string, season: number): Episode[] | undefined {
+    const key = `${id}:${season}`;
+    const entry = seasons.get(key);
+    if (!entry?.settled || entry.expires <= Date.now()) return;
+    seasons.delete(key); seasons.set(key, entry);
+    return entry.episodes;
+}
+
+/** A deliberate highlight keeps one lease until completion, so selection
+ * can join the same request even after the select menu closes. */
+export function warmSeriesSeason(id: string, season: number) {
+    const existing = seasons.get(`${id}:${season}`);
+    if (!/^tmdb:[1-9]\d*$/.test(id) || !Number.isSafeInteger(season) || season < 0 || season > 10000
+        || speculative >= 2 || peekSeriesSeason(id, season) || (existing && !existing.settled && !existing.controller.signal.aborted)) return;
+    speculative++;
+    const lease = acquireSeriesSeason(id, season);
+    void lease.promise.catch(() => {}).finally(() => { lease.release(); speculative--; });
 }
 
 /** Share one metadata read between episode cards and streams.
@@ -33,6 +54,7 @@ export function acquireSeriesSeason(id: string, season: number) {
             controller, settled: false, refs: 0, expires: 0,
             promise: readSeason(id, season, controller.signal).then(episodes => {
                 created.settled = true;
+                created.episodes = episodes;
                 created.expires = Date.now() + 300_000;
                 trimSettled();
                 return episodes;
@@ -61,7 +83,7 @@ export function acquireSeriesSeason(id: string, season: number) {
 }
 
 async function readSeason(id: string, season: number, signal: AbortSignal): Promise<Episode[]> {
-    const response = await fetch(`/api/series/episodes?${new URLSearchParams({ id, season: String(season) })}`, { signal });
+    const response = await fetch(`/api/series/episodes?${new URLSearchParams({ id, season: String(season) })}`, { signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]) });
     if (!response.ok) throw new Error("Couldn't load this season.");
     const episodes = await response.json() as Episode[];
     signal.throwIfAborted();

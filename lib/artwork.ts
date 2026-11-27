@@ -40,3 +40,7 @@ export function episodeThumbnailUrl(thumbnail: string | undefined, _showId: stri
 export function episodeHeroStillUrl(source: string | undefined): string | undefined {
   return publicArtworkUrl(source) ? source!.replace(/\/t\/p\/[^/]+\//, "/t/p/w1280/") : source;
 }
+
+export function detailPosterUrl(source: string | undefined): string | undefined {
+  return source?.replace("/poster/small/", "/poster/large/");
+}

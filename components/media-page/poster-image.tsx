@@ -1,6 +1,7 @@
 "use client";
 
 import { ArtworkImage } from "@/components/artwork-image";
+import { detailPosterUrl } from "@/lib/artwork";
 
 import styles from "./detail-artwork.module.css";
 
@@ -26,9 +27,7 @@ export function PosterImage({
 }: PosterImageProps) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const mediaName = name ?? movie?.name ?? "Media";
-  const resolvedPosterImage = posterImage.includes("/poster/small/")
-    ? posterImage.replace("/poster/small/", "/poster/large/")
-    : posterImage;
+  const resolvedPosterImage = detailPosterUrl(posterImage);
 
   if (!resolvedPosterImage || failedSrc === resolvedPosterImage) {
     return (

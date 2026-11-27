@@ -43,4 +43,19 @@ const intent = load('components/metadata-preload.tsx', dependencies(intentHooks)
 const action = intentHooks.render(() => intent.useMetadataIntent(items[0])); intentHooks.flush();
 action.start(); assert.equal(timers.size, 1); action.cancel(); assert.equal(timers.size, 0, 'Brief hover/focus never starts speculation');
 action.start(); [...timers.values()][0](); assert.equal(queued.at(-1).intent, true); intentHooks.unmount();
+const seasonHooks = hooks(), seasonRequests = [];
+timers.clear();
+const seasonApi = load('components/metadata-preload.tsx', {
+    ...dependencies(seasonHooks),
+    '@/lib/media/series-season': { warmSeriesSeason: (...args) => seasonRequests.push(args) },
+}, { ...globals, setTimeout: (callback, delay) => { assert.equal(delay, 120); timers.set(++sequence, callback); return sequence; },
+    clearTimeout: id => timers.delete(id) });
+const highlight = seasonHooks.render(() => seasonApi.useSeasonMetadataIntent('tmdb:20', 1));
+seasonHooks.flush();
+highlight('1'); assert.equal(timers.size, 0);
+highlight('2'); highlight('3'); assert.equal(timers.size, 1);
+highlight(null); assert.equal(timers.size, 0);
+highlight('3'); [...timers.values()][0]();
+assert.deepEqual(seasonRequests, [['tmdb:20', 3]]);
+seasonHooks.unmount();
 console.log('Four visible cards, idle independence, scrolling, preference/visibility/save-data guards and 120ms intent cancellation passed');

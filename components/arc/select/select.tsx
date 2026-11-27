@@ -20,6 +20,8 @@ export interface SelectProps extends Omit<ComponentPropsWithoutRef<typeof Select
   id?: string;
   className?: string;
   portalContainer?: ComponentPropsWithoutRef<typeof SelectPrimitive.Portal>["container"];
+  /** Option focus also follows mouse highlighting in Radix. */
+  onOptionIntent?: (_value: string | null) => void;
   options: { value: string; label: string; disabled?: boolean; icon?: ReactNode; badge?: string; separatorBefore?: boolean; labelWeight?: "medium" }[];
 }
 
@@ -33,7 +35,7 @@ const valueRoll: Variants = {
 const valueFade: Variants = { enter: { opacity: 0 }, center: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: motionTokens.duration.instant } }, exit: { opacity: 0, transition: { duration: motionTokens.duration.instant } } };
 
 export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select(
-    { "aria-describedby": describedBy, "aria-busy": busy, label, hideLabel = false, description, placeholder = "Select an option", options, id, className, portalContainer, disabled, onValueChange, ...rootProps },
+    { "aria-describedby": describedBy, "aria-busy": busy, label, hideLabel = false, description, placeholder = "Select an option", options, id, className, portalContainer, disabled, onValueChange, onOptionIntent, onOpenChange, ...rootProps },
     ref,
 ) {
     const generatedId = useId();
@@ -51,7 +53,8 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
     return (
         <div className={styles.field}>
             <label htmlFor={controlId} className={hideLabel ? styles.srOnly : undefined}>{label}</label>
-            <SelectPrimitive.Root {...rootProps} disabled={disabled} onValueChange={(next) => { setUncontrolledValue(next); onValueChange?.(next); }}>
+            <SelectPrimitive.Root {...rootProps} disabled={disabled} onOpenChange={open => { if (!open) onOptionIntent?.(null); onOpenChange?.(open); }}
+                onValueChange={(next) => { setUncontrolledValue(next); onValueChange?.(next); }}>
                 <SelectPrimitive.Trigger
                     ref={ref}
                     id={controlId}
@@ -82,7 +85,9 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
                             {options.map((option) => (
                                 <Fragment key={option.value}>
                                     {option.separatorBefore && <SelectPrimitive.Separator className={styles.separator} />}
-                                    <SelectPrimitive.Item value={option.value} disabled={option.disabled} className={styles.item} data-label-weight={option.labelWeight}>
+                                    <SelectPrimitive.Item value={option.value} disabled={option.disabled} className={styles.item} data-label-weight={option.labelWeight}
+                                        onFocus={() => { if (!option.disabled) onOptionIntent?.(option.value); }}
+                                        onBlur={() => onOptionIntent?.(null)}>
                                         {option.icon && <span className={styles.optionIcon} aria-hidden="true">{option.icon}</span>}
                                         <SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
                                         {option.badge && <Badge variant="outline" className={styles.badge} aria-hidden="true">{option.badge}</Badge>}

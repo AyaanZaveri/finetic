@@ -12,7 +12,8 @@ import React, {
   useRef,
   useMemo,
 } from "react";
-import { acquireSeriesSeason } from "@/lib/media/series-season";
+import { acquireSeriesSeason, peekSeriesSeason } from "@/lib/media/series-season";
+import { useMetadataIntent, useSeasonMetadataIntent } from "@/components/metadata-preload";
 import { safeResumePosition } from "@/lib/media/resume-playback";
 import { observeCarouselControls } from "@/lib/media/carousel-controls";
 import { Badge } from "@/components/ui/badge";
@@ -32,7 +33,7 @@ import { IntentLink } from "@/components/intent-link";
 import { ChevronLeft, ChevronRight, Play } from "lucide-react";
 import { ScrollArea, ScrollBar } from "./ui/scroll-area";
 import { buildEpisodePath } from "@/lib/series-route";
-import { episodeThumbnailUrl } from "@/lib/artwork";
+import { episodeThumbnailUrl, episodeHeroStillUrl } from "@/lib/artwork";
 import type { StremioVideo } from "@/types/stremio";
 import { usePlaybackActions } from "@/contexts/MediaPlayerContext";
 import cardStyles from "./media-card.module.css";
@@ -210,6 +211,7 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
   const [selectedSeason, setSelectedSeason] = useState<number | null>(
     initialSeasonState.selectedSeason
   );
+  const seasonIntent = useSeasonMetadataIntent(showId, selectedSeason, previewPlayback || prefetchedComplete);
   const [loading, setLoading] = useState(initialSeasonState.loading);
   const [episodes, setEpisodes] = useState<Episode[]>(initialEpisodes);
   const [episodesLoading, setEpisodesLoading] = useState(!prefetchedComplete && initialSeasonState.selectedSeason !== null && initialEpisodes.length === 0);
@@ -322,6 +324,13 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
     let cancelled = false;
     let request: ReturnType<typeof acquireSeriesSeason> | undefined;
     const cacheKey = `${showId}:${selectedSeason}`;
+    const warmed = peekSeriesSeason(showId, selectedSeason);
+    if (warmed) {
+      setEpisodes(warmed.length ? warmed : seasonEpisodes);
+      setEpisodeError(null);
+      setEpisodesLoading(false);
+      return;
+    }
     if (episodesCache.has(cacheKey)) {
       setEpisodes(episodesCache.get(cacheKey)!);
       setEpisodesLoading(false);
@@ -425,7 +434,17 @@ export const SeasonEpisodes = React.memo(function SeasonEpisodes({
             className={styles.seasonTrigger}
             hideLabel
             value={selectedSeason?.toString() ?? ""}
-            onValueChange={(value) => setSelectedSeason(Number(value))}
+            onOptionIntent={seasonIntent}
+            onValueChange={(value) => {
+              const season = Number(value);
+              const warmed = peekSeriesSeason(showId, season);
+              if (warmed?.length) {
+                setEpisodes(warmed);
+                setEpisodeError(null);
+                setEpisodesLoading(false);
+              }
+              setSelectedSeason(season);
+            }}
             placeholder="Select season"
             options={seasons.map((season) => ({
               value: season.number.toString(),
@@ -543,6 +562,9 @@ const EpisodeCard = React.memo(function EpisodeCard({
   previewPlayback?: boolean;
 }) {
   const { playMedia } = usePlaybackActions();
+  const metadataIntent = useMetadataIntent({ id: showId, type: "series", name: episode.title, seriesId: showId,
+    seasonNumber: episode.season, episodeNumber: episode.episode, mediaSourceId: episode.id,
+    backdropUrl: episodeHeroStillUrl(episode.thumbnail) });
   const handlePlay = (event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
@@ -599,6 +621,10 @@ const EpisodeCard = React.memo(function EpisodeCard({
         draggable={false}
         scroll={false}
         onClick={event => onSelect(event, episodeKey)}
+        onPointerEnter={event => { if (!previewPlayback && !isUpcoming && event.pointerType === "mouse") metadataIntent.start(); }}
+        onPointerLeave={metadataIntent.cancel}
+        onFocus={event => { if (!previewPlayback && !isUpcoming && event.currentTarget.matches(":focus-visible")) metadataIntent.start(); }}
+        onBlur={metadataIntent.cancel}
         aria-current={isActive || undefined}
       >
         <div className={`${styles.episodeBody} space-y-3 py-2`}>
@@ -677,6 +703,10 @@ const EpisodeCard = React.memo(function EpisodeCard({
             type="button"
             aria-label={"Play " + (episode.title || "Episode " + episode.episode)}
             onClick={handlePlay}
+            onPointerEnter={event => { if (!previewPlayback && event.pointerType === "mouse") metadataIntent.start(); }}
+            onPointerLeave={metadataIntent.cancel}
+            onFocus={event => { if (!previewPlayback && event.currentTarget.matches(":focus-visible")) metadataIntent.start(); }}
+            onBlur={metadataIntent.cancel}
             className={cardStyles.playButton + " relative rounded-full p-3 backdrop-blur-md"} draggable={false}
           >
             <Play aria-hidden="true" className="h-6 w-6 text-white fill-white" />

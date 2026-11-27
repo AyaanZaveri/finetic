@@ -4,6 +4,7 @@ import { useMetadataWarmup } from "./stream-query-provider";
 import { useSettings } from "@/contexts/settings-context";
 import { useAccountAccess } from "@/contexts/account-context";
 import { routePrefetchAllowed } from "@/lib/route-prefetch";
+import { warmSeriesSeason } from "@/lib/media/series-season";
 import type { MediaToPlay } from "@/lib/atoms";
 import type { MediaItem } from "@/types/stremio";
 
@@ -41,6 +42,21 @@ export function useMetadataIntent(media: MediaToPlay) {
         timer.current = setTimeout(() => { if (routePrefetchAllowed()) warmer?.enqueue(latest.current, true); }, 120);
     }, [cancel, authenticated, playbackPreferences.metadataPrefetch, warmer]);
     return { start, cancel };
+}
+
+export function useSeasonMetadataIntent(seriesId: string, selectedSeason: number | null, disabled = false) {
+    const { playbackPreferences } = useSettings();
+    const enabled = playbackPreferences.metadataPrefetch && !disabled;
+    const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+    const cancel = useCallback(() => clearTimeout(timer.current), []);
+    useEffect(() => cancel, [cancel, seriesId, selectedSeason, enabled]);
+    return useCallback((value: string | null) => {
+        cancel();
+        if (!enabled || value === null || !/^\d+$/.test(value) || Number(value) === selectedSeason) return;
+        timer.current = setTimeout(() => {
+            if (routePrefetchAllowed()) warmSeriesSeason(seriesId, Number(value));
+        }, 120);
+    }, [cancel, enabled, seriesId, selectedSeason]);
 }
 export function useContinueWatchingMetadata(root: RefObject<HTMLDivElement | null>, items: MediaItem[]) {
     const warmer = useMetadataWarmup();

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import Link from "next/link";
+import { IntentLink } from "@/components/intent-link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CarouselAction } from "@/components/carousel-action";
@@ -123,6 +123,6 @@ function CastProfile({ member }: { member: CastMember }) {
     </>;
     // Add-on fallback names are not TMDB IDs and cannot open a person lookup.
     return /^[1-9]\d*$/.test(member.id)
-        ? <Link href={`/person/${member.id}`} prefetch={false} draggable={false} className="block rounded-lg outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/22">{content}</Link>
+        ? <IntentLink href={`/person/${member.id}`} draggable={false} className="block rounded-lg outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/22">{content}</IntentLink>
         : <div>{content}</div>;
 }

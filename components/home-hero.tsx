@@ -323,6 +323,10 @@ export function HomeHero({ items, resume, onViewChange }: {
                                         scroll={false}
                                         draggable={false}
                                         aria-label={`View details for ${activeItem.name}`}
+                                        onPointerEnter={event => { if (event.pointerType === "mouse") metadataIntent.start(); }}
+                                        onPointerLeave={metadataIntent.cancel}
+                                        onFocus={event => { if (event.currentTarget.matches(":focus-visible")) metadataIntent.start(); }}
+                                        onBlur={metadataIntent.cancel}
                                     >
                                         <span aria-hidden="true" className={styles.detailsIcon}>
                                             <Info strokeWidth={2} className={styles.detailsInfo} />

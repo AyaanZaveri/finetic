@@ -111,11 +111,17 @@ async function run() {
         if (name === '../lib/motion-tokens') return load('components/arc/motion-tokens.ts');
         return { default: {} };
     });
+    const optionIntents = [];
     const seasonMenu = selectHost.render(Select, {
         label: 'Season', value: '2', options: [{ value: '2', label: 'Season 2' }], portalContainer: {},
+        onOptionIntent: value => optionIntents.push(value),
     });
     const optionsPopup = seasonMenu.props.children[1].props.children[1].props.children;
     assert.equal(optionsPopup.props['data-base-ui-swipe-ignore'], '', 'The portalled options must opt out of drawer pointer capture');
+    const option = optionsPopup.props.children[1].props.children[0].props.children[1];
+    option.props.onFocus(); option.props.onBlur();
+    seasonMenu.props.children[1].props.onOpenChange(false);
+    assert.deepEqual(optionIntents, ['2', null, null], 'Focused options report intent and cancel on blur or menu close');
 
     const drawer = hooks();
     const tanstack = require('@tanstack/react-query');

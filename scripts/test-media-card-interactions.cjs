@@ -34,7 +34,7 @@ const context = { exports: {}, Element: TestElement, Node: TestNode, window: { m
         if (!(index in state)) state[index] = initial;
         return [state[index], value => { state[index] = value; }];
     }, useRef: initial => ({ current: initial }), useCallback: callback => callback, useEffect() {} };
-    if (name === '@/lib/artwork') return { mediaArtwork: () => cardArtwork, backdropVariantUrl: (url, width) => url ? `${url}?width=${width}` : undefined, publicArtworkUrl: url => url };
+    if (name === '@/lib/artwork') return { mediaArtwork: () => cardArtwork, backdropVariantUrl: (url, width) => url ? `${url}?width=${width}` : undefined, publicArtworkUrl: url => url, episodeHeroStillUrl: url => url };
     if (name === '@/components/watched-indicator') return { WatchedIndicator: () => null };
     if (name === '@/lib/series-route') return routeContext.exports;
     if (name === '@/contexts/MediaPlayerContext') return { usePlaybackActions: () => ({ playMedia: async item => playback.push(item), setIsPlayerVisible: visible => playback.push(visible) }) };

@@ -3,6 +3,8 @@
 import { ArtworkImage, ArtworkPlaceholder } from "@/components/artwork-image";
 
 import { preloadPlayer } from "@/lib/preload-tools";
+import { useMetadataIntent } from "@/components/metadata-preload";
+import { episodeHeroStillUrl } from "@/lib/artwork";
 
 import React from "react";
 import { IntentLink } from "@/components/intent-link";
@@ -26,6 +28,15 @@ export function EpisodeCard({
 
   const linkHref = buildEpisodePath(seriesId, episode.season, episode.episode);
   const imageUrl = episode.thumbnail;
+  const metadataIntent = useMetadataIntent({ id: seriesId, type: "series", name: episode.title, seriesId,
+    seasonNumber: episode.season, episodeNumber: episode.episode, mediaSourceId: episode.id,
+    backdropUrl: episodeHeroStillUrl(imageUrl) });
+  const intentHandlers = {
+    onPointerEnter: (event: React.PointerEvent<HTMLAnchorElement>) => { if (event.pointerType === "mouse") metadataIntent.start(); },
+    onPointerLeave: metadataIntent.cancel,
+    onFocus: (event: React.FocusEvent<HTMLAnchorElement>) => { if (event.currentTarget.matches(":focus-visible")) metadataIntent.start(); },
+    onBlur: metadataIntent.cancel,
+  };
 
   const handlePlayClick = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -54,7 +65,7 @@ export function EpisodeCard({
         data-pressed={pressed || undefined}
         onPointerDown={event => { if (event.button === 0) setPressed(true); }}
         onPointerUp={() => setPressed(false)} onPointerLeave={() => setPressed(false)} onPointerCancel={() => setPressed(false)}>
-        <IntentLink href={linkHref} draggable={false} className="absolute inset-0">
+        <IntentLink href={linkHref} draggable={false} className="absolute inset-0" {...intentHandlers}>
           {imageUrl ? (
             <ArtworkImage
               src={imageUrl}
@@ -76,15 +87,17 @@ export function EpisodeCard({
               type="button"
               aria-label={"Play " + (episode.title || "Episode " + episode.episode)}
               onClick={handlePlayClick}
-            onPointerEnter={preloadPlayer}
-            onFocus={preloadPlayer}
+            onPointerEnter={event => { preloadPlayer(); if (event.pointerType === "mouse") metadataIntent.start(); }}
+            onPointerLeave={metadataIntent.cancel}
+            onFocus={() => { preloadPlayer(); metadataIntent.start(); }}
+            onBlur={metadataIntent.cancel}
               className={styles.playButton + " rounded-full p-3"} draggable={false}
             >
               <Play className="h-6 w-6 text-white fill-white" />
             </button>
         </div>
       </div>
-      <IntentLink href={linkHref} draggable={false}>
+      <IntentLink href={linkHref} draggable={false} {...intentHandlers}>
         <div className="px-1">
           <div className="mt-2.5 text-sm font-medium text-foreground line-clamp-2">
             {episode.title}

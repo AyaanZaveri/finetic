@@ -62,6 +62,7 @@ const episode = (season, number = 1) => ({ id: `tmdb:20:${season}:${number}`, ti
   assert.equal((await cached.promise)[0].id, 'tmdb:20:20:1');
   assert.equal(reads, 2, 'Revisiting a completed season reuses cached metadata');
   cached.release();
+  assert.equal(client.peekSeriesSeason('tmdb:20', 20)[0].episode, 1);
 
   const streamHooks = hooks();
   let routeParams = { season: '20', episode: '1' };
@@ -83,6 +84,16 @@ const episode = (season, number = 1) => ({ id: `tmdb:20:${season}:${number}`, ti
   pending[2].finish([episode(0)]); await tick();
   assert.equal(renderStreams().props.children.props.media.id, 'tmdb:20:0:1', 'Manual streams remain available for explicit specials');
   streamHooks.unmount();
+  client.warmSeriesSeason('tmdb:20', 1);
+  client.warmSeriesSeason('tmdb:20', 1);
+  client.warmSeriesSeason('tmdb:20', 2);
+  client.warmSeriesSeason('tmdb:20', 3);
+  assert.equal(reads, 5, 'Season intent is deduplicated and limited to two speculative requests');
+  const selectedWarm = client.acquireSeriesSeason('tmdb:20', 1);
+  assert.equal(reads, 5, 'Selecting a highlighted season joins the speculative read');
+  pending[3].finish([episode(1)]); pending[4].finish([episode(2)]);
+  await selectedWarm.promise; selectedWarm.release(); await tick();
+  assert.equal(client.peekSeriesSeason('tmdb:20', 1)[0].season, 1);
 
   const shuffleSeasons = [];
   const shuffle = load('lib/media/shuffle-episode.ts');
@@ -117,7 +128,7 @@ const episode = (season, number = 1) => ({ id: `tmdb:20:${season}:${number}`, ti
   assert.equal(response.headers.get('vary'), 'Cookie');
   assert.equal((await response.json())[0].season, 0, 'Explicit specials remain accessible');
 
-  const h = hooks(), uiRequests = [];
+  const h = hooks(), uiRequests = [], cardIntents = [];
   let failedSeason = 1;
   let reducedMotion = false;
   const scrolls = [], onScroll = new Set(), onResize = new Set();
@@ -144,10 +155,15 @@ const episode = (season, number = 1) => ({ id: `tmdb:20:${season}:${number}`, ti
   const modules = new Proxy({
     react: { ...require('react'), ...h.react }, 'react/jsx-runtime': h.jsx,
     '@/contexts/account-context': { useAccountAccess: () => ({ authenticated: true }) },
-    '@/lib/artwork': { episodeThumbnailUrl: url => url },
+    '@/lib/artwork': { episodeThumbnailUrl: url => url, episodeHeroStillUrl: url => url },
+    '@/lib/series-route': load('lib/series-route.ts'),
+    '@/contexts/MediaPlayerContext': { usePlaybackActions: () => ({ playMedia() {} }) },
     '@/lib/media/resume-playback': load('lib/media/resume-playback.ts'),
     '@/lib/media/carousel-controls': load('lib/media/carousel-controls.ts', {}, { window: windowFixture }),
-    '@/lib/media/series-season': { acquireSeriesSeason: (id, season) => {
+    '@/components/metadata-preload': { useSeasonMetadataIntent: () => () => {}, useMetadataIntent: media => ({
+      start() { cardIntents.push(media); }, cancel() { cardIntents.push(null); },
+    }) },
+    '@/lib/media/series-season': { peekSeriesSeason: () => undefined, acquireSeriesSeason: (id, season) => {
       const record = { id, season, released: false };
       uiRequests.push(record);
       const episodes = season === 20 ? [episode(season), episode(season, 2), episode(season, 3)] : [episode(season)];
@@ -219,6 +235,18 @@ const episode = (season, number = 1) => ({ id: `tmdb:20:${season}:${number}`, ti
   failedSeason = -1; retryButton.props.onClick(); render(); await tick(); tree = render();
   assert.equal(find(tree, node => node.type === 'Button' && node.props.children === 'Try again').length, 0);
   assert.equal(uiRequests.at(-1).season, 1);
+  const episodeNode = find(tree, node => node.props?.episode?.episode === 1)[0];
   h.unmount();
+  const cardHost = hooks();
+  Object.assign(modules.react, cardHost.react);
+  const card = cardHost.render(episodeNode.type.type, episodeNode.props);
+  const link = find(card, node => node.type === 'IntentLink')[0];
+  link.props.onPointerEnter({ pointerType: 'mouse' });
+  assert.equal(cardIntents[0].id, 'tmdb:20');
+  assert.equal(cardIntents[0].seasonNumber, 1);
+  assert.equal(cardIntents[0].episodeNumber, 1);
+  link.props.onPointerLeave();
+  assert.equal(cardIntents[1], null);
+  cardHost.unmount();
   console.log('PASS: lightweight overview/counts, single-episode headers without season requests, explicit specials, shared/retryable reads, auth, cancellation and on-demand season browsing.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

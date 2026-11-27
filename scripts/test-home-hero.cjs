@@ -56,6 +56,7 @@ h.react.useSyncExternalStore = subscribe => subscribe.name === 'subscribeReduced
 let authenticated = true;
 let signInCalls = 0;
 const played = [];
+const metadataIntents = [];
 
 let snapshot = null;
 const heroDependencies = {
@@ -75,7 +76,7 @@ const heroDependencies = {
   '@/components/hero-wordmark': { HeroWordmark: 'hero-wordmark' },
   '@/components/home-snapshot-provider': { useHomeHeroSnapshot: () => snapshot },
   '@/components/intent-link': { IntentLink: 'intent-link' },
-  '@/components/metadata-preload': { useMetadataIntent: () => ({ start() {}, cancel() {} }) },
+  '@/components/metadata-preload': { useMetadataIntent: media => ({ start() { metadataIntents.push(media.id); }, cancel() { metadataIntents.push(null); } }) },
   '@/components/motion-primitives/progressive-blur': { ProgressiveBlur: 'progressive-blur' },
   '@/components/ui/button': { Button: 'button' },
   '@/components/ui/tooltip': { Tooltip: 'tooltip', TooltipTrigger: 'tooltip-trigger', TooltipContent: 'tooltip-content' },
@@ -159,6 +160,14 @@ assert.ok(tree.some(n => n.type === 'hero-wordmark'), 'Renders HeroWordmark when
 assert.equal(activeTitle(), 'Heart of the Beast');
 assert.equal(tree.find(n => n.type === 'artwork-img').props.alt, '', 'Hero backdrop is decorative');
 assert.equal(tree.find(n => n.type === 'intent-link').props.href, '/movie/tmdb:2');
+const detailsIntent = tree.find(n => n.type === 'intent-link').props;
+detailsIntent.onPointerEnter({ pointerType: 'touch' });
+assert.equal(metadataIntents.length, 0);
+detailsIntent.onPointerEnter({ pointerType: 'mouse' });
+detailsIntent.onPointerLeave();
+detailsIntent.onFocus({ currentTarget: { matches: () => true } });
+detailsIntent.onBlur();
+assert.deepEqual(metadataIntents, ['tmdb:2', null, 'tmdb:2', null], 'Home details hover and keyboard focus warm the displayed title');
 const facts = activeCopy().find(n => n.props?.className === 'metaFacts');
 assert.ok(facts, 'Year, runtime and rating are grouped as facts');
 assert.ok(nodes(facts).some(n => n.type === 'icon-calendar'), 'Year uses a recognizable decorative icon');
