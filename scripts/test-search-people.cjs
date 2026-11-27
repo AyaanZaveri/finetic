@@ -39,7 +39,7 @@ const { SearchBar } = load('components/search-component.tsx', {
     tree.props.onValueChange('Nathan');
     tree = h.render(SearchBar, {}); h.flush();
     await Array.from(timers.values()).at(-1)();
-    tree = h.render(SearchBar, {});
+    tree = h.render(SearchBar, {}); h.flush();
     assert.deepEqual(Array.from(tree.props.items, item => item.id), ['person:7', 'person:8', 'series:tmdb:20', 'series:tmdb:21', 'movie:tmdb:123', 'movie:tmdb:124']);
     assert.deepEqual(Array.from(new Set(tree.props.items.map(item => item.group))), ['People', 'TV shows', 'Movies'], 'The strongest matching group leads and each type has one heading');
     assert.ok(tree.props.placeholder.includes('people'));

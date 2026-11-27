@@ -79,19 +79,20 @@ const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream
   await assert.rejects(work);
   assert.equal(upstreamSignal.aborted, true);
 
-  const h = hooks(), timers = new Map(), suggestions = [], warmups = [], prefetched = [], metadata = [];
+  const h = hooks(), timers = new Map(), intentTimers = new Map(), suggestions = [], warmups = [], prefetched = [], metadata = [], metadataDetails = [];
+  let allowed = true, playerVisible = false;
   let timerId = 0;
   const { SearchBar } = load('components/search-component.tsx', {
     react: h.react, 'react/jsx-runtime': h.jsx,
     '@/components/artwork-image': { ArtworkImage: 'artwork' },
-    '@/components/stream-query-provider': { useMetadataWarmup: () => ({ enqueue: (title, intent) => metadata.push([title.id, title.type, intent]) }) },
-    '@/lib/route-prefetch': { scheduleRoutePrefetch(href, warm) { const entry = { href, warm, cancelled: false }; warmups.push(entry); return () => { entry.cancelled = true; }; } },
+    '@/components/stream-query-provider': { useMetadataWarmup: () => ({ enqueue: (title, intent) => { metadata.push([title.id, title.type, intent]); metadataDetails.push(title); } }) },
+    '@/lib/route-prefetch': { routePrefetchAllowed: () => allowed, scheduleRoutePrefetch(href, warm) { const entry = { href, warm, cancelled: false }; warmups.push(entry); return () => { entry.cancelled = true; }; } },
     'lucide-react': { Film: 'film', Star: 'star', Tv: 'tv' },
     'next/navigation': { useRouter: () => ({ prefetch: href => prefetched.push(href) }), usePathname: () => '/', useSearchParams: () => new URLSearchParams() },
     '@/lib/search-catalog-stream': { fetchSearchSuggestions: async (query, publish, signal) => {
       suggestions.push({ query, signal });
       publish([{ catalogType: 'multi', items: query === 'amazing race' ? [
-        { id: 'tmdb:30957', type: 'series', name: 'The Amazing Race', communityRating: 6.9 },
+        { id: 'tmdb:30957', type: 'series', name: 'The Amazing Race', communityRating: 6.9, poster: '/poster.jpg', background: '/backdrop.jpg' },
         { id: 'tmdb:45665', type: 'series', name: 'The Amazing Race Australia', communityRating: 8.3 },
         { id: 'tmdb:236182', type: 'series', name: 'Amazing Race Finland', communityRating: 10, poster: '/poster.jpg' },
         { id: 'tmdb:30957', type: 'series', name: 'Duplicate' },
@@ -102,10 +103,10 @@ const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream
       ] : [{ id: 'tmdb:911430', type: 'movie', name: 'F1' }] }]);
     } },
     '@/components/arc/expanding-search/expanding-search': { ExpandingSearch: 'search' },
-    '@/contexts/MediaPlayerContext': { useIsPlayerVisible: () => false },
+    '@/contexts/MediaPlayerContext': { useIsPlayerVisible: () => playerVisible },
   }, { AbortController, document: { addEventListener() {}, removeEventListener() {} },
-    setTimeout(fn, delay) { assert.equal(delay, 300); timers.set(++timerId, fn); return timerId; },
-    clearTimeout(id) { timers.delete(id); },
+    setTimeout(fn, delay) { assert.ok(delay === 300 || delay === 120); (delay === 120 ? intentTimers : timers).set(++timerId, fn); return timerId; },
+    clearTimeout(id) { timers.delete(id); intentTimers.delete(id); },
   });
   const render = () => { const tree = h.render(SearchBar, {}); h.flush(); return tree; };
   let tree = render();
@@ -130,19 +131,36 @@ const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream
   assert.equal(warmups[0].href, '/series/tmdb:45665');
   tree.props.onItemIntent(tree.props.items[0]);
   assert.equal(warmups[0].cancelled, true, 'Moving selection cancels the old suggestion dwell');
+  assert.equal(intentTimers.size, 1);
   assert.deepEqual(metadata, [], 'Metadata also waits for the selected result to settle');
+  const flushIntent = () => { for (const [id, run] of intentTimers) { intentTimers.delete(id); run(); } };
+  flushIntent();
+  assert.equal(prefetched.length, 0, 'Metadata is independent of route warmup scheduling');
+  assert.equal(metadataDetails[0].backdropUrl, '/backdrop.jpg');
+  assert.equal(metadataDetails[0].details.poster, '/poster.jpg');
   warmups[1].warm(); assert.deepEqual(prefetched, ['/series/tmdb:30957']);
   tree.props.onItemIntent(null); assert.equal(warmups[1].cancelled, true);
-  tree.props.onItemIntent(tree.props.items[3]); warmups[2].warm();
+  tree.props.onItemIntent(tree.props.items[3]); flushIntent(); warmups[2].warm();
   tree.props.onItemIntent(tree.props.items[5]); warmups[3].warm();
   assert.equal(prefetched.at(-1), '/person/6');
   assert.deepEqual(metadata, [['tmdb:30957', 'series', true], ['tmdb:30957', 'movie', true]],
     'Warm the selected title and its artwork through the shared cache while person suggestions only warm their route');
+  assert.equal(intentTimers.size, 0, 'Person results do not request media metadata');
+  allowed = false;
+  tree.props.onItemIntent(tree.props.items[0]); flushIntent();
+  assert.equal(metadata.length, 2, 'Respect visibility and network policy at launch');
+  allowed = true;
+  tree.props.onItemIntent(tree.props.items[0]);
+  playerVisible = true; render();
+  assert.equal(intentTimers.size, 0, 'Opening playback cancels outstanding search intent');
+  playerVisible = false; tree = render();
+  tree.props.onItemIntent(tree.props.items[0]);
   tree.props.onValueChange('   ');
   tree = render();
   assert.equal(tree.props.loading, false);
   assert.equal(tree.props.items.length, 0);
   assert.equal(timers.size, 0, 'Blank input must not schedule a search');
+  assert.equal(intentTimers.size, 0, 'Changing the query cancels pending metadata');
   assert.equal(suggestions[0].signal.aborted, true);
   h.unmount();
   console.log('PASS: public TMDB suggestions, native result ordering, one-request lookup, cancellation, token errors, split UTF-8 chunks and reader cleanup.');

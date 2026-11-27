@@ -2,7 +2,7 @@
 
 import { ArtworkImage } from "@/components/artwork-image";
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
 import { Film, Star, Tv, UserRound } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { groupSearchSuggestions } from "@/lib/search-suggestion-groups";
@@ -11,7 +11,7 @@ import { ExpandingSearch, type ExpandingSearchItem } from "@/components/arc/expa
 import { useMetadataWarmup } from "@/components/stream-query-provider";
 import { useIsPlayerVisible } from "@/contexts/MediaPlayerContext";
 import type { SearchResult } from "@/types/stremio";
-import { scheduleRoutePrefetch } from "@/lib/route-prefetch";
+import { routePrefetchAllowed, scheduleRoutePrefetch } from "@/lib/route-prefetch";
 
 interface SearchBarProps {
   className?: string;
@@ -39,21 +39,34 @@ export function SearchBar({ className = "", initialQuery = "", compact = false, 
     const urlQuery = (searchParams.get("q") ?? "").trim();
 
     const cancelPrefetch = useRef<(() => void) | null>(null);
-    const handleItemIntent = useCallback((item: ExpandingSearchItem | null) => {
+    const latestSuggestions = useRef(suggestions);
+    useLayoutEffect(() => { latestSuggestions.current = suggestions; }, [suggestions]);
+    const cancelItemIntent = useCallback(() => {
         cancelPrefetch.current?.();
         cancelPrefetch.current = null;
-        if (!item) return;
-        const target = suggestions.find(result => `${result.type}:${result.id}` === item.id);
+    }, []);
+    const handleItemIntent = useCallback((item: ExpandingSearchItem | null) => {
+        cancelItemIntent();
+        if (!item || isPlayerVisible) return;
+        const target = latestSuggestions.current.find(result => `${result.type}:${result.id}` === item.id);
         if (target?.type === "movie" || target?.type === "series" || target?.type === "person") {
             const href = `/${target.type}/${target.id}`;
-            cancelPrefetch.current = scheduleRoutePrefetch(href, () => {
-                router.prefetch(href);
-                const { id, type, name } = target;
-                if (type === "movie" || type === "series") metadataWarmup?.enqueue({ id, type, name }, true);
-            });
+            const cancelRoute = scheduleRoutePrefetch(href, () => router.prefetch(href));
+            // Like media cards, metadata warming has its own dwell. Next's
+            // route budget/deduplication must not suppress title or artwork data.
+            const { id, type, name } = target;
+            const metadataTimer = metadataWarmup && (type === "movie" || type === "series")
+                ? setTimeout(() => {
+                    if (!routePrefetchAllowed()) return;
+                    const current = latestSuggestions.current.find(result => `${result.type}:${result.id}` === item.id);
+                    if (current) metadataWarmup.enqueue({ id, type, name: current.name || name,
+                        details: { ...current, type }, backdropUrl: current.background }, true);
+                }, 120) : undefined;
+            cancelPrefetch.current = () => { cancelRoute(); clearTimeout(metadataTimer); };
         }
-    }, [suggestions, router, metadataWarmup]);
-    useEffect(() => () => { cancelPrefetch.current?.(); }, []);
+    }, [router, metadataWarmup, isPlayerVisible, cancelItemIntent]);
+    useEffect(() => cancelItemIntent, [cancelItemIntent]);
+    useEffect(() => { if (isPlayerVisible) cancelItemIntent(); }, [isPlayerVisible, cancelItemIntent]);
 
     useEffect(() => {
         if (pathname !== "/search") {
@@ -65,12 +78,13 @@ export function SearchBar({ className = "", initialQuery = "", compact = false, 
         if (lastAppliedUrlQueryRef.current === queryFromUrl) return;
         lastAppliedUrlQueryRef.current = queryFromUrl;
 
+        cancelItemIntent();
         skipNextSuggestSearchRef.current = true;
         searchRequestIdRef.current += 1;
         setSearchQuery(queryFromUrl);
         setSuggestions([]);
         setIsLoading(false);
-    }, [pathname, urlQuery, initialQuery]);
+    }, [pathname, urlQuery, initialQuery, cancelItemIntent]);
 
     // Debounced search
     useEffect(() => {
@@ -135,6 +149,7 @@ export function SearchBar({ className = "", initialQuery = "", compact = false, 
     }, [searchQuery]);
 
     const handleQueryChange = (query: string) => {
+        cancelItemIntent();
         skipNextSuggestSearchRef.current = false;
         searchRequestIdRef.current += 1;
         setSearchQuery(query);
@@ -143,10 +158,12 @@ export function SearchBar({ className = "", initialQuery = "", compact = false, 
     };
 
     const handleSearch = (query: string) => {
+        cancelItemIntent();
         if (query.trim()) router.push(`/search?q=${encodeURIComponent(query.trim())}`);
     };
 
     const handleSelect = (selected: ExpandingSearchItem) => {
+        cancelItemIntent();
         const item = suggestions.find(result => `${result.type}:${result.id}` === selected.id);
         if (!item) return;
         if (item.type === "movie" || item.type === "series" || item.type === "person") router.push(`/${item.type}/${item.id}`);

@@ -202,7 +202,8 @@ function Listbox({ id, label, groups, query, activeIndex, optionId, reduced, key
                 layout={reduced ? false : "position"} layoutDependency={layoutKey}
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: .08 } }}
                 transition={{ opacity: { duration: motionTokens.duration.fast, ease: enter }, layout: motionTokens.spring.smooth }}
-                onPointerMove={() => { if (!active) { keyboard.current = false; onHover(position); } }}
+                onPointerEnter={event => { if (event.pointerType === "mouse" && !active) { keyboard.current = false; onHover(position); } }}
+                onPointerMove={event => { if (event.pointerType === "mouse" && !active) { keyboard.current = false; onHover(position); } }}
                 onMouseDown={event => event.preventDefault()}
                 onClick={() => onChoose(item)}>
                 {active && <motion.span className={styles.highlight} style={{ y: travel, opacity: fade }} aria-hidden="true" />}
@@ -321,10 +322,12 @@ export function ExpandingSearch({ label, items, suggestions = [], suggestionsLab
   const optionId = (item: ExpandingSearchItem) => `${id}-${mode}-${item.id}`;
   const listboxId = `${id}-${mode}-listbox`;
   const panelOpen = expanded && focused && mode !== null;
+  const intendedItem = useRef(activeItem);
+  useLayoutEffect(() => { intendedItem.current = activeItem; }, [activeItem]);
   useEffect(() => {
-    onItemIntent?.(panelOpen ? activeItem ?? null : null);
+    onItemIntent?.(panelOpen ? intendedItem.current ?? null : null);
     return () => onItemIntent?.(null);
-  }, [panelOpen, activeItem, onItemIntent]);
+  }, [panelOpen, activeItem?.id, onItemIntent]);
   const announcement = !panelOpen ? "" : mode === "loading" ? `Searching for ${trimmed}` : mode === "empty" ? `No results for ${trimmed}` : mode === "results" ? `${flat.length} ${flat.length === 1 ? "result" : "results"}` : `${flat.length} ${suggestionsLabel.toLocaleLowerCase()} ${flat.length === 1 ? "item" : "items"}`;
 
   function choose(item: ExpandingSearchItem) {
