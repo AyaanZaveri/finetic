@@ -23,6 +23,10 @@ concurrency:
 env:
   CI: '1'
   EXPO_NO_TELEMETRY: '1'
+  # Metro binds to localhost. Android ADB reverse and readiness probes use IPv4.
+  NODE_OPTIONS: '--dns-result-order=ipv4first'
+  NO_PROXY: 'localhost,127.0.0.1'
+  no_proxy: 'localhost,127.0.0.1'
   MAESTRO_CLI_NO_ANALYTICS: 'true'
   COCOAPODS_DISABLE_STATS: 'true'
 jobs:
