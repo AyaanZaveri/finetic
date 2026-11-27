@@ -18,7 +18,7 @@ fi
 test -f "$ANDROID_AVD_HOME/$name.avd/config.ini"
 emulator -list-avds | grep -Fx "$name"
 adb start-server
-nohup emulator -avd "$name" -no-window -gpu swiftshader -no-snapshot -no-audio -no-boot-anim -accel on -memory 2048 > test-results/emulator.log 2>&1 &
+nohup emulator -avd "$name" -no-window -gpu swiftshader -no-snapshot -no-audio -no-boot-anim -accel on -memory 4096 > test-results/emulator.log 2>&1 &
 pid=$!
 for i in $(seq 1 150); do
   if ! kill -0 "$pid" 2>/dev/null; then

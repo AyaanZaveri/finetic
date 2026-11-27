@@ -1,6 +1,9 @@
 appId: ${APP_ID}
 ---
 - tapOn:
+    text: 'Wait'
+    optional: true
+- tapOn:
     text: 'Open'
     optional: true
 - tapOn:
@@ -11,6 +14,12 @@ appId: ${APP_ID}
     optional: true
 - tapOn:
     text: 'Close'
+    optional: true
+- tapOn:
+    text: 'Wait'
+    optional: true
+- tapOn:
+    text: 'Continue'
     optional: true
 - extendedWaitUntil:
     visible:
