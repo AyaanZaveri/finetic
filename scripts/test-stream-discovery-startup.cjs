@@ -11,12 +11,13 @@ async function main() {
  } });
  const request = createPlaybackStreamRequest('tmdb:1421:6:4', 'series');
  assert.equal(calls[0], '/api/streams/addons?type=series', 'Independent add-on discovery must start while canonical ID lookup is pending');
- addons.resolve(Response.json({ addons: [{ id: 'fixture' }] }));
+ addons.resolve(Response.json({ addons: [{ id: 'fixture', logo: 'https://fixture.test/logo.png' }] }));
  await new Promise(resolve => setImmediate(resolve));
  assert.equal(calls.length, 1, 'Do not fetch an add-on stream using the unresolved TMDB ID');
  id.resolve('tt1442437');
  const streams = await request.promise;
  assert.equal(streams.length, 1);
+ assert.equal(streams[0].addonLogo, 'https://fixture.test/logo.png');
  assert.ok(calls[1].includes('mediaItemId=tt1442437%3A6%3A4'), 'Preserve the canonical episode coordinates');
  for (const failing of ['identity', 'addons']) {
   const identity = deferred(), discovery = deferred();

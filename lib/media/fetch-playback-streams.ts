@@ -2,7 +2,7 @@ import type { StremioStream } from '@/types/stremio';
 import { fetchPlaybackId } from './fetch-playback-id';
 import { fetchAddonStreams, summarizeAddonFailures, type StreamAddonTarget } from './fetch-addon-streams';
 
-export type StreamWithAddon = StremioStream & { addonId: string; addonName: string; addonIndex?: number };
+export type StreamWithAddon = StremioStream & { addonId: string; addonName: string; addonLogo?: string; addonIndex?: number };
 export interface PlaybackStreamSnapshot { streams: StreamWithAddon[]; pending: number; total: number; complete: boolean; settledPrefix?: number }
 export interface PlaybackStreamRequest {
     retain?: (_signal?: AbortSignal) => () => void;
@@ -57,7 +57,7 @@ export function createPlaybackStreamRequest(id: string, type: string, signal?: A
                 const streams = await fetchAddonStreams(addon, canonicalId, type, timeout(30_000));
                 succeeded++;
                 groups[index] = streams.map(stream => ({
-                    ...stream, addonId: addon.id, addonName: addon.name || addon.id, addonIndex: index,
+                    ...stream, addonId: addon.id, addonName: addon.name || addon.id, addonLogo: addon.logo, addonIndex: index,
                 }));
             } finally { settled[index] = true; pending--; update(); }
         }));

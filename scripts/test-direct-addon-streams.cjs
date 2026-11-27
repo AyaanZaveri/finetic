@@ -83,13 +83,14 @@ const streams = () => Response.json({ streams: [{ url: 'https://video.example/mo
 
     const dependencies = {
         'next/server': { NextResponse: Response },
-        '@/app/actions/auth': { getInstalledAddons: async () => [{ ...addon, manifest: { id: addon.id, name: addon.name, resources: ['stream'] } }] },
+        '@/app/actions/auth': { getInstalledAddons: async () => [{ ...addon, manifest: { id: addon.id, name: addon.name, logo: 'https://addon.example/logo.png', resources: ['stream'] } }] },
         '@/lib/server/outbound-fetch': { outboundFetch: async () => new Response(null, { status: 429, headers: { 'Retry-After': '120' } }) },
     };
     const listing = load('app/api/streams/addons/route.ts', dependencies, globals);
     const targetsResponse = await listing.GET(new Request('https://app.example/api/streams/addons'));
     const targets = await targetsResponse.json();
     assert.equal(targets.addons[0].transportUrl, addon.transportUrl);
+    assert.equal(targets.addons[0].logo, 'https://addon.example/logo.png');
     assert.match(targetsResponse.headers.get('Cache-Control'), /private.*no-store/);
     const route = load('app/api/streams/addon/route.ts', dependencies, globals);
     const limited = await route.GET(new Request('https://app.example/api/streams/addon?mediaItemId=tt123&addonId=fixture'));

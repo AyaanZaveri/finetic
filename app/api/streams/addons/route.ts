@@ -26,6 +26,7 @@ export async function GET(request: Request) {
       .map((addon) => ({
         id: addon.manifest.id || addon.transportUrl,
         name: addon.manifest.name || "Unknown addon",
+        logo: addon.manifest.logo,
         transportUrl: addon.transportUrl,
       }));
 

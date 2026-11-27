@@ -17,7 +17,7 @@ const stores = [];
     const calls = [], pending = new Map();
     const fetch = async (url, { signal }) => {
         const parsed = new URL(url, 'https://app.test'); calls.push(parsed);
-        if (parsed.pathname.endsWith('/addons')) return Response.json({ revision: 'opaque-config', addons: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }] });
+        if (parsed.pathname.endsWith('/addons')) return Response.json({ revision: 'opaque-config', addons: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B', logo: 'https://video.test/b.png' }] });
         const key = parsed.searchParams.get('mediaItemId') + ':' + parsed.searchParams.get('addonId');
         const work = deferred(); pending.set(key, { ...work, signal }); return work.promise;
     };
@@ -33,6 +33,7 @@ const stores = [];
     assert.ok([...pending.values()].every(work => !work.signal.aborted));
     pending.get('tt123:1:2:b').resolve(Response.json({ streams: [{ url: 'https://video.test/b' }] })); await tick();
     assert.equal(player.request.snapshot.streams[0].addonId, 'b'); assert.equal(player.request.snapshot.pending, 1); assert.equal(player.request.snapshot.settledPrefix, 0);
+    assert.equal(player.request.snapshot.streams[0].addonLogo, 'https://video.test/b.png');
     for (const query of client.getQueryCache().findAll({ queryKey: ['playback', 'account:session', 'streams'] })) {
         if (query.state.data) client.setQueryData(query.queryKey, query.state.data, { updatedAt: Date.now() - 31_000 });
     }
@@ -49,6 +50,7 @@ const stores = [];
     const cached = store.peek(target);
     assert.equal(cached.complete, true, 'The stream drawer can read completed results before subscribing');
     assert.deepEqual(Array.from(cached.streams, stream => stream.addonId), ['a', 'a', 'b']);
+    assert.equal(cached.streams[2].addonLogo, 'https://video.test/b.png');
     assert.equal(store.peek({ ...target, id: 'tt123:1:3' }), undefined, 'Never show the previous episode’s streams');
     const before = calls.length, navigator = store.acquire(target);
     await navigator.request.promise; assert.equal(calls.length, before, 'Fresh Navigator playback reads TanStack data without refetch');

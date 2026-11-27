@@ -1,7 +1,7 @@
 import { parseStreamResponse } from "./stream-schema";
 import type { StremioStream } from "@/types/stremio";
 
-export type StreamAddonTarget = { id: string; name?: string; transportUrl?: string };
+export type StreamAddonTarget = { id: string; name?: string; logo?: string; transportUrl?: string };
 const cooldowns = new Map<string, number>();
 const failureMessages = {
     rateLimited: "An add-on is rate limited. Wait before trying again.",

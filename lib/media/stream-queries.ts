@@ -229,7 +229,7 @@ export function createStreamQueries(scope: string, client = new QueryClient(), f
                 queryFn: async ({ signal }) => {
                     const streams = await fetchAddonStreams(addon, id, target.type,
                         AbortSignal.any([signal, AbortSignal.timeout(30_000)]), fetchFn);
-                    return streams.map(stream => ({ ...stream, addonId: addon.id, addonName: addon.name || addon.id, addonIndex: index }));
+                    return streams.map(stream => ({ ...stream, addonId: addon.id, addonName: addon.name || addon.id, addonLogo: addon.logo, addonIndex: index }));
                 },
             }));
             entry.keys = options.map(option => option.queryKey);
