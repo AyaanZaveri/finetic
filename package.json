@@ -54,7 +54,7 @@
     "cloudflare:build": "opennextjs-cloudflare build",
     "cloudflare:deploy": "npm run cloudflare:build && opennextjs-cloudflare deploy",
     "cloudflare:types": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
-    "test:security": "node scripts/test-security.cjs && node scripts/test-desktop-auth.cjs && node scripts/test-session-client.cjs",
+    "test:security": "node scripts/test-security.cjs && node scripts/test-desktop-auth.cjs && node scripts/test-session-client.cjs && node scripts/test-workbench-access.cjs",
     "test:metadata": "node scripts/test-provider-metadata-years.cjs && node scripts/test-metadata-notifications.cjs && node scripts/test-metadata-cache.cjs && node scripts/test-metadata-hydration.cjs && node scripts/test-metadata-queries.cjs && node scripts/test-metadata-warmup.cjs && node scripts/test-metadata-preload.cjs && node scripts/test-playback-parallel.cjs --metadata",
     "test:stream-queries": "node scripts/test-stream-queries.cjs && node scripts/test-direct-addon-streams.cjs && node scripts/test-continue-watching-navigation.cjs",
     "prepare:webgpu": "node scripts/prepare-webgpu-assets.mjs",

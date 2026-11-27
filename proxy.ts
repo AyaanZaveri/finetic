@@ -4,10 +4,12 @@ import { readSession, SESSION_COOKIE } from "@/lib/server/session";
 
 export async function proxy(request: NextRequest) {
     const path = request.nextUrl.pathname;
-    // The local workbenches supply their own fixture data.
-    if (process.env.NODE_ENV === "development" && (path === "/states/player-selection" || path === "/states/addon-share" || path === "/states/subtitle-timing" || path === "/states/settings" || path === "/states/app-updates" || path === "/states/movie-detail" || path === "/states/home-hero" || path === "/states/content-rating")
-        && ["localhost", "127.0.0.1"].includes(request.nextUrl.hostname)) {
-        return NextResponse.next();
+    // Workbenches are local development tools, not signed-in app features.
+    if (path === "/states" || path.startsWith("/states/")) {
+        const local = ["localhost", "127.0.0.1", "[::1]"].includes(request.nextUrl.hostname);
+        return process.env.NODE_ENV === "development" && local
+            ? NextResponse.next()
+            : new NextResponse(null, { status: 404 });
     }
     const isStaticAsset =
         path.startsWith("/_next/") ||
