@@ -5,6 +5,7 @@ appId: app.navigator.mobile
     visible:
       id: hero-primary
     timeout: 60000
+- takeScreenshot: walkthrough-home-light
 - swipe:
     start: '50%, 78%'
     end: '50%, 30%'
@@ -32,6 +33,7 @@ appId: app.navigator.mobile
     visible:
       id: 'media-card-series:tt22202452'
     timeout: 30000
+- takeScreenshot: walkthrough-search-pluribus
 - tapOn:
     id: search-filter-series
 - assertVisible:
@@ -49,6 +51,7 @@ appId: app.navigator.mobile
       id: 'episode-card-1-1'
     direction: DOWN
     timeout: 25000
+- takeScreenshot: walkthrough-episode-rail
 - waitForAnimationToEnd:
     timeout: 1300
 - swipe:
@@ -85,6 +88,7 @@ appId: app.navigator.mobile
     visible:
       id: episode-detail-name
     timeout: 30000
+- takeScreenshot: walkthrough-episode-detail
 - waitForAnimationToEnd:
     timeout: 1600
 - tapOn:

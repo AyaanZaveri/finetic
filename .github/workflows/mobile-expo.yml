@@ -1,11 +1,7 @@
 name: Expo mobile checks
 on:
   push:
-    paths:
-      - 'mobile/**'
-      - 'app/api/discovery/title/**'
-      - '.github/workflows/mobile-expo.yml'
-  pull_request:
+    branches: [main]
     paths:
       - 'mobile/**'
       - 'app/api/discovery/title/**'

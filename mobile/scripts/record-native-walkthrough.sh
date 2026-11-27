@@ -5,6 +5,7 @@ set -euo pipefail
 platform=${1:?android or ios}
 folder=${2:?output folder}
 app=${3:-}
+dev_client=${NAVIGATOR_DEV_CLIENT:-0}
 app_id=app.navigator.mobile
 mkdir -p "$folder"
 folder=$(cd "$folder" && pwd)
@@ -16,8 +17,10 @@ remote_video=/sdcard/navigator-walkthrough.mp4
 remote_pidfile=/data/local/tmp/navigator-walkthrough.pid
 
 if [ "$platform" = ios ]; then
+  if [ "$dev_client" = 1 ]; then app=${DEV_CLIENT_IOS_APP:?}; fi
   test -d "$app"
   device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; groups=json.load(sys.stdin)["devices"]; print(next(item["udid"] for devices in reversed(list(groups.values())) for item in devices if item["name"].startswith("iPhone")))')
+  if [ "$dev_client" = 1 ]; then device=${DEV_CLIENT_IOS_DEVICE:?}; fi
   xcrun simctl boot "$device" || true
   xcrun simctl bootstatus "$device" -b
   xcrun simctl status_bar "$device" override --time '9:41' --dataNetwork wifi --wifiMode active --wifiBars 3 --cellularMode active --cellularBars 4 --batteryLevel 100 || true
@@ -124,6 +127,16 @@ trap 'exit 143' TERM
 
 prepare_chapter() {
   local chapter=$1 night
+  if [ "$dev_client" = 1 ]; then
+    if [ "$platform" = ios ]; then
+      bash scripts/dev-client-ios.sh relaunch "$chapter" || return 1
+      device=${DEV_CLIENT_IOS_DEVICE:?}
+    else
+      bash scripts/dev-client-android.sh relaunch "$chapter" || return 1
+      device=$(adb get-serialno) || return 1
+    fi
+    return 0
+  fi
   if [ "$platform" = ios ]; then
     xcrun simctl terminate "$device" "$app_id" 2>/dev/null || true
     xcrun simctl uninstall "$device" "$app_id" 2>/dev/null || true

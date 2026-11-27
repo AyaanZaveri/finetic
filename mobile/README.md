@@ -18,6 +18,34 @@ Use the Expo SDK 56 development environment. Fast Refresh avoids rebuilding the 
 
 Add more local components with `npx @react-native-reusables/cli@0.7.1 add <component>` from this directory. Do not overwrite an adapted component without reviewing its changes. The template was downloaded from [upstream revision ecdc14b](https://github.com/founded-labs/react-native-reusables-templates/tree/ecdc14b50fa9ad4d905085dc394cf783d48ad66d/minimal). Registry and template code is MIT licensed; see `REUSABLES-LICENSE`. The bundled Sunghyun Sans fonts are decoded copies of the web app's original WOFF2 assets, with the original license included.
 
+## Fast native UI iteration
+
+Use Navigator's custom Expo development client, not Expo Go. It includes the
+native modules needed for the app. On a device with the client installed,
+`npm run dev:client` serves current JavaScript through Metro and enables Fast
+Refresh. Rebuild the client when its native fingerprint changes.
+
+[Expo mobile visual previews](../.github/workflows/mobile-development.yml)
+runs automatically for mobile changes on development branches. Its first run
+builds Android and iPhone development clients. It stores the native APK and
+simulator app archive in GitHub Actions artifacts keyed by platform-specific
+Expo Fingerprint and native toolchain compatibility. Subsequent runs restore the
+matching native client and connect it to Metro using that run's current source.
+No native compilation is needed on a verified cache hit. The walkthroughs
+capture native H.264 videos and screenshots after the actual Home UI renders.
+The cache expires after 30 days; a miss rebuilds the client. Cached binaries
+are only restored from the same trusted workflow, repository and branch.
+
+Use the [standalone release checks](../.github/workflows/mobile-expo.yml) for
+final verification. They run on mobile changes merged to main or when
+manually dispatched. They check release builds on Android, iPhone and iPad.
+Development-client recordings are useful for visual iteration, but do not
+establish release animation performance or physical haptic feel.
+
+References: [Expo development builds](https://docs.expo.dev/develop/development-builds/use-development-builds/),
+[SDK 56 DevClient](https://docs.expo.dev/versions/v56.0.0/sdk/dev-client/),
+[Expo Fingerprint](https://docs.expo.dev/versions/v56.0.0/sdk/fingerprint/).
+
 ## Tests
 
 - `npm test` checks theme synchronization and platform interaction policy.
