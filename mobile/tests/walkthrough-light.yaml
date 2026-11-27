@@ -25,9 +25,11 @@ appId: app.navigator.mobile
 - tapOn: Search
 - assertVisible:
     id: search-input
+- takeScreenshot: walkthrough-search-empty-light
 - tapOn:
     id: search-input
 - inputText: Pluribus
+- takeScreenshot: walkthrough-search-typing-light
 - hideKeyboard
 - extendedWaitUntil:
     visible:

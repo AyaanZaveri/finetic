@@ -5,16 +5,16 @@ import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { useHeroCarousel } from './use-hero-carousel';
 import { slideWeight } from '@/lib/hero-carousel';
-import { heroLayout } from '@/lib/hero-presentation';
+import { heroLayout, heroMetadata } from '@/lib/hero-presentation';
 import { mergeTitleDetails } from '@/lib/detail-presentation';
-import { mediaKey, ratingLabel, resizeBackdrop, type MediaItem } from '@/lib/home-catalog';
+import { mediaKey, resizeBackdrop, type MediaItem } from '@/lib/home-catalog';
 import { titleQueryOptions, useTitleLogo, useTitlePrefetch } from '@/lib/title-cache';
 import { useQuery } from '@tanstack/react-query';
 import { THEME } from '@/lib/theme';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useIsFocused } from 'expo-router';
-import { ArrowRight, CalendarDays, Clock, Star, Tag } from 'lucide-react-native';
+import { ArrowRight } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
 import { useCallback, useLayoutEffect } from 'react';
 import { I18nManager, PixelRatio, Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
@@ -39,22 +39,10 @@ function Wordmark({ item, light, roomy }: { item: MediaItem; light: boolean; roo
 }
 
 function HeroMetadata({ item, light, roomy }: { item: MediaItem; light: boolean; roomy: boolean }) {
-  const theme = THEME[light ? 'light' : 'dark'];
-  const rating = ratingLabel(item);
-  const textColor = light ? theme.foreground : '#ffffffe6';
-  const factIcon = light ? theme.mutedForeground : '#ffffff99';
-  if (!rating && !item.year && !item.runtime && !item.genres?.length) return null;
   return (
-    <View className="gap-1.5" style={{ alignItems: roomy ? 'flex-start' : 'center' }}>
-      {(rating || item.year || item.runtime) && <View className="flex-row flex-wrap items-center gap-3" style={{ justifyContent: roomy ? 'flex-start' : 'center' }}>
-        {rating && <View className="flex-row items-center gap-1.5"><Star color="#facc15" fill="#facc15" size={14} /><Text className="text-sm" style={{ color: textColor }}>{rating}</Text></View>}
-        {item.year && <View className="flex-row items-center gap-1.5"><CalendarDays color={factIcon} size={14} /><Text className="text-sm" style={{ color: textColor }}>{item.year}</Text></View>}
-        {item.runtime && <View className="flex-row items-center gap-1.5"><Clock color={factIcon} size={14} /><Text className="text-sm" style={{ color: textColor }}>{item.runtime}</Text></View>}
-      </View>}
-      {!!item.genres?.length && <View className="flex-row items-center gap-1.5 max-w-full" style={{ justifyContent: roomy ? 'flex-start' : 'center' }}>
-        <Tag color={factIcon} size={14} /><Text className="text-sm shrink" style={{ color: textColor, textAlign: roomy ? leading : 'center' }} numberOfLines={2}>{item.genres.slice(0, 3).map((genre, index) => <Text key={`${genre}-${index}`} className="text-sm" style={{ color: textColor }}>{index > 0 && <Text className="text-sm" style={{ color: factIcon }}>{' · '}</Text>}{genre}</Text>)}</Text>
-      </View>}
-    </View>
+    <Text testID="hero-metadata" className="text-sm font-nav-medium" style={{ color: light ? '#333333' : '#ffffffd9', textAlign: roomy ? leading : 'center', maxWidth: '100%' }}>
+      {heroMetadata(item)}
+    </Text>
   );
 }
 
@@ -172,8 +160,8 @@ export function HomeHero({ items, onOpen }: { items: MediaItem[]; onOpen: (item:
           <View style={{ width: '100%', maxWidth: layout.roomy ? layout.copyWidth : undefined }}>
             {layers.map(layer => <CopyLayer key={mediaKey(layer.item)} item={layer.item} index={layer.index} current={layer.index === selection} light={light} blend={blend} roomy={layout.roomy} />)}
           </View>
-          <Button testID="hero-primary" size="default" haptic="impact" onPress={() => onOpen(item)} accessibilityLabel={`View ${item.name}`} containerClassName="mt-2" className="rounded-full min-h-11 px-4 py-2" style={{ backgroundColor: light ? '#0a0a0a' : '#ffffff' }}>
-            <Text className="text-[15px] font-nav-medium" style={{ color: light ? '#ffffff' : '#0a0a0a' }}>View</Text><Icon as={ArrowRight} color={light ? '#ffffff' : '#0a0a0a'} size={16} />
+          <Button testID="hero-primary" size="default" haptic="impact" onPress={() => onOpen(item)} accessibilityLabel={`View ${item.name}`} containerClassName="mt-2" className="rounded-full min-h-12 min-w-[120px] px-5">
+            <Text className="text-[17px] font-nav-semibold">View</Text><Icon as={ArrowRight} color={theme.background} size={20} strokeWidth={2.25} />
           </Button>
           {items.length > 1 && <View className="flex-row items-center justify-center px-1.5" style={styles.carouselControls} accessibilityLabel="Featured titles">
             {Platform.OS === 'ios'
@@ -192,7 +180,7 @@ const styles = StyleSheet.create({
   roomyWordmark: { maxWidth: 400, minHeight: 100, alignItems: 'flex-start' },
   artworkStage: { position: 'absolute', top: 0, start: 0, end: 0, bottom: 4, overflow: 'hidden' },
   artworkEnd: { position: 'absolute', start: 0, end: 0, bottom: 0, height: 5 },
-  copyPanel: { alignItems: 'center', justifyContent: 'flex-end', gap: 14, width: '100%' },
+  copyPanel: { alignItems: 'center', justifyContent: 'flex-end', gap: 16, width: '100%' },
   roomyDescription: { minHeight: 40, width: '100%' },
   roomyCopyPanel: { alignItems: 'flex-start' },
   copyOverlay: { position: 'absolute', bottom: 0, start: 0, end: 0 },

@@ -5,7 +5,7 @@ import { triggerHaptic } from '@/lib/haptics';
 import { THEME } from '@/lib/theme';
 import { Search, X } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
 
 export function SearchField({ value, onChangeText, onSubmit, onClear }: {
   value: string;
@@ -16,16 +16,26 @@ export function SearchField({ value, onChangeText, onSubmit, onClear }: {
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme ?? 'light'];
   const surface = [styles.surface, { paddingEnd: value ? 4 : 16 }];
+  const inputProps = {
+    testID: 'search-input', placeholder: 'Search titles', accessibilityLabel: 'Search movies and TV shows',
+    value, onChangeText, maxLength: 300, returnKeyType: 'search',
+    autoCorrect: false, clearButtonMode: 'never', onSubmitEditing: onSubmit,
+  } satisfies TextInputProps;
   return <View style={[surface, Platform.OS !== 'ios' && { backgroundColor: theme.muted }]}>
     {/* Keep the input mounted when the glass accessibility fallback changes. */}
     {Platform.OS === 'ios' && <GlassSurface pointerEvents="none" style={styles.glass}
       fallbackStyle={{ backgroundColor: theme.muted, borderWidth: 0 }} />}
     <Icon as={Search} size={20} className="text-muted-foreground" accessible={false} />
-    <Input testID="search-input" placeholder="Search titles" accessibilityLabel="Search movies and TV shows"
-      className="min-h-[52px] w-auto flex-1 rounded-none border-0 bg-transparent px-2.5 py-2 font-nav-medium"
-      style={styles.input}
-      value={value} onChangeText={onChangeText} maxLength={300} returnKeyType="search"
-      autoCorrect={false} clearButtonMode="never" onSubmitEditing={onSubmit} />
+    {Platform.OS === 'ios' ? (
+      // UIKit centers a single-line field using the system font metrics. Avoid the shared
+      // input's explicit text line height and vertical insets, which alter that alignment.
+      <TextInput {...inputProps} style={[styles.iosInput, { color: theme.foreground }]}
+        placeholderTextColor={theme.mutedForeground} selectionColor={theme.primary} />
+    ) : (
+      <Input {...inputProps}
+        className="min-h-[52px] w-auto flex-1 rounded-none border-0 bg-transparent px-2.5 py-2 font-nav-medium"
+        style={styles.input} />
+    )}
     {value.length > 0 ? <Pressable testID="search-clear" role="button" accessibilityLabel="Clear search"
       className="min-h-12 min-w-12 items-center justify-center rounded-full active:opacity-60"
       onPress={() => { triggerHaptic('selection'); onClear(); }}>
@@ -37,5 +47,6 @@ export function SearchField({ value, onChangeText, onSubmit, onClear }: {
 const styles = StyleSheet.create({
   surface: { minHeight: 52, flexDirection: 'row', alignItems: 'center', borderRadius: 999, padding: 0, paddingStart: 16 },
   glass: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 999, padding: 0, borderWidth: 0 },
+  iosInput: { flex: 1, minWidth: 0, minHeight: 52, paddingHorizontal: 10, paddingVertical: 0, fontSize: 17 },
   input: { textAlignVertical: 'center', includeFontPadding: false, minWidth: 0 },
 });

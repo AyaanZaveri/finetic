@@ -1,8 +1,8 @@
 import { DetailActions, DetailBackControl } from './detail-actions';
 import { EpisodeRail, episodeCode } from './episode-rail';
 import { MediaRatingBadge } from './media-rating-badge';
+import { DetailChip } from './detail-chip';
 import { ProgressiveArtwork } from '@/components/effects/progressive-artwork';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
@@ -47,9 +47,9 @@ function TitleCredits({ item, fontScale, width }: { item: MediaItem; fontScale: 
   return (
     <View className="gap-3">
       {!!item.genres?.length && <View className={stacked ? 'gap-1' : 'flex-row items-start gap-2'}>
-        <Text className="text-sm text-muted-foreground" style={stacked ? undefined : { width: labelWidth, paddingTop: 4 }}>Genres</Text>
-        <View className={stacked ? 'flex-row flex-wrap gap-2' : 'flex-1 min-w-0 flex-row flex-wrap gap-2'}>
-          {item.genres.map(genre => <Badge key={genre} variant="secondary" className="max-w-full px-2.5 py-1"><Text className="shrink">{genre}</Text></Badge>)}
+        <Text className="text-sm text-muted-foreground" style={stacked ? undefined : { width: labelWidth, paddingTop: 2 }}>Genres</Text>
+        <View className={stacked ? 'flex-row flex-wrap items-start gap-1.5' : 'flex-1 min-w-0 flex-row flex-wrap items-start gap-1.5'}>
+          {item.genres.map(genre => <DetailChip key={genre} material={false}><Text>{genre}</Text></DetailChip>)}
         </View>
       </View>}
       {([['Director', item.director], ['Writer', item.writer]] as const).map(([label, values]) => !!values?.length && <View key={label} className={stacked ? 'gap-1' : 'flex-row items-start gap-2'}>
@@ -140,11 +140,11 @@ export function MediaDetailScreen({ type, id, episode }: { type: MediaType; id: 
               <View testID="title-detail-content" style={{ width: '100%', gap: 20, maxWidth: roomy ? 680 : undefined, alignSelf: roomy ? 'flex-start' : 'center' }}>
                   {currentEpisode && <Text testID="episode-detail-name" className="text-xl font-nav-semibold" style={{ textAlign: roomy ? 'auto' : 'center' }}>{episodeCode(currentEpisode)} · {currentEpisode.name}</Text>}
                   <View className="flex-row flex-wrap items-center gap-2" style={{ justifyContent: roomy ? 'flex-start' : 'center' }}>
-                    {releaseDate && <Badge variant="secondary"><Text>{releaseDate}</Text></Badge>}
-                    {type === 'series' && seasonCount > 0 && !episode && <Badge variant="secondary"><Text>{seasonCount} {seasonCount === 1 ? 'Season' : 'Seasons'}</Text></Badge>}
-                    {(type === 'movie' || episode) && (currentEpisode?.runtime || item.runtime) && <Badge variant="secondary"><Text>{currentEpisode?.runtime || item.runtime}</Text></Badge>}
+                    {releaseDate && <DetailChip><Text>{releaseDate}</Text></DetailChip>}
+                    {type === 'series' && seasonCount > 0 && !episode && <DetailChip><Text>{seasonCount} {seasonCount === 1 ? 'Season' : 'Seasons'}</Text></DetailChip>}
+                    {(type === 'movie' || episode) && (currentEpisode?.runtime || item.runtime) && <DetailChip><Text>{currentEpisode?.runtime || item.runtime}</Text></DetailChip>}
                     <MediaRatingBadge item={item} light={light} />
-                    {certification && <Badge variant="secondary"><Text>{certification}</Text></Badge>}
+                    {certification && <DetailChip><Text>{certification}</Text></DetailChip>}
                   </View>
                   <View style={{ width: '100%', maxWidth: roomy ? 360 : undefined, alignSelf: roomy ? 'flex-start' : 'center' }}>
                     <DetailActions item={item} episode={currentEpisode ?? selectedEpisode} episodes={episodes} onShuffle={openEpisode} />

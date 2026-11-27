@@ -1,4 +1,4 @@
-import { Badge } from '@/components/ui/badge';
+import { DetailChip } from './detail-chip';
 import { Text } from '@/components/ui/text';
 import { ratingLabel, type MediaItem } from '@/lib/home-catalog';
 import { View } from 'react-native';
@@ -15,13 +15,13 @@ export function MediaRatingBadge({ item, light }: { item: MediaItem; light: bool
   const hasIMDb = Number.isFinite(imdb) && imdb > 0 && imdb <= 10;
   const source = hasIMDb ? 'IMDb' : item.ratingSource || (item.id.startsWith('tmdb:') ? 'TMDB' : 'Rating');
   return (
-    <Badge variant="secondary" accessible accessibilityLabel={`${source} ${rating} out of 10`} style={hasIMDb ? { gap: 0, paddingStart: 4, paddingEnd: 8 } : undefined}>
+    <DetailChip accessible accessibilityLabel={`${source} ${rating} out of 10`} style={hasIMDb ? { gap: 0, paddingStart: 4, paddingEnd: 8 } : undefined}>
       {hasIMDb && <View className="h-4 w-9 items-center justify-center" accessible={false}>
         <Svg width={36} height={20} viewBox="0 0 900 500" accessible={false}>
           <Path d={IMDbLogoPath} fill={light ? '#161616' : '#f5c518'} />
         </Svg>
       </View>}
       <Text style={{ fontVariant: ['tabular-nums'] }}>{hasIMDb ? rating : `${source} ${rating}`}</Text>
-    </Badge>
+    </DetailChip>
   );
 }

@@ -1,3 +1,13 @@
+import type { MediaItem } from './home-catalog';
+
+/** Keep the carousel about discovery. Detailed facts belong on the title page. */
+export function heroMetadata(item: MediaItem): string {
+  const genres = [...new Set((item.genres ?? []).map(genre => genre.trim()).filter(Boolean))].slice(0, 2);
+  return [item.type === 'series' ? 'TV show' : 'Movie', ...genres, item.contentRating?.trim()]
+    .filter(Boolean)
+    .join(' · ');
+}
+
 /** Use the available viewport rather than a device model for the tablet composition. */
 export function heroLayout(width: number, height: number, leftInset: number, rightInset: number) {
   const availableWidth = Math.max(0, width - leftInset - rightInset);

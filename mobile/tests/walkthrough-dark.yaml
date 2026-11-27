@@ -94,9 +94,11 @@ appId: app.navigator.mobile
 - tapOn: Search
 - assertVisible:
     id: search-input
+- takeScreenshot: walkthrough-search-empty-dark
 - tapOn:
     id: search-input
 - inputText: F1
+- takeScreenshot: walkthrough-search-typing-dark
 - hideKeyboard
 - extendedWaitUntil:
     visible:
