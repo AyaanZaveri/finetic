@@ -56,7 +56,7 @@ export function EpisodeRail({ item, season, onSeason, episodes, selected, onOpen
       <BottomSheetModal ref={sheet} style={{ marginLeft: insets.left + sheetMargin, marginRight: insets.right + sheetMargin }} topInset={insets.top} snapPoints={['45%', '75%']} enableDynamicSizing={false} backgroundStyle={{ backgroundColor: theme.card }} handleIndicatorStyle={{ backgroundColor: theme.mutedForeground }}>
         <BottomSheetScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 16, gap: 8 }}>
           <Text role="heading" className="text-xl font-nav-semibold pb-2">Choose a season</Text>
-          {item.seasons?.map(row => <Button key={row.number} variant={row.number === season ? 'secondary' : 'ghost'} className="justify-start" accessibilityState={{ selected: row.number === season }} onPress={() => { onSeason(row.number); sheet.current?.dismiss(); }} haptic="selection">
+          {item.seasons?.map(row => <Button key={row.number} testID={`season-option-${row.number}`} variant={row.number === season ? 'secondary' : 'ghost'} className="justify-start" accessibilityState={{ selected: row.number === season }} onPress={() => { onSeason(row.number); sheet.current?.dismiss(); }} haptic="selection">
             <Text className="flex-1">{row.name}</Text><Text variant="muted">{row.episodeCount} episodes</Text>{row.number === season && <Icon as={Check} size={16} />}
           </Button>)}
         </BottomSheetScrollView>

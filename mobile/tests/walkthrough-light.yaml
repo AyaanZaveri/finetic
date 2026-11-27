@@ -77,7 +77,11 @@ appId: app.navigator.mobile
 - extendedWaitUntil:
     visible: Choose a season
     timeout: 10000
-- tapOn: Season 1
+- tapOn:
+    id: season-option-1
+- extendedWaitUntil:
+    notVisible: Choose a season
+    timeout: 10000
 - extendedWaitUntil:
     visible:
       id: 'episode-card-1-1'
