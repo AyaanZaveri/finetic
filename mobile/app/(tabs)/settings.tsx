@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router';
 import { ChevronRight } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
 import { useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { Platform, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function SettingsScreen() {
@@ -16,7 +16,7 @@ export default function SettingsScreen() {
   const [appearance, setAppearance] = useState<'system' | 'light' | 'dark'>('system');
   const router = useRouter();
   return (
-    <ScrollView testID="settings-page" className="flex-1 bg-background" contentContainerStyle={{ paddingTop: top + 12, paddingHorizontal: 16, paddingBottom: 16 }}>
+    <ScrollView testID="settings-page" className="flex-1 bg-background" contentContainerStyle={{ paddingTop: Platform.OS === "ios" ? 12 : top + 12, paddingHorizontal: 16, paddingBottom: 16 }}>
       <Text role="heading" className="text-3xl font-nav-semibold tracking-tight">Settings</Text>
       <View className="gap-3 pt-6">
         <Text role="heading" className="text-lg font-nav-medium">Appearance</Text>

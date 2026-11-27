@@ -16,7 +16,7 @@ import { triggerHaptic } from '@/lib/haptics';
 function Wordmark({ item, light }: { item: MediaItem; light: boolean }) {
   const [failed, setFailed] = useState(false);
   if (item.logo && !failed) {
-    return <Image source={item.logo} accessibilityLabel={item.name} style={styles.wordmark} tintColor={light ? "#666666" : undefined} contentFit="contain" cachePolicy="memory-disk" onError={() => setFailed(true)} />;
+    return <Image source={item.logo} accessibilityLabel={item.name} style={styles.wordmark} tintColor={light ? "#272727" : undefined} contentFit="contain" cachePolicy="memory-disk" onError={() => setFailed(true)} />;
   }
   return <Text className="text-center text-3xl font-nav-bold tracking-tight" role="heading" style={{ color: light ? "#0a0a0a" : "#ffffff" }}>{item.name}</Text>;
 }
@@ -36,7 +36,7 @@ export function HomeHero({ items, onOpen }: { items: MediaItem[]; onOpen: (item:
   return (
     <View testID="home-hero" style={{ minHeight: heroHeight, paddingTop: top + 24, paddingBottom: 12, backgroundColor: theme.background }} className="relative overflow-hidden justify-end">
       <View pointerEvents="none" style={styles.artworkStage}>
-        {background && <ProgressiveArtwork key={background} uri={background} backgroundColor={theme.background} light={light} />}
+        {background && <ProgressiveArtwork key={background} uri={background} backgroundColor={theme.background} light={light} prominentLightScrim />}
         <LinearGradient style={StyleSheet.absoluteFill} colors={['transparent', 'transparent', light ? 'rgba(255,255,255,0.04)' : 'rgba(10,10,10,0.16)', theme.background, theme.background]} locations={[0, 0.74, 0.89, 0.96, 1]} />
       </View>
       {/* End the artwork before the catalog so native mask rounding cannot

@@ -17,10 +17,11 @@ interface ProgressiveArtworkProps {
   uri: string;
   backgroundColor: string;
   light?: boolean;
+  prominentLightScrim?: boolean;
   contentPosition?: ImageProps['contentPosition'];
 }
 
-export function ProgressiveArtwork({ uri, backgroundColor, light = false, contentPosition = "center" }: ProgressiveArtworkProps) {
+export function ProgressiveArtwork({ uri, backgroundColor, light = false, prominentLightScrim = false, contentPosition = "center" }: ProgressiveArtworkProps) {
   const reducedMotion = useReducedMotion();
   const focused = useIsFocused();
   const layers = Platform.OS === "android" ? BLUR_LAYERS.filter((_, i) => i !== 1) : BLUR_LAYERS;
@@ -34,8 +35,10 @@ export function ProgressiveArtwork({ uri, backgroundColor, light = false, conten
         </MaskedView>
       ))}
       <LinearGradient style={StyleSheet.absoluteFill} colors={light
-        ? ['rgba(255,255,255,0.24)', 'transparent', 'rgba(255,255,255,0.32)', 'rgba(255,255,255,0.94)']
-        : ['rgba(6,10,12,0.5)', 'transparent', 'rgba(6,10,12,0.65)', 'rgba(6,10,12,0.85)']} locations={[0, 0.26, 0.60, 0.89]} />
+        ? prominentLightScrim
+          ? ['rgba(255,255,255,0.24)', 'transparent', 'rgba(255,255,255,0.72)', 'rgba(255,255,255,0.98)']
+          : ['rgba(255,255,255,0.24)', 'transparent', 'rgba(255,255,255,0.32)', 'rgba(255,255,255,0.94)']
+        : ['rgba(6,10,12,0.5)', 'transparent', 'rgba(6,10,12,0.65)', 'rgba(6,10,12,0.85)']} locations={light && prominentLightScrim ? [0, 0.26, 0.55, 0.89] : [0, 0.26, 0.60, 0.89]} />
     </View>
   );
 }
