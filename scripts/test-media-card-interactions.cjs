@@ -34,7 +34,7 @@ const context = { exports: {}, Element: TestElement, Node: TestNode, window: { m
         if (!(index in state)) state[index] = initial;
         return [state[index], value => { state[index] = value; }];
     }, useRef: initial => ({ current: initial }), useCallback: callback => callback, useEffect() {} };
-    if (name === '@/lib/artwork') return { mediaArtwork: () => cardArtwork, backdropVariantUrl: (url, width) => `${url}?width=${width}` };
+    if (name === '@/lib/artwork') return { mediaArtwork: () => cardArtwork, backdropVariantUrl: (url, width) => url ? `${url}?width=${width}` : undefined, publicArtworkUrl: url => url };
     if (name === '@/components/watched-indicator') return { WatchedIndicator: () => null };
     if (name === '@/lib/series-route') return routeContext.exports;
     if (name === '@/contexts/MediaPlayerContext') return { usePlaybackActions: () => ({ playMedia: async item => playback.push(item), setIsPlayerVisible: visible => playback.push(visible) }) };
@@ -48,9 +48,9 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('components/media-card.tsx
     fileName: 'components/media-card.tsx',
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
 }).outputText, context);
-function render(continueWatching = false) {
+function render(continueWatching = false, options = {}) {
     stateIndex = 0;
-    return context.exports.MediaCard({ continueWatching, item: { id: 'tt123', name: 'Fixture', type: 'movie', progressPercent: 42, resumePositionTicks: 30, streamUrl: 'https://example.test/movie.mp4' } }).props.children;
+    return context.exports.MediaCard({ continueWatching, ...options, item: { id: 'tt123', name: 'Fixture', type: 'movie', progressPercent: 42, resumePositionTicks: 30, streamUrl: 'https://example.test/movie.mp4' } }).props.children;
 }
 assert.equal(render(true).props['data-continue-watching'], true, 'Resume cards opt into stable brightness styling');
 function find(node, predicate) {
@@ -68,6 +68,15 @@ assert.equal(thumbnail.props.width, 320);
 assert.equal(thumbnail.props.height, 180);
 assert.ok(thumbnail.props.srcSet.includes('width=1280 1280w'));
 assert.equal(render().props['data-continue-watching'], undefined, 'Regular posters retain normal hover styling');
+const brandedBackdrop = 'https://image.tmdb.org/t/p/w780/branded.jpg';
+const collectionCard = render(false, { landscape: true, cardBackdrop: brandedBackdrop, titleLines: 2 });
+assert.match(collectionCard.props.className, /\blandscape\b/, 'Collections use their adaptive card width');
+assert.match(find(collectionCard, node => node.props?.className?.split(' ').includes('surface')).props.className, /aspect-video/);
+assert.equal(find(collectionCard, node => node.type === 'img').props.src, brandedBackdrop, 'Use English artwork without changing playback artwork');
+assert.ok(find(collectionCard, node => node.props?.className?.includes('line-clamp-2')), 'Long collection titles can wrap');
+assert.equal(collectionCard.props['data-continue-watching'], undefined, 'Collections do not opt into resume behavior');
+assert.equal(find(render(false, { landscape: true }), node => node.type === 'img').props.src, `${backdrop}?width=780`, 'Missing English artwork falls back to the normal backdrop');
+
 for (const pointerType of ['touch', 'pen']) render().props.onPointerEnter({ pointerType });
 assert.equal(palettes.length, 0, 'Touch and pen cannot create hover palette changes');
 finePointer = false; render().props.onPointerEnter({ pointerType: 'mouse' }); assert.equal(palettes.length, 0);

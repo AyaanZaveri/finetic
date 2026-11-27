@@ -8,6 +8,9 @@
   scrollbar-width: none;
 }
 
+/* Collection cards size to the scroll viewport, including its mobile bleed. */
+.viewport[data-landscape] { container-type: inline-size; }
+
 .viewport::-webkit-scrollbar { display: none; }
 
 .viewport:focus-visible {

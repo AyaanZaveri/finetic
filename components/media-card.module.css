@@ -3,6 +3,11 @@
   --media-card-radius: calc(var(--radius, 0.625rem) - 2px);
 }
 
+/* Leave room for the start of the next card on narrow collection rails. */
+.landscape {
+  inline-size: min(20rem, calc(100cqi - 3.5rem));
+}
+
 /* Keep the full thumbnail on one press plane. The details link remains a
    fixed-size sibling hit target; only Play opts back into pointer events. */
 .surface {

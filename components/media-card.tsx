@@ -9,7 +9,7 @@ import { preloadPlayer } from "@/lib/preload-tools";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useHomePaletteScene } from "@/components/home-palette-provider";
-import { mediaArtwork, backdropVariantUrl } from "@/lib/artwork";
+import { mediaArtwork, backdropVariantUrl, publicArtworkUrl } from "@/lib/artwork";
 import { IntentLink } from "@/components/intent-link";
 import type { MediaItem } from "@/types/stremio";
 import { Play } from "lucide-react";
@@ -24,6 +24,8 @@ export function MediaCard({
   item,
   continueWatching = false,
   fullWidth = false,
+  landscape = false,
+  cardBackdrop,
   subtitleContent,
   titleLines = 1,
   revealArtwork = true,
@@ -32,6 +34,8 @@ export function MediaCard({
   item: MediaItem;
   continueWatching?: boolean;
   fullWidth?: boolean;
+  landscape?: boolean;
+  cardBackdrop?: string;
   subtitleContent?: React.ReactNode;
   titleLines?: 1 | 2;
   revealArtwork?: boolean;
@@ -84,7 +88,8 @@ export function MediaCard({
   const suppliedPoster = item.poster?.startsWith("https://image.tmdb.org/t/p/") ? item.poster : undefined;
   const [failedImages, setFailedImages] = useState<string[]>([]);
   const backdrop = backdropVariantUrl(artwork.background, 780);
-  const imageUrl = (continueWatching ? [backdrop, artwork.poster] : [suppliedPoster, artwork.poster])
+  const wide = continueWatching || landscape;
+  const imageUrl = (wide ? [landscape ? publicArtworkUrl(cardBackdrop) : undefined, backdrop, artwork.poster] : [suppliedPoster, artwork.poster])
     .find((source): source is string => !!source && !failedImages.includes(source));
   const failImage = useCallback(() => {
     if (imageUrl) setFailedImages(previous => previous.includes(imageUrl) ? previous : [...previous, imageUrl]);
@@ -195,13 +200,13 @@ export function MediaCard({
         });
       }}
       className={`${styles.card} relative cursor-pointer select-none ${
-        continueWatching ? "w-80" : fullWidth ? "w-full" : "w-36"
+        continueWatching ? "w-80" : landscape ? styles.landscape : fullWidth ? "w-full" : "w-36"
       }`}
     >
       <IntentLink href={linkHref} scroll={false} draggable={false}
         className={`${styles.detailsLink} absolute inset-0 z-10`}
         aria-label={`View details for ${item.name || "Untitled"}`} />
-      <div data-home-aurora-artwork="" className={`${styles.surface} relative w-full ${continueWatching ? "aspect-video" : "aspect-[2/3]"}`}
+      <div data-home-aurora-artwork="" className={`${styles.surface} relative w-full ${wide ? "aspect-video" : "aspect-[2/3]"}`}
         data-pressed={pressed || undefined}>
         <div className={`${styles.frame} absolute inset-0 overflow-hidden`}>
           {/* Definite bounds keep WebKit image heights inside the poster frame. */}
@@ -212,14 +217,14 @@ export function MediaCard({
                 waitForDecode={continueWatching}
                 src={imageUrl}
                 srcSet={imageSrcSet}
-                sizes={continueWatching ? "320px" : undefined}
-                width={continueWatching ? 320 : 144}
-                height={continueWatching ? 180 : 216}
+                sizes={wide ? "320px" : undefined}
+                width={wide ? 320 : 144}
+                height={wide ? 180 : 216}
                 loading="lazy"
                 data-prefetch-artwork={continueWatching ? "" : undefined}
                 onUnavailable={failImage}
                 alt=""
-                className={`${styles.artwork} block w-full h-full object-cover`}
+                className={`${styles.artwork} block w-full h-full ${landscape && imageUrl === artwork.poster ? "object-contain" : "object-cover"}`}
                 draggable={false}
               />
             ) : (

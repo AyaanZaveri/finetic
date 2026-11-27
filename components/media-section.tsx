@@ -19,6 +19,8 @@ interface MediaSectionProps {
   continueWatching?: boolean;
   revealArtwork?: boolean;
   cardSubtitles?: React.ReactNode[];
+  landscape?: boolean;
+  cardBackdrops?: (string | undefined)[];
 }
 
 export function MediaSection({
@@ -28,6 +30,8 @@ export function MediaSection({
   continueWatching = false,
   revealArtwork = true,
   cardSubtitles,
+  landscape = false,
+  cardBackdrops,
 }: MediaSectionProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -145,7 +149,7 @@ export function MediaSection({
         </div>}
       </div>
       {hasItems ? (
-        <div ref={viewportRef} data-media-row-viewport="" className={styles.viewport}
+        <div ref={viewportRef} data-media-row-viewport="" data-landscape={landscape || undefined} className={styles.viewport}
           role="region" aria-label={`${sectionName} titles`} tabIndex={-1}>
           <ul className={styles.track}>
             {mediaItems.map((item, index) => (
@@ -161,6 +165,9 @@ export function MediaSection({
               >
                 <MediaCard
                   item={item}
+                  landscape={landscape}
+                  titleLines={landscape ? 2 : 1}
+                  cardBackdrop={cardBackdrops?.[index]}
                   continueWatching={continueWatching}
                   revealArtwork={revealArtwork}
                   subtitleContent={cardSubtitles?.[index]}
