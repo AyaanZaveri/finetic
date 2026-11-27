@@ -198,8 +198,7 @@ fn answer(state: &mut State, shared: &Shared) -> Option<(Request, Option<Picture
     let wanted = state.wanted?;
     if state.unavailable {
         if state.fallback {
-            return shared.images.as_ref().and_then(|images| images.cached(wanted.position))
-                .map(|src| (wanted, Some((wanted.position, src))));
+            return None;
         }
         return Some((wanted, None));
     }
@@ -230,12 +229,25 @@ fn fallback_loop(shared: &Shared, url: &str, headers: &BTreeMap<String, String>,
                 if let Some(wanted) = state.wanted {
                     if handled != Some(wanted.id) { break wanted; }
                 }
-                state = shared.wake.wait(state).unwrap();
+                let (next, idle) = shared.wake.wait_timeout(state, Duration::from_secs(10)).unwrap();
+                state = next;
+                if idle.timed_out() && decoder.is_some() {
+                    // Release unused demux/decode buffers without holding the
+                    // request mutex during native teardown.
+                    drop(state);
+                    decoder = None;
+                    state = shared.state.lock().unwrap();
+                }
             }
         };
         handled = Some(wanted.id);
-        if shared.images.as_ref().and_then(|images| images.cached(wanted.position)).is_some() {
-            // answer() publishes the synchronous cache hit.
+        if let Some(src) = shared.images.as_ref().and_then(|images| images.cached(wanted.position)) {
+            // A newer request can have arrived while the same frame was
+            // decoding. The worker owns both cache-hit and fresh publication.
+            let state = shared.state.lock().unwrap();
+            let current = !state.closed && state.wanted.is_some_and(|request| request.id == wanted.id);
+            drop(state);
+            if current { send(shared, Some(wanted), Some((wanted.position, src))); }
             continue;
         }
         if decoder.is_none() {

@@ -1,6 +1,6 @@
 //! Independent demux/decode fallback for files without a usable sparse index.
 //! It never seeks the playing mpv instance and does not retain JPEGs on disk.
-use crate::mpv::{Event, Mpv};
+use crate::mpv::{Event, Kind, Mpv};
 use std::{collections::BTreeMap, path::{Path, PathBuf}, time::{Duration, Instant}};
 
 pub(crate) struct Decoder {
@@ -58,6 +58,14 @@ impl Decoder {
                 Some(Event::StartFile { .. }) => started = true,
                 Some(Event::PlaybackRestart) if started => {
                     self.loaded = true;
+                    // Do not cache an old or approximate frame under a
+                    // different hover timestamp if a damaged index mis-seeks.
+                    let position = self.mpv.get_property("time-pos", Kind::Double)
+                        .and_then(|value| value.as_f64())?;
+                    if (position - seconds).abs() > 0.5 {
+                        log::warn!("Seek preview fallback could not reach the requested timestamp");
+                        return None;
+                    }
                     let path = self.directory.join("frame.jpg");
                     let _ = std::fs::remove_file(&path);
                     let result = self.mpv.command(&["screenshot-to-file", path.to_str()?, "video"]);

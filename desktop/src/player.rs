@@ -755,11 +755,12 @@ mod tests {
         let directory = std::path::PathBuf::from(std::env::var("NAVIGATOR_TEST_PREVIEW_DIR").unwrap());
         let selected = std::env::var("NAVIGATOR_TEST_PREVIEW_FILE").ok();
         let mut failures = Vec::new();
-        for filename in ["avc-stereo.mkv", "avc-surround-open-gop.mkv", "avc-front-cues.mkv", "hevc-control.mkv", "avc-no-cues.mkv"] {
+        for filename in ["avc-stereo.mkv", "avc-surround-open-gop.mkv", "avc-front-cues.mkv", "hevc-control.mkv", "avc-no-cues.mkv", "avc-long-webdl.mkv"] {
             if selected.as_deref().is_some_and(|name| name != filename) { continue; }
+            let long = filename == "avc-long-webdl.mkv";
+            if long && selected.is_none() { continue; }
             let fixture = directory.join(filename);
-            let data = std::fs::read(&fixture).unwrap();
-            println!("FORMAT {filename}: {} bytes", data.len());
+            println!("FORMAT {filename}: {} bytes", std::fs::metadata(&fixture).unwrap().len());
             // Production loads libmpv before opening the sparse decoder.
             // Keep it alive across both diagnostic and real playback reads.
             let mpv = Arc::new(Mpv::new(&library, &[("config", "no"), ("vo", "null"), ("ao", "null"), ("idle", "yes"), ("terminal", "no")]).unwrap());
@@ -782,13 +783,16 @@ mod tests {
             }
             // Use the actual Player, including its internal byte relay,
             // readiness gate, preview workers, and published JPEG delivery.
-            let origin = crate::media_cache::tests::Origin::new(data);
-            let url = origin.url.replace("/video.mp4", "/video.mkv");
+            let origin = (!long).then(|| crate::media_cache::tests::Origin::new(std::fs::read(&fixture).unwrap()));
+            let url = origin.as_ref().map(|origin| origin.url.replace("/video.mp4", "/video.mkv"))
+                .unwrap_or_else(|| std::env::var("NAVIGATOR_TEST_LONG_PREVIEW_URL").unwrap());
             let (send, inbox) = mpsc::channel();
             let mut player = Player::start(mpv.clone(), move |value| { let _ = send.send(value); }, |_, _| {}).unwrap();
             player.send(Command::Load { session: "webdl-preview".into(), url, headers: BTreeMap::new(), start_position: 0.0 });
             wait_for(&inbox, |v| v["type"] == "ready" && v["session"] == "webdl-preview");
-            for (index, target) in [18.0, 5.0, 11.0, 25.0, 18.0].into_iter().enumerate() {
+            let ready_at = Instant::now();
+            let targets = if long { [1158.0, 5.0, 600.0, 1200.0, 1158.0] } else { [18.0, 5.0, 11.0, 25.0, 18.0] };
+            for (index, target) in targets.into_iter().enumerate() {
                 let request = index as u64 + 1;
                 let started = Instant::now();
                 player.send(Command::Thumbnail { session: "webdl-preview".into(), request, position: Some(target) });
@@ -817,9 +821,13 @@ mod tests {
                     failures.push(format!("{filename} at {target}s"));
                 }
             }
+            let position = mpv.get_property("time-pos", Kind::Double).and_then(|value| value.as_f64()).unwrap_or(0.0);
+            assert!(position <= ready_at.elapsed().as_secs_f64() + 3.0, "Preview generation must not seek the main playback clock");
             player.begin_shutdown();
             player.join();
-            println!("ORIGIN {filename}: {} requests, {} bytes", origin.requests.load(Ordering::SeqCst), origin.transferred.load(Ordering::SeqCst));
+            if let Some(origin) = origin {
+                println!("ORIGIN {filename}: {} requests, {} bytes", origin.requests.load(Ordering::SeqCst), origin.transferred.load(Ordering::SeqCst));
+            }
         }
         assert!(failures.is_empty(), "Native indexed previews failed: {failures:?}");
     }

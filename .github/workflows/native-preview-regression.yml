@@ -12,6 +12,7 @@ on:
       - 'desktop/src/preview_fallback.rs'
       - 'desktop/src/mpv.rs'
       - 'scripts/generate-native-preview-fixtures.py'
+      - 'scripts/test-native-preview-long.py'
 
 permissions:
   contents: read
@@ -78,4 +79,5 @@ jobs:
             # crash cannot conceal the results for the remaining formats.
             NAVIGATOR_TEST_PREVIEW_FILE="$fixture" cargo test --manifest-path desktop/Cargo.toml --locked headless_webdl_preview_formats -- --ignored --nocapture || failed=1
           done
+          python scripts/test-native-preview-long.py "$NAVIGATOR_TEST_PREVIEW_DIR" || failed=1
           exit "$failed"
