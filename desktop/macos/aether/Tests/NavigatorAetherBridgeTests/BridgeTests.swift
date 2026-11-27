@@ -153,4 +153,62 @@ struct BridgeTests {
             bridge.command(try JSONSerialization.data(withJSONObject: ["type": "stop", "session": file]))
         }
     }
+
+    @Test func previewsOutsideRetainedMedia() async throws {
+        guard let source = ProcessInfo.processInfo.environment["NAVIGATOR_AETHER_FIXTURE"],
+              let base = URL(string: source)?.deletingLastPathComponent() else { return }
+        _ = NSApplication.shared
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 180), styleMask: [.titled], backing: .buffered, defer: false)
+        let parent = try #require(window.contentView)
+        let events = Events()
+        let bridge = try PlaybackBridge(parent: parent, callback: events.callback, context: Unmanaged.passUnretained(events).toOpaque())
+        defer { bridge.close(); window.orderOut(nil) }
+        window.orderFront(nil)
+        func send(_ type: String, _ fields: [String: Any] = [:]) throws {
+            var value = fields
+            value["type"] = type
+            value["session"] = "long-fixture"
+            bridge.command(try JSONSerialization.data(withJSONObject: value))
+        }
+        try send("load", ["url": base.appendingPathComponent("fixture-long.mkv").absoluteString, "startPosition": 2.0])
+        try await events.waitFor({ events.has("ready") || events.has("error") })
+        try #require(!events.has("error"))
+        try await events.waitFor({ (events.state["position"] as? Double ?? 0) > 2.1 })
+        try await events.waitFor({ (events.state["buffered"] as? Double ?? 0) > 15 })
+        // Allow the session-coupled extractor to observe a healthy playback buffer.
+        try await Task.sleep(for: .seconds(4))
+        try send("pause")
+        try await events.waitFor({ events.state["paused"] as? Bool == true })
+        let clock = try #require(events.state["position"] as? Double)
+        let chapters = try #require(events.messages.last(where: { $0["type"] as? String == "chapters" })?["chapters"] as? [[String: Any]])
+        let chapter = try #require(chapters.first(where: { $0["title"] as? String == "Later chapter" })?["time"] as? Double)
+        #expect(abs(chapter - 120) < 0.1)
+
+        // Both the hover scrubber and the drawer ask for thumbnails through
+        // this command. These positions are well past retained playback media.
+        for (request, target) in [(1, 147.0), (2, chapter + 1)] {
+            let ranges = events.state["bufferedRanges"] as? [[String: Double]] ?? []
+            try #require(!ranges.contains { ($0["start"] ?? .infinity) <= target && ($0["end"] ?? 0) > target })
+            let started = Date()
+            try send("thumbnail", ["request": request, "position": target])
+            try await events.waitFor({ events.messages.contains { $0["type"] as? String == "thumbnail" && $0["request"] as? Int == request } }, seconds: 6)
+            let reply = try #require(events.messages.last(where: { $0["type"] as? String == "thumbnail" && $0["request"] as? Int == request }))
+            let jpeg = try #require(reply["src"] as? String)
+            let prefix = "data:image/jpeg;base64,"
+            try #require(jpeg.hasPrefix(prefix))
+            let bytes = try #require(Data(base64Encoded: String(jpeg.dropFirst(prefix.count))))
+            let decoded = try #require(NSBitmapImageRep(data: bytes))
+            #expect(decoded.pixelsWide > 0 && decoded.pixelsWide <= 448)
+            #expect(abs((reply["position"] as? Double ?? -1) - target) < 0.1)
+            #expect(reply["range"] == nil, "An independent preview must not claim a resident interval")
+            #expect(abs((events.state["position"] as? Double ?? -1) - clock) < 0.5)
+            #expect(events.state["paused"] as? Bool == true)
+            print("Aether distant preview: target=\(target), JPEG=\(bytes.count) bytes, elapsed=\(Date().timeIntervalSince(started))s")
+        }
+        try send("thumbnail", ["request": 3, "position": 155.0])
+        try send("thumbnail", ["request": 4, "position": NSNull()])
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(!events.messages.contains { $0["type"] as? String == "thumbnail" && $0["request"] as? Int == 3 })
+        try send("stop")
+    }
 }

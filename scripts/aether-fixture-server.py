@@ -10,7 +10,7 @@ port = int(sys.argv[2])
 
 class FixtureHandler(http.server.BaseHTTPRequestHandler):
     def serve(self, send_body):
-        if self.path not in {"/fixture.mkv", "/fixture-hdr.mkv", "/fixture-vp9.mkv"}:
+        if self.path not in {"/fixture.mkv", "/fixture-hdr.mkv", "/fixture-vp9.mkv", "/fixture-long.mkv"}:
             self.send_error(404)
             return
         path = root / self.path.removeprefix("/")

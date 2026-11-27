@@ -19,6 +19,7 @@ final class PlaybackBridge {
     private var loadTask: Task<Void, Never>?
     private var seekTask: Task<Void, Never>?
     private var previewTask: Task<Void, Never>?
+    private var frameExtractor: FrameExtractor?
     private var timer: Timer?
     private var generation = UUID()
     private var loaded = false
@@ -71,6 +72,10 @@ final class PlaybackBridge {
         loadTask?.cancel()
         seekTask?.cancel()
         previewTask?.cancel()
+        if let extractor = frameExtractor {
+            frameExtractor = nil
+            Task { await extractor.shutdown() }
+        }
         timer?.invalidate()
         timer = nil
         session = nil
@@ -146,20 +151,42 @@ final class PlaybackBridge {
             clearBitmap()
         case "thumbnail":
             previewTask?.cancel()
-            guard let at = message["position"] as? Double, let request = message["request"] as? Int else {
+            guard let at = message["position"] as? Double, at.isFinite, at >= 0,
+                  let request = message["request"] as? Int else {
                 Task { await engine.releaseScrubPreviewDecoders() }
                 return
             }
             let token = generation
             previewTask = Task { [weak self] in
                 guard let self, self.generation == token, !Task.isCancelled else { return }
+                // Prefer retained media and the background still ladder. Neither
+                // opens another connection or seeks the playing decoder.
                 let frame = await self.engine.scrubPreviewFrame(atSeconds: at, refined: false, maxWidth: 448, isCancelled: { Task.isCancelled })
                 guard self.generation == token, !Task.isCancelled else { return }
+                var image = frame?.image
+                var position = frame?.actualSeconds
+                var range = frame?.validRange
+                // A cache miss is expected outside the retained window. The
+                // session extractor uses the original source, shares its header
+                // store, yields to playback, and closes its decoder when idle.
+                // Use the frame-accurate preview API, not a keyframe thumbnail
+                // whose actual timestamp is not exposed by FrameExtractor.
+                if image == nil, self.loaded, self.engine.canSeek, !self.engine.scrubPreviewDrawsInView {
+                    if self.frameExtractor == nil {
+                        self.frameExtractor = self.engine.makeFrameExtractor()
+                    }
+                    if let extractor = self.frameExtractor {
+                        image = await extractor.preview(at: at, maxWidth: 448)
+                        position = at
+                        range = nil
+                    }
+                }
+                guard self.generation == token, !Task.isCancelled else { return }
                 var result: [String: Any] = ["request": request, "position": NSNull(), "src": NSNull()]
-                if let frame, let jpeg = NSBitmapImageRep(cgImage: frame.image).representation(using: .jpeg, properties: [.compressionFactor: 0.72]) {
-                    result["position"] = frame.actualSeconds
+                if let image, let position, let jpeg = NSBitmapImageRep(cgImage: image).representation(using: .jpeg, properties: [.compressionFactor: 0.72]) {
+                    result["position"] = position
                     result["src"] = "data:image/jpeg;base64," + jpeg.base64EncodedString()
-                    if let range = frame.validRange { result["range"] = ["start": range.lowerBound, "end": range.upperBound] }
+                    if let range { result["range"] = ["start": range.lowerBound, "end": range.upperBound] }
                 }
                 self.emit("thumbnail", result)
             }
