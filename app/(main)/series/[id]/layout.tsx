@@ -1,6 +1,7 @@
 import { SeriesDetailsFrame } from "@/components/media-page/series-details-frame";
 import { MetadataPage as PlaybackPageProvider } from "@/components/metadata-hydration";
 import { CastSection } from "@/components/media-page/cast-section";
+import { ProductionCompanies } from "@/components/media-page/production-companies";
 import { SimilarMoviesSection } from "@/components/media-page/movie-details-view";
 import { redirect } from "next/navigation";
 import { SeriesEpisodesRouteAware } from "@/components/series-episodes-route-aware";
@@ -46,6 +47,7 @@ export default async function SeriesLayout({
       <PlaybackPageProvider media={show}>
       <SeriesDetailsFrame show={show}
         cast={<Suspense fallback={null}><CastSection id={show.id} type="series" names={show.cast} /></Suspense>}
+        companies={<Suspense fallback={null}><ProductionCompanies id={show.tmdbId ? `tmdb:${show.tmdbId}` : show.id} type="series" /></Suspense>}
         recommendations={<Suspense fallback={null}><SimilarShows showId={show.id} /></Suspense>}>
         <SeriesOverviewPlaybackProvider show={show}>
           {children}

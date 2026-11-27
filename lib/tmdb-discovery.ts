@@ -164,6 +164,63 @@ export async function getTMDBRecommendations(id: string, type: TMDBMediaType): P
         .map(item => titleResult(item, type));
 }
 
+export interface ProductionCompany {
+    id: number;
+    name: string;
+    logo?: string;
+}
+
+interface TMDBCompanyRecord {
+    id: number;
+    name: string;
+    logo_path?: string | null;
+}
+
+function productionCompany(company: TMDBCompanyRecord): ProductionCompany {
+    return { id: company.id, name: company.name, logo: tmdbImage(company.logo_path, "w300") };
+}
+
+export async function getTMDBProductionCompanies(id: string, type: TMDBMediaType): Promise<ProductionCompany[]> {
+    try {
+        const tmdbId = await tmdbIdForTitle(id, type);
+        const title = await request<{ production_companies?: TMDBCompanyRecord[] }>(`${type === "movie" ? "movie" : "tv"}/${tmdbId}`);
+        return (title.production_companies ?? [])
+            .filter(company => Number.isSafeInteger(company.id) && company.id > 0 && company.name?.trim())
+            .map(productionCompany);
+    } catch {
+        return [];
+    }
+}
+
+export interface MovieCollection {
+    name: string;
+    parts: { item: MediaItem; backdrop?: string }[];
+}
+
+export async function getTMDBMovieCollection(id: string): Promise<MovieCollection | null> {
+    try {
+        const tmdbId = await tmdbIdForTitle(id, "movie");
+        const movie = await request<{ belongs_to_collection?: { id: number } | null }>(`movie/${tmdbId}`);
+        const collectionId = movie.belongs_to_collection?.id;
+        if (!collectionId) return null;
+        const collection = await request<{ name: string; parts: TMDBTitleRecord[] }>(`collection/${collectionId}`);
+        const parts = collection.parts.filter(item => item.id !== tmdbId && !item.adult && Number.isSafeInteger(item.id) && item.id > 0)
+            .sort((a, b) => (a.release_date || "9999").localeCompare(b.release_date || "9999"));
+        if (!parts.length) return null;
+        return { name: collection.name, parts: await Promise.all(parts.map(async part => {
+            const images = await request<{ backdrops: import("@/lib/tmdb-artwork").TMDBImage[] }>(
+                `movie/${part.id}/images`, { include_image_language: "en,null" },
+            ).catch(() => null);
+            const english = images?.backdrops?.filter(image => image.iso_639_1 === "en" && tmdbImage(image.file_path))
+                .sort((a, b) => (b.vote_average ?? 0) - (a.vote_average ?? 0)
+                    || (b.vote_count ?? 0) - (a.vote_count ?? 0) || (b.width ?? 0) - (a.width ?? 0))[0];
+            return { item: titleResult(part, "movie"), backdrop: tmdbImage(english?.file_path, "w780") };
+        })) };
+    } catch {
+        return null;
+    }
+}
+
 export function getTMDBWatchRegion() {
     const configuredRegion = process.env.TMDB_WATCH_REGION?.trim().toUpperCase();
     return configuredRegion && /^[A-Z]{2}$/.test(configuredRegion) ? configuredRegion : "US";

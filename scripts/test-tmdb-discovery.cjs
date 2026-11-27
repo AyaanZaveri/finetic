@@ -133,6 +133,51 @@ async function main() {
     assert.equal(await tmdb.resolveAddonMediaId('tmdb:20:1:2', 'series'), 'tt20:1:2', 'Translate only the selected episode and preserve its coordinates');
     assert.equal(await tmdb.resolveAddonMediaId('tmdb:123', 'movie'), 'tt123');
     assert.equal(await tmdb.resolveTMDBPlaybackId('tmdb:30', 'movie'), 'tmdb:30', 'Titles without IMDb IDs must not invent a mapping');
+    fixtures['movie/123'].belongs_to_collection = { id: 42 };
+    fixtures['collection/42'] = { name: 'Example Collection', parts: [
+        movie, { id: 125, title: 'Later Film', release_date: '2024-01-01' },
+        { id: 124, title: 'Earlier Film', release_date: '2019-01-01', backdrop_path: '/plain.jpg' },
+    ] };
+    fixtures['movie/124/images'] = { backdrops: [
+        { file_path: '/plain.jpg', iso_639_1: null, vote_average: 10 },
+        { file_path: '/english-low.jpg', iso_639_1: 'en', vote_average: 4 },
+        { file_path: '/english.jpg', iso_639_1: 'en', vote_average: 8 },
+    ] };
+    fixtures['movie/125/images'] = { backdrops: [] };
+    const collection = await tmdb.getTMDBMovieCollection('tt123');
+    assert.equal(collection.name, 'Example Collection');
+    assert.deepEqual(clone(collection.parts.map(part => part.item.id)), ['tmdb:124', 'tmdb:125']);
+    assert.equal(collection.parts[0].backdrop, 'https://image.tmdb.org/t/p/w780/english.jpg');
+    assert.equal(collection.parts[0].item.background, 'https://image.tmdb.org/t/p/w1280/plain.jpg');
+    assert.equal(collection.parts[1].backdrop, undefined);
+    assert.equal(await tmdb.getTMDBMovieCollection('tmdb:30'), null);
+    status = 503;
+    assert.equal(await tmdb.getTMDBMovieCollection('tmdb:123'), null);
+    status = 200;
+    fixtures['movie/123'].production_companies = [
+        { id: 420, name: 'Marvel Studios', logo_path: '/marvel.png' },
+        { id: 5, name: 'Columbia Pictures', logo_path: null },
+        { id: -1, name: 'Invalid' },
+    ];
+    assert.deepEqual(clone(await tmdb.getTMDBProductionCompanies('tt123', 'movie')), [
+        { id: 420, name: 'Marvel Studios', logo: 'https://image.tmdb.org/t/p/w300/marvel.png' },
+        { id: 5, name: 'Columbia Pictures' },
+    ]);
+    assert.equal((await tmdb.getTMDBProductionCompanies('tmdb:30', 'movie')).length, 0);
+    fixtures['tv/20'].production_companies = [
+        { id: 11073, name: 'Sony Pictures Television', logo_path: '/sony.png' },
+        { id: 33742, name: 'High Bridge Productions', logo_path: null },
+    ];
+    const tvCompanies = [
+        { id: 11073, name: 'Sony Pictures Television', logo: 'https://image.tmdb.org/t/p/w300/sony.png' },
+        { id: 33742, name: 'High Bridge Productions' },
+    ];
+    assert.deepEqual(clone(await tmdb.getTMDBProductionCompanies('tt20', 'series')), tvCompanies);
+    assert.deepEqual(clone(await tmdb.getTMDBProductionCompanies('tmdb:20:1:2', 'series')), tvCompanies);
+    assert.equal(requests.at(-1).url.pathname, '/3/tv/20', 'Episode routes use the parent series companies');
+    status = 503;
+    assert.equal((await tmdb.getTMDBProductionCompanies('tmdb:20', 'series')).length, 0);
+    status = 200;
     const beforeIMDb = requests.length;
     assert.equal(await tmdb.resolveTMDBPlaybackId('tt123', 'movie'), 'tt123');
     assert.equal(requests.length, beforeIMDb, 'Known playback IDs need no further lookup');

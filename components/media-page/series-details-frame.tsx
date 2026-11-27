@@ -10,10 +10,11 @@ import { buildSeriesPath } from "@/lib/series-route";
 import type { MediaItem } from "@/types/stremio";
 import type { ReactNode } from "react";
 
-export function SeriesDetailsFrame({ show, children, cast, recommendations }: {
+export function SeriesDetailsFrame({ show, children, cast, companies, recommendations }: {
   show: MediaItem;
   children: ReactNode;
   cast?: ReactNode;
+  companies?: ReactNode;
   recommendations?: ReactNode;
 }) {
   return (
@@ -68,6 +69,7 @@ export function SeriesDetailsFrame({ show, children, cast, recommendations }: {
         </div>
 
         {cast}
+        {companies}
         {recommendations}
       </div>
   );

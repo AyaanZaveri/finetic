@@ -164,3 +164,28 @@ for (const route of [
 }
 navigationHooks.unmount();
 console.log('PASS: new-title navigation resets to the hero; episode changes within a series and same-route updates preserve scroll');
+
+
+// Studio logos identify the production companies. They are not actions.
+const { renderToStaticMarkup } = require('react-dom/server');
+const { ProductionCompaniesSection } = load('components/media-page/production-companies-section.tsx', name => {
+  if (name.endsWith('.module.css')) return { default: { sectionGutter: 'sectionGutter' } };
+  return require(name);
+});
+const studioFixtures = [
+  { id: 420, name: 'Marvel Studios', logo: 'https://image.tmdb.org/t/p/w300/marvel.png' },
+  { id: 5, name: 'Columbia Pictures', logo: 'https://image.tmdb.org/t/p/w300/columbia.png' },
+  { id: 84041, name: 'Pascal Pictures', logo: 'https://image.tmdb.org/t/p/w300/pascal.png' },
+  { id: 22213, name: 'TSG Entertainment', logo: 'https://image.tmdb.org/t/p/w300/tsg.png' },
+];
+for (const studios of [studioFixtures, studioFixtures.slice(0, 1), studioFixtures.map((studio, index) =>
+    index === 0 ? { ...studio, name: 'Filmproduktionsgesellschaft für internationale Kinofilme', logo: undefined } : studio)]) {
+  const markup = renderToStaticMarkup(React.createElement(ProductionCompaniesSection, { companies: studios }));
+  assert.doesNotMatch(markup, /<(?:a|button)\b|tabindex=|hover:underline/i, 'Production companies must not introduce interactive controls');
+  assert.equal((markup.match(/<li\b/g) || []).length, studios.length);
+  for (const studio of studios) assert.ok(markup.includes(studio.name), 'Company names stay visible even without a logo');
+  assert.match(markup, /flex-wrap/, 'Company rows wrap instead of pushing the page wider');
+  assert.match(markup, /wrap-anywhere/, 'Long company names can wrap within their tiles');
+}
+assert.equal(renderToStaticMarkup(React.createElement(ProductionCompaniesSection, { companies: [] })), '');
+console.log('PASS: production-company artwork is compact, static, and supports missing artwork and long names');

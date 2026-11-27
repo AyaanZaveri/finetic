@@ -54,7 +54,7 @@ export function MovieDetailsMessage({ kind }: { kind: "not-found" | "error" }) {
   return <div className={`${titleStyles.message} p-4`}>{kind === "not-found" ? "Movie not found" : "Couldn’t load this movie. Reload to try again."}</div>;
 }
 
-export function MovieDetailsView({ movie, cast, recommendations, previewProgress }: { movie: MediaItem; cast?: ReactNode; recommendations?: ReactNode; previewProgress?: ResumeProgress | null }) {
+export function MovieDetailsView({ movie, cast, companies, collection, recommendations, previewProgress }: { movie: MediaItem; cast?: ReactNode; companies?: ReactNode; collection?: ReactNode; recommendations?: ReactNode; previewProgress?: ResumeProgress | null }) {
   return (
       <div className={`${backdropStyles.page} ${titleStyles.page} relative min-h-screen overflow-hidden pb-8`}>
         <VibrantAuroraBackground
@@ -198,6 +198,8 @@ export function MovieDetailsView({ movie, cast, recommendations, previewProgress
         </div>
 
         {cast}
+        {companies}
+        {collection}
         {recommendations}
       </div>
   );
