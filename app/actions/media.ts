@@ -233,6 +233,8 @@ export async function fetchTVShows(limit: number = 20): Promise<MediaItem[]> {
 // ─── Metadata ────────────────────────────────────────────────────
 
 export async function fetchMediaDetails(mediaItemId: string, type: string = "movie", signal?: AbortSignal, options?: { playback?: boolean }): Promise<MediaItem | null> {
+  // Use the same cache key for encoded route params and API query parameters.
+  try { mediaItemId = decodeURIComponent(mediaItemId); } catch { /* Preserve invalid IDs for the existing validation. */ }
   const { metadataIdentity } = await import("@/lib/server/metadata-identity");
   const { serverMetadataCache, opaqueMetadataIdentity } = await import("@/lib/server/metadata-cache");
   const { titleEnvelope } = await import("@/lib/media/metadata");
@@ -267,9 +269,6 @@ async function fetchMediaDetailsUncached(
   options?: { playback?: boolean },
 ): Promise<MediaItem | null> {
   try {
-    // Next's route params can retain percent-encoded separators. Normalize
-    // before choosing the public TMDB path versus account-owned add-ons.
-    try { mediaItemId = decodeURIComponent(mediaItemId); } catch { /* Keep invalid encodings bounded by the existing ID checks. */ }
     const builtInDetails = async (id = mediaItemId) => {
       if ((type !== "movie" && type !== "series") || !/^tt\d+$/.test(id)) return null;
       if (options?.playback) await getAuthData();

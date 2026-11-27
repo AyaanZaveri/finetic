@@ -5,6 +5,7 @@ import { ArtworkImage } from "@/components/artwork-image";
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
 import { Film, Star, Tv, UserRound } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { PrefetchKind } from "next/dist/client/components/router-reducer/router-reducer-types";
 import { groupSearchSuggestions } from "@/lib/search-suggestion-groups";
 import { fetchSearchSuggestions } from "@/lib/search-catalog-stream";
 import { ExpandingSearch, type ExpandingSearchItem } from "@/components/arc/expanding-search/expanding-search";
@@ -51,7 +52,8 @@ export function SearchBar({ className = "", initialQuery = "", compact = false, 
         const target = latestSuggestions.current.find(result => `${result.type}:${result.id}` === item.id);
         if (target?.type === "movie" || target?.type === "series" || target?.type === "person") {
             const href = `/${target.type}/${target.id}`;
-            const cancelRoute = scheduleRoutePrefetch(href, () => router.prefetch(href));
+            // Auto prefetch stops at the loading boundary for dynamic titles.
+            const cancelRoute = scheduleRoutePrefetch(href, () => router.prefetch(href, { kind: PrefetchKind.FULL }));
             // Like media cards, metadata warming has its own dwell. Next's
             // route budget/deduplication must not suppress title or artwork data.
             const { id, type, name } = target;

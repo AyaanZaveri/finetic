@@ -79,7 +79,7 @@ const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream
   await assert.rejects(work);
   assert.equal(upstreamSignal.aborted, true);
 
-  const h = hooks(), timers = new Map(), intentTimers = new Map(), suggestions = [], warmups = [], prefetched = [], metadata = [], metadataDetails = [];
+  const h = hooks(), timers = new Map(), intentTimers = new Map(), suggestions = [], warmups = [], prefetched = [], prefetchKinds = [], metadata = [], metadataDetails = [];
   let allowed = true, playerVisible = false;
   let timerId = 0;
   const { SearchBar } = load('components/search-component.tsx', {
@@ -88,7 +88,7 @@ const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream
     '@/components/stream-query-provider': { useMetadataWarmup: () => ({ enqueue: (title, intent) => { metadata.push([title.id, title.type, intent]); metadataDetails.push(title); } }) },
     '@/lib/route-prefetch': { routePrefetchAllowed: () => allowed, scheduleRoutePrefetch(href, warm) { const entry = { href, warm, cancelled: false }; warmups.push(entry); return () => { entry.cancelled = true; }; } },
     'lucide-react': { Film: 'film', Star: 'star', Tv: 'tv' },
-    'next/navigation': { useRouter: () => ({ prefetch: href => prefetched.push(href) }), usePathname: () => '/', useSearchParams: () => new URLSearchParams() },
+    'next/navigation': { useRouter: () => ({ prefetch: (href, options) => { prefetched.push(href); prefetchKinds.push(options?.kind); } }), usePathname: () => '/', useSearchParams: () => new URLSearchParams() },
     '@/lib/search-catalog-stream': { fetchSearchSuggestions: async (query, publish, signal) => {
       suggestions.push({ query, signal });
       publish([{ catalogType: 'multi', items: query === 'amazing race' ? [
@@ -139,6 +139,7 @@ const globals = { Error, Request, Response, URL, URLSearchParams, ReadableStream
   assert.equal(metadataDetails[0].backdropUrl, '/backdrop.jpg');
   assert.equal(metadataDetails[0].details.poster, '/poster.jpg');
   warmups[1].warm(); assert.deepEqual(prefetched, ['/series/tmdb:30957']);
+  assert.equal(prefetchKinds[0], 'full', 'A dynamic title needs the full route, not just its loading boundary');
   tree.props.onItemIntent(null); assert.equal(warmups[1].cancelled, true);
   tree.props.onItemIntent(tree.props.items[3]); flushIntent(); warmups[2].warm();
   tree.props.onItemIntent(tree.props.items[5]); warmups[3].warm();

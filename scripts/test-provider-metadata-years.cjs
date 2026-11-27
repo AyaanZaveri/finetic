@@ -29,5 +29,10 @@ const actions = load('app/actions/media.ts', {
         assert.equal(item.year, expected, `Header handles provider year ${year}`);
         assert.equal(item.releaseInfo, releaseInfo, 'Original release information is preserved');
     }
+    response = { id: 'provider:encoded', type: 'movie', name: 'Before' };
+    const warmed = await actions.fetchMediaDetails('provider:encoded', 'movie');
+    response = { ...response, name: 'After' };
+    assert.equal(await actions.fetchMediaDetails('provider%3Aencoded', 'movie'), warmed,
+        'Encoded detail route params reuse the API warmup cache entry');
     console.log('PASS: real metadata readers accept provider string years, series ranges, numeric years and missing/invalid years before schema validation.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

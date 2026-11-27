@@ -99,6 +99,28 @@ const episode = (n = 3) => schema.episodeEnvelope({ id: `tt123:1:${n}`, season: 
     assert.equal(Object.keys(fresh.peek(media)).length, 0); fresh.dispose(); fresh.client.clear();
     queries.dispose(); streams.clear();
 
+    // A cold TMDB search result navigates to the original TMDB route.
+    // Playback identity resolution may still use IMDb for cache deduplication.
+    const searchClient = new QueryClient();
+    const searchStreams = streamApi.createStreamQueries('search', searchClient);
+    const searchRequests = [];
+    const searchQueries = api.createMetadataQueries(searchStreams, async url => {
+        const parsed = new URL(url, 'https://app.test');
+        if (parsed.pathname.endsWith('/config')) return Response.json({ revision });
+        searchRequests.push(parsed.searchParams.get('id'));
+        return Response.json({ metadata: title() });
+    });
+    const suggestion = { id: 'tmdb:42', type: 'series', name: 'Show' };
+    try {
+        await searchQueries.title(suggestion, 'speculative');
+        assert.deepEqual(searchRequests, ['tmdb:42'], 'Warm the same server title cache key as the search destination');
+        assert.ok(searchQueries.peek(suggestion).title);
+        await searchQueries.title({ ...suggestion, id: 'tt123' });
+        assert.equal(searchRequests.length, 1, 'Preserve canonical client metadata deduplication');
+    } finally {
+        searchQueries.dispose(); searchStreams.clear();
+    }
+
     // Retention caps cover all unused records and serialized payload bytes.
     const capped = api.createMetadataQueries(streamApi.createStreamQueries('bounded', new QueryClient()), fetch);
     for (let i = 0; i < 70; i++) capped.client.setQueryData(schema.metadataKey('bounded', revision, 'movie', 'id' + i), title());

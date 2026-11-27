@@ -43,10 +43,10 @@ export function createMetadataQueries(streams: StreamQueries, fetchFn: typeof fe
         const live = new Set(client.getQueryCache().findAll({ queryKey: root }).map(q => q.queryHash));
         for (const hash of used.keys()) if (!live.has(hash)) used.delete(hash);
     };
-    const options = (revision: string, type: string, id: string, season?: number, episode?: number) => queryOptions({
+    const options = (revision: string, type: string, id: string, season?: number, episode?: number, requestId = id) => queryOptions({
         ...METADATA_DEFAULTS, queryKey: metadataKey(scope, revision, type, id, season, episode),
         queryFn: async ({ signal }): Promise<MetadataEnvelope> => {
-            const params = new URLSearchParams({ id, type, metadata: "1", revision });
+            const params = new URLSearchParams({ id: requestId, type, metadata: "1", revision });
             if (season !== undefined && episode !== undefined) { params.set("season", String(season)); params.set("episode", String(episode)); }
             const response = await read(`/api/playback/${season === undefined ? "details" : "episode"}?${params}`, signal);
             const record = season === undefined ? titleEnvelopeSchema.parse(response.metadata) : episodeEnvelopeSchema.parse(response.metadata);
@@ -66,7 +66,9 @@ export function createMetadataQueries(streams: StreamQueries, fetchFn: typeof fe
         const [id, config] = await Promise.all([streams.resolveIdentity(target.id, target.type), client.query(configOptions)]);
         signal?.throwIfAborted();
         if (disposed) throw new Error("Metadata session ended.");
-        const opts = options(config.revision, target.type, id, episode ? target.season : undefined, episode ? target.episode : undefined);
+        // Share canonical client records, but warm title details under the
+        // original route ID so the server page can reuse that exact read.
+        const opts = options(config.revision, target.type, id, episode ? target.season : undefined, episode ? target.episode : undefined, episode ? id : target.id);
         const hash = JSON.stringify(opts.queryKey);
         let owner = owners.get(hash);
         if (!owner) {
