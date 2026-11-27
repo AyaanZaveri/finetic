@@ -55,6 +55,8 @@ jobs:
       - run: npm ci
       - name: Install Maestro
         run: bash scripts/install-maestro.sh
+      - name: Configure Android SDK
+        run: bash scripts/configure-android-sdk.sh
       - name: Build native Android app
         env:
           EXPO_PUBLIC_MOBILE_FIXTURES: '1'
@@ -178,6 +180,8 @@ jobs:
         run: |
           bash scripts/install-maestro.sh
           bash scripts/verify-download.sh https://github.com/expo/expo-go-releases/releases/download/Expo-Go-56.0.4/Expo-Go-56.0.4.apk "$RUNNER_TEMP/expo-go.apk" dd5eea2fb16ab83dd60b3d3767210702ecee3b67b4947e5e2367965e0d92a833
+      - name: Configure Android SDK
+        run: bash scripts/configure-android-sdk.sh
       - name: Start emulator and Metro
         run: |
           mkdir -p test-results
@@ -235,13 +239,13 @@ jobs:
         run: |
           bash scripts/install-maestro.sh
           bash scripts/verify-download.sh https://github.com/expo/expo-go-releases/releases/download/Expo-Go-56.0.4/Expo-Go-56.0.4.tar.gz "$RUNNER_TEMP/expo-go.tar.gz" e6ed55f7ad9c31c81e819addcb79ed8f0cd629950517d84328e377f182104eed
-          mkdir -p "$RUNNER_TEMP/expo-go"
-          tar -xzf "$RUNNER_TEMP/expo-go.tar.gz" -C "$RUNNER_TEMP/expo-go"
+          mkdir -p "$RUNNER_TEMP/expo-go/ExpoGo.app"
+          tar -xzf "$RUNNER_TEMP/expo-go.tar.gz" -C "$RUNNER_TEMP/expo-go/ExpoGo.app"
       - name: Start iPhone simulator and Metro
         run: |
           mkdir -p test-results
-          app=$(find "$RUNNER_TEMP/expo-go" -name '*.app' -type d -print -quit)
-          test -n "$app"
+          app="$RUNNER_TEMP/expo-go/ExpoGo.app"
+          test -f "$app/Info.plist"
           app_id=$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app/Info.plist")
           device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(item["udid"] for runtime in reversed(list(d["devices"].values())) for item in runtime if item["name"].startswith("iPhone")))')
           echo "PREVIEW_DEVICE=$device" >> "$GITHUB_ENV"
