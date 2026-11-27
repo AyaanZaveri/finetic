@@ -6,6 +6,8 @@ import { ChevronDown, CornerDownRight } from "lucide-react";
 import { MovieDetailsView, MovieDetailsMessage, SimilarMoviesSection, SimilarMoviesSkeleton } from "@/components/media-page/movie-details-view";
 import titleStyles from "@/components/media-page/title-detail.module.css";
 import { SeriesDetailsFrame } from "@/components/media-page/series-details-frame";
+import { ProductionCompaniesSection } from "@/components/media-page/production-companies-section";
+import { MovieCollectionSection } from "@/components/media-page/movie-collection-section";
 import { SeriesOverviewView } from "@/components/media-page/series-overview-view";
 import { SeasonEpisodes, SeasonEpisodesPlaceholder } from "@/components/season-episodes";
 import { SignInForStreams } from "@/components/sign-in-for-streams";
@@ -31,11 +33,12 @@ function keyboardCommand(event: KeyboardEvent) {
 }
 
 function SeriesStage({ id }: { id: StateId }) {
-    const { show, cast, recommendations, regularSeasonCount, episodes } = useMemo(() => seriesFixture(id), [id]);
+    const { show, cast, companies, recommendations, regularSeasonCount, episodes } = useMemo(() => seriesFixture(id), [id]);
     const progress = id === "series-resume" ? accountFixture(id).progress : null;
     const selection = progress ? { season: 1, episode: 3 } : { season: 1, episode: 1 };
     return <SeriesDetailsFrame show={show}
         cast={cast.length ? <div className={`${titleStyles.sectionGutter} mt-2 px-4 md:px-10`}><CastScrollArea cast={cast} /></div> : null}
+        companies={<ProductionCompaniesSection companies={companies} />}
         recommendations={<SimilarMoviesSection items={recommendations} />}>
         <SeriesOverviewView show={show} regularSeasonCount={regularSeasonCount} previewProgress={progress} />
         <div className="mt-8">
@@ -57,7 +60,7 @@ function SeriesStage({ id }: { id: StateId }) {
 }
 
 function Stage({ id }: { id: StateId }) {
-    const { movie, cast, recommendations } = fixture(id);
+    const { movie, cast, companies, collection, recommendations } = fixture(id);
     const account = useMemo(() => accountFixture(id), [id]);
     const authenticated = id !== "guest" && id !== "series-guest";
     return <JotaiProvider>
@@ -72,6 +75,8 @@ function Stage({ id }: { id: StateId }) {
                          id.startsWith("series-") ? <SeriesStage key={id} id={id} /> :
                          <MovieDetailsView key={id} movie={movie} previewProgress={account.progress}
                             cast={cast.length ? <div className={`${titleStyles.sectionGutter} mt-2 px-4 md:px-10`}><CastScrollArea cast={cast} /></div> : null}
+                            companies={<ProductionCompaniesSection companies={companies} />}
+                            collection={<MovieCollectionSection collection={collection} />}
                             recommendations={id === "recommendations-loading" ? <SimilarMoviesSkeleton /> : <SimilarMoviesSection items={recommendations} />}
                          />}
                     </main>

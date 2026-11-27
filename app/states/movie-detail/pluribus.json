@@ -301,5 +301,22 @@
       "ratingSource": "TMDB",
       "voteCount": 1239
     }
+  ],
+  "companies": [
+    {
+      "id": 11073,
+      "name": "Sony Pictures Television",
+      "logo": "https://image.tmdb.org/t/p/w300/wHs44fktdoj6c378ZbSWfzKsM2Z.png"
+    },
+    {
+      "id": 33742,
+      "name": "High Bridge Productions",
+      "logo": "https://image.tmdb.org/t/p/w300/2jdh2sEa0R6y6uT0F7g0IgA2WO8.png"
+    },
+    {
+      "id": 269286,
+      "name": "Bristol Circle Entertainment",
+      "logo": "https://image.tmdb.org/t/p/w300/64CH0gzLH0KltueKDHiW00Y2BCR.png"
+    }
   ]
 }

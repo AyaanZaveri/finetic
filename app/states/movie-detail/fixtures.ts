@@ -24,7 +24,14 @@ export function fixture(id: StateId) {
     const cast: CastMember[] = id === "no-cast" || id === "cast-loading" ? [] : data.cast;
     const recommendations: MediaItem[] = id === "recommendations-empty" ? [] :
         data.recommendations.map(item => ({ ...item, type: "movie" }));
-    return { movie, cast, recommendations };
+    return {
+        movie, cast, recommendations,
+        companies: data.companies,
+        collection: {
+            name: data.collection.name,
+            parts: data.collection.parts.map(part => ({ ...part, item: { ...part.item, type: "movie" as const } })),
+        },
+    };
 }
 
 
@@ -38,6 +45,7 @@ export function seriesFixture(id: StateId) {
     return {
         show,
         cast: pluribus.cast as CastMember[],
+        companies: pluribus.companies,
         recommendations: pluribus.recommendations.map(item => ({ ...item, type: "series" as const })),
         regularSeasonCount: show.seasons?.filter(season => season.number > 0).length ?? 0,
         episodes: id === "series-episodes-empty" ? [] : show.videos,

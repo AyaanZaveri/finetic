@@ -1,0 +1,22 @@
+[
+  {
+    "id": 420,
+    "name": "Marvel Studios",
+    "logo": "https://image.tmdb.org/t/p/w300/mIkZDuulwMPzESbzF9lg3rD8CcO.png"
+  },
+  {
+    "id": 5,
+    "name": "Columbia Pictures",
+    "logo": "https://image.tmdb.org/t/p/w300/71BqEFAF4V3qjjMPCpLuyJFB9A.png"
+  },
+  {
+    "id": 84041,
+    "name": "Pascal Pictures",
+    "logo": "https://image.tmdb.org/t/p/w300/nw4kyc29QRpNtFbdsBHkRSFavvt.png"
+  },
+  {
+    "id": 22213,
+    "name": "TSG Entertainment",
+    "logo": "https://image.tmdb.org/t/p/w300/qx9K6bFWJupwde0xQDwOvXkOaL8.png"
+  }
+]

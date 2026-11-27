@@ -379,5 +379,41 @@
       "ratingSource": "TMDB",
       "voteCount": 157
     }
-  ]
+  ],
+  "companies": [
+    {
+      "id": 37871,
+      "name": "T-Street",
+      "logo": "https://image.tmdb.org/t/p/w300/aUOo1S2AabqQnRrXK6XuObWPDyK.png"
+    }
+  ],
+  "collection": {
+    "name": "Knives Out Collection",
+    "parts": [
+      {
+        "item": {
+          "id": "tmdb:546554",
+          "tmdbId": 546554,
+          "type": "movie",
+          "name": "Knives Out",
+          "year": 2019,
+          "poster": "https://image.tmdb.org/t/p/w500/pThyQovXQrw2m0s9x82twj48Jq4.jpg",
+          "background": "https://image.tmdb.org/t/p/w1280/4HWAQu28e2yaWrtupFPGFkdNU7V.jpg"
+        },
+        "backdrop": "https://image.tmdb.org/t/p/w780/gMVqMOCshR1C1OFj5RxSHerb0eZ.jpg"
+      },
+      {
+        "item": {
+          "id": "tmdb:661374",
+          "tmdbId": 661374,
+          "type": "movie",
+          "name": "Glass Onion: A Knives Out Mystery",
+          "year": 2022,
+          "poster": "https://image.tmdb.org/t/p/w500/vDGr1YdrlfbU9wxTOdpf3zChmv9.jpg",
+          "background": "https://image.tmdb.org/t/p/w1280/y3uOfZAYwLkbvhunswBCskNMrfI.jpg"
+        },
+        "backdrop": "https://image.tmdb.org/t/p/w780/3g6aTMPujyqsQc5YVuO8SoQwOv9.jpg"
+      }
+    ]
+  }
 }
