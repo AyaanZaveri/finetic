@@ -85,3 +85,19 @@ for segment_id, segment_start, segment_end in elements(damaged, 0, len(damaged))
 assert relative_offsets > 0, "FFmpeg fixture must have CueRelativePosition entries"
 (directory / "avc-bad-cue-offsets.mkv").write_bytes(damaged)
 print(f"Damaged {relative_offsets} relative cue offsets for packet failure fixture", flush=True)
+
+# Same AVC video packets, different container/index layouts. AAC makes the
+# files usable in the browser as well as in the bundled native player.
+ffmpeg("-i", str(source), "-map", "0", "-c:v", "copy", "-c:a", "aac",
+       str(directory / "avc-tail.mp4"))
+ffmpeg("-i", str(directory / "avc-tail.mp4"), "-map", "0", "-c", "copy",
+       "-movflags", "+faststart", str(directory / "avc-front.mp4"))
+ffmpeg("-i", str(directory / "avc-tail.mp4"), "-map", "0", "-c", "copy",
+       "-movflags", "+frag_keyframe+empty_moov+default_base_moof", str(directory / "avc-fragmented.mp4"))
+ffmpeg("-i", str(directory / "avc-tail.mp4"), "-map", "0", "-c", "copy",
+       str(directory / "avc.mov"))
+ffmpeg("-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=24:duration=30",
+       "-f", "lavfi", "-i", "sine=frequency=660:duration=30",
+       "-c:v", "libvpx-vp9", "-deadline", "realtime", "-cpu-used", "6",
+       "-threads", "4", "-row-mt", "1", "-g", "96", "-pix_fmt", "yuv420p",
+       "-c:a", "libopus", str(directory / "vp9.webm"))

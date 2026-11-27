@@ -13,6 +13,10 @@ on:
       - 'desktop/src/mpv.rs'
       - 'scripts/generate-native-preview-fixtures.py'
       - 'scripts/test-native-preview-long.py'
+      - 'scripts/test-browser-preview-formats.mjs'
+      - 'components/seek-preview.tsx'
+      - 'lib/media/range-preview-frames.ts'
+      - 'lib/media/preview-frames.ts'
 
 permissions:
   contents: read
@@ -72,12 +76,43 @@ jobs:
           RUST_LOG: warn
         run: |
           cargo test --manifest-path desktop/Cargo.toml --locked transient_index_reads_get_bounded_retries -- --nocapture
+          cargo test --manifest-path desktop/Cargo.toml --locked full_preview_completes_a_range_when_sparse_read_would_yield -- --nocapture
           cargo test --manifest-path desktop/Cargo.toml --locked headless_webdl_preview_index_recovers_after_http_failure -- --ignored --nocapture
           failed=0
-          for fixture in avc-stereo.mkv avc-surround-open-gop.mkv avc-front-cues.mkv hevc-control.mkv avc-no-cues.mkv avc-bad-cue-offsets.mkv; do
+          for fixture in avc-stereo.mkv avc-surround-open-gop.mkv avc-front-cues.mkv hevc-control.mkv avc-no-cues.mkv avc-bad-cue-offsets.mkv avc-tail.mp4 avc-front.mp4 avc-fragmented.mp4 avc.mov vp9.webm; do
             # Each fixture has a fresh application/library lifetime. A native
             # crash cannot conceal the results for the remaining formats.
             NAVIGATOR_TEST_PREVIEW_FILE="$fixture" cargo test --manifest-path desktop/Cargo.toml --locked headless_webdl_preview_formats -- --ignored --nocapture || failed=1
           done
           python scripts/test-native-preview-long.py "$NAVIGATOR_TEST_PREVIEW_DIR" || failed=1
           exit "$failed"
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 26.7.0
+          cache: npm
+      - run: npm ci
+      - name: Check browser preview providers
+        run: |
+          node scripts/test-range-previews.cjs
+          node scripts/test-previews.cjs
+          node scripts/test-browser-preview-recovery.cjs
+          node scripts/test-seek-preview-source.cjs
+          node scripts/test-preview-images.cjs
+          npx tsc --noEmit --incremental false
+      - name: Install media and browser test tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg xvfb
+          npm install -g agent-browser@0.31.1
+          google-chrome --version
+      - name: Generate matching synthetic files
+        run: python3 scripts/generate-native-preview-fixtures.py "$RUNNER_TEMP/preview-fixtures"
+      - name: Decode and present real preview frames in Chrome
+        run: xvfb-run -a node scripts/test-browser-preview-formats.mjs "$RUNNER_TEMP/preview-fixtures"

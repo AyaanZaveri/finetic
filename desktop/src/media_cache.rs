@@ -372,6 +372,14 @@ impl MediaSource {
             extension(&self.shared.original)
         )
     }
+    pub fn fallback_preview_url(&self) -> String {
+        format!(
+            "http://{}{}/preview-full.{}",
+            self.address,
+            self.path,
+            extension(&self.shared.original)
+        )
+    }
 }
 fn extension(url: &str) -> String {
     url::Url::parse(url)
@@ -671,7 +679,8 @@ fn serve(
     let Ok(request) = request(&mut socket) else {
         return reject(&mut socket, 400);
     };
-    let preview = request.path == format!("{prefix}/preview.{extension}");
+    let full_preview = request.path == format!("{prefix}/preview-full.{extension}");
+    let preview = full_preview || request.path == format!("{prefix}/preview.{extension}");
     if request.forbidden
         || request.host != address.to_string()
         || (!preview && request.path != format!("{prefix}/play.{extension}"))
@@ -687,7 +696,10 @@ fn serve(
     let _preview_slot = if preview {
         let prior = source.preview_connections.fetch_add(1, Ordering::Relaxed);
         let slot = Slot(&source.preview_connections);
-        if prior >= PREVIEW_READ_SLOTS {
+        // The full decoder is only started after the sparse decoder has been
+        // retired. Reserve one transition slot for its first request while
+        // the sparse workers finish their bounded reads.
+        if prior >= PREVIEW_READ_SLOTS + usize::from(full_preview) {
             return reject(&mut socket, 503);
         }
         Some(slot)
@@ -747,15 +759,19 @@ fn serve(
                 socket.write_all(&bytes[offset..offset + n])?;
                 at += n as u64;
             } else {
-                let next = source
-                    .state
-                    .lock()
-                    .unwrap()
-                    .bytes
-                    .next(at)
-                    .unwrap_or(u64::MAX);
+                let next = {
+                    let mut state = source.state.lock().unwrap();
+                    // Playback can fill this position between the cache miss
+                    // and the next-piece lookup. Do not issue an inverted
+                    // HTTP range (at..at-1) in that case.
+                    if state.bytes.get(at).is_some() { continue; }
+                    state.bytes.next(at).unwrap_or(u64::MAX)
+                };
                 let last = end.min(next.saturating_sub(1));
-                let reading = flight(source, at, last, preview)?;
+                // A settled full demuxer seek cannot discard a short read
+                // simply because an adjacent playback request has stalled.
+                // Keep the same cache priority and preview timeout.
+                let reading = flight(source, at, last, preview && !full_preview)?;
                 let response = source.open(
                     "GET",
                     Some(&format!("bytes={at}-{last}")),
@@ -789,7 +805,7 @@ fn serve(
         Range::From(_, Some(end)) => end,
         _ => u64::MAX,
     };
-    let reading = flight(source, first_start, first_end, preview)?;
+    let reading = flight(source, first_start, first_end, preview && !full_preview)?;
     let mut response = match source.open(&request.method, request.range.as_deref(), None, preview) {
         Ok(response) => response,
         Err(_) => return reject(&mut socket, 502),
@@ -879,6 +895,12 @@ pub(crate) mod tests {
     }
     impl Origin {
         pub(crate) fn new(data: Vec<u8>) -> Self {
+            Self::start(data, "video/mp4", false)
+        }
+        pub(crate) fn new_typed(data: Vec<u8>, mime: &'static str) -> Self {
+            Self::start(data, mime, true)
+        }
+        fn start(data: Vec<u8>, mime: &'static str, concurrent: bool) -> Self {
             let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
             let address = listener.local_addr().unwrap();
             let (requests, transferred, mode, seen, closed) = (
@@ -895,27 +917,22 @@ pub(crate) mod tests {
                 seen.clone(),
                 closed.clone(),
             );
-            let thread = std::thread::spawn(move || {
-                for socket in listener.incoming() {
-                    if stop.load(Ordering::Acquire) {
-                        break;
-                    }
-                    let Ok(mut socket) = socket else {
-                        break;
-                    };
+            let serve = Arc::new(move |mut socket: TcpStream| {
+                    let _ = socket.set_write_timeout(Some(Duration::from_secs(4)));
+                    let _ = socket.set_read_timeout(Some(Duration::from_secs(4)));
                     let count = count.fetch_add(1, Ordering::SeqCst);
                     let Ok(request) = request(&mut socket) else {
-                        continue;
+                        return;
                     };
                     if behavior.load(Ordering::SeqCst) == 5
                         && request.authorization.as_deref() != Some("Bearer private-fixture")
                     {
                         let _ = reject(&mut socket, 401);
-                        continue;
+                        return;
                     }
                     if behavior.load(Ordering::SeqCst) == 3 && count == 0 {
                         let _ = reject(&mut socket, 503);
-                        continue;
+                        return;
                     }
                     if request.path.starts_with("/redirect") {
                         let _ = reply(
@@ -926,7 +943,7 @@ pub(crate) mod tests {
                                 ("Content-Length".into(), "0".into()),
                             ],
                         );
-                        continue;
+                        return;
                     }
                     let requested = Range::parse(request.range.as_deref()).unwrap();
                     let requested = if behavior.load(Ordering::SeqCst) == 1 {
@@ -943,11 +960,11 @@ pub(crate) mod tests {
                                 ("Content-Length".into(), "0".into()),
                             ],
                         );
-                        continue;
+                        return;
                     };
                     let mut headers = vec![
                         ("Content-Length".into(), (end - start + 1).to_string()),
-                        ("Content-Type".into(), "video/mp4".into()),
+                        ("Content-Type".into(), mime.into()),
                         (
                             "ETag".into(),
                             if behavior.load(Ordering::SeqCst) == 2 {
@@ -974,7 +991,7 @@ pub(crate) mod tests {
                     )
                     .is_err()
                     {
-                        continue;
+                        return;
                     }
                     if request.method != "HEAD" {
                         ranges.lock().unwrap().push((start, end));
@@ -987,6 +1004,17 @@ pub(crate) mod tests {
                         {
                             bytes.fetch_add(end - start + 1, Ordering::SeqCst);
                         }
+                    }
+            });
+            let thread = std::thread::spawn(move || {
+                for socket in listener.incoming() {
+                    if stop.load(Ordering::Acquire) { break; }
+                    let Ok(socket) = socket else { break; };
+                    if concurrent {
+                        let serve = serve.clone();
+                        std::thread::spawn(move || serve(socket));
+                    } else {
+                        serve(socket);
                     }
                 }
             });
@@ -1210,6 +1238,20 @@ pub(crate) mod tests {
         assert!(source.shared.cached(200000, false).is_none());
         assert!(now.elapsed() < Duration::from_millis(50));
         drop(reading);
+    }
+    #[test]
+    fn full_preview_completes_a_range_when_sparse_read_would_yield() {
+        let expected = data();
+        let origin = Origin::new(expected.clone());
+        let source = MediaSource::new(&origin.url, &Headers::new()).unwrap();
+        get(&source.playback_url(), Some("bytes=0-99"));
+        // Simulate a playback read that is reserved but not making progress.
+        let stalled = flight(&source.shared, 100000, 150000, false).unwrap();
+        assert!(flight(&source.shared, 100000, 110000, true).is_err());
+        let (status, bytes) = get(&source.fallback_preview_url(), Some("bytes=100000-110000"));
+        assert_eq!(status, 206);
+        assert_eq!(bytes, expected[100000..110001]);
+        drop(stalled);
     }
     #[test]
     fn authenticated_head_and_retirement_during_an_inflight_read() {

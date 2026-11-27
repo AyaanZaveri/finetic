@@ -324,12 +324,11 @@ impl Player {
                         if session == desired {
                             if let Some((named, url, headers)) = preview_source.take() {
                                 if named == session {
-                                    // Full demuxing can use long/open-ended HTTP reads.
-                                    // The shared preview endpoint is optimized for
-                                    // short sparse ranges and can reject overlapping
-                                    // reads. Only the rare fallback opens the original.
-                                    let (fallback_url, fallback_headers) = direct_source.as_ref()
-                                        .map(|(original, _, headers, _)| (original.clone(), headers.clone()))
+                                    // The full demuxer shares resident source bytes,
+                                    // but unlike speculative sparse reads it may
+                                    // finish a seek across an overlapping range.
+                                    let (fallback_url, fallback_headers) = media_source.as_ref()
+                                        .map(|source| (source.fallback_preview_url(), BTreeMap::new()))
                                         .unwrap_or_else(|| (url.clone(), headers.clone()));
                                     let fallback = crate::thumbnails::FallbackSource {
                                         library: client.library_path().to_path_buf(),
@@ -769,7 +768,7 @@ mod tests {
         let directory = std::path::PathBuf::from(std::env::var("NAVIGATOR_TEST_PREVIEW_DIR").unwrap());
         let selected = std::env::var("NAVIGATOR_TEST_PREVIEW_FILE").ok();
         let mut failures = Vec::new();
-        for filename in ["avc-stereo.mkv", "avc-surround-open-gop.mkv", "avc-front-cues.mkv", "hevc-control.mkv", "avc-no-cues.mkv", "avc-bad-cue-offsets.mkv", "avc-long-webdl.mkv"] {
+        for filename in ["avc-stereo.mkv", "avc-surround-open-gop.mkv", "avc-front-cues.mkv", "hevc-control.mkv", "avc-no-cues.mkv", "avc-bad-cue-offsets.mkv", "avc-tail.mp4", "avc-front.mp4", "avc-fragmented.mp4", "avc.mov", "vp9.webm", "avc-long-webdl.mkv"] {
             if selected.as_deref().is_some_and(|name| name != filename) { continue; }
             let long = filename == "avc-long-webdl.mkv";
             if long && selected.is_none() { continue; }
@@ -804,8 +803,10 @@ mod tests {
             }
             // Use the actual Player, including its internal byte relay,
             // readiness gate, preview workers, and published JPEG delivery.
-            let origin = (!long).then(|| crate::media_cache::tests::Origin::new(std::fs::read(&fixture).unwrap()));
-            let url = origin.as_ref().map(|origin| origin.url.replace("/video.mp4", "/video.mkv"))
+            let extension = filename.rsplit('.').next().unwrap();
+            let mime = match extension { "mkv" => "video/x-matroska", "mov" => "video/quicktime", "webm" => "video/webm", _ => "video/mp4" };
+            let origin = (!long).then(|| crate::media_cache::tests::Origin::new_typed(std::fs::read(&fixture).unwrap(), mime));
+            let url = origin.as_ref().map(|origin| origin.url.replace("/video.mp4", &format!("/video.{extension}")))
                 .unwrap_or_else(|| std::env::var("NAVIGATOR_TEST_LONG_PREVIEW_URL").unwrap());
             let (send, inbox) = mpsc::channel();
             let mut player = Player::start(mpv.clone(), move |value| { let _ = send.send(value); }, |_, _| {}).unwrap();
