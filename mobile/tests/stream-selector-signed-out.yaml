@@ -32,11 +32,10 @@ appId: app.navigator.mobile
 - assertVisible:
     id: sign-in-email
 - takeScreenshot: sign-in-keyboard
-- hideKeyboard
-- waitForAnimationToEnd:
-    timeout: 1400
+# Dismiss the form and keyboard together. Maestro's generic hideKeyboard on
+# iPad can tap the Sign up link where it expects the keyboard dismiss key.
 - tapOn:
-    point: '50%,12%'
+    point: '50%,8%'
 - extendedWaitUntil:
     notVisible:
       id: sign-in-stremio
