@@ -200,9 +200,11 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
     }
   };
 
+  // The edge-to-edge Android portal keeps its full height. Let Gorhom lift
+  // the compact form above the IME rather than assuming the portal resized.
   if (snapshot.signedIn !== true) return <FloatingSheet ref={sheet} layout={signInSheetLayout(width, height, insets)}
     blurTarget={blurTarget} onDismiss={dismissed} contentSized
-    keyboardBehavior="interactive" keyboardBlurBehavior="restore" android_keyboardInputMode="adjustResize" enableBlurKeyboardOnGesture>
+    keyboardBehavior="interactive" keyboardBlurBehavior="restore" android_keyboardInputMode="adjustPan" enableBlurKeyboardOnGesture>
     {snapshot.signedIn === false ? <StreamSignIn onClose={close} onSuccess={close} /> : (
       <BottomSheetScrollView accessibilityViewIsModal accessible={false} onAccessibilityEscape={close} contentContainerStyle={styles.body}>
         <View className="flex-row items-center gap-2">

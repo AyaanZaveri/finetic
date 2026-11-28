@@ -26,6 +26,9 @@ appId: app.navigator.mobile
     timeout: 1400
 - assertVisible:
     id: sign-in-close
+- assertVisible:
+    id: sign-in-email
+    focused: true
 - takeScreenshot: sign-in-keyboard
 - tapOn:
     id: sign-in-close
