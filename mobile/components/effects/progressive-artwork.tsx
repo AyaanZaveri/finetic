@@ -62,11 +62,14 @@ function ArtworkComposite({
 }
 
 /** One stationary overlay above the hero crossfade or detail artwork. */
-export function ArtworkTopScrim({ light, topInset, style }: { light: boolean; topInset: number; style?: { zIndex?: number } }) {
+export function ArtworkTopScrim({ light, topInset, artworkHeight, style }: { light: boolean; topInset: number; artworkHeight: number; style?: { zIndex?: number } }) {
   if (!light) return null;
   const { height, colors, locations } = lightArtworkTopScrim(topInset);
+  // Fill the entire artwork view and finish the gradient early. A short
+  // separate view can leave a one-pixel compositor seam at its lower edge.
   return <LinearGradient pointerEvents="none" accessible={false} colors={colors} locations={locations}
-    style={[{ position: 'absolute', top: 0, start: 0, end: 0, height }, style]} />;
+    start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: Math.min(1, height / Math.max(1, artworkHeight)) }}
+    style={[StyleSheet.absoluteFill, style]} />;
 }
 
 export function ProgressiveArtwork(props: ProgressiveArtworkProps) {

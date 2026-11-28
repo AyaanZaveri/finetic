@@ -13,6 +13,12 @@ appId: app.navigator.mobile
       visible: Catalogs are unavailable
     commands:
       - tapOn: Try again
+- runFlow:
+    when:
+      visible: "Pixel Launcher isn't responding"
+    commands:
+      # The disposable emulator's launcher, not Navigator, is stalled.
+      - tapOn: Close app
 - extendedWaitUntil:
     visible:
       id: ${TARGET_ID}

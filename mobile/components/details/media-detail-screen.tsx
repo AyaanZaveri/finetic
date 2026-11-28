@@ -131,7 +131,7 @@ export function MediaDetailScreen({ type, id, episode }: { type: MediaType; id: 
             {art && <View pointerEvents="none" style={{ position: 'absolute', top: 0, start: 0, end: 0, bottom: 4, overflow: 'hidden' }}>
               <ProgressiveArtwork key={art} uri={art} backgroundColor={theme.background} light={light} contentPosition={{ top: '38%', left: '50%' }} />
               <LinearGradient style={StyleSheet.absoluteFill} colors={[light ? 'transparent' : 'rgba(0,0,0,0.44)', 'transparent', 'transparent', theme.background, theme.background]} locations={[0, 0.32, 0.62, 0.96, 1]} />
-              <ArtworkTopScrim light={light} topInset={top} />
+              <ArtworkTopScrim light={light} topInset={top} artworkHeight={artHeight - 4} />
             </View>}
             {art && <View pointerEvents="none" style={{ position: 'absolute', start: 0, end: 0, bottom: 0, height: 5, backgroundColor: theme.background }} />}
             <TitleIdentity item={item} light={light} width={bodyWidth} roomy={roomy} left={left} right={right} />
