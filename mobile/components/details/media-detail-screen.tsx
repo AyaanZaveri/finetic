@@ -2,14 +2,16 @@ import { DetailActions, DetailBackControl } from './detail-actions';
 import { EpisodeRail, episodeCode } from './episode-rail';
 import { MediaRatingBadge } from './media-rating-badge';
 import { DetailChip } from './detail-chip';
+import { StreamSelector, type StreamSelectorHandle } from './stream-selector';
 import { ArtworkTopScrim, ProgressiveArtwork } from '@/components/effects/progressive-artwork';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
-import { loadCertification, loadSeasonEpisodes } from '@/lib/home-api';
 import { formatReleaseDate, resizeBackdrop, validMediaId, type MediaEpisode, type MediaItem, type MediaType } from '@/lib/home-catalog';
 import { creditLabelWidth, detailIdentityGap, detailWordmarkSize, estimateWordmarkPadding, mergeTitleDetails } from '@/lib/detail-presentation';
 import { THEME } from '@/lib/theme';
+import { detailStreamTarget } from '@/lib/stream-selection';
+import { streamTargetId } from '@/lib/stream-api';
 import { titleQueryOptions, titleSummaryKey, useTitleLogo } from '@/lib/title-cache';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
@@ -95,22 +97,18 @@ export function MediaDetailScreen({ type, id, episode }: { type: MediaType; id: 
   const theme = THEME[colorScheme ?? 'light'];
   const light = colorScheme !== 'dark';
   const blurTarget = useRef<View>(null);
+  const streamSelector = useRef<StreamSelectorHandle>(null);
   const [chosenSeason, setChosenSeason] = useState<number | undefined>(episode?.season);
   const [selectedId, setSelectedId] = useState<string>();
   const cached = queryClient.getQueryData<MediaItem>(titleSummaryKey(type, id));
   const query = useQuery({ ...titleQueryOptions(type, id), enabled: validMediaId(id), placeholderData: cached });
   const item = mergeTitleDetails(cached, query.data);
-  const certificationQuery = useQuery({ queryKey: ['certification', type, id], queryFn: async ({ signal }) => (await loadCertification(type, id, signal)) ?? null,
-    enabled: !!item && !item.contentRating && validMediaId(id), retry: false, staleTime: 30 * 60 * 1000 });
-  const certification = item?.contentRating ?? certificationQuery.data;
   const season = chosenSeason ?? item?.seasons?.find(row => row.number > 0)?.number ?? item?.seasons?.[0]?.number ?? 1;
-  const episodeQuery = useQuery({ queryKey: ['season', id, season], queryFn: ({ signal }) => loadSeasonEpisodes(id, season, signal),
-    enabled: type === 'series' && id.startsWith('tmdb:') && !!item?.seasons?.some(row => row.number === season), staleTime: 5 * 60 * 1000, retry: false });
-  const episodes = id.startsWith('tmdb:') ? episodeQuery.data ?? [] : item?.episodes?.filter(row => row.season === season) ?? [];
-  const episodeIdentityQuery = useQuery({ queryKey: ['season', id, episode?.season], queryFn: ({ signal }) => loadSeasonEpisodes(id, episode!.season, signal),
-    enabled: !!episode && id.startsWith('tmdb:') && episode.season !== season, staleTime: 5 * 60 * 1000, retry: false });
-  const currentEpisode = episode ? (id.startsWith('tmdb:') ? episode.season === season ? episodes : episodeIdentityQuery.data ?? [] : item?.episodes ?? []).find(row => row.season === episode.season && row.number === episode.number) : undefined;
+  const episodes = item?.episodes?.filter(row => row.season === season) ?? [];
+  const currentEpisode = episode ? item?.episodes?.find(row => row.season === episode.season && row.number === episode.number) : undefined;
   const selectedEpisode = (currentEpisode?.season === season ? currentEpisode : undefined) ?? episodes.find(row => row.id === selectedId) ?? episodes[0];
+  const playEpisode = episode ?? selectedEpisode;
+  const streamTarget = detailStreamTarget(type, id, episode, selectedEpisode);
   const openEpisode = (entry: MediaEpisode) => {
     setSelectedId(entry.id);
     router.push({ pathname: '/series/[id]/[season]/[episode]', params: { id, season: String(entry.season), episode: String(entry.number) } });
@@ -121,7 +119,7 @@ export function MediaDetailScreen({ type, id, episode }: { type: MediaType; id: 
   const releaseDate = formatReleaseDate(currentEpisode?.released ?? item?.released ?? item?.releaseInfo, item?.year);
   const credits = item?.castMembers?.length ? item.castMembers : item?.cast?.map(name => ({ id: name, name, image: undefined, role: undefined }));
   return (
-    // Keep season-sheet portals in this native stack screen's accessibility tree.
+    // Keep sheet portals in this native stack screen's accessibility tree.
     <BottomSheetModalProvider>
     <View testID="title-detail-page" className="flex-1 bg-background">
       <BlurTargetView ref={blurTarget} style={{ flex: 1 }}>
@@ -145,15 +143,16 @@ export function MediaDetailScreen({ type, id, episode }: { type: MediaType; id: 
                     {type === 'series' && seasonCount > 0 && !episode && <DetailChip><Text>{seasonCount} {seasonCount === 1 ? 'Season' : 'Seasons'}</Text></DetailChip>}
                     {(type === 'movie' || episode) && (currentEpisode?.runtime || item.runtime) && <DetailChip><Text>{currentEpisode?.runtime || item.runtime}</Text></DetailChip>}
                     <MediaRatingBadge item={item} light={light} />
-                    {certification && <DetailChip><Text>{certification}</Text></DetailChip>}
+                    {item.contentRating && <DetailChip><Text>{item.contentRating}</Text></DetailChip>}
                   </View>
                   <View style={{ width: '100%', maxWidth: roomy ? 360 : undefined, alignSelf: roomy ? 'flex-start' : 'center' }}>
-                    <DetailActions item={item} episode={currentEpisode ?? selectedEpisode} episodes={episodes} onShuffle={openEpisode} />
+                    <DetailActions item={item} episode={playEpisode} episodes={episodes} onShuffle={openEpisode}
+                      onPlay={streamTarget ? () => streamSelector.current?.present() : undefined} />
                   </View>
                   <Synopsis key={currentEpisode?.id ?? item.id} description={currentEpisode?.description || item.description || 'No description is available.'} />
                   {!!(item.genres?.length || item.director?.length || item.writer?.length) && <TitleCredits item={item} fontScale={fontScale} width={roomy ? Math.min(bodyWidth, 680) : bodyWidth} />}
               </View>
-              {!!item.seasons?.length && <EpisodeRail blurTarget={blurTarget} item={item} season={season} onSeason={value => { setChosenSeason(value); setSelectedId(undefined); }} episodes={episodes} selected={selectedEpisode?.id} onOpen={openEpisode} loading={query.isFetching && !episodes.length || episodeQuery.isFetching} />}
+              {!!item.seasons?.length && <EpisodeRail blurTarget={blurTarget} item={item} season={season} onSeason={value => { setChosenSeason(value); setSelectedId(undefined); }} episodes={episodes} selected={selectedEpisode?.id} onOpen={openEpisode} loading={query.isFetching && !episodes.length} />}
               {!!credits?.length && <View className="gap-3">
                 <Text role="heading" className="text-xl font-nav-semibold">Cast</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 16 }}>
@@ -175,6 +174,8 @@ export function MediaDetailScreen({ type, id, episode }: { type: MediaType; id: 
       <View pointerEvents="box-none" className="absolute" style={{ left: left + gutter, top: top + 8 }}>
         <DetailBackControl onBack={goBack} blurTarget={blurTarget} />
       </View>
+      {item && streamTarget && <StreamSelector key={streamTargetId(streamTarget)} ref={streamSelector} target={streamTarget}
+        title={playEpisode ? `${item.name} · ${episodeCode(playEpisode)}` : item.name} blurTarget={blurTarget} />}
     </View>
     </BottomSheetModalProvider>
   );

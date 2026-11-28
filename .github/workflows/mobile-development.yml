@@ -5,12 +5,10 @@ on:
     paths:
       - 'mobile/**'
       - '.github/workflows/mobile-development.yml'
-      - 'app/api/discovery/title/**'
   pull_request:
     paths:
       - 'mobile/**'
       - '.github/workflows/mobile-development.yml'
-      - 'app/api/discovery/title/**'
   workflow_dispatch:
 permissions:
   contents: read
@@ -197,7 +195,7 @@ jobs:
       group: expo-mobile-preview-ipad-${{ github.ref_name }}
       cancel-in-progress: true
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 40
     defaults:
       run:
         working-directory: mobile
@@ -219,10 +217,19 @@ jobs:
         id: restore
         env:
           GH_TOKEN: ${{ github.token }}
-        run: bash scripts/restore-dev-client.sh ios "${{ steps.fingerprint.outputs.hash }}"
-      - name: Report cold cache
-        if: steps.restore.outputs.hit != 'true'
-        run: echo 'The iPhone job produces the universal client on a cold cache. iPad previews resume when that artifact is available.'
+        run: |
+          fingerprint="${{ steps.fingerprint.outputs.hash }}"
+          bash scripts/restore-dev-client.sh ios "$fingerprint"
+          if [ -s test-results/dev-client/ios-app.tar.gz ]; then exit 0; fi
+          echo 'Waiting for the iPhone job to publish the matching universal client.'
+          deadline=$((SECONDS + 1500))
+          until [ "$SECONDS" -ge "$deadline" ]; do
+            bash scripts/restore-dev-client.sh ios "$fingerprint" --allow-current-run
+            if [ -s test-results/dev-client/ios-app.tar.gz ]; then exit 0; fi
+            sleep 30
+          done
+          echo '::error::The iPhone job did not publish the matching universal client in time.'
+          exit 1
       - name: Warm iPad Metro bundle
         if: steps.restore.outputs.hit == 'true'
         run: bash scripts/warm-ios-metro.sh

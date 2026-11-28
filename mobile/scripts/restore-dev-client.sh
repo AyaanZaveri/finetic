@@ -4,6 +4,11 @@
 set -euo pipefail
 platform=${1:?android or ios}
 hash=${2:?native fingerprint}
+allow_current=${3:-}
+if [ -n "$allow_current" ] && { [ "$allow_current" != --allow-current-run ] || [ "$platform" != ios ]; }; then
+  echo 'Only an iPad preview can restore the current run’s universal iOS client' >&2
+  exit 2
+fi
 if [[ ! "$hash" =~ ^[0-9a-f]{64}$ ]]; then
   echo 'Expected a SHA-256 native fingerprint' >&2
   exit 2
@@ -57,9 +62,9 @@ fi
 
 # Require same repository and head repository, same branch, exact name, and
 # the artifact service's SHA-256 digest. Check the full run provenance below.
-if ! python3 - "$tmp/artifacts.json" "$name" "$repo_id" "$branch" "$run_id" <<'PY' > "$tmp/candidates"
+if ! python3 - "$tmp/artifacts.json" "$name" "$repo_id" "$branch" "$run_id" "$sha" "$allow_current" <<'PY' > "$tmp/candidates"
 import json, re, sys
-path, name, repo, branch, current_run = sys.argv[1:]
+path, name, repo, branch, current_run, sha, allow_current = sys.argv[1:]
 artifacts = json.load(open(path)).get('artifacts', [])
 artifacts.sort(key=lambda item: item.get('created_at', ''), reverse=True)
 count = 0
@@ -72,7 +77,7 @@ for art in artifacts:
             or str(run.get('repository_id')) != repo
             or str(run.get('head_repository_id')) != repo
             or run.get('head_branch') != branch
-            or str(run.get('id')) == current_run
+            or (str(run.get('id')) == current_run and (not allow_current or head != sha))
             or not str(run.get('id')).isdigit()
             or not str(art.get('id')).isdigit()
             or not re.fullmatch(r'[0-9a-f]{40}', head)

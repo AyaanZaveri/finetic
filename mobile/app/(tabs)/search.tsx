@@ -4,7 +4,6 @@ import { SearchFilters } from '@/components/search/search-filters';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
-import { useMetadataProvider } from '@/lib/metadata-provider';
 import { searchTitles } from '@/lib/home-api';
 import { mediaKey, type MediaItem } from '@/lib/home-catalog';
 import { searchGridLayout, searchPhase, searchPresentation, type SearchFilter } from '@/lib/search-presentation';
@@ -23,7 +22,6 @@ const RowSeparator = () => <View style={styles.rowGap} />;
 
 export default function SearchScreen() {
   const { top, left, right } = useSafeAreaInsets();
-  const { provider } = useMetadataProvider();
   const { width, fontScale } = useWindowDimensions();
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme ?? 'light'];
@@ -42,7 +40,7 @@ export default function SearchScreen() {
     return () => clearTimeout(timer);
   }, [editedTerm, term]);
   const query = useQuery({
-    queryKey: ['title-search', provider, term], queryFn: ({ signal }) => searchTitles(term, signal, provider),
+    queryKey: ['title-search', term], queryFn: ({ signal }) => searchTitles(term, signal),
     enabled: !!term && term === editedTerm, staleTime: 5 * 60 * 1000, retry: false,
   });
   const { gutter, columns, cardWidth, columnGap } = searchGridLayout(measuredWidth || width - left - right, fontScale);

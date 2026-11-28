@@ -9,8 +9,8 @@ const turn = () => new Promise(resolve => setImmediate(resolve));
 test('prefetch selects only a bounded number of unique valid identities in priority order', () => {
   const a = title('tt1');
   const b = title('tt1', 'series');
-  const c = title('tmdb:1');
-  assert.deepEqual(selectPrefetchTitles([a, a, title('invalid'), b, c, title('tt2')], 3), [a, b, c]);
+  const c = title('tt2');
+  assert.deepEqual(selectPrefetchTitles([a, a, title('invalid'), b, title('tmdb:1'), c, title('tt3')], 3), [a, b, c]);
   assert.deepEqual(selectPrefetchTitles([a, b], 0), []);
 });
 
@@ -42,7 +42,7 @@ test('one canonical title key deduplicates prefetch with an overlapping detail l
     await Promise.all([client.prefetchQuery(options), client.fetchQuery(titleQueryOptions('movie', 'tt1'))]);
     assert.equal((await client.fetchQuery(options)).id, 'tt1');
     assert.equal(requests, 1);
-    assert.notDeepEqual(options.queryKey, titleQueryOptions('movie', 'tmdb:1').queryKey);
+    assert.notDeepEqual(options.queryKey, titleQueryOptions('movie', 'tt2').queryKey);
     assert.notDeepEqual(options.queryKey, titleQueryOptions('series', 'tt1').queryKey);
   } finally {
     globalThis.fetch = originalFetch;

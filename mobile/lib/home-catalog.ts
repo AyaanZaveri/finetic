@@ -22,8 +22,6 @@ export interface MediaItem {
   released?: string;
   contentRating?: string;
   imdbRating?: string;
-  communityRating?: number;
-  ratingSource?: string;
   genres?: string[];
   runtime?: string;
   cast?: string[];
@@ -64,7 +62,7 @@ export function releaseYear(item: { year?: unknown; releaseInfo?: unknown }): nu
 }
 
 export function validMediaId(id: unknown): id is string {
-  return typeof id === 'string' && /^(?:tt\d{1,12}|tmdb:[1-9]\d{0,11})$/.test(id);
+  return typeof id === 'string' && /^tt\d{1,12}$/.test(id);
 }
 
 function parseSeasons(seasons: unknown, videos: unknown): MediaItem['seasons'] {
@@ -124,13 +122,12 @@ export function parseMedia(value: unknown, expected?: MediaType): MediaItem | nu
   const id = text(item.id);
   const name = text(item.name);
   if (!validMediaId(id) || !name) return null;
-  const rating = typeof item.communityRating === 'number' && item.communityRating > 0 && item.communityRating <= 10 ? item.communityRating : undefined;
   return {
     id, type: item.type, name,
     poster: artworkUrl(item.poster), background: artworkUrl(item.background), logo: artworkUrl(item.logo),
     description: text(item.description), year: releaseYear(item), releaseInfo: text(item.releaseInfo), released: text(item.released),
     contentRating: text(item.contentRating) ?? (item.contentRating && typeof item.contentRating === "object" ? text((item.contentRating as Record<string, unknown>).value) : undefined) ?? text(item.certification),
-    imdbRating: text(item.imdbRating), communityRating: rating, ratingSource: text(item.ratingSource),
+    imdbRating: text(item.imdbRating),
     genres: Array.isArray(item.genres) ? item.genres.flatMap(value => text(value) ?? []).slice(0, 4) : undefined,
     runtime: text(item.runtime),
     cast: Array.isArray(item.cast) ? item.cast.flatMap(value => text(value) ?? []).slice(0, 30) : undefined,
@@ -177,7 +174,6 @@ export function selectFeatured(sections: HomeSection[], limit = 6): MediaItem[] 
 }
 
 export function ratingLabel(item: MediaItem): string | undefined {
-  const imdb = Number(item.imdbRating);
-  const score = Number.isFinite(imdb) && imdb > 0 && imdb <= 10 ? imdb : item.communityRating;
-  return typeof score === 'number' && score > 0 && score <= 10 ? score.toFixed(1) : undefined;
+  const score = Number(item.imdbRating);
+  return Number.isFinite(score) && score > 0 && score <= 10 ? score.toFixed(1) : undefined;
 }

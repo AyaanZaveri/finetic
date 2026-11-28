@@ -54,7 +54,9 @@ References: [Expo development builds](https://docs.expo.dev/develop/development-
 - [Expo mobile checks](../.github/workflows/mobile-expo.yml) uses standard GitHub-hosted runners to compile and install the standalone app on Android, iPhone and iPad simulators. Actual screenshots use ADB and simctl before the Maestro interaction suite. CI uses live Cinemeta data, not fixture media. The Android suite tests increased text size and a system edge-back gesture. The native predictive stack is experimental in SDK 56. Artifacts stay in GitHub Actions for seven days. No signing, deployment or desktop build runs in this workflow.
 - Emulator and simulator results check interaction behavior and layouts. They do not establish actual tactile feedback, hardware HDR, device playback quality, or frame pacing.
 
-Home, Search and title details default to live public Cinemeta endpoints. Select TMDB in Settings to use the Navigator metadata service. Set `EXPO_PUBLIC_NAVIGATOR_API_ORIGIN` to an authorized HTTPS deployment if needed. No provider key or sample catalog is embedded in the app.
+Home, Search and title details use live public Cinemeta endpoints. Missing metadata is omitted. Play opens the stream selector. Sign-in and the installed add-on list use Stremio directly, and stream requests go directly to those add-ons. The app stores the Stremio session key in SecureStore and never sends it to add-ons. No Navigator server, provider key or sample catalog is required.
+
+Existing development clients from before SecureStore was added need one native rebuild. Later JavaScript-only changes can reuse the matching client.
 
 See [DESIGN.md](DESIGN.md) for current scope and [MOBILE-ROADMAP.md](MOBILE-ROADMAP.md) for the batches and platform-specific visual work.
 

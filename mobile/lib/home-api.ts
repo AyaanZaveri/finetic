@@ -1,19 +1,7 @@
-import { parseCatalog, parseEpisodes, parseMedia, validMediaId, type HomeSection, type MediaEpisode, type MediaItem, type MediaType } from './home-catalog';
-
-import type { MetadataProvider } from './metadata-provider';
-
-const DEFAULT_ORIGIN = 'https://navigator-strm.vercel.app';
-const TMDB_FEEDS = ['trending-movies', 'trending-series', 'top-rated-movies', 'top-rated-series', 'netflix-movies', 'netflix-series'] as const;
-
-function backendOrigin() {
-  const url = new URL(process.env.EXPO_PUBLIC_NAVIGATOR_API_ORIGIN || DEFAULT_ORIGIN);
-  if (url.protocol !== 'https:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash) throw new Error('Navigator API must be an HTTPS origin');
-  return url.origin;
-}
+import { parseCatalog, parseMedia, validMediaId, type HomeSection, type MediaItem, type MediaType } from './home-catalog';
 
 const CINEMETA = 'https://v3-cinemeta.strem.io';
 const CATALOGS = 'https://cinemeta-catalogs.strem.io/top';
-export type HomeFeed = { sections: HomeSection[]; provider: 'Cinemeta' | 'TMDB' };
 
 async function requestJson(url: string, parent?: AbortSignal): Promise<unknown> {
   const controller = new AbortController();
@@ -44,20 +32,7 @@ async function catalog(type: MediaType, search?: string, signal?: AbortSignal): 
   return parseCatalog(response.metas, type);
 }
 
-async function loadTMDBHome(signal?: AbortSignal): Promise<HomeFeed> {
-  const results = await Promise.allSettled(TMDB_FEEDS.map(async feed => {
-    const response = await requestJson(`${backendOrigin()}/api/discovery/home?feed=tmdb-${feed}`, signal) as { status?: string; section?: { sectionName?: unknown; mediaItems?: unknown } };
-    if (response.status !== 'ready' || typeof response.section?.sectionName !== 'string') throw new Error('TMDB catalog unavailable');
-    return { key: `tmdb-${feed}`, sectionName: response.section.sectionName, mediaItems: parseCatalog(response.section.mediaItems, feed.endsWith('movies') ? 'movie' : 'series') };
-  }));
-  if (signal?.aborted) throw new Error('Catalog request cancelled');
-  const sections = results.flatMap(result => result.status === 'fulfilled' && result.value.mediaItems.length ? [result.value] : []);
-  if (!sections.length) throw new Error('TMDB catalogs are unavailable.');
-  return { provider: 'TMDB', sections };
-}
-
-export async function loadHome(signal?: AbortSignal, provider: MetadataProvider = 'cinemeta'): Promise<HomeFeed> {
-  if (provider === 'tmdb') return loadTMDBHome(signal);
+export async function loadHome(signal?: AbortSignal): Promise<{ sections: HomeSection[] }> {
   const types = ['movie', 'series'] as const;
   const results = await Promise.allSettled(types.map(type => catalog(type, undefined, signal)));
   if (signal?.aborted) throw new Error('Catalog request cancelled');
@@ -67,50 +42,23 @@ export async function loadHome(signal?: AbortSignal, provider: MetadataProvider 
     mediaItems: result.value,
   }] : []);
   if (!sections.length) throw new Error('No catalogs are available. Try again.');
-  return { sections, provider: 'Cinemeta' };
+  return { sections };
 }
 
 export async function loadTitle(type: MediaType, id: string, signal?: AbortSignal): Promise<MediaItem> {
   if (!validMediaId(id)) throw new Error('Invalid title.');
-  const response = id.startsWith('tmdb:')
-    ? await requestJson(`${backendOrigin()}/api/discovery/title?${new URLSearchParams({ id, type })}`, signal) as { item?: unknown }
-    : await requestJson(`${CINEMETA}/meta/${type}/${id}.json`, signal) as { meta?: unknown };
-  const item = parseMedia('item' in response ? response.item : 'meta' in response ? response.meta : undefined, type);
+  const response = await requestJson(`${CINEMETA}/meta/${type}/${id}.json`, signal) as { meta?: unknown } | null;
+  const item = parseMedia(response?.meta, type);
   if (!item || item.id !== id) throw new Error('Title metadata is unavailable.');
   return item;
 }
 
-export async function searchTitles(query: string, signal?: AbortSignal, provider: MetadataProvider = 'cinemeta'): Promise<MediaItem[]> {
+export async function searchTitles(query: string, signal?: AbortSignal): Promise<MediaItem[]> {
   const q = query.trim();
   if (!q) return [];
-  if (provider === 'tmdb') {
-    const response = await requestJson(`${backendOrigin()}/api/search/results?${new URLSearchParams({ q, type: 'all', page: '1' })}`, signal) as { results?: unknown; provider?: string };
-    if (response.provider !== 'TMDB' || !Array.isArray(response.results)) throw new Error('TMDB search is unavailable');
-    return parseCatalog(response.results);
-  }
   const catalogs = await Promise.allSettled((['movie', 'series'] as const).map(type => catalog(type, q, signal)));
   if (signal?.aborted) throw new Error('Search cancelled');
   if (catalogs.every(result => result.status === 'rejected')) throw new Error('Search is unavailable');
   const [movies, series] = catalogs.map(result => result.status === 'fulfilled' ? result.value : []);
   return Array.from({ length: Math.max(movies.length, series.length) }, (_, i) => [movies[i], series[i]]).flat().filter(Boolean);
-}
-
-
-export async function loadSeasonEpisodes(id: string, season: number, signal?: AbortSignal): Promise<MediaEpisode[]> {
-  if (!validMediaId(id) || !Number.isSafeInteger(season) || season < 0 || season > 9999) throw new Error('Invalid season.');
-  if (!id.startsWith('tmdb:')) {
-    return (await loadTitle('series', id, signal)).episodes?.filter(episode => episode.season === season) ?? [];
-  }
-  const response = await requestJson(`${backendOrigin()}/api/discovery/title?${new URLSearchParams({ id, type: 'series', season: String(season) })}`, signal) as { episodes?: unknown };
-  return parseEpisodes(response.episodes, id).filter(episode => episode.season === season);
-}
-
-
-/** Supplement missing age certification without changing the user's catalog provider. */
-export async function loadCertification(type: MediaType, id: string, signal?: AbortSignal): Promise<string | undefined> {
-  if (!validMediaId(id)) return undefined;
-  try {
-    const response = await requestJson(`${backendOrigin()}/api/discovery/title?${new URLSearchParams({ id, type, certification: '1' })}`, signal) as { contentRating?: { value?: unknown } };
-    return typeof response.contentRating?.value === 'string' ? response.contentRating.value : undefined;
-  } catch { return undefined; }
 }

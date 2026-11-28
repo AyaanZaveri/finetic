@@ -1,4 +1,3 @@
-import { useMetadataProvider } from '@/lib/metadata-provider';
 import { setHapticsEnabled, triggerHaptic, useHapticsPreference } from '@/lib/haptics';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
@@ -14,7 +13,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function SettingsScreen() {
   const { top } = useSafeAreaInsets();
-  const { provider, setProvider } = useMetadataProvider();
   const hapticsEnabled = useHapticsPreference();
   const { colorScheme, setColorScheme } = useColorScheme();
   const theme = THEME[colorScheme ?? 'light'];
@@ -41,11 +39,6 @@ export default function SettingsScreen() {
           {Platform.OS === 'ios' ? <NativeSwitch testID="settings-haptics" accessibilityLabel="Haptic feedback" value={hapticsEnabled} onValueChange={changeHaptics} trackColor={{ true: theme.primary }} /> :
             <Switch testID="settings-haptics" accessibilityLabel="Haptic feedback" checked={hapticsEnabled} onCheckedChange={changeHaptics} />}
         </View>
-        <Text role="heading" className="text-lg font-nav-medium pt-4">Metadata provider</Text>
-        <View className="flex-row gap-2">
-          {(['cinemeta', 'tmdb'] as const).map(value => <Button key={value} testID={`setting-provider-${value}`} containerClassName="flex-1" variant={provider === value ? 'secondary' : 'outline'} accessibilityState={{ selected: provider === value }} haptic="selection" onPress={() => setProvider(value)}><Text>{value === 'cinemeta' ? 'Cinemeta' : 'TMDB'}</Text></Button>)}
-        </View>
-        <Text variant="muted">Cinemeta is the default. TMDB uses the Navigator metadata service.</Text>
         <Text role="heading" className="text-lg font-nav-medium pt-4">About</Text>
         <Button testID="open-design-system" variant="outline" className="justify-between" onPress={() => router.push('/design-system')}><Text>Design system</Text><Icon as={ChevronRight} size={18} /></Button>
         <Button testID="open-playback-lab" variant="outline" className="justify-between" onPress={() => router.push('/playback-lab')}><Text>Playback lab</Text><Icon as={ChevronRight} size={18} /></Button>

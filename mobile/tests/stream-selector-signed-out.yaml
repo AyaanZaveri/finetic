@@ -1,0 +1,35 @@
+appId: app.navigator.mobile
+---
+- scrollUntilVisible:
+    element:
+      id: detail-play
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: detail-play
+- extendedWaitUntil:
+    visible:
+      id: stream-selector-title
+    timeout: 15000
+- extendedWaitUntil:
+    visible:
+      id: stream-selector-sign-in
+    timeout: 15000
+- waitForAnimationToEnd:
+    timeout: 1400
+- takeScreenshot: stream-selector-signed-out
+- tapOn:
+    id: stream-selector-email
+- waitForAnimationToEnd:
+    timeout: 1400
+- assertVisible:
+    id: stream-selector-close
+- takeScreenshot: stream-selector-email-focus
+- tapOn:
+    id: stream-selector-close
+- extendedWaitUntil:
+    notVisible:
+      id: stream-selector-title
+    timeout: 10000
+- assertVisible:
+    id: detail-play

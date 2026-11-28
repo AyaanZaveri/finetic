@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { artworkUrl, parseCatalog, parseEpisodes, formatReleaseDate, selectFeatured, ratingLabel, resizeBackdrop } from '../lib/home-catalog.ts';
-import { loadHome } from '../lib/home-api.ts';
+import { loadHome, loadTitle, searchTitles } from '../lib/home-api.ts';
 
 const poster = 'https://images.metahub.space/poster/small/tt123/img';
 const background = 'https://image.tmdb.org/t/p/w1280/sample.jpg';
@@ -35,7 +35,6 @@ test('Home loads both live Cinemeta catalogs without a token', async (t) => {
     return json({metas: [item(type === 'movie' ? 'tt123' : 'tt124', type)]});
   });
   const result = await loadHome();
-  assert.equal(result.provider, 'Cinemeta');
   assert.deepEqual(result.sections.map(row => row.key), ['cinemeta-movie', 'cinemeta-series']);
 });
 
@@ -54,29 +53,46 @@ test('a malformed response on both sources returns a retriable error', async (t)
   await assert.rejects(loadHome(), /No catalogs are available/);
 });
 
-test('Cinemeta title details aggregate distinct valid episodes into seasons', async (t) => {
-  const {loadTitle} = await import('../lib/home-api.ts');
-  t.mock.method(globalThis, 'fetch', async (url) => {
+test('Cinemeta provides seasons, episode details and age ratings in one request', async (t) => {
+  const fetch = t.mock.method(globalThis, 'fetch', async (url) => {
     assert.equal(url, 'https://v3-cinemeta.strem.io/meta/series/tt123.json');
-    return json({meta: {...item('tt123', 'series'), cast: ['Actor'], videos: [{season: 1, episode: 1}, {season: 1, episode: 1}, {season: 1, episode: 2}, {season: 2, episode: 1}, {season: -1, episode: 1}]}});
+    return json({ meta: {
+      ...item('tt123', 'series'),
+      cast: ['Actor'],
+      contentRating: 'TV-PG',
+      videos: [
+        { season: 1, episode: 1 },
+        { season: 1, episode: 1 },
+        { season: 1, episode: 2 },
+        { season: 2, episode: 1, title: 'New season' },
+        { season: -1, episode: 1 },
+      ],
+    } });
   });
   const title = await loadTitle('series', 'tt123');
-  assert.deepEqual(title.seasons, [{number:1,name:'Season 1',episodeCount:2},{number:2,name:'Season 2',episodeCount:1}]);
+  assert.deepEqual(title.seasons, [
+    { number: 1, name: 'Season 1', episodeCount: 2 },
+    { number: 2, name: 'Season 2', episodeCount: 1 },
+  ]);
+  assert.equal(title.episodes.find(episode => episode.id === 'tt123:2:1').name, 'New season');
   assert.deepEqual(title.cast, ['Actor']);
+  assert.equal(title.contentRating, 'TV-PG');
+  assert.equal(fetch.mock.callCount(), 1);
 });
 
 test('Cinemeta details require the exact requested title identity', async (t) => {
-  const {loadTitle} = await import('../lib/home-api.ts');
-  t.mock.method(globalThis, 'fetch', async (url) => {
+  const fetch = t.mock.method(globalThis, 'fetch', async (url) => {
     assert.equal(url, 'https://v3-cinemeta.strem.io/meta/movie/tt123.json');
     return json({meta: {...item('tt123'), cast: ['Actor']}});
   });
-  assert.equal((await loadTitle('movie', 'tt123')).id, 'tt123');
+  const title = await loadTitle('movie', 'tt123');
+  assert.equal(title.id, 'tt123');
+  assert.equal(title.contentRating, undefined);
   await assert.rejects(loadTitle('movie', 'invalid'), /Invalid title/);
+  assert.equal(fetch.mock.callCount(), 1);
 });
 
 test('search uses live Cinemeta and interleaves movie and series results', async (t) => {
-  const {searchTitles} = await import('../lib/home-api.ts');
   t.mock.method(globalThis, 'fetch', async (url) => {
     assert.ok(url.startsWith('https://v3-cinemeta.strem.io/catalog/'));
     assert.ok(url.includes('/top/search=Star%20Wars.json'));
@@ -99,23 +115,12 @@ test('cast portraits are normalized and invalid URLs are omitted', () => {
 });
 
 
-test('TMDB is opt-in while Cinemeta remains the default', async (t) => {
-  const {loadHome, loadTitle, searchTitles} = await import('../lib/home-api.ts');
-  t.mock.method(globalThis, 'fetch', async (url) => {
-    assert.ok(url.startsWith('https://navigator-strm.vercel.app'));
-    if (url.includes('/api/discovery/home')) {
-      const type = url.endsWith('movies') ? 'movie' : 'series';
-      return json({status:'ready', section:{sectionName:'Discovery',mediaItems:[item('tmdb:123',type)]}});
-    }
-    if (url.includes('/api/search/results')) return json({provider:'TMDB',results:[item('tmdb:123')]});
-    assert.ok(url.includes('/api/discovery/title'));
-    return json({item:item('tmdb:123')});
-  });
-  assert.equal((await loadHome(undefined, 'tmdb')).sections.length, 6);
-  assert.equal((await searchTitles('Movie', undefined, 'tmdb'))[0].id, 'tmdb:123');
-  assert.equal((await loadTitle('movie', 'tmdb:123')).id, 'tmdb:123');
+test('legacy TMDB title IDs are rejected before making a request', async (t) => {
+  const fetch = t.mock.method(globalThis, 'fetch');
+  await assert.rejects(loadTitle('movie', 'tmdb:123'), /Invalid title/);
+  assert.equal(fetch.mock.callCount(), 0);
+  assert.deepEqual(parseCatalog([item('tmdb:123')]), []);
 });
-
 
 test('live series episode records preserve title, coordinates, date and artwork', () => {
   const rows = parseEpisodes([
@@ -128,24 +133,4 @@ test('live series episode records preserve title, coordinates, date and artwork'
   assert.equal(rows[1].thumbnail, 'https://episodes.metahub.space/tt123/2/1/w780.jpg');
   assert.equal(formatReleaseDate(rows[1].released), 'Feb 1, 2026');
   assert.equal(parseCatalog([{...item('tt123','series'), year:'2023–', contentRating:{value:'TV-PG',region:'US'}}])[0].contentRating,'TV-PG');
-});
-
-test('optional TMDB season requests return matching episode coordinates', async (t) => {
-  const {loadSeasonEpisodes} = await import('../lib/home-api.ts');
-  t.mock.method(globalThis,'fetch',async url => {
-    assert.ok(url.includes('/api/discovery/title?id=tmdb%3A123&type=series&season=2'));
-    return json({episodes:[{season:2,episode:3,name:'Episode three',runtime:44},{season:1,episode:1,name:'Wrong season'}]});
-  });
-  const episodes = await loadSeasonEpisodes('tmdb:123',2);
-  assert.equal(episodes.length,1);
-  assert.equal(episodes[0].runtime,'44 min');
-});
-
-test('optional age certification supplements live Cinemeta without changing its provider', async (t) => {
-  const {loadCertification} = await import('../lib/home-api.ts');
-  t.mock.method(globalThis, 'fetch', async url => {
-    assert.ok(url.includes('/api/discovery/title?id=tt123&type=series&certification=1'));
-    return json({contentRating:{value:'TV-PG',region:'US'}});
-  });
-  assert.equal(await loadCertification('series','tt123'),'TV-PG');
 });

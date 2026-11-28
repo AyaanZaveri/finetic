@@ -12,9 +12,9 @@ Keep `app/`, `components/`, `desktop/`, `ios/` and `android/` as the existing pr
 |---|---|---|
 | 1 | SDK and router, themes, fonts, locally owned components, haptics and native glass surface, component preview | Implemented, device verification pending |
 | 2 | Artwork image, progressive blur, media cards, native tabs and navigation shell | Implemented, device verification pending |
-| 3 | Public Cinemeta API client with optional TMDB provider, Home hero and catalog rails; Continue Watching after account integration | Core Home implemented, remaining account features pending |
+| 3 | Public Cinemeta API client, Home hero and catalog rails; Continue Watching after account integration | Core Home implemented, remaining account features pending |
 | 4 | Movie and series detail routes, search, episodes, seasons and people | Movie/series and episode pages, title search, season picker and episode rail implemented; playback integration pending |
-| 5 | Session and secure storage, library, watch history and addons | Pending |
+| 5 | Session and secure storage, library, watch history and add-ons | Direct Stremio sign-in, secure session storage and installed add-on discovery implemented. Library and watch history are pending. |
 | 6 | Settings categories and provider connections | Pending |
 | 7 | Native playback adapters, player chrome and lifecycle | Native ExoPlayer and AVPlayer comparison lab, preview cache, synthetic fixtures and CI coverage in progress; AetherEngine and account integration pending |
 | 8 | End-to-end feature parity, screenshots on device classes, accessibility and physical device validation | Pending |
@@ -34,8 +34,8 @@ for variety.
 | P1 | Interaction and haptics | Finger-linked hero crossfade, circular dots, single native selection tick per committed snap, persistent haptics setting, and tactile poster press-to-native-page handoff. No vibration on canceled gestures. |
 | P1 | Adaptive tablet layout | iPad and Android tablet layouts use sensible rail density, spacing and readable detail widths. Test portrait, landscape and compact phone layouts. |
 | P1 | Search | Match the web mobile design, use native keyboard controls, adaptive results, filters, loading, retry and empty states, and native title navigation. |
-| P2 | Metadata and episodes | Complete release date, rating and certification parity, season selection, episode thumbnail rail and focus ring. Keep Cinemeta default and optional TMDB; verify hosted TMDB contract before treating it as live. |
-| P3 | Account and library | Native settings categories, session and secure credential storage, library, likes, watch history and add-on configuration. Replace local-only like state with account-backed state when ready. |
+| P2 | Metadata and episodes | Show release dates, ratings and certifications when Cinemeta supplies them. Keep season selection, the episode thumbnail rail and the focus ring. |
+| P3 | Account and library | Native settings categories, library, likes, watch history and add-on configuration. Replace local-only like state with account-backed state when ready. |
 | P4 | Playback | Connect Play and Shuffle to real native playback sources. Reuse the existing engine capability contracts and test on physical devices. |
 | P5 | Final parity | Accessibility, responsiveness, device-specific animation feel, stability and release readiness. |
 
@@ -58,7 +58,7 @@ haptics, playback, HDR or frame pacing as hardware verification.
 | Horizontal catalog rails, hero slide controls | Native scroll and list virtualization. Gesture Handler and Reanimated for snap/transition effects when necessary. Preserve content and safe-area layouts on compact and tablet screens. |
 | Web Framer Motion and hover feedback | Reanimated (transform/opacity), Gesture Handler, native navigation. Convert hover to touch feedback; remove desktop-only behaviors. Honor Reduced Motion. |
 | Expandable search, keyboard and chat composer | Native TextInput, keyboard insets, native scrolling, focus and accessible labels. Preserve search debounce and query semantics. |
-| Browser storage, auth and TanStack Query | Native secure storage for credentials, ordinary persisted storage for settings, TanStack Query for data. Replace relative fetch and server actions with explicit HTTP contracts. Check signin/session, logout, account isolation, and the hosted API's challenge behavior; do not bypass bot protection. |
+| Browser storage, auth and TanStack Query | Use native secure storage for the Stremio session key, ordinary storage for settings, and TanStack Query for metadata. Sign in and load add-ons directly from Stremio. Sign out clears the stored key. |
 | Media player and native bridge | Use Expo Video as the initial Media3 ExoPlayer (Android) and AVPlayer (iOS) comparison baseline. Evaluate AetherEngine on iOS through an owned Expo native module. Preserve session-scoped commands, secure headers, track selection, resume, state relay, PiP capability flags, audio focus and lifecycle for production playback. See [native playback research and tests](docs/playback.md). |
 | Timeline, seek previews, brightness and volume gestures | Reuse independent native preview workers and gesture logic. Use UI-thread animation for drag, commit once, preserve haptic detents and disable work when backgrounded. |
 | Subtitles, delay, skip segments, next episode | Retain parsing, timing, playback reporting and continuation logic where platform-independent; bridge native engine capabilities and adapt overlay rendering. |
@@ -73,4 +73,4 @@ haptics, playback, HDR or frame pacing as hardware verification.
 - [Libraries.dev](https://libraries.dev/) currently focuses on React AI-oriented effects and has no progressive-blur React Native registry component in its published index. Keep it in consideration for future suitable effects only.
 - [Expo Haptics](https://docs.expo.dev/versions/v56.0.0/sdk/haptics/) provides selection/impact on iOS and system haptic actions on Android. Test the dispatch policy automatically; feel and vibration require physical hardware.
 - [Expo Modules API](https://docs.expo.dev/modules/overview/) supports local Swift and Kotlin native views/modules, which is the intended bridge for the existing playback engines.
-- The hosted discovery API returned a Vercel challenge for a direct unauthenticated HTTP check on 2026-11-27. This must be resolved as part of the mobile API work with an authorized backend configuration, not circumvented in the client.
+- Mobile uses Cinemeta and Stremio directly instead of the Navigator server.

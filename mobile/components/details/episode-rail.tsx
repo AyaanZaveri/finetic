@@ -1,23 +1,19 @@
 import { GlassSurface } from '@/components/effects/glass-surface';
-import { BlurView } from 'expo-blur';
 import { ArtworkImage } from '@/components/media/artwork-image';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
+import { FloatingSheet } from '@/components/ui/floating-sheet';
 import { triggerHaptic } from '@/lib/haptics';
 import { formatReleaseDate, type MediaEpisode, type MediaItem } from '@/lib/home-catalog';
 import { THEME } from '@/lib/theme';
 import { seasonSheetLayout } from '@/lib/season-sheet';
-import { BottomSheetBackdrop, BottomSheetModal, BottomSheetScrollView, type BottomSheetBackdropProps, type BottomSheetBackgroundProps } from '@gorhom/bottom-sheet';
+import { BottomSheetModal, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { Check, ChevronDown } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useCallback, useRef, useState, type RefObject } from 'react';
+import { useRef, useState, type RefObject } from 'react';
 import { ActivityIndicator, FlatList, Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
-
-function SeasonBackdrop(props: BottomSheetBackdropProps) {
-  return <BottomSheetBackdrop {...props} opacity={0.26} appearsOnIndex={0} disappearsOnIndex={-1} pressBehavior="close" />;
-}
 
 export const episodeCode = (episode: Pick<MediaEpisode, 'season' | 'number'>) =>
   `S${String(episode.season).padStart(2, '0')}E${String(episode.number).padStart(2, '0')}`;
@@ -34,18 +30,6 @@ export function EpisodeRail({ item, season, onSeason, episodes, selected, onOpen
   const roomy = availableWidth >= 720;
   const sheet = useRef<BottomSheetModal>(null);
   const sheetLayout = seasonSheetLayout(width, height, insets, item.seasons?.length ?? 0, fontScale);
-  const SheetBackground = useCallback(({ style, pointerEvents }: BottomSheetBackgroundProps) => {
-    const surfaceStyle = [style, styles.sheetBackground];
-    if (Platform.OS === 'ios') return <GlassSurface pointerEvents={pointerEvents} style={surfaceStyle}
-      fallbackStyle={{ backgroundColor: theme.card, borderWidth: 0 }} />;
-    const canBlur = Platform.OS === 'android' && Number(Platform.Version) >= 31 && blurTarget;
-    return <View pointerEvents={pointerEvents} style={[surfaceStyle, { backgroundColor: canBlur ? 'transparent' : theme.card }]}>
-      {canBlur && <>
-        <BlurView blurTarget={blurTarget} blurMethod="dimezisBlurViewSdk31Plus" tint={colorScheme ?? 'light'} intensity={45} style={StyleSheet.absoluteFill} />
-        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: colorScheme === 'dark' ? '#171717db' : '#ffffffde' }]} />
-      </>}
-    </View>;
-  }, [colorScheme, theme.card, blurTarget]);
   const [focused, setFocused] = useState<string>();
   const cardWidth = roomy ? Math.min(288, Math.round(availableWidth * 0.32)) : Math.min(240, Math.max(160, Math.round(availableWidth * 0.53)));
   const seasonName = item.seasons?.find(row => row.number === season)?.name ?? `Season ${season}`;
@@ -77,14 +61,14 @@ export function EpisodeRail({ item, season, onSeason, episodes, selected, onOpen
             </View>
           </Pressable>;
         }} /> : <Text variant="muted">Episode details are not available for this season.</Text>}
-      <BottomSheetModal ref={sheet} accessible={false} style={[styles.sheet, { marginLeft: sheetLayout.marginLeft, marginRight: sheetLayout.marginRight }]} detached bottomInset={sheetLayout.bottomInset} topInset={sheetLayout.topInset} snapPoints={[sheetLayout.snapHeight]} backdropComponent={SeasonBackdrop} enableDynamicSizing={false} backgroundComponent={SheetBackground} handleIndicatorStyle={{ backgroundColor: theme.mutedForeground }}>
+      <FloatingSheet ref={sheet} layout={sheetLayout} blurTarget={blurTarget}>
         <BottomSheetScrollView accessibilityViewIsModal accessible={false} contentContainerStyle={{ padding: 16, paddingBottom: 16, gap: 8 }}>
           <Text role="heading" className="text-xl font-nav-semibold pb-2">Choose a season</Text>
           {item.seasons?.map(row => <Button key={row.number} testID={`season-option-${row.number}`} variant={row.number === season ? 'secondary' : 'ghost'} className="justify-start" accessibilityState={{ selected: row.number === season }} onPress={() => { onSeason(row.number); sheet.current?.dismiss(); }} haptic="selection">
             <Text className="flex-1">{row.name}</Text><Text variant="muted">{row.episodeCount} episodes</Text>{row.number === season && <Icon as={Check} size={16} />}
           </Button>)}
         </BottomSheetScrollView>
-      </BottomSheetModal>
+      </FloatingSheet>
     </View>
   );
 }
@@ -92,6 +76,4 @@ const styles = StyleSheet.create({
   seasonTrigger: { minHeight: 48, alignSelf: 'flex-start', justifyContent: 'center' },
   seasonPill: { minHeight: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 6, borderWidth: 0 },
   frame: { borderWidth: 2, padding: 2, borderRadius: 13 },
-  sheetBackground: { borderRadius: 28, overflow: 'hidden', padding: 0, borderWidth: 0 },
-  sheet: { shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 8 },
 });

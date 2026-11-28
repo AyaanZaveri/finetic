@@ -5,8 +5,7 @@ import { mediaKey, validMediaId, type MediaItem, type MediaType } from './home-c
 
 const MINUTE = 60 * 1000;
 
-// IMDb and TMDB IDs already occupy distinct namespaces. Share exactly the same
-// keys between hero, search, prefetch and detail regardless of the active tab.
+// Share the same keys between hero, search, prefetch and detail.
 export function titleSummaryKey(type: MediaType, id: string) {
   return ['title-summary', type, id] as const;
 }

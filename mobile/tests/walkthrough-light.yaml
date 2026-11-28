@@ -103,6 +103,7 @@ appId: app.navigator.mobile
 - takeScreenshot: walkthrough-episode-detail
 - waitForAnimationToEnd:
     timeout: 1600
+- runFlow: stream-selector-signed-out.yaml
 - tapOn:
     id: title-detail-back
 - tapOn:

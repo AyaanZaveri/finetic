@@ -67,6 +67,7 @@ appId: app.navigator.mobile
 - takeScreenshot: ipad-movie-portrait
 - assertNotVisible:
     id: tablet-detail-poster
+- runFlow: stream-selector-signed-out.yaml
 - tapOn:
     id: title-detail-back
 - tapOn:

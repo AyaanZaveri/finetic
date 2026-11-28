@@ -10,7 +10,7 @@ import { THEME } from '@/lib/theme';
 import { ArrowLeft, Heart, Play, Shuffle } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
 import { useEffect, useState } from 'react';
-import { Alert, Platform, StyleSheet, View, type View as NativeView } from 'react-native';
+import { Platform, StyleSheet, View, type View as NativeView } from 'react-native';
 import { BlurView } from 'expo-blur';
 import type { RefObject } from 'react';
 
@@ -31,7 +31,13 @@ function SecondaryDetailAction(props: ButtonProps) {
   return <GlassButton {...props} surfaceStyle={styles.glass} size="icon" className="rounded-full" />;
 }
 
-export function DetailActions({ item, episode, episodes, onShuffle }: { item: MediaItem; episode?: MediaEpisode; episodes: MediaEpisode[]; onShuffle: (episode: MediaEpisode) => void }) {
+export function DetailActions({ item, episode, episodes, onShuffle, onPlay }: {
+  item: MediaItem;
+  episode?: Pick<MediaEpisode, 'season' | 'number'>;
+  episodes: MediaEpisode[];
+  onShuffle: (episode: MediaEpisode) => void;
+  onPlay?: () => void;
+}) {
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme ?? 'light'];
   const [liked, setLiked] = useState(false);
@@ -46,18 +52,17 @@ export function DetailActions({ item, episode, episodes, onShuffle }: { item: Me
     setLiked(next);
     void AsyncStorage.setItem(key, next ? '1' : '0').catch(() => {});
   };
-  const play = () => Alert.alert('Playback is not available yet', 'The native player and source selection will be added in a later batch.');
   const shuffle = () => {
     if (!episodes.length) return;
     const available = episodes.filter(row => !row.released || !Number.isFinite(Date.parse(row.released)) || Date.parse(row.released) <= Date.now());
     if (!available.length) return;
-    const alternatives = available.filter(row => row.id !== episode?.id);
+    const alternatives = available.filter(row => row.season !== episode?.season || row.number !== episode?.number);
     const choices = alternatives.length ? alternatives : available;
     onShuffle(choices[Math.floor(Math.random() * choices.length)]);
   };
   return (
     <View className="flex-row items-center gap-2" testID="detail-actions">
-      <Button testID="detail-play" containerClassName="flex-1" className="rounded-full min-h-12" haptic="impact" onPress={play} accessibilityHint="Playback is not connected in this build">
+      <Button testID="detail-play" containerClassName="flex-1" className="rounded-full min-h-12" haptic="impact" onPress={onPlay} disabled={!onPlay} accessibilityHint={onPlay ? 'Find streams' : 'No episode is available to select'}>
         <Icon as={Play} fill={theme.background} color={theme.background} size={20} />
         <Text className="shrink text-[17px] font-nav-semibold">Play{episode ? <Text className="text-[17px] font-nav-medium" style={{ color: colorScheme === 'dark' ? '#555555' : '#d4d4d4' }}> {episodeCode(episode)}</Text> : null}</Text>
       </Button>
