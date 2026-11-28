@@ -13,6 +13,17 @@ export function artworkBlurLayers(quality: ArtworkQuality, platform: string) {
   return quality === 'carousel' || platform === 'android' ? COMPACT_LAYERS : BLUR_LAYERS;
 }
 
+/** Protect dark system icons in light mode without whitening the full image. */
+export function lightArtworkTopScrim(topInset: number) {
+  const protectedHeight = Math.max(24, topInset);
+  const height = protectedHeight + 72;
+  return {
+    height,
+    colors: ['rgba(255,255,255,0.68)', 'rgba(255,255,255,0.60)', 'rgba(255,255,255,0.24)', 'rgba(255,255,255,0)'] as const,
+    locations: [0, protectedHeight / height, (protectedHeight + 28) / height, 1] as const,
+  };
+}
+
 /** True only when the final unique native image layer has finished displaying. */
 export function createArtworkLoadTracker(parts: number) {
   const settled = new Set<number>();

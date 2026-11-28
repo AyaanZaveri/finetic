@@ -1,4 +1,4 @@
-import { artworkBlurLayers, createArtworkLoadTracker, type ArtworkQuality } from '@/lib/progressive-artwork';
+import { artworkBlurLayers, createArtworkLoadTracker, lightArtworkTopScrim, type ArtworkQuality } from '@/lib/progressive-artwork';
 import MaskedView from '@react-native-masked-view/masked-view';
 import { Image, type ImageProps } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -53,12 +53,20 @@ function ArtworkComposite({
         ))}
         <LinearGradient style={StyleSheet.absoluteFill} colors={light
           ? prominentLightScrim
-            ? ['rgba(255,255,255,0.24)', 'transparent', 'rgba(255,255,255,0.72)', 'rgba(255,255,255,0.98)']
-            : ['rgba(255,255,255,0.24)', 'transparent', 'rgba(255,255,255,0.32)', 'rgba(255,255,255,0.94)']
+            ? ['transparent', 'transparent', 'rgba(255,255,255,0.72)', 'rgba(255,255,255,0.98)']
+            : ['transparent', 'transparent', 'rgba(255,255,255,0.32)', 'rgba(255,255,255,0.94)']
           : ['rgba(6,10,12,0.5)', 'transparent', 'rgba(6,10,12,0.65)', 'rgba(6,10,12,0.85)']} locations={light && prominentLightScrim ? [0, 0.26, 0.55, 0.89] : [0, 0.26, 0.60, 0.89]} />
       </Animated.View>
     </View>
   );
+}
+
+/** One stationary overlay above the hero crossfade or detail artwork. */
+export function ArtworkTopScrim({ light, topInset, style }: { light: boolean; topInset: number; style?: { zIndex?: number } }) {
+  if (!light) return null;
+  const { height, colors, locations } = lightArtworkTopScrim(topInset);
+  return <LinearGradient pointerEvents="none" accessible={false} colors={colors} locations={locations}
+    style={[{ position: 'absolute', top: 0, start: 0, end: 0, height }, style]} />;
 }
 
 export function ProgressiveArtwork(props: ProgressiveArtworkProps) {

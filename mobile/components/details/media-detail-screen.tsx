@@ -2,7 +2,7 @@ import { DetailActions, DetailBackControl } from './detail-actions';
 import { EpisodeRail, episodeCode } from './episode-rail';
 import { MediaRatingBadge } from './media-rating-badge';
 import { DetailChip } from './detail-chip';
-import { ProgressiveArtwork } from '@/components/effects/progressive-artwork';
+import { ArtworkTopScrim, ProgressiveArtwork } from '@/components/effects/progressive-artwork';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
@@ -130,7 +130,8 @@ export function MediaDetailScreen({ type, id, episode }: { type: MediaType; id: 
           <View className="relative justify-end" style={{ minHeight: art ? artHeight : top + 112, paddingTop: top + 48, paddingBottom: detailIdentityGap(roomy) }}>
             {art && <View pointerEvents="none" style={{ position: 'absolute', top: 0, start: 0, end: 0, bottom: 4, overflow: 'hidden' }}>
               <ProgressiveArtwork key={art} uri={art} backgroundColor={theme.background} light={light} contentPosition={{ top: '38%', left: '50%' }} />
-              <LinearGradient style={StyleSheet.absoluteFill} colors={[light ? 'rgba(255,255,255,0.24)' : 'rgba(0,0,0,0.44)', 'transparent', 'transparent', theme.background, theme.background]} locations={[0, 0.32, 0.62, 0.96, 1]} />
+              <LinearGradient style={StyleSheet.absoluteFill} colors={[light ? 'transparent' : 'rgba(0,0,0,0.44)', 'transparent', 'transparent', theme.background, theme.background]} locations={[0, 0.32, 0.62, 0.96, 1]} />
+              <ArtworkTopScrim light={light} topInset={top} />
             </View>}
             {art && <View pointerEvents="none" style={{ position: 'absolute', start: 0, end: 0, bottom: 0, height: 5, backgroundColor: theme.background }} />}
             <TitleIdentity item={item} light={light} width={bodyWidth} roomy={roomy} left={left} right={right} />

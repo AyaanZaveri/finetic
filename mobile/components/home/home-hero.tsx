@@ -1,4 +1,4 @@
-import { ProgressiveArtwork } from '@/components/effects/progressive-artwork';
+import { ArtworkTopScrim, ProgressiveArtwork } from '@/components/effects/progressive-artwork';
 import { GlassSurface } from '@/components/effects/glass-surface';
 import { GlassButton } from '@/components/ui/glass-button';
 import { Icon } from '@/components/ui/icon';
@@ -162,6 +162,7 @@ export function HomeHero({ items, onOpen }: { items: MediaItem[]; onOpen: (item:
             colors={light ? ['rgba(255,255,255,0.38)', 'rgba(255,255,255,0.14)', 'rgba(255,255,255,0)'] : ['rgba(10,10,10,0.44)', 'rgba(10,10,10,0.16)', 'rgba(10,10,10,0)']}
             locations={[0, 0.42, 1]} />}
           <LinearGradient style={[StyleSheet.absoluteFill, { zIndex: 2 }]} colors={['transparent', 'transparent', light ? 'rgba(255,255,255,0.04)' : 'rgba(10,10,10,0.16)', theme.background, theme.background]} locations={[0, 0.74, 0.89, 0.96, 1]} />
+          <ArtworkTopScrim light={light} topInset={top} style={{ zIndex: 3 }} />
         </View>
         <View pointerEvents="none" style={[styles.artworkEnd, { backgroundColor: theme.background }]} />
         <View className="justify-end" style={{ width: '100%', alignItems: layout.roomy ? 'flex-start' : 'center', paddingLeft: layout.leadingPadding, paddingRight: layout.trailingPadding }}>
