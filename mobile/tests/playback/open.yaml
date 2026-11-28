@@ -1,19 +1,37 @@
 appId: app.navigator.mobile
 ---
-# Use only bundled synthetic media, without depending on catalog data.
+# Navigate within the app so iOS never opens a system confirmation dialog.
 - launchApp:
     clearState: true
 - tapOn:
     text: Wait
     optional: true
-- openLink: "navigator-mobile:///playback-lab?fixture=${FIXTURE}&auto=1"
+- extendedWaitUntil:
+    visible: Settings
+    timeout: 45000
+- tapOn: Settings
+- tapOn:
+    id: open-playback-lab
 - runFlow:
     when:
-      platform: iOS
+      true: ${ENGINE == 'aether'}
     commands:
       - tapOn:
-          text: Open
-          optional: true
+          id: select-playback-engine-aether
+- assertVisible:
+    id: "playback-engine-${ENGINE}"
+- scrollUntilVisible:
+    element:
+      id: "playback-fixture-${FIXTURE}"
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: "playback-fixture-${FIXTURE}"
+- scrollUntilVisible:
+    element:
+      id: 'playback-(loading|first-frame|error)'
+    direction: UP
+    timeout: 15000
 - extendedWaitUntil:
     visible:
       id: playback-player

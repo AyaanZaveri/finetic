@@ -4,6 +4,8 @@ set -euo pipefail
 platform=${1:?Specify android or ios}
 device=${2:?Specify the installed app device}
 case "$platform" in android|ios) ;; *) exit 2 ;; esac
+engine=${3:-expo}
+case "$platform:$engine" in android:expo|ios:expo|ios:aether) ;; *) exit 2 ;; esac
 folder="test-results/playback"
 mkdir -p "$folder"
 result=0
@@ -12,7 +14,7 @@ run_case() {
   local destination="$folder/$fixture"
   mkdir -p "$destination"
   echo "Testing $fixture: $flow"
-  if ! maestro test --device "$device" -e FIXTURE="$fixture" \
+  if ! maestro test --device "$device" -e FIXTURE="$fixture" -e ENGINE="$engine" \
     --format junit --output "$destination/report.xml" \
     --test-output-dir "$destination" --debug-output "$destination" \
     "tests/playback/$flow.yaml" | tee "$destination/maestro.log"; then
@@ -22,7 +24,17 @@ run_case() {
   local evidence
   case "$flow" in
     supported) evidence='preview-displayed.png' ;;
+    cache) evidence='preview-cache-comparison.png' ;;
     chapters) evidence='chapter-images-displayed.png' ;;
+    subtitles) evidence='subtitle-track-discovered.png' ;;
+    adaptive) evidence='adaptive-rendered.png' ;;
+    adaptive-probe)
+      if [ -n "$(find "$destination" -name 'adaptive-rejected.png' -print -quit)" ]; then
+        evidence='adaptive-rejected.png'
+      else
+        evidence='adaptive-rendered.png'
+      fi
+      ;;
     unsupported) evidence='unsupported-source.png' ;;
     probe)
       # A probe must take precisely one branch and leave corresponding evidence.
@@ -40,10 +52,9 @@ run_case() {
 }
 
 # Required baseline uses real frames and thumbnails, not fixture screenshots.
-run_case mp4-avc supported
+run_case mp4-avc cache
 run_case mp4-chapters chapters
-if [ "$platform" = android ]; then
-  # Media3 supports these containers; the emulator must demonstrate playback.
+if [ "$platform" = android ] || [ "$engine" = aether ]; then
   run_case mkv-avc supported
   run_case webm-vp9 supported
 else
@@ -52,23 +63,54 @@ else
   run_case mkv-avc probe
   run_case webm-vp9 probe
 fi
+if [ "$engine" = aether ]; then
+  run_case mkv-av1-subs subtitles
+else
+  run_case mkv-av1-subs probe
+fi
 # HEVC decoder availability is device/OS dependent. Require a native frame and
 # preview, or an explicit unsupported error, and preserve which was observed.
 run_case mp4-hevc probe
+if [ "${NAVIGATOR_ADAPTIVE_FIXTURES:-0}" = 1 ]; then
+  if [ "$platform" = android ]; then
+    adb -s "$device" reverse tcp:8765 tcp:8765
+  fi
+  python3 scripts/prepare-adaptive-playback-fixtures.py --serve 8765 --directory "${RUNNER_TEMP:?}/navigator-adaptive-fixtures" \
+    > "$folder/adaptive-origin.log" 2>&1 &
+  origin_pid=$!
+  trap 'kill "$origin_pid" 2>/dev/null || true' EXIT
+  for attempt in {1..15}; do
+    if curl -fsS -o /dev/null http://127.0.0.1:8765/hls/playlist.m3u8; then break; fi
+    if ! kill -0 "$origin_pid" 2>/dev/null; then break; fi
+    sleep 1
+  done
+  curl -fsS -o /dev/null http://127.0.0.1:8765/dash/manifest.mpd
+  run_case adaptive-hls adaptive
+  if [ "$platform" = android ]; then run_case adaptive-dash adaptive; else run_case adaptive-dash adaptive-probe; fi
+fi
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {
-    echo "### $platform native media results"
+    echo "### $platform native media results ($engine)"
     echo
     echo '| Fixture | Required outcome | Observed |'
     echo '|---|---|---|'
-    for name in mp4-avc mp4-chapters mkv-avc webm-vp9 mp4-hevc; do
+    for dest in "$folder"/*/; do
+      name=$(basename "$dest")
       dest="$folder/$name"
       expected='Playback and preview'
-      if [ "$name" = mp4-chapters ]; then
+      if [ "$name" = mp4-avc ]; then
+        expected='Playback and uncached/cached previews'
+      elif [ "$name" = mp4-chapters ]; then
         expected='Playback, preview and chapter images'
-      elif [ "$name" = mp4-hevc ]; then
+      elif [ "$name" = mkv-av1-subs ] && [ "$engine" = aether ]; then
+        expected='Playback, preview and embedded subtitle track'
+      elif [ "$name" = adaptive-hls ] || { [ "$name" = adaptive-dash ] && [ "$platform" = android ]; }; then
+        expected='Playback and seek'
+      elif [ "$name" = adaptive-dash ]; then
         expected='Compatibility probe'
-      elif [ "$platform" = ios ] && [[ "$name" = mkv-avc || "$name" = webm-vp9 ]]; then
+      elif [[ "$name" = mp4-hevc || "$name" = mkv-av1-subs ]]; then
+        expected='Compatibility probe'
+      elif [ "$platform:$engine" = ios:expo ] && [[ "$name" = mkv-avc || "$name" = webm-vp9 ]]; then
         expected='Compatibility probe (AVPlayer usually rejects)'
       fi
       observed='FAILED or incomplete; see logs'
@@ -82,10 +124,16 @@ cases = list(root.iter("testcase"))
 sys.exit(0 if cases and not any(case.find("failure") is not None or case.find("error") is not None or case.find("skipped") is not None for case in cases) else 1)
 PY
       then
-        if [ -n "$(find "$dest" -name 'codec-rejected.png' -print -quit)" ]; then
+        if [ -n "$(find "$dest" \( -name 'codec-rejected.png' -o -name 'adaptive-rejected.png' \) -print -quit)" ]; then
           observed='Rejected (not playable)'
         elif [ -n "$(find "$dest" -name 'unsupported-source.png' -print -quit)" ]; then
           observed='Expected rejection (not playable)'
+        elif [ -n "$(find "$dest" -name 'adaptive-rendered.png' -print -quit)" ]; then
+          observed='Rendered and sought in adaptive media'
+        elif [ -n "$(find "$dest" -name 'preview-cache-comparison.png' -print -quit)" ]; then
+          observed='Rendered and displayed uncached/cached previews'
+        elif [ -n "$(find "$dest" -name 'subtitle-track-discovered.png' -print -quit)" ]; then
+          observed='Rendered, extracted preview and found embedded subtitle track'
         elif [ -n "$(find "$dest" -name 'preview-displayed.png' -print -quit)" ]; then
           observed='Rendered and extracted preview'
           if [ "$name" = mp4-chapters ]; then observed='Rendered and extracted chapter images'; fi
@@ -94,7 +142,7 @@ PY
       echo "| $name | $expected | $observed |"
     done
     echo
-    echo 'Simulator evidence does not establish audio output quality, HDR, hardware decoding, or device-wide codec support.'
+    echo 'Preview timings are request-to-display samples on this runner. Simulator evidence does not establish audio output quality, HDR, hardware decoding, or device-wide codec support.'
   } >> "$GITHUB_STEP_SUMMARY"
 fi
 exit "$result"

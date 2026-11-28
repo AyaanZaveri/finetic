@@ -7,24 +7,30 @@ on:
       - 'mobile/components/playback/**'
       - 'mobile/lib/playback-*.ts'
       - 'mobile/assets/playback/**'
+      - 'mobile/native/**'
+      - 'mobile/plugins/**'
       - 'mobile/tests/playback/**'
       - 'mobile/tests/playback-*.test.mjs'
       - 'mobile/scripts/generate-playback-fixtures.py'
+      - 'mobile/scripts/prepare-adaptive-playback-fixtures.py'
       - 'mobile/scripts/test-native-playback.sh'
       - 'mobile/package*.json'
       - 'mobile/app.json'
+      - 'mobile/app.config.js'
       - 'mobile/metro.config.js'
       - '.github/workflows/mobile-playback.yml'
 permissions:
   contents: read
+  actions: read
 concurrency:
-  group: mobile-playback-${{ github.ref_name }}
+  group: mobile-playback-${{ github.ref_name }}-${{ github.sha }}
   cancel-in-progress: true
 env:
   CI: '1'
   EXPO_NO_TELEMETRY: '1'
   MAESTRO_CLI_NO_ANALYTICS: 'true'
   COCOAPODS_DISABLE_STATS: 'true'
+  NAVIGATOR_ADAPTIVE_FIXTURES: '1'
 jobs:
   fixtures:
     runs-on: ubuntu-24.04
@@ -43,6 +49,13 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Check fixture containers, codecs, duration, chapters and decoding
         run: python3 scripts/generate-playback-fixtures.py --verify
+      - name: Generate and verify adaptive fixtures
+        run: python3 scripts/prepare-adaptive-playback-fixtures.py --output "$RUNNER_TEMP/navigator-adaptive-fixtures"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: mobile-adaptive-playback-fixtures
+          path: ${{ runner.temp }}/navigator-adaptive-fixtures/
+          retention-days: 7
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
@@ -75,6 +88,12 @@ jobs:
           ./gradlew assembleRelease --no-daemon | tee ../test-results/android-build.log
       - name: Start API 35 emulator and install app
         run: bash scripts/prepare-android-device.sh
+      - name: Download adaptive fixtures from this run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name mobile-adaptive-playback-fixtures --dir "$RUNNER_TEMP/navigator-adaptive-fixtures"
       - name: Test native playback and extracted images
         run: |
           device=$(adb devices | awk '$2 == "device" { print $1; exit }')
@@ -96,7 +115,20 @@ jobs:
           retention-days: 7
   ios:
     needs: fixtures
-    runs-on: macos-26
+    name: iOS playback (${{ matrix.engine }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - engine: expo
+            runner: macos-26
+            enable_aether: '0'
+          - engine: aether
+            runner: xcode-27
+            enable_aether: '1'
+    runs-on: ${{ matrix.runner }}
+    env:
+      NAVIGATOR_IOS_AETHER: ${{ matrix.enable_aether }}
     timeout-minutes: 65
     defaults:
       run:
@@ -124,7 +156,17 @@ jobs:
           test -n "$workspace"
           xcodebuild -workspace "$workspace" -scheme Navigator -configuration Release -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/navigator-playback-ios" \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO | tee test-results/ios-build.log
+            ONLY_ACTIVE_ARCH=YES ARCHS=arm64 CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO | tee test-results/ios-build.log
+      - name: Verify AetherEngine dynamic frameworks
+        if: matrix.engine == 'aether'
+        run: |
+          app=$(find "$RUNNER_TEMP/navigator-playback-ios/Build/Products/Release-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)
+          test -n "$app"
+          for library in avcodec avformat avutil swresample swscale avfilter dav1d zimg zvbi; do
+            binary="$app/Frameworks/AetherLib${library}.framework/AetherLib${library}"
+            test -f "$binary"
+            xcrun vtool -show-build "$binary" | tee -a test-results/aether-frameworks.log
+          done
       - name: Boot iPhone and install app
         run: |
           app=$(find "$RUNNER_TEMP/navigator-playback-ios/Build/Products/Release-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)
@@ -134,8 +176,14 @@ jobs:
           xcrun simctl boot "$device" || true
           xcrun simctl bootstatus "$device" -b
           xcrun simctl install "$device" "$app"
+      - name: Download adaptive fixtures from this run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name mobile-adaptive-playback-fixtures --dir "$RUNNER_TEMP/navigator-adaptive-fixtures"
       - name: Test native playback and extracted images
-        run: bash scripts/test-native-playback.sh ios "$PLAYBACK_IOS_DEVICE"
+        run: bash scripts/test-native-playback.sh ios "$PLAYBACK_IOS_DEVICE" "${{ matrix.engine }}"
       - name: Collect iOS diagnostics
         if: always()
         continue-on-error: true
@@ -149,7 +197,7 @@ jobs:
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         if: always()
         with:
-          name: mobile-ios-playback
+          name: mobile-ios-playback-${{ matrix.engine }}
           path: mobile/test-results/
           if-no-files-found: warn
           retention-days: 7

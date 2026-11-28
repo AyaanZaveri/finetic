@@ -16,7 +16,7 @@ Keep `app/`, `components/`, `desktop/`, `ios/` and `android/` as the existing pr
 | 4 | Movie and series detail routes, search, episodes, seasons and people | Movie/series and episode pages, title search, season picker and episode rail implemented; playback integration pending |
 | 5 | Session and secure storage, library, watch history and add-ons | Direct Stremio sign-in, secure session storage and installed add-on discovery implemented. Library and watch history are pending. |
 | 6 | Settings categories and provider connections | Pending |
-| 7 | Native playback adapters, player chrome and lifecycle | Native ExoPlayer and AVPlayer comparison lab, preview cache, synthetic fixtures and CI coverage in progress; AetherEngine and account integration pending |
+| 7 | Native playback adapters, player chrome and lifecycle | ExoPlayer and AVPlayer baseline, opt-in AetherEngine lab, synthetic fixtures and native CI. Account playback integration is pending. |
 | 8 | End-to-end feature parity, screenshots on device classes, accessibility and physical device validation | Pending |
 
 Every batch preserves the existing clients. Add focused tests and screenshots to the mobile CI suite as features arrive. Use real Cinemeta data in device previews and isolated mock responses in unit tests. Do not consider a batch device-verified until its tests have run on both platforms.

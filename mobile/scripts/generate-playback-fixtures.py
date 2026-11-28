@@ -14,12 +14,21 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1] / "assets" / "playback"
 DURATION = 14
 CHAPTERS = [(0, 4, "Start"), (4, 9, "Middle"), (9, 14, "End")]
+SUBTITLES = """1
+00:00:01,000 --> 00:00:04,000
+Navigator test subtitle one
+
+2
+00:00:08,000 --> 00:00:11,000
+Navigator test subtitle two
+"""
 FIXTURES = {
-    "mp4-avc.mp4": ("mp4", "h264", "aac"),
-    "mkv-avc.mkv": ("matroska", "h264", "aac"),
-    "webm-vp9.webm": ("webm", "vp9", "opus"),
-    "mp4-hevc.mp4": ("mp4", "hevc", "aac"),
-    "mp4-chapters.mp4": ("mp4", "h264", "aac"),
+    "mp4-avc.mp4": ("mp4", "h264", "aac", None),
+    "mkv-avc.mkv": ("matroska", "h264", "aac", None),
+    "webm-vp9.webm": ("webm", "vp9", "opus", None),
+    "mp4-hevc.mp4": ("mp4", "hevc", "aac", None),
+    "mkv-av1-subs.mkv": ("matroska", "av1", "flac", "subrip"),
+    "mp4-chapters.mp4": ("mp4", "h264", "aac", None),
 }
 
 
@@ -35,9 +44,12 @@ def generate():
     # must not overwrite the existing, valid fixture set.
     with tempfile.TemporaryDirectory(prefix="navigator-mobile-media-") as directory:
         folder = Path(directory)
-        sources = [
+        inputs = [
             "-f", "lavfi", "-i", f"testsrc2=size=256x144:rate=12:duration={DURATION}",
             "-f", "lavfi", "-i", f"sine=frequency=440:sample_rate=48000:duration={DURATION}",
+        ]
+        sources = [
+            *inputs,
             "-map", "0:v:0", "-map", "1:a:0",
             "-pix_fmt", "yuv420p", "-g", "12",
         ]
@@ -52,6 +64,12 @@ def generate():
                "-x265-params", "pools=none:frame-threads=1:log-level=error",
                "-crf", "32", "-tag:v", "hvc1", "-c:a", "aac", "-b:a", "32k",
                "-movflags", "+faststart", folder / "mp4-hevc.mp4")
+        subtitles = folder / "subtitles.srt"
+        subtitles.write_text(SUBTITLES, encoding="utf-8")
+        ffmpeg(*inputs, "-i", subtitles, "-map", "0:v:0", "-map", "1:a:0", "-map", "2:s:0",
+               "-pix_fmt", "yuv420p", "-g", "12", "-c:v", "libsvtav1", "-preset", "10",
+               "-svtav1-params", "lp=1", "-crf", "45", "-c:a", "flac", "-c:s", "srt",
+               "-metadata:s:s:0", "language=eng", folder / "mkv-av1-subs.mkv")
         metadata = folder / "chapters.ffmeta"
         metadata.write_text(";FFMETADATA1\n" + "".join(
             f"[CHAPTER]\nTIMEBASE=1/1000\nSTART={start * 1000}\nEND={end * 1000}\ntitle={title}\n"
@@ -67,7 +85,7 @@ def generate():
 
 
 def verify(folder):
-    for filename, (container, video, audio) in FIXTURES.items():
+    for filename, (container, video, audio, subtitle) in FIXTURES.items():
         path = folder / filename
         result = subprocess.run(
             ["ffprobe", "-v", "error", "-show_format", "-show_streams",
@@ -81,6 +99,15 @@ def verify(folder):
         assert streams["video"]["codec_name"] == video, filename
         assert streams["video"]["width"] == 256 and streams["video"]["height"] == 144, filename
         assert streams["audio"]["codec_name"] == audio, filename
+        assert streams.get("subtitle", {}).get("codec_name") == subtitle, filename
+        if subtitle:
+            assert streams["subtitle"]["tags"]["language"] == "eng", filename
+            decoded = subprocess.run(
+                ["ffmpeg", "-v", "error", "-xerror", "-i", str(path),
+                 "-map", "0:s:0", "-c:s", "srt", "-f", "srt", "-"],
+                check=True, text=True, capture_output=True,
+            )
+            assert decoded.stdout.strip() == SUBTITLES.strip(), filename
         actual_chapters = [
             (float(chapter["start_time"]), float(chapter["end_time"]), chapter["tags"]["title"])
             for chapter in info["chapters"]
@@ -89,7 +116,8 @@ def verify(folder):
         # Check complete decoding, not only container headers.
         subprocess.run(["ffmpeg", "-v", "error", "-xerror", "-i", str(path),
                         "-map", "0:v:0", "-map", "0:a:0", "-f", "null", "-"], check=True)
-        print(f"{filename}: {container}, {video}/{audio}, {DURATION}s, {path.stat().st_size} bytes")
+        codecs = "/".join(codec for codec in (video, audio, subtitle) if codec)
+        print(f"{filename}: {container}, {codecs}, {DURATION}s, {path.stat().st_size} bytes")
 
 
 if __name__ == "__main__":
