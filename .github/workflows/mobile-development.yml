@@ -86,6 +86,16 @@ jobs:
           retention-days: 30
       - name: Launch current JavaScript in the native client
         run: bash scripts/dev-client-android.sh launch
+      - name: Capture Android Home in both appearances
+        run: bash scripts/capture-hero-preview.sh android
+        continue-on-error: true
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always()
+        with:
+          name: navigator-android-hero-preview
+          path: mobile/test-results/hero-preview/
+          if-no-files-found: warn
+          retention-days: 7
       - name: Record Android visual walkthrough and screenshots
         env:
           NAVIGATOR_DEV_CLIENT: '1'
@@ -153,6 +163,16 @@ jobs:
         run: bash scripts/warm-ios-metro.sh
       - name: Launch current JavaScript in the native client
         run: bash scripts/dev-client-ios.sh launch iPhone
+      - name: Capture iPhone Home in both appearances
+        run: bash scripts/capture-hero-preview.sh ios
+        continue-on-error: true
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always()
+        with:
+          name: navigator-ios-hero-preview
+          path: mobile/test-results/hero-preview/
+          if-no-files-found: warn
+          retention-days: 7
       - name: Record iPhone visual walkthrough and screenshots
         env:
           NAVIGATOR_DEV_CLIENT: '1'
@@ -210,6 +230,17 @@ jobs:
         if: steps.restore.outputs.hit == 'true'
         id: launch
         run: bash scripts/dev-client-ios.sh launch iPad
+      - name: Capture iPad Home in both appearances and orientations
+        if: steps.launch.outcome == 'success'
+        run: bash scripts/capture-hero-preview.sh ipad
+        continue-on-error: true
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always() && steps.restore.outputs.hit == 'true'
+        with:
+          name: navigator-ipad-hero-preview
+          path: mobile/test-results/hero-preview/
+          if-no-files-found: warn
+          retention-days: 7
       - name: Capture live portrait and landscape layouts
         if: steps.launch.outcome == 'success'
         run: |

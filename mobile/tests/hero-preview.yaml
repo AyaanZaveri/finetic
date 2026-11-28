@@ -1,0 +1,9 @@
+appId: app.navigator.mobile
+---
+- extendedWaitUntil:
+    visible:
+      id: hero-primary
+    timeout: 60000
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: home

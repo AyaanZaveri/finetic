@@ -1,0 +1,17 @@
+appId: app.navigator.mobile
+---
+- setOrientation: PORTRAIT
+- extendedWaitUntil:
+    visible:
+      id: hero-primary
+    timeout: 60000
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: home-portrait
+- setOrientation: LANDSCAPE_LEFT
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertVisible:
+    id: hero-primary
+- takeScreenshot: home-landscape
+- setOrientation: PORTRAIT
