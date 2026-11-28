@@ -1,13 +1,7 @@
 appId: app.navigator.mobile
 ---
-- openLink: navigator-mobile:///movie/tt0088763
 - extendedWaitUntil:
     visible:
       id: title-detail-name
     timeout: 45000
 - runFlow: stream-selector-signed-out.yaml
-- openLink: navigator-mobile:///
-- extendedWaitUntil:
-    visible:
-      id: hero-primary
-    timeout: 30000
