@@ -112,7 +112,7 @@ private final class NavigatorAetherView: ExpoView {
       engine.bind(view: surface)
       seekSubscription = engine.seekEvents.sink { [weak self] event in
         guard case .landed = event.outcome else { return }
-        self?.onSeekLanded(["target": event.target])
+        self?.onSeekLanded(["requestedTime": event.target])
       }
       let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
         MainActor.assumeIsolated { self?.updateStatus() }

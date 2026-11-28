@@ -18,6 +18,8 @@ appId: app.navigator.mobile
     commands:
       - tapOn:
           id: select-playback-engine-aether
+- assertVisible:
+    id: "playback-engine-${ENGINE}"
 - scrollUntilVisible:
     element:
       id: "playback-fixture-${FIXTURE}"
@@ -27,7 +29,7 @@ appId: app.navigator.mobile
     id: "playback-fixture-${FIXTURE}"
 - scrollUntilVisible:
     element:
-      id: "playback-engine-${ENGINE}"
+      id: 'playback-(loading|first-frame|error)'
     direction: UP
     timeout: 15000
 - extendedWaitUntil:

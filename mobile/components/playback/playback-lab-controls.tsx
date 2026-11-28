@@ -114,7 +114,13 @@ export function PlaybackLabControls({
           {progressed && <Text testID="playback-progress" variant="muted">Playback advanced</Text>}
         </>}
       </View>
-      <Text testID={expectedDuration !== undefined && Math.abs(duration - expectedDuration) < 0.75 ? "playback-duration-ready" : undefined} className="font-nav-medium" style={{ fontVariant: ['tabular-nums'] }}>{formatPlaybackTime(currentTime)} / {formatPlaybackTime(duration)}</Text>
+      <View className="flex-row flex-wrap items-center gap-2">
+        <Text testID={expectedDuration !== undefined && Math.abs(duration - expectedDuration) < 0.75 ? 'playback-duration-ready' : undefined}
+          className="font-nav-medium" style={{ fontVariant: ['tabular-nums'] }}>
+          {formatPlaybackTime(currentTime)} / {formatPlaybackTime(duration)}
+        </Text>
+        {seekComplete && <Text testID="playback-seek-complete" variant="muted">Seek completed</Text>}
+      </View>
       <Pressable accessibilityRole="adjustable" accessibilityLabel="Playback timeline"
         accessibilityValue={{ min: 0, max: Math.max(1, Math.round(duration)), now: Math.max(0, Math.min(Math.max(1, Math.round(duration)), Math.round(currentTime))) }}
         accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
@@ -134,7 +140,6 @@ export function PlaybackLabControls({
         <Button testID="playback-seek" variant="outline" disabled={!available || midpoint === null} onPress={() => { if (midpoint !== null) seek(midpoint); }}><Text>Seek halfway</Text></Button>
         <Button testID="playback-preview" variant="outline" disabled={!available || midpoint === null} onPress={() => { if (midpoint !== null) generatePreview(midpoint); }}><Text>Preview frame</Text></Button>
       </View>
-      {seekComplete && <Text testID="playback-seek-complete" variant="muted">Seek completed</Text>}
       {previewState === 'loading' && <Text variant="muted">Generating preview…</Text>}
       {previewState === 'error' && <Text testID="playback-preview-error" variant="muted">Preview unavailable for this source</Text>}
       {preview && <PreviewImage key={preview.request} frame={preview.frame} id="playback-preview-ready"

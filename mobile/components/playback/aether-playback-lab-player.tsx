@@ -25,7 +25,7 @@ type NativeProps = ViewProps & {
   loop: boolean;
   onStatus: (event: { nativeEvent: Status }) => void;
   onChapters: (event: { nativeEvent: { chapters: PlaybackChapter[] } }) => void;
-  onSeekLanded: (event: { nativeEvent: { target: number } }) => void;
+  onSeekLanded: (event: { nativeEvent: { requestedTime: number } }) => void;
   ref: Ref<Commands>;
 };
 
@@ -64,7 +64,8 @@ export function AetherPlaybackLabPlayer({ source, label, expectedDuration }: Pla
           onStatus={event => setStatus(event.nativeEvent)}
           onChapters={event => setChapters(event.nativeEvent.chapters)}
           onSeekLanded={event => {
-            if (pendingSeek.current === null || Math.abs(pendingSeek.current - event.nativeEvent.target) > 0.1) return;
+            const { requestedTime } = event.nativeEvent;
+            if (pendingSeek.current === null || !Number.isFinite(requestedTime) || Math.abs(pendingSeek.current - requestedTime) > 0.1) return;
             pendingSeek.current = null;
             setSeekComplete(true);
           }} />
