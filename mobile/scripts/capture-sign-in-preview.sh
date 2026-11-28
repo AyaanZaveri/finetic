@@ -17,9 +17,8 @@ case "${1:?Expected android or ios}" in
   *) exit 2 ;;
 esac
 
-# Dispatch directly to the current development client. On iOS, Maestro's
-# browser-based openLink path can leave an OS confirmation over the app.
+# Dispatch directly to the current development client. The Maestro flow
+# accepts the system confirmation if iOS asks to open the custom URL.
 open_route navigator-mobile:///movie/tt0088763
-trap 'open_route navigator-mobile:/// || true' EXIT
 maestro test --device "$device" --test-output-dir test-results/sign-in-preview \
   --format junit --output test-results/sign-in-report.xml tests/sign-in-preview.yaml
