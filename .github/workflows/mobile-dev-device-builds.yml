@@ -1,0 +1,128 @@
+name: Navigator phone development builds
+
+on:
+  push:
+    branches: [mobile-phone-dev-builds]
+    paths: ['.github/workflows/mobile-dev-device-builds.yml']
+
+permissions:
+  contents: read
+
+env:
+  CI: '1'
+  EXPO_NO_TELEMETRY: '1'
+  NAVIGATOR_IOS_AETHER: '0'
+  NAVIGATOR_ADAPTIVE_FIXTURES: '0'
+
+jobs:
+  android:
+    name: Android ARM64 development APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: mobile
+        shell: bash
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e5dc5ba9c38
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - name: Build ARM64 development client
+        run: |
+          npx --no-install expo prebuild --clean --platform android --no-install
+          cd android
+          ./gradlew :app:assembleDebug -PreactNativeArchitectures=arm64-v8a --no-daemon
+      - name: Verify and stage development APK
+        run: |
+          apk=android/app/build/outputs/apk/debug/app-debug.apk
+          tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          "$tools/apksigner" verify --verbose "$apk"
+          "$tools/aapt" dump badging "$apk" > "$RUNNER_TEMP/navigator-apk-badging.txt"
+          grep -Fq "package: name='app.navigator.mobile'" "$RUNNER_TEMP/navigator-apk-badging.txt"
+          grep -Fxq 'application-debuggable' "$RUNNER_TEMP/navigator-apk-badging.txt"
+          zipinfo -1 "$apk" > "$RUNNER_TEMP/navigator-apk-files.txt"
+          grep -Fxq 'lib/arm64-v8a/libreactnative.so' "$RUNNER_TEMP/navigator-apk-files.txt"
+          ! grep -Fxq 'assets/index.android.bundle' "$RUNNER_TEMP/navigator-apk-files.txt"
+          staging=test-results/dev-device-builds/android
+          mkdir -p "$staging"
+          install -m 644 "$apk" "$staging/Navigator-Android-Development-arm64.apk"
+          cd "$staging"
+          sha256sum Navigator-Android-Development-arm64.apk > SHA256SUMS
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: navigator-android-development-arm64
+          path: mobile/test-results/dev-device-builds/android/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  ios:
+    name: Unsigned iPhone development IPA
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      COCOAPODS_DISABLE_STATS: 'true'
+    defaults:
+      run:
+        working-directory: mobile
+        shell: bash
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e5dc5ba9c38
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Verify Xcode version
+        run: |
+          version=$(xcodebuild -version)
+          printf '%s\n' "$version"
+          [[ "$version" == "Xcode 26."* ]]
+      - run: npm ci
+      - name: Generate iOS project
+        run: |
+          npx --no-install expo prebuild --clean --platform ios --no-install
+          cd ios
+          pod install
+      - name: Build development client for iPhone
+        run: |
+          workspace=$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)
+          test -n "$workspace"
+          SKIP_BUNDLING=1 xcodebuild -workspace "$workspace" -scheme Navigator -configuration Debug \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath "$RUNNER_TEMP/navigator-ios-dev" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' build
+      - name: Verify and stage unsigned development IPA
+        run: |
+          app="$RUNNER_TEMP/navigator-ios-dev/Build/Products/Debug-iphoneos/Navigator.app"
+          info="$app/Info.plist"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$info")" = app.navigator.mobile
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleSupportedPlatforms:0' "$info")" = iPhoneOS
+          binary=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$info")
+          test "$(lipo -archs "$app/$binary")" = arm64
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes' "$info" | grep -Eq '^[[:space:]]+exp\+navigator-mobile[[:space:]]*$'
+          test ! -e "$app/main.jsbundle"
+          test ! -e "$app/embedded.mobileprovision"
+          staging="$PWD/test-results/dev-device-builds/ios"
+          payload="$RUNNER_TEMP/navigator-unsigned-ipa/Payload"
+          mkdir -p "$staging" "$payload"
+          ditto "$app" "$payload/Navigator.app"
+          ipa=Navigator-iOS-Development-Unsigned.ipa
+          ditto -c -k --keepParent "$payload" "$staging/$ipa"
+          unzip -tq "$staging/$ipa"
+          cd "$staging"
+          shasum -a 256 "$ipa" > SHA256SUMS
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: navigator-ios-development-unsigned
+          path: mobile/test-results/dev-device-builds/ios/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
