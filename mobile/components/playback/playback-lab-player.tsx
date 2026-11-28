@@ -47,7 +47,7 @@ export function PlaybackLabPlayer({ label, source, chapters = NO_CHAPTERS, expec
     const value = event.duration;
     if (Number.isFinite(value) && value > 0) setDuration(value);
   });
-  useEventListener(player, 'playToEnd', () => setEnded(true));
+  useEventListener(player, 'playToEnd', () => { if (!player.loop) setEnded(true); });
   useEffect(() => {
     if (status === 'readyToPlay' && Number.isFinite(player.duration) && player.duration > 0) setDuration(player.duration);
   }, [status, player]);
