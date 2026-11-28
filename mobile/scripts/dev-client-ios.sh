@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Reuse an unsigned iOS simulator development client across JS-only changes.
+# Reuse an iOS simulator development client across JS-only changes.
 # Run in GitHub Actions with the dependencies and Maestro already installed.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -25,6 +25,29 @@ validate_app() {
   test -f "$app/$executable"
 }
 
+configure_simulator_keychain() {
+  # Xcode links simulated entitlements into the executable. Adding iOS
+  # entitlements to a cached app's macOS signature prevents it from launching.
+  # Only the generated Debug simulator target gets this disposable access group.
+  node <<'NODE'
+const fs = require('node:fs');
+const { IOSConfig } = require('@expo/config-plugins');
+const plist = require('@expo/plist').default;
+const root = process.cwd();
+const build = { targetName: 'Navigator', buildConfiguration: 'Debug' };
+const project = IOSConfig.XcodeUtils.getPbxproj(root);
+const existing = IOSConfig.Entitlements.getEntitlementsPath(root, build);
+const entitlements = existing ? plist.parse(fs.readFileSync(existing, 'utf8')) : {};
+entitlements['keychain-access-groups'] = ['NAVSIM0001.app.navigator.mobile'];
+const relativePath = 'NavigatorPreview.entitlements';
+fs.writeFileSync('ios/' + relativePath, plist.build(entitlements));
+const config = IOSConfig.Target.getXCBuildConfigurationFromPbxproj(project, build);
+if (!config) throw new Error('Navigator Debug configuration is missing');
+config.buildSettings.CODE_SIGN_ENTITLEMENTS = relativePath;
+fs.writeFileSync(project.filepath, project.writeSync());
+NODE
+}
+
 build_client() {
   if [ -s "$archive" ]; then
     if tar -tzf "$archive" > "$folder/ios-archive-files.txt" &&
@@ -40,6 +63,7 @@ build_client() {
   # the current JS bundle from Metro, so do not embed a bundle in the archive.
   local derived_data="${RUNNER_TEMP:-$folder}/navigator-ios-dev"
   npx expo prebuild --platform ios --no-install
+  configure_simulator_keychain
   (
     cd ios
     pod install | tee "$folder/ios-dev-pods.log"
@@ -49,11 +73,17 @@ build_client() {
   test -n "$workspace"
   SKIP_BUNDLING=1 xcodebuild -workspace "$workspace" -scheme Navigator -configuration Debug \
     -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
-    -derivedDataPath "$derived_data" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+    -derivedDataPath "$derived_data" AD_HOC_CODE_SIGNING_ALLOWED=YES CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
     | tee "$folder/ios-dev-build.log"
   app=$(find "$derived_data/Build/Products/Debug-iphonesimulator" -maxdepth 1 -type d -name '*.app' -print -quit)
   test -n "$app"
   validate_app "$app"
+  local executable
+  executable=$(/usr/libexec/PlistBuddy -c 'Print CFBundleExecutable' "$app/Info.plist")
+  xcrun otool -l "$app/$executable" > "$folder/ios-simulator-load-commands.txt"
+  grep -Eq 'sectname[[:space:]]+__entitlements' "$folder/ios-simulator-load-commands.txt"
+  strings -a "$app/$executable" > "$folder/ios-simulator-executable-strings.txt"
+  grep -q 'NAVSIM0001.app.navigator.mobile' "$folder/ios-simulator-executable-strings.txt"
   tar -C "$(dirname "$app")" -czf "$archive.tmp" "$(basename "$app")"
   mv "$archive.tmp" "$archive"
   echo "Built iOS development client: $archive"

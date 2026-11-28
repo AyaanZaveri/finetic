@@ -165,8 +165,6 @@ jobs:
           path: mobile/test-results/dev-client/ios-app.tar.gz
           if-no-files-found: error
           retention-days: 30
-      - name: Prepare Keychain access for the iPhone simulator
-        run: bash scripts/sign-ios-preview-client.sh test-results/dev-client/ios-app.tar.gz
       - name: Warm iOS Metro bundle
         run: bash scripts/warm-ios-metro.sh
       - name: Launch current JavaScript in the native client
@@ -213,7 +211,7 @@ jobs:
       group: expo-mobile-preview-ipad-${{ github.ref_name }}
       cancel-in-progress: true
     runs-on: macos-26
-    timeout-minutes: 40
+    timeout-minutes: 55
     defaults:
       run:
         working-directory: mobile
@@ -240,7 +238,7 @@ jobs:
           bash scripts/restore-dev-client.sh ios "$fingerprint"
           if [ -s test-results/dev-client/ios-app.tar.gz ]; then exit 0; fi
           echo 'Waiting for the iPhone job to publish the matching universal client.'
-          deadline=$((SECONDS + 1500))
+          deadline=$((SECONDS + 2400))
           until [ "$SECONDS" -ge "$deadline" ]; do
             bash scripts/restore-dev-client.sh ios "$fingerprint" --allow-current-run
             if [ -s test-results/dev-client/ios-app.tar.gz ]; then exit 0; fi
@@ -248,9 +246,6 @@ jobs:
           done
           echo '::error::The iPhone job did not publish the matching universal client in time.'
           exit 1
-      - name: Prepare Keychain access for the iPad simulator
-        if: steps.restore.outputs.hit == 'true'
-        run: bash scripts/sign-ios-preview-client.sh test-results/dev-client/ios-app.tar.gz
       - name: Warm iPad Metro bundle
         if: steps.restore.outputs.hit == 'true'
         run: bash scripts/warm-ios-metro.sh
