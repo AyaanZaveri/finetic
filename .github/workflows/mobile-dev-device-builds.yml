@@ -48,9 +48,18 @@ jobs:
       - run: npm ci
       - name: Build ARM64 development client
         run: |
-          npx --no-install expo prebuild --clean --platform android --no-install
+          npx --no-install expo prebuild --clean --platform android --no-install --template expo-template-bare-minimum@56.0.38
           cd android
-          ./gradlew :app:assembleDebug -PreactNativeArchitectures=arm64-v8a --no-daemon
+          init_script="$RUNNER_TEMP/navigator-plugins.gradle"
+          cat > "$init_script" <<'GRADLE'
+          beforeSettings { settings ->
+              settings.pluginManagement.repositories {
+                  gradlePluginPortal()
+              }
+          }
+          GRADLE
+          ./gradlew --init-script "$init_script" :app:assembleDebug \
+            -PreactNativeArchitectures=arm64-v8a --no-daemon --info
       - name: Verify and stage development APK
         run: |
           apk=android/app/build/outputs/apk/debug/app-debug.apk
@@ -115,7 +124,7 @@ jobs:
       - run: npm ci
       - name: Generate iOS project
         run: |
-          npx --no-install expo prebuild --clean --platform ios --no-install
+          npx --no-install expo prebuild --clean --platform ios --no-install --template expo-template-bare-minimum@56.0.38
           cd ios
           pod install
       - name: Build development client for iPhone
