@@ -1,4 +1,5 @@
 import { StreamCard } from './stream-card';
+import { StreamSignIn } from './stream-sign-in';
 import { Button } from '@/components/ui/button';
 import { FloatingSheet } from '@/components/ui/floating-sheet';
 import { Icon } from '@/components/ui/icon';
@@ -9,14 +10,14 @@ import {
   filterStreams, getSourceLabel, getStreamPresentation, isSelectableStream, streamFilterGroups, streamFilterLabels,
   type StreamChoice, type StreamTarget,
 } from '@/lib/stream-selection';
-import { streamSheetLayout } from '@/lib/stream-sheet';
+import { signInSheetLayout, streamSheetLayout } from '@/lib/stream-sheet';
 import { triggerHaptic } from '@/lib/haptics';
 import { THEME } from '@/lib/theme';
 import { BottomSheetFlatList, BottomSheetModal, BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { ArrowLeft, Check, ChevronDown, Layers, Search, SearchX, SlidersHorizontal, X } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
-import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ComponentRef, type Ref, type RefObject } from 'react';
-import { ActivityIndicator, BackHandler, Keyboard, Pressable, StyleSheet, View, useWindowDimensions, type TextInput } from 'react-native';
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref, type RefObject } from 'react';
+import { ActivityIndicator, BackHandler, Keyboard, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export type StreamSelectorHandle = { present: () => void };
@@ -56,12 +57,11 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
   const theme = THEME[colorScheme ?? 'light'];
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const layout = streamSheetLayout(width, height, insets);
   const sheet = useRef<BottomSheetModal>(null);
-  const passwordInput = useRef<ComponentRef<typeof BottomSheetTextInput>>(null);
   const discoveryRequest = useRef<AbortController | null>(null);
   const authRequest = useRef<AbortController | null>(null);
   const presented = useRef(false);
+  const visible = useRef(false);
   const [open, setOpen] = useState(false);
   const [snapshot, setSnapshot] = useState(emptyStreamSnapshot);
   const [retry, setRetry] = useState(0);
@@ -70,8 +70,6 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
   const [addon, setAddon] = useState<string | null>(null);
   const [filters, setFilters] = useState<string[]>([]);
   const [selected, setSelected] = useState<StreamChoice | null>(null);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [authPending, setAuthPending] = useState(false);
   const targetId = target.id;
@@ -82,7 +80,7 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
   const resetFilters = () => { setSearch(''); setAddon(null); setFilters([]); };
   const reload = useCallback(() => {
     discoveryRequest.current?.abort();
-    setSnapshot(emptyStreamSnapshot());
+    setSnapshot(previous => ({ ...emptyStreamSnapshot(), signedIn: previous.signedIn }));
     setSelected(null);
     setRetry(value => value + 1);
   }, []);
@@ -91,11 +89,23 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
     authRequest.current?.abort();
     authRequest.current = null;
   }, []);
+  const dismissed = useCallback(() => {
+    presented.current = false;
+    visible.current = false;
+    cancelRequests();
+    Keyboard.dismiss();
+    setOpen(false);
+    setAuthPending(false);
+    setAuthError(null);
+    setSnapshot(emptyStreamSnapshot());
+    setSelected(null);
+  }, [cancelRequests]);
   const close = useCallback(() => {
     cancelRequests();
     Keyboard.dismiss();
-    sheet.current?.dismiss();
-  }, [cancelRequests]);
+    if (visible.current) sheet.current?.dismiss();
+    else dismissed();
+  }, [cancelRequests, dismissed]);
   useImperativeHandle(ref, () => ({
     present() {
       if (presented.current || !sheet.current) return;
@@ -105,7 +115,6 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
       setSnapshot(emptyStreamSnapshot());
       setSelected(null);
       setOpen(true);
-      sheet.current.present();
     },
   }), []);
 
@@ -125,6 +134,13 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
       if (discoveryRequest.current === controller) discoveryRequest.current = null;
     };
   }, [open, retry, targetId, targetType, targetSeason, targetEpisode]);
+  useEffect(() => {
+    // Resolve the local account state before showing either drawer. A guest
+    // never sees the stream header while SecureStore is loading.
+    if (!open || visible.current || !sheet.current || (snapshot.signedIn === null && !snapshot.complete)) return;
+    visible.current = true;
+    sheet.current.present();
+  }, [open, snapshot.signedIn, snapshot.complete]);
   useEffect(() => cancelRequests, [cancelRequests]);
   useEffect(() => {
     if (!open) return;
@@ -136,33 +152,16 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
     return () => sub.remove();
   }, [open, pane, close]);
 
-  const dismissed = () => {
-    presented.current = false;
-    cancelRequests();
-    Keyboard.dismiss();
-    setOpen(false);
-    setAuthPending(false);
-    setAuthError(null);
-    setEmail('');
-    setPassword('');
-    setSnapshot(emptyStreamSnapshot());
-    setSelected(null);
-  };
-  const authenticate = async (operation: 'login' | 'logout') => {
-    if (authRequest.current || (operation === 'login' && (!email.trim() || !password))) return;
+  const signOut = async () => {
+    if (authRequest.current) return;
     const controller = new AbortController();
     authRequest.current = controller;
     setAuthPending(true);
     setAuthError(null);
     Keyboard.dismiss();
     try {
-      if (operation === 'login') await stremioStreams.signIn(email.trim(), password, controller.signal);
-      else await stremioStreams.signOut(controller.signal);
-      if (!controller.signal.aborted) {
-        setPassword('');
-        resetFilters();
-        reload();
-      }
+      await stremioStreams.signOut(controller.signal);
+      if (!controller.signal.aborted) close();
     } catch (error) {
       if (!controller.signal.aborted) setAuthError(error instanceof Error ? error.message : 'Could not update your account. Try again.');
     } finally {
@@ -190,8 +189,6 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
     : `${results.length} stream${results.length === 1 ? '' : 's'}`;
   const addonName = snapshot.addons.find(row => row.id === addon)?.name ?? 'All add-ons';
   const setSubpane = (next: Pane) => { Keyboard.dismiss(); setPane(next); };
-  // Gorhom types this ref as the gesture wrapper, but forwards the native input.
-  const focusPassword = () => (passwordInput.current as unknown as TextInput | null)?.focus();
   const toggle = (value: string) => setFilters(previous => previous.includes(value) ? previous.filter(option => option !== value) : [...previous, value]);
   const select = (stream: StreamChoice) => {
     if (!isSelectableStream(stream)) return;
@@ -203,32 +200,24 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
     }
   };
 
-  const body = snapshot.signedIn === false ? (
-    <BottomSheetScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>
-      <Text className="text-xl font-nav-semibold">Sign in to find streams</Text>
-      <Text variant="muted">Use your Stremio account to load streams from your installed add-ons.</Text>
-      <View className="gap-2 pt-3">
-        <Text className="text-sm font-nav-medium">Email</Text>
-        <BottomSheetTextInput testID="stream-selector-email" accessibilityLabel="Email" autoCapitalize="none" autoCorrect={false} autoComplete="email" textContentType="emailAddress"
-          returnKeyType="next" submitBehavior="submit" onSubmitEditing={focusPassword}
-          keyboardType="email-address" value={email} onChangeText={setEmail} editable={!authPending} maxLength={320}
-          style={[styles.input, { backgroundColor: theme.muted, color: theme.foreground }]} placeholderTextColor={theme.mutedForeground} placeholder="Email address" />
-        <Text className="text-sm font-nav-medium pt-2">Password</Text>
-        <BottomSheetTextInput ref={passwordInput} accessibilityLabel="Password" secureTextEntry autoComplete="current-password" textContentType="password"
-          returnKeyType="go" onSubmitEditing={() => void authenticate('login')}
-          value={password} onChangeText={setPassword} editable={!authPending} maxLength={4096}
-          style={[styles.input, { backgroundColor: theme.muted, color: theme.foreground }]} placeholderTextColor={theme.mutedForeground} placeholder="Password" />
-        {authError && <Text accessibilityRole="alert" className="text-sm text-destructive">{authError}</Text>}
-        <Button testID="stream-selector-sign-in" accessibilityLabel="Sign in" loading={authPending} disabled={!email.trim() || !password} onPress={() => void authenticate('login')} haptic="impact" className="mt-2">
-          <Text>Sign in</Text>
-        </Button>
-      </View>
-    </BottomSheetScrollView>
-  ) : snapshot.signedIn === null && snapshot.complete ? (
-    <BottomSheetScrollView contentContainerStyle={styles.body}>
-      <EmptyStreams title="Could not load streams" description={snapshot.error ?? 'Check your connection and try again.'} action="Try again" onAction={reload} />
-    </BottomSheetScrollView>
-  ) : pane === 'addons' ? (
+  if (snapshot.signedIn !== true) return <FloatingSheet ref={sheet} layout={signInSheetLayout(width, height, insets)}
+    blurTarget={blurTarget} onDismiss={dismissed} contentSized
+    keyboardBehavior="interactive" keyboardBlurBehavior="restore" android_keyboardInputMode="adjustResize" enableBlurKeyboardOnGesture>
+    {snapshot.signedIn === false ? <StreamSignIn onClose={close} onSuccess={close} /> : (
+      <BottomSheetScrollView accessibilityViewIsModal accessible={false} onAccessibilityEscape={close} contentContainerStyle={styles.body}>
+        <View className="flex-row items-center gap-2">
+          <Text role="heading" className="flex-1 text-xl font-nav-semibold">Sign in</Text>
+          <Button size="icon" variant="ghost" accessibilityLabel="Close sign-in" onPress={close}><Icon as={X} size={21} /></Button>
+        </View>
+        {snapshot.complete ? <>
+          <Text accessibilityRole="alert" variant="muted">{snapshot.error ?? 'Could not open sign-in. Try again.'}</Text>
+          <Button variant="secondary" onPress={reload}><Text>Try again</Text></Button>
+        </> : <ActivityIndicator color={theme.mutedForeground} accessibilityLabel="Checking account" />}
+      </BottomSheetScrollView>
+    )}
+  </FloatingSheet>;
+
+  const body = pane === 'addons' ? (
     <BottomSheetScrollView contentContainerStyle={styles.body}>
       {[{ id: null, name: 'All add-ons' }, ...snapshot.addons].map((row, index) =>
         <Button key={row.id ?? 'all'} variant={row.id === addon ? 'secondary' : 'ghost'} className="justify-start" haptic="selection"
@@ -304,12 +293,12 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
           action="Try again" onAction={reload} /> : null}
       ListFooterComponent={snapshot.signedIn === true && snapshot.complete ? <View className="gap-2 pt-4">
         {snapshot.error && snapshot.streams.length > 0 && <Button variant="secondary" onPress={reload}><Text>Retry add-ons</Text></Button>}
-        <Button variant="ghost" loading={authPending} onPress={() => void authenticate('logout')}><Text className="text-muted-foreground">Sign out</Text></Button>
+        <Button variant="ghost" loading={authPending} onPress={() => void signOut()}><Text className="text-muted-foreground">Sign out</Text></Button>
       </View> : null}
     />
   );
 
-  return <FloatingSheet ref={sheet} layout={layout} blurTarget={blurTarget} onDismiss={dismissed}
+  return <FloatingSheet ref={sheet} layout={streamSheetLayout(width, height, insets)} blurTarget={blurTarget} onDismiss={dismissed}
     keyboardBehavior="interactive" keyboardBlurBehavior="restore" android_keyboardInputMode="adjustResize" enableBlurKeyboardOnGesture>
     <View testID="stream-selector" accessibilityViewIsModal onAccessibilityEscape={close} accessible={false} style={{ flex: 1 }}>
       <View className="flex-row items-center gap-2 px-4 pb-2">
@@ -331,7 +320,6 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
 
 const styles = StyleSheet.create({
   body: { paddingHorizontal: 16, paddingBottom: 16, gap: 8 },
-  input: { minHeight: 48, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, fontSize: 16 },
   search: { minHeight: 48, borderRadius: 14, flexDirection: 'row', alignItems: 'center', paddingStart: 12, gap: 8 },
   searchInput: { flex: 1, minWidth: 0, minHeight: 48, paddingVertical: 0, paddingEnd: 8, fontSize: 16 },
   clear: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },

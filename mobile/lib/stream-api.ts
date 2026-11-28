@@ -3,7 +3,11 @@ import { validMediaId } from './home-catalog';
 export type { StreamChoice, StreamSnapshot, StreamTarget } from './stream-selection';
 
 const STREMIO_API = 'https://api.strem.io/api';
+const STREMIO_LINK = 'https://link.stremio.com';
+const LINK_CODE = /^[a-zA-Z0-9_-]{4,128}$/;
+const LINK_LIFETIME_MS = 300_000;
 const ADDON_CONCURRENCY = 6;
+type StreamFetch = (url: string, init: RequestInit) => Promise<Pick<Response, 'ok' | 'status' | 'json'>>;
 
 export type StreamSessionStore = {
   read(): Promise<string | null>;
@@ -25,7 +29,7 @@ function record(value: unknown): Record<string, unknown> {
 const text = (value: unknown) => typeof value === 'string' && value.trim() ? value : undefined;
 export const emptyStreamSnapshot = (): StreamSnapshot => ({ streams: [], addons: [], pending: 0, total: 0, complete: false, signedIn: null });
 
-async function json(url: string, init: RequestInit, parent: AbortSignal | undefined, timeoutMs: number, source: string): Promise<{ response: Response; body: Record<string, unknown> }> {
+async function json(fetcher: StreamFetch, url: string, init: RequestInit, parent: AbortSignal | undefined, timeoutMs: number, source: string) {
   const controller = new AbortController();
   const abort = () => controller.abort();
   if (parent?.aborted) controller.abort();
@@ -33,7 +37,7 @@ async function json(url: string, init: RequestInit, parent: AbortSignal | undefi
   const timer = setTimeout(abort, timeoutMs);
   try {
     if (parent?.aborted) throw abortError();
-    const response = await fetch(url, { ...init, credentials: 'omit', signal: controller.signal, headers: { Accept: 'application/json', ...init.headers } });
+    const response = await fetcher(url, { ...init, credentials: 'omit', signal: controller.signal, headers: { Accept: 'application/json', ...init.headers } });
     const body = record(await response.json().catch(() => null));
     if (controller.signal.aborted) throw abortError();
     return { response, body };
@@ -45,13 +49,6 @@ async function json(url: string, init: RequestInit, parent: AbortSignal | undefi
     clearTimeout(timer);
     parent?.removeEventListener('abort', abort);
   }
-}
-
-function stremioRequest(method: 'login' | 'addonCollectionGet', body: Record<string, unknown>, signal?: AbortSignal) {
-  // Never follow redirects with Stremio credentials or attach cookies.
-  return json(`${STREMIO_API}/${method}`, {
-    method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-  }, signal, 12_000, 'Stremio');
 }
 
 function supportsStream(manifest: Record<string, unknown>, type: StreamTarget['type'], id: string) {
@@ -105,7 +102,7 @@ function parseStream(value: unknown, addon: StreamSnapshot['addons'][number], in
   return stream.url || stream.externalUrl || stream.infoHash || stream.ytId || stream.name || stream.title || stream.description ? stream : null;
 }
 
-export function createStreamClient(session: StreamSessionStore) {
+export function createStreamClient(session: StreamSessionStore, fetcher: StreamFetch = (...args) => fetch(...args)) {
   let writes = Promise.resolve();
   // An expired response from an old session must not erase a newer sign-in.
   function mutateSession(action: () => Promise<void>) {
@@ -114,16 +111,62 @@ export function createStreamClient(session: StreamSessionStore) {
     return operation;
   }
 
+  function stremioRequest(method: 'login' | 'addonCollectionGet' | 'getUser', body: Record<string, unknown>, signal?: AbortSignal) {
+    return json(fetcher, `${STREMIO_API}/${method}`, {
+      method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    }, signal, 12_000, 'Stremio');
+  }
+
+  function linkRequest(path: string, timeoutMs: number, signal?: AbortSignal) {
+    return json(fetcher, `${STREMIO_LINK}/api/${path}`, {
+      redirect: 'error', cache: 'no-store', headers: { 'Cache-Control': 'no-store' },
+    }, signal, timeoutMs, 'Stremio');
+  }
+
+  function saveSession(authKey: string, signal?: AbortSignal) {
+    return mutateSession(async () => {
+      if (signal?.aborted) throw abortError();
+      await session.write(authKey);
+    });
+  }
+
+  async function startLink(signal?: AbortSignal) {
+    const { response, body } = await linkRequest('create?type=Create', 10_000, signal);
+    const code = text(record(body.result).code);
+    if (!response.ok || !code || !LINK_CODE.test(code)) {
+      throw new Error('Could not open Stremio sign-in. Try again.');
+    }
+    return { code, url: `${STREMIO_LINK}/${encodeURIComponent(code)}`, expiresAt: Date.now() + LINK_LIFETIME_MS };
+  }
+
+  async function finishLink(code: string, signal?: AbortSignal): Promise<'pending' | 'signed-in' | 'expired'> {
+    if (signal?.aborted) throw abortError();
+    if (!LINK_CODE.test(code)) return 'expired';
+    let authKey: string;
+    try {
+      const { response, body } = await linkRequest(`read?type=Read&code=${encodeURIComponent(code)}`, 8_000, signal);
+      const error = record(body.error);
+      if (response.status === 410 || /\bexpired\b/i.test(text(error.message) ?? '')) return 'expired';
+      const receivedKey = text(record(body.result).authKey);
+      if (!response.ok || body.error || !receivedKey || receivedKey.length > 1024) return 'pending';
+      const account = await stremioRequest('getUser', { type: 'GetUser', authKey: receivedKey }, signal);
+      if (!account.response.ok || account.body.error || !Object.keys(record(account.body.result)).length) return 'pending';
+      authKey = receivedKey;
+    } catch {
+      if (signal?.aborted) throw abortError();
+      return 'pending';
+    }
+    await saveSession(authKey, signal);
+    return 'signed-in';
+  }
+
   async function signIn(email: string, password: string, signal?: AbortSignal) {
     const { response, body } = await stremioRequest('login', { type: 'Login', email, password, facebook: false }, signal);
     const authKey = text(record(body.result).authKey);
     if (response.status === 429) throw new Error('Too many sign-in attempts. Wait before trying again.');
     if (response.status === 401 || (response.ok && body.error)) throw new Error('Stremio could not sign you in. Check your email and password.');
     if (!response.ok || !authKey) throw new Error('Could not sign in to Stremio. Try again.');
-    await mutateSession(async () => {
-      if (signal?.aborted) throw abortError();
-      await session.write(authKey);
-    });
+    await saveSession(authKey, signal);
   }
 
   async function signOut(signal?: AbortSignal) {
@@ -149,7 +192,7 @@ export function createStreamClient(session: StreamSessionStore) {
       await writes;
       const authKey = await session.read();
       if (!authKey) return emit(signedOut);
-      snapshot = { ...base, signedIn: true };
+      emit({ ...base, signedIn: true });
       const { response, body } = await stremioRequest('addonCollectionGet', { type: 'AddonCollectionGet', authKey, update: false }, signal);
       if (response.status === 401 || record(body.error).code === 1) {
         await mutateSession(async () => {
@@ -184,7 +227,7 @@ export function createStreamClient(session: StreamSessionStore) {
           const { url, addon } = applicable[index];
           let error: string | undefined;
           try {
-            const { response: result, body: payload } = await json(url, {}, signal, 30_000, 'the add-on');
+            const { response: result, body: payload } = await json(fetcher, url, {}, signal, 30_000, 'the add-on');
             if (!result.ok || !Array.isArray(payload.streams)) throw new Error('Invalid add-on response.');
             results[index] = payload.streams.flatMap(raw => {
               const stream = parseStream(raw, addon, index);
@@ -207,5 +250,5 @@ export function createStreamClient(session: StreamSessionStore) {
     }
   }
 
-  return { signIn, signOut, loadStreamSnapshot };
+  return { startLink, finishLink, signIn, signOut, loadStreamSnapshot };
 }

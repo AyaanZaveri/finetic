@@ -1,4 +1,5 @@
 import { createStreamClient } from './stream-api';
+import { fetch as nativeFetch } from 'expo/fetch';
 
 const SESSION_KEY = 'navigator.stremio.session';
 
@@ -26,4 +27,4 @@ export const stremioStreams = createStreamClient({
     const store = await secureStore();
     await store.deleteItemAsync(SESSION_KEY).catch(() => { throw new Error('Could not sign out on this device. Try again.'); });
   },
-});
+}, nativeFetch);

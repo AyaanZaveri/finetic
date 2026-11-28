@@ -18,10 +18,11 @@ function SheetBackdrop(props: BottomSheetBackdropProps) {
 }
 
 /** Shared detached drawer material and safe-area geometry for contextual actions. */
-export function FloatingSheet({ ref, layout, blurTarget, children, ...props }: Pick<BottomSheetModalProps, 'children' | 'onDismiss' | 'keyboardBehavior' | 'keyboardBlurBehavior' | 'android_keyboardInputMode' | 'enableBlurKeyboardOnGesture'> & {
+export function FloatingSheet({ ref, layout, blurTarget, children, contentSized = false, ...props }: Pick<BottomSheetModalProps, 'children' | 'onDismiss' | 'keyboardBehavior' | 'keyboardBlurBehavior' | 'android_keyboardInputMode' | 'enableBlurKeyboardOnGesture'> & {
   ref: Ref<BottomSheetModal>;
   layout: FloatingSheetLayout;
   blurTarget?: RefObject<View | null>;
+  contentSized?: boolean;
 }) {
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme ?? 'light'];
@@ -39,8 +40,8 @@ export function FloatingSheet({ ref, layout, blurTarget, children, ...props }: P
   }, [colorScheme, theme.card, blurTarget]);
   return <BottomSheetModal {...props} ref={ref} accessible={false}
     style={[styles.sheet, { marginLeft: layout.marginLeft, marginRight: layout.marginRight }]}
-    detached bottomInset={layout.bottomInset} topInset={layout.topInset} snapPoints={[layout.snapHeight]}
-    backdropComponent={SheetBackdrop} enableDynamicSizing={false} backgroundComponent={SheetBackground}
+    detached bottomInset={layout.bottomInset} topInset={layout.topInset} snapPoints={contentSized ? undefined : [layout.snapHeight]}
+    backdropComponent={SheetBackdrop} enableDynamicSizing={contentSized} maxDynamicContentSize={contentSized ? layout.snapHeight : undefined} backgroundComponent={SheetBackground}
     handleIndicatorStyle={{ backgroundColor: theme.mutedForeground }}>
     {children}
   </BottomSheetModal>;

@@ -9,27 +9,29 @@ appId: app.navigator.mobile
     id: detail-play
 - extendedWaitUntil:
     visible:
-      id: stream-selector-title
+      id: sign-in-title
     timeout: 15000
-- extendedWaitUntil:
-    visible:
-      id: stream-selector-sign-in
-    timeout: 15000
+- assertVisible:
+    id: sign-in-stremio
+- assertVisible:
+    id: sign-in-submit
+- assertNotVisible:
+    id: stream-selector-title
 - waitForAnimationToEnd:
     timeout: 1400
-- takeScreenshot: stream-selector-signed-out
+- takeScreenshot: sign-in-drawer
 - tapOn:
-    id: stream-selector-email
+    id: sign-in-email
 - waitForAnimationToEnd:
     timeout: 1400
 - assertVisible:
-    id: stream-selector-close
-- takeScreenshot: stream-selector-email-focus
+    id: sign-in-close
+- takeScreenshot: sign-in-keyboard
 - tapOn:
-    id: stream-selector-close
+    id: sign-in-close
 - extendedWaitUntil:
     notVisible:
-      id: stream-selector-title
+      id: sign-in-title
     timeout: 10000
 - assertVisible:
     id: detail-play
