@@ -1,4 +1,4 @@
-const { withPodfile, withXcodeProject } = require('expo/config-plugins');
+const { withAppDelegate, withInfoPlist, withPodfile, withXcodeProject } = require('expo/config-plugins');
 
 const repository = 'https://github.com/superuser404notfound/AetherEngine';
 const version = '7.76.0';
@@ -56,7 +56,7 @@ const withAetherPackage = config => withXcodeProject(config, config => {
   return config;
 });
 
-module.exports = config => withPodfile(withAetherPackage(config), config => {
+const withSupportedPodTargets = config => withPodfile(config, config => {
   const anchor = '  post_install do |installer|\n';
   const marker = '    # Xcode 27 requires iOS 15 or later for pod resource targets.';
   const { contents } = config.modResults;
@@ -79,3 +79,32 @@ module.exports = config => withPodfile(withAetherPackage(config), config => {
   config.modResults.contents = contents.replace(anchor, anchor + minimum);
   return config;
 });
+
+function withSceneLifecycle(config) {
+  config = withInfoPlist(config, config => {
+    config.modResults.UIApplicationSceneManifest = {
+      UIApplicationSupportsMultipleScenes: false,
+      UISceneConfigurations: {
+        UIWindowSceneSessionRoleApplication: [{
+          UISceneConfigurationName: 'Default Configuration',
+          UISceneDelegateClassName: 'NavigatorSceneDelegate',
+        }],
+      },
+    };
+    return config;
+  });
+
+  return withAppDelegate(config, config => {
+    const { contents, language } = config.modResults;
+    const startup = /#if os\(iOS\) \|\| os\(tvOS\)\n    window = UIWindow\([\s\S]*?\n#endif\n/;
+    const marker = '    // NavigatorSceneDelegate creates the window and starts React Native.\n';
+    if (contents.includes(marker)) return config;
+    if (language !== 'swift' || !startup.test(contents)) {
+      throw new Error('Could not find the Expo SDK 56 window startup block in AppDelegate.swift');
+    }
+    config.modResults.contents = contents.replace(startup, marker);
+    return config;
+  });
+}
+
+module.exports = config => withSceneLifecycle(withSupportedPodTargets(withAetherPackage(config)));

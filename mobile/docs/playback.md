@@ -25,6 +25,8 @@ References:
 
 The lab can switch between AVPlayer and AetherEngine in an iOS development client built with `NAVIGATOR_IOS_AETHER=1`. Generate the iOS project with that environment variable in a clean checkout, then build the custom development client with Xcode 27. The opt-in client requires iOS 18 or later. The normal iOS and Android builds keep the Expo Video baseline.
 
+The opt-in build starts React Native from a UIKit scene and forwards scene events to Expo's app delegate. Xcode 27 builds require this lifecycle to launch on iOS 27. [Apple's UIKit migration guide](https://developer.apple.com/documentation/uikit/transitioning-to-the-uikit-scene-based-life-cycle) · [Expo's scene support guide](https://github.com/expo/fyi/blob/main/ios-scene-lifecycle.md)
+
 The [Expo inline module](https://docs.expo.dev/modules/inline-modules-reference/) hosts AetherEngine’s UIKit player view and passes first-frame, native seek landing, clock, chapter and subtitle-track data to the shared lab controls. It stops the engine when the view leaves the window. Chapter times come from the source metadata. The build plugin links the same exact AetherEngine version as the desktop adapter, 7.76.0, with the default package traits. The hosted iOS job checks that the app embeds the dynamic FFmpeg frameworks. Review upstream redistribution requirements before shipping an Aether-enabled build.
 
 Primary sources at the pinned revision:
