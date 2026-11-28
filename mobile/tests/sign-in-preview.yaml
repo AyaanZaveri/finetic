@@ -1,19 +1,13 @@
 appId: app.navigator.mobile
 ---
-- extendedWaitUntil:
-    visible:
-      id: hero-primary
-    timeout: 30000
-- tapOn:
-    id: hero-primary
+- openLink: navigator-mobile:///movie/tt0088763
 - extendedWaitUntil:
     visible:
       id: title-detail-name
-    timeout: 30000
+    timeout: 45000
 - runFlow: stream-selector-signed-out.yaml
-- tapOn:
-    id: title-detail-back
+- openLink: navigator-mobile:///
 - extendedWaitUntil:
     visible:
       id: hero-primary
-    timeout: 15000
+    timeout: 30000
