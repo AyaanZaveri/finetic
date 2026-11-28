@@ -1,14 +1,12 @@
 import { Button } from '@/components/ui/button';
-import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { stremioStreams } from '@/lib/stream-session';
 import { THEME } from '@/lib/theme';
 import { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { Image } from 'expo-image';
-import { X } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
-import { Keyboard, Linking, Pressable, StyleSheet, View, type TextInput } from 'react-native';
+import { AccessibilityInfo, Keyboard, Linking, Pressable, StyleSheet, View, type TextInput } from 'react-native';
 
 // Same official Stremio brand artwork as Navigator web's account form.
 const stremioLogo = require('@/assets/images/stremio.svg');
@@ -38,7 +36,10 @@ export function StreamSignIn({ onClose, onSuccess }: { onClose: () => void; onSu
   const [linkUrl, setLinkUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => () => { request.current?.abort(); }, []);
+  useEffect(() => {
+    AccessibilityInfo.announceForAccessibility('Sign in');
+    return () => { request.current?.abort(); };
+  }, []);
 
   const cancel = () => {
     request.current?.abort();
@@ -97,16 +98,11 @@ export function StreamSignIn({ onClose, onSuccess }: { onClose: () => void; onSu
   return <BottomSheetScrollView
     accessibilityViewIsModal accessible={false} onAccessibilityEscape={close}
     keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
-    <View className="flex-row items-center gap-2">
-      <Text testID="sign-in-title" role="heading" className="flex-1 text-xl font-nav-semibold">Sign in</Text>
-      <Button testID="sign-in-close" size="icon" variant="ghost" accessibilityLabel="Close sign-in" haptic="selection" onPress={close}>
-        <Icon as={X} size={21} />
-      </Button>
-    </View>
-    <Button testID="sign-in-stremio" accessibilityLabel="Sign in with Stremio" variant="outline" style={styles.provider}
+    <Button testID="sign-in-stremio" accessibilityLabel="Sign in with Stremio" variant="outline" className="rounded-full bg-transparent active:bg-muted"
+      onAccessibilityEscape={close}
       disabled={pending !== null} loading={pending === 'stremio' && !linkUrl} haptic="impact" onPress={() => void authenticate('stremio')}>
       <Image source={stremioLogo} style={styles.logo} contentFit="contain" accessible={false} />
-      <Text className="shrink">Sign in with Stremio</Text>
+      <Text className="shrink text-[17px] font-nav-semibold">Sign in with Stremio</Text>
     </Button>
     {linkUrl && <View className="gap-1 items-center">
       <Text variant="muted" className="text-center" accessibilityLiveRegion="polite">Complete sign-in in your browser, then return here</Text>
@@ -136,17 +132,17 @@ export function StreamSignIn({ onClose, onSuccess }: { onClose: () => void; onSu
     </View>
     {error && <Text accessibilityRole="alert" className="text-sm text-destructive">{error}</Text>}
     <Button testID="sign-in-submit" accessibilityLabel="Sign in" loading={pending === 'email'} disabled={pending !== null || !email.trim() || !password}
-      onPress={() => void authenticate('email')} haptic="impact"><Text>Sign in</Text></Button>
-    <Pressable accessibilityRole="link" accessibilityLabel="Sign up for Stremio" onPress={() => void openUrl(signUpUrl)} className="min-h-12 items-center justify-center">
-      <Text variant="muted" className="text-center">Don&apos;t have an account? <Text className="text-sm font-nav-medium underline">Sign up</Text></Text>
+      className="rounded-full" onPress={() => void authenticate('email')} haptic="impact"><Text className="text-[17px] font-nav-semibold">Sign in</Text></Button>
+    <Pressable testID="sign-in-sign-up" accessibilityRole="link" accessibilityLabel="Sign up for Stremio" onPress={() => void openUrl(signUpUrl)}
+      className="min-h-12 items-center justify-center active:opacity-75">
+      <Text variant="muted" className="text-center">Don&apos;t have an account? <Text className="text-sm font-nav-semibold text-foreground">Sign up</Text></Text>
     </Pressable>
   </BottomSheetScrollView>;
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: 16, paddingBottom: 16, gap: 10 },
+  content: { paddingTop: 6, paddingHorizontal: 16, paddingBottom: 16, gap: 10 },
   input: { minHeight: 48, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, fontSize: 16 },
-  provider: { backgroundColor: 'transparent' },
   logo: { width: 16, height: 16, flexShrink: 0 },
   rule: { height: StyleSheet.hairlineWidth },
 });

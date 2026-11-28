@@ -7,14 +7,19 @@ appId: app.navigator.mobile
     timeout: 15000
 - tapOn:
     id: detail-play
+    enabled: true
 - extendedWaitUntil:
     visible:
-      id: sign-in-title
+      id: sign-in-stremio
     timeout: 15000
 - assertVisible:
-    id: sign-in-stremio
-- assertVisible:
     id: sign-in-submit
+- assertVisible:
+    id: sign-in-sign-up
+- assertNotVisible:
+    id: sign-in-close
+- assertNotVisible:
+    id: sign-in-title
 - assertNotVisible:
     id: stream-selector-title
 - waitForAnimationToEnd:
@@ -25,16 +30,17 @@ appId: app.navigator.mobile
 - waitForAnimationToEnd:
     timeout: 1400
 - assertVisible:
-    id: sign-in-close
-- assertVisible:
     id: sign-in-email
     focused: true
 - takeScreenshot: sign-in-keyboard
+- hideKeyboard
+- waitForAnimationToEnd:
+    timeout: 1400
 - tapOn:
-    id: sign-in-close
+    point: '50%,12%'
 - extendedWaitUntil:
     notVisible:
-      id: sign-in-title
+      id: sign-in-stremio
     timeout: 10000
 - assertVisible:
     id: detail-play

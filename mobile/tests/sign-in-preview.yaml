@@ -1,0 +1,19 @@
+appId: app.navigator.mobile
+---
+- extendedWaitUntil:
+    visible:
+      id: hero-primary
+    timeout: 30000
+- tapOn:
+    id: hero-primary
+- extendedWaitUntil:
+    visible:
+      id: title-detail-name
+    timeout: 30000
+- runFlow: stream-selector-signed-out.yaml
+- tapOn:
+    id: title-detail-back
+- extendedWaitUntil:
+    visible:
+      id: hero-primary
+    timeout: 15000

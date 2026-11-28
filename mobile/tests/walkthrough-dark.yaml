@@ -124,7 +124,6 @@ appId: app.navigator.mobile
     timeout: 30000
 - waitForAnimationToEnd:
     timeout: 1800
-- runFlow: stream-selector-signed-out.yaml
 - tapOn:
     id: title-detail-back
 - tapOn: Settings

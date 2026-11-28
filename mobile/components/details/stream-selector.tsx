@@ -203,14 +203,10 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
   // The edge-to-edge Android portal keeps its full height. Let Gorhom lift
   // the compact form above the IME rather than assuming the portal resized.
   if (snapshot.signedIn !== true) return <FloatingSheet ref={sheet} layout={signInSheetLayout(width, height, insets)}
-    blurTarget={blurTarget} onDismiss={dismissed} contentSized
+    blurTarget={blurTarget} onDismiss={dismissed} contentSized keyboardClearance={8}
     keyboardBehavior="interactive" keyboardBlurBehavior="restore" android_keyboardInputMode="adjustPan" enableBlurKeyboardOnGesture>
     {snapshot.signedIn === false ? <StreamSignIn onClose={close} onSuccess={close} /> : (
       <BottomSheetScrollView accessibilityViewIsModal accessible={false} onAccessibilityEscape={close} contentContainerStyle={styles.body}>
-        <View className="flex-row items-center gap-2">
-          <Text role="heading" className="flex-1 text-xl font-nav-semibold">Sign in</Text>
-          <Button size="icon" variant="ghost" accessibilityLabel="Close sign-in" onPress={close}><Icon as={X} size={21} /></Button>
-        </View>
         {snapshot.complete ? <>
           <Text accessibilityRole="alert" variant="muted">{snapshot.error ?? 'Could not open sign-in. Try again.'}</Text>
           <Button variant="secondary" onPress={reload}><Text>Try again</Text></Button>

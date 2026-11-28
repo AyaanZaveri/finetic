@@ -84,6 +84,14 @@ jobs:
           retention-days: 30
       - name: Launch current JavaScript in the native client
         run: bash scripts/dev-client-android.sh launch
+      - name: Verify and capture Android sign-in
+        run: maestro test --device "$(adb get-serialno)" --test-output-dir test-results/sign-in-preview --format junit --output test-results/sign-in-report.xml tests/sign-in-preview.yaml
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always()
+        with:
+          name: navigator-android-sign-in
+          path: mobile/test-results/sign-in-*
+          retention-days: 7
       - name: Capture Android Home in both appearances
         run: bash scripts/capture-hero-preview.sh android
         continue-on-error: true
@@ -157,10 +165,20 @@ jobs:
           path: mobile/test-results/dev-client/ios-app.tar.gz
           if-no-files-found: error
           retention-days: 30
+      - name: Prepare Keychain access for the iPhone simulator
+        run: bash scripts/sign-ios-preview-client.sh test-results/dev-client/ios-app.tar.gz
       - name: Warm iOS Metro bundle
         run: bash scripts/warm-ios-metro.sh
       - name: Launch current JavaScript in the native client
         run: bash scripts/dev-client-ios.sh launch iPhone
+      - name: Verify and capture iPhone sign-in
+        run: maestro test --device "$DEV_CLIENT_IOS_DEVICE" --test-output-dir test-results/sign-in-preview --format junit --output test-results/sign-in-report.xml tests/sign-in-preview.yaml
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always()
+        with:
+          name: navigator-iphone-sign-in
+          path: mobile/test-results/sign-in-*
+          retention-days: 7
       - name: Capture iPhone Home in both appearances
         run: bash scripts/capture-hero-preview.sh ios
         continue-on-error: true
@@ -230,6 +248,9 @@ jobs:
           done
           echo '::error::The iPhone job did not publish the matching universal client in time.'
           exit 1
+      - name: Prepare Keychain access for the iPad simulator
+        if: steps.restore.outputs.hit == 'true'
+        run: bash scripts/sign-ios-preview-client.sh test-results/dev-client/ios-app.tar.gz
       - name: Warm iPad Metro bundle
         if: steps.restore.outputs.hit == 'true'
         run: bash scripts/warm-ios-metro.sh
@@ -237,6 +258,17 @@ jobs:
         if: steps.restore.outputs.hit == 'true'
         id: launch
         run: bash scripts/dev-client-ios.sh launch iPad
+      - name: Verify and capture iPad sign-in
+        if: steps.launch.outcome == 'success'
+        run: |
+          xcrun simctl ui "$DEV_CLIENT_IOS_DEVICE" appearance dark
+          maestro test --device "$DEV_CLIENT_IOS_DEVICE" --test-output-dir test-results/sign-in-preview --format junit --output test-results/sign-in-report.xml tests/sign-in-preview.yaml
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always() && steps.launch.outcome == 'success'
+        with:
+          name: navigator-ipad-sign-in
+          path: mobile/test-results/sign-in-*
+          retention-days: 7
       - name: Capture iPad Home in both appearances and orientations
         if: steps.launch.outcome == 'success'
         run: bash scripts/capture-hero-preview.sh ipad
