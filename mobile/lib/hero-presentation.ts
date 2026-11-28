@@ -14,7 +14,9 @@ export function heroLayout(width: number, height: number, leftInset: number, rig
   return {
     roomy,
     height: roomy
-      ? Math.min(520, Math.max(384, Math.min(width * 0.52, height * 0.60)))
+      // Give the artwork a more cinematic aspect on wide windows while
+      // retaining a preview of the next rail and adapting to portrait/split view.
+      ? Math.min(740, height * 0.72, Math.max(384, Math.min(availableWidth * 0.66, height * 0.68)))
       : Math.min(704, Math.max(480, Math.min(width * 1.34, height * 0.8))),
     leadingPadding: leftInset + (roomy ? 32 : 16),
     trailingPadding: rightInset + (roomy ? 32 : 16),

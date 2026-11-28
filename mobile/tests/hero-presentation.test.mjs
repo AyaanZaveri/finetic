@@ -31,6 +31,17 @@ test('roomy tablet hero reserves a leading copy column and a wide artwork area',
   assert.ok(landscape.copyWidth < 1194 / 2);
 });
 
+test('wide Home artwork fills more of the iPad screen without hiding the catalog', () => {
+  const portrait = heroLayout(1032, 1376, 0, 0);
+  const landscape = heroLayout(1376, 1032, 0, 0);
+  assert.ok(portrait.height >= 650 && portrait.height <= 1376 * 0.52);
+  assert.ok(landscape.height >= 680 && landscape.height <= 1032 * 0.70);
+  const shortWindow = heroLayout(1024, 500, 0, 0);
+  assert.ok(shortWindow.height <= 500 * 0.72);
+  // Keep the established centered phone composition exactly as before.
+  assert.equal(heroLayout(402, 874, 0, 0).height, 402 * 1.34);
+});
+
 test('hero keeps the View and visible carousel gaps balanced, and grows the logo on tablets', () => {
   const phone = heroLayout(360, 780, 0, 0);
   const tablet = heroLayout(1024, 768, 0, 0);
