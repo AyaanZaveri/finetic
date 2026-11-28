@@ -4,7 +4,7 @@ A separate Expo application for iPhone, iPad and Android. Navigator web and desk
 
 ## Development
 
-Home now loads guest discovery catalogs, renders the centered progressive-blur hero and media cards, and opens separate native movie and series details routes. Home, Search and Settings use native bottom tabs. On iOS 26 the tab bar uses system Liquid Glass. Movie and TV pages match the artwork-led web phone layout. Account playback and authentication are not implemented yet. A native playback lab in Settings tests local media and direct HTTPS videos. The design-system preview is accessible from Settings.
+Home loads guest discovery catalogs and opens native movie and series details. Home, Search and Settings use native bottom tabs. On iOS 26 the tab bar uses system Liquid Glass. Sign in with Stremio to find streams from your add-ons. A native playback lab in Settings tests local media and direct HTTPS videos. The design-system preview is accessible from Settings.
 
 ```sh
 cd mobile
@@ -55,6 +55,8 @@ References: [Expo development builds](https://docs.expo.dev/develop/development-
 - Emulator and simulator results check interaction behavior and layouts. They do not establish actual tactile feedback, hardware HDR, device playback quality, or frame pacing.
 
 Home, Search and title details use live public Cinemeta endpoints. Missing metadata is omitted. Play opens the Sign in drawer for guests and the stream selector for signed-in users. Sign in with Stremio uses official device linking. Email sign-in and the installed add-on list use Stremio directly, and stream requests go directly to the add-ons. The app stores the Stremio session key in SecureStore and never sends it to add-ons. No Navigator server, provider key or sample catalog is required.
+
+Choosing a direct HTTPS stream opens the native player with Media3 ExoPlayer on Android and AVPlayer on iOS. Choose a source in a format supported by the device, such as H.264 MP4 or HLS. External links open in the system browser or associated app.
 
 Existing development clients from before SecureStore was added need one native rebuild. Later JavaScript-only changes can reuse the matching client.
 

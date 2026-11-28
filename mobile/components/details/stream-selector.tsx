@@ -8,8 +8,8 @@ import { Text } from '@/components/ui/text';
 import { emptyStreamSnapshot } from '@/lib/stream-api';
 import { stremioStreams } from '@/lib/stream-session';
 import {
-  filterStreams, getSourceLabel, getStreamPresentation, isSelectableStream, streamFilterGroups, streamFilterLabels,
-  type StreamChoice, type StreamTarget,
+  filterStreams, getSourceLabel, getStreamPlayback, getStreamPresentation, streamFilterGroups, streamFilterLabels,
+  type StreamPlayback, type StreamTarget,
 } from '@/lib/stream-selection';
 import { signInPresentation, signInSheetLayout, streamSheetLayout } from '@/lib/stream-sheet';
 import { triggerHaptic } from '@/lib/haptics';
@@ -45,14 +45,12 @@ function EmptyStreams({ title, description, action, onAction }: {
   </View>;
 }
 
-/** Real stream discovery, presented in the same detached material as season selection.
- * Stream selection is a local handoff until the native playback route is connected. */
 export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
   ref: Ref<StreamSelectorHandle>;
   target: StreamTarget;
   title: string;
   blurTarget?: RefObject<View | null>;
-  onSelect?: (stream: StreamChoice) => void;
+  onSelect: (playback: StreamPlayback) => void;
 }) {
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme ?? 'light'];
@@ -71,7 +69,7 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
   const [search, setSearch] = useState('');
   const [addon, setAddon] = useState<string | null>(null);
   const [filters, setFilters] = useState<string[]>([]);
-  const [selected, setSelected] = useState<StreamChoice | null>(null);
+  const pendingPlayback = useRef<StreamPlayback | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authPending, setAuthPending] = useState(false);
   const targetId = target.id;
@@ -86,7 +84,6 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
   const reload = useCallback(() => {
     discoveryRequest.current?.abort();
     setSnapshot(previous => ({ ...emptyStreamSnapshot(), signedIn: previous.signedIn }));
-    setSelected(null);
     setRetry(value => value + 1);
   }, []);
   const cancelRequests = useCallback(() => {
@@ -104,8 +101,10 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
     setAuthPending(false);
     setAuthError(null);
     setSnapshot(emptyStreamSnapshot());
-    setSelected(null);
-  }, [cancelRequests]);
+    const playback = pendingPlayback.current;
+    pendingPlayback.current = null;
+    if (playback) onSelect(playback);
+  }, [cancelRequests, onSelect]);
   const close = useCallback(() => {
     cancelRequests();
     Keyboard.dismiss();
@@ -121,7 +120,6 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
       setPane('streams');
       resetFilters();
       setSnapshot(emptyStreamSnapshot());
-      setSelected(null);
       setOpen(true);
     },
   }), [preferredPresentation]);
@@ -198,14 +196,10 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
   const addonName = snapshot.addons.find(row => row.id === addon)?.name ?? 'All add-ons';
   const setSubpane = (next: Pane) => { Keyboard.dismiss(); setPane(next); };
   const toggle = (value: string) => setFilters(previous => previous.includes(value) ? previous.filter(option => option !== value) : [...previous, value]);
-  const select = (stream: StreamChoice) => {
-    if (!isSelectableStream(stream)) return;
-    Keyboard.dismiss();
-    setSelected(stream);
-    if (onSelect) {
-      onSelect(stream);
-      close();
-    }
+  const select = (playback: StreamPlayback | null) => {
+    if (!playback || pendingPlayback.current) return;
+    pendingPlayback.current = playback;
+    close();
   };
 
   if (snapshot.signedIn !== true) {
@@ -258,7 +252,7 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
       {!!filters.length && <Button variant="ghost" onPress={() => setFilters([])} haptic="selection"><Text>Clear filters</Text></Button>}
     </BottomSheetScrollView>
   ) : (
-    <BottomSheetFlatList data={results} keyExtractor={row => rows.get(row)!} extraData={selected}
+    <BottomSheetFlatList data={results} keyExtractor={row => rows.get(row)!}
       keyboardShouldPersistTaps="handled" initialNumToRender={8} windowSize={5}
       contentContainerStyle={styles.body} ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
       ListHeaderComponent={<View className="gap-2 pb-3">
@@ -293,9 +287,12 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
         {snapshot.error && snapshot.streams.length > 0 && <Text variant="muted">{snapshot.error}</Text>}
         {authError && <Text accessibilityRole="alert" className="text-sm text-destructive">{authError}</Text>}
       </View>}
-      renderItem={({ item }) => <StreamCard presentation={getStreamPresentation(item)} label={getSourceLabel(item)}
-        filename={item.behaviorHints?.filename} size={item.behaviorHints?.videoSize} disabled={!isSelectableStream(item)}
-        selected={selected === item} onSelect={() => select(item)} />}
+      renderItem={({ item }) => {
+        const playback = getStreamPlayback(item);
+        return <StreamCard presentation={getStreamPresentation(item)} label={getSourceLabel(item)}
+          filename={item.behaviorHints?.filename} size={item.behaviorHints?.videoSize} action={playback?.kind}
+          onSelect={() => select(playback)} />;
+      }}
       ListEmptyComponent={!snapshot.complete && !snapshot.streams.length ? <View className="gap-2">{Array.from({ length: 4 }, (_, i) => <StreamSkeleton key={i} />)}</View>
         : hasFilters ? <EmptyStreams title={snapshot.complete ? 'No matching streams' : 'No matching streams yet'}
           description="Try a different search or filter." action="Clear filters" onAction={resetFilters} />
@@ -320,10 +317,6 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
         </View>
         <Button testID="stream-selector-close" size="icon" variant="ghost" accessibilityLabel="Close streams" haptic="selection" onPress={close}><Icon as={X} size={21} /></Button>
       </View>
-      {pane === 'streams' && selected && !onSelect && <View className="mx-4 mb-2 flex-row items-start gap-2 rounded-xl bg-muted px-3 py-2">
-        <Icon as={Check} color={theme.primary} size={18} />
-        <Text className="flex-1 text-sm" accessibilityLiveRegion="polite">Stream selected. Playback is not connected in this build.</Text>
-      </View>}
       {body}
     </View>
   </FloatingSheet>;

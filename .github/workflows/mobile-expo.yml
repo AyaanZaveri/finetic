@@ -6,6 +6,11 @@ on:
       - 'mobile/**'
       - '.github/workflows/mobile-expo.yml'
   workflow_dispatch:
+    inputs:
+      device_packages:
+        description: Build the test APK and unsigned IPA
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -17,7 +22,11 @@ env:
   MAESTRO_CLI_NO_ANALYTICS: 'true'
   COCOAPODS_DISABLE_STATS: 'true'
 jobs:
+  device_packages:
+    if: github.event_name == 'workflow_dispatch' && inputs.device_packages
+    uses: ./.github/workflows/mobile-device-packages.yml
   foundation:
+    if: github.event_name != 'workflow_dispatch' || !inputs.device_packages
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:

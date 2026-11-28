@@ -13,10 +13,10 @@ Keep `app/`, `components/`, `desktop/`, `ios/` and `android/` as the existing pr
 | 1 | SDK and router, themes, fonts, locally owned components, haptics and native glass surface, component preview | Implemented, device verification pending |
 | 2 | Artwork image, progressive blur, media cards, native tabs and navigation shell | Implemented, device verification pending |
 | 3 | Public Cinemeta API client, Home hero and catalog rails; Continue Watching after account integration | Core Home implemented, remaining account features pending |
-| 4 | Movie and series detail routes, search, episodes, seasons and people | Movie/series and episode pages, title search, season picker and episode rail implemented; playback integration pending |
+| 4 | Movie and series detail routes, search, episodes, seasons and people | Movie/series and episode pages, title search, season picker and episode rail implemented |
 | 5 | Session and secure storage, library, watch history and add-ons | Direct Stremio sign-in, secure session storage and installed add-on discovery implemented. Library and watch history are pending. |
 | 6 | Settings categories and provider connections | Pending |
-| 7 | Native playback adapters, player chrome and lifecycle | ExoPlayer and AVPlayer baseline, opt-in AetherEngine lab, synthetic fixtures and native CI. Account playback integration is pending. |
+| 7 | Native playback adapters, player chrome and lifecycle | Catalog stream picker opens direct HTTPS streams in ExoPlayer or AVPlayer. Opt-in AetherEngine lab and native fixture tests remain available. Physical device verification is pending. |
 | 8 | End-to-end feature parity, screenshots on device classes, accessibility and physical device validation | Pending |
 
 Every batch preserves the existing clients. Add focused tests and screenshots to the mobile CI suite as features arrive. Use real Cinemeta data in device previews and isolated mock responses in unit tests. Do not consider a batch device-verified until its tests have run on both platforms.
@@ -36,7 +36,7 @@ for variety.
 | P1 | Search | Match the web mobile design, use native keyboard controls, adaptive results, filters, loading, retry and empty states, and native title navigation. |
 | P2 | Metadata and episodes | Show release dates, ratings and certifications when Cinemeta supplies them. Keep season selection, the episode thumbnail rail and the focus ring. |
 | P3 | Account and library | Native settings categories, library, likes, watch history and add-on configuration. Replace local-only like state with account-backed state when ready. |
-| P4 | Playback | Connect Play and Shuffle to real native playback sources. Reuse the existing engine capability contracts and test on physical devices. |
+| P4 | Playback | Verify Stremio sign-in and direct add-on stream playback on physical devices. |
 | P5 | Final parity | Accessibility, responsiveness, device-specific animation feel, stability and release readiness. |
 
 Keep the work batch-sized. Do not start Ask Navigator, decorative color

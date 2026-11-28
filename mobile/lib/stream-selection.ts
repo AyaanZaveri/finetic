@@ -1,3 +1,4 @@
+import type { VideoSourceObject } from 'expo-video';
 import { validMediaId, type MediaType } from './home-catalog';
 
 export type StreamTarget = { id: string; type: 'movie' } | { id: string; type: 'series'; season: number; episode: number };
@@ -117,13 +118,29 @@ export function getSourceLabel(stream: StreamChoice) {
   return stream.name || stream.addonName || 'Stream';
 }
 
-export function isSelectableStream(stream: StreamChoice) {
-  return [stream.url, stream.externalUrl].some(value => {
-    try {
-      const url = new URL(value || '');
-      return ['https:', 'http:'].includes(url.protocol) && !url.username && !url.password;
-    } catch { return false; }
-  });
+function remoteStreamUrl(value: string | undefined) {
+  try {
+    const url = new URL(value ?? '');
+    if ((url.protocol === 'https:' || url.protocol === 'http:') && !url.username && !url.password) return url;
+  } catch { /* Add-ons can return invalid URLs. */ }
+  return null;
+}
+
+export type StreamPlayback =
+  | { kind: 'native'; source: VideoSourceObject }
+  | { kind: 'external'; uri: string };
+
+export function getStreamPlayback(stream: Pick<StreamChoice, 'url' | 'externalUrl' | 'behaviorHints'>): StreamPlayback | null {
+  const url = remoteStreamUrl(stream.url);
+  if (url?.protocol === 'https:') {
+    const request = stream.behaviorHints?.proxyHeaders?.request ?? {};
+    const headers = Object.fromEntries(Object.entries(request).filter(([name, value]) =>
+      /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(name) && !/[\r\n\0]/.test(value) &&
+      !/^(host|content-length|transfer-encoding|connection)$/i.test(name)));
+    return { kind: 'native', source: { uri: url.href, ...(Object.keys(headers).length ? { headers } : {}) } };
+  }
+  const external = remoteStreamUrl(stream.externalUrl);
+  return external ? { kind: 'external', uri: external.href } : null;
 }
 
 // Match the web selector: inspect release tags, not words in the title prefix.

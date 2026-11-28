@@ -4,13 +4,14 @@ import { MediaRatingBadge } from './media-rating-badge';
 import { DetailChip } from './detail-chip';
 import { StreamSelector, type StreamSelectorHandle } from './stream-selector';
 import { ArtworkTopScrim, ProgressiveArtwork } from '@/components/effects/progressive-artwork';
+import { CatalogPlayer } from '@/components/playback/catalog-player';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { formatReleaseDate, resizeBackdrop, validMediaId, type MediaEpisode, type MediaItem, type MediaType } from '@/lib/home-catalog';
 import { creditLabelWidth, detailIdentityGap, detailWordmarkSize, estimateWordmarkPadding, mergeTitleDetails } from '@/lib/detail-presentation';
 import { THEME } from '@/lib/theme';
-import { detailStreamTarget } from '@/lib/stream-selection';
+import { detailStreamTarget, type StreamPlayback } from '@/lib/stream-selection';
 import { streamTargetId } from '@/lib/stream-api';
 import { titleQueryOptions, titleSummaryKey, useTitleLogo } from '@/lib/title-cache';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -21,8 +22,8 @@ import { useRouter } from 'expo-router';
 import { ChevronDown, ChevronUp } from 'lucide-react-native';
 import { BlurTargetView } from 'expo-blur';
 import { useColorScheme } from 'nativewind';
-import { useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function TitleIdentity({ item, width, roomy, left, right, light }: { item: MediaItem; width: number; roomy: boolean; left: number; right: number; light: boolean }) {
@@ -100,6 +101,7 @@ export function MediaDetailScreen({ type, id, episode }: { type: MediaType; id: 
   const streamSelector = useRef<StreamSelectorHandle>(null);
   const [chosenSeason, setChosenSeason] = useState<number | undefined>(episode?.season);
   const [selectedId, setSelectedId] = useState<string>();
+  const [playback, setPlayback] = useState<Extract<StreamPlayback, { kind: 'native' }> & { title: string }>();
   const cached = queryClient.getQueryData<MediaItem>(titleSummaryKey(type, id));
   const query = useQuery({ ...titleQueryOptions(type, id), enabled: validMediaId(id), placeholderData: cached });
   const item = mergeTitleDetails(cached, query.data);
@@ -109,6 +111,14 @@ export function MediaDetailScreen({ type, id, episode }: { type: MediaType; id: 
   const selectedEpisode = (currentEpisode?.season === season ? currentEpisode : undefined) ?? episodes.find(row => row.id === selectedId) ?? episodes[0];
   const playEpisode = episode ?? selectedEpisode;
   const streamTarget = detailStreamTarget(type, id, episode, selectedEpisode);
+  const streamTitle = item && (type === 'series' && playEpisode ? `${item.name} · ${episodeCode(playEpisode)}` : item.name);
+  const playStream = useCallback((selection: StreamPlayback) => {
+    if (selection.kind === 'native') {
+      setPlayback({ ...selection, title: streamTitle ?? 'Playback' });
+    } else {
+      void Linking.openURL(selection.uri).catch(() => Alert.alert('Could not open the link'));
+    }
+  }, [streamTitle]);
   const openEpisode = (entry: MediaEpisode) => {
     setSelectedId(entry.id);
     router.push({ pathname: '/series/[id]/[season]/[episode]', params: { id, season: String(entry.season), episode: String(entry.number) } });
@@ -174,8 +184,9 @@ export function MediaDetailScreen({ type, id, episode }: { type: MediaType; id: 
       <View pointerEvents="box-none" className="absolute" style={{ left: left + gutter, top: top + 8 }}>
         <DetailBackControl onBack={goBack} blurTarget={blurTarget} />
       </View>
-      {item && streamTarget && <StreamSelector key={streamTargetId(streamTarget)} ref={streamSelector} target={streamTarget}
-        title={playEpisode ? `${item.name} · ${episodeCode(playEpisode)}` : item.name} blurTarget={blurTarget} />}
+      {streamTitle && streamTarget && <StreamSelector key={streamTargetId(streamTarget)} ref={streamSelector} target={streamTarget}
+        title={streamTitle} blurTarget={blurTarget} onSelect={playStream} />}
+      {playback && <CatalogPlayer title={playback.title} source={playback.source} onClose={() => setPlayback(undefined)} />}
     </View>
     </BottomSheetModalProvider>
   );

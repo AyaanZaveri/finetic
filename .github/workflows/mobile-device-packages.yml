@@ -1,0 +1,131 @@
+name: Expo mobile device packages
+on:
+  workflow_dispatch:
+  workflow_call:
+permissions:
+  contents: read
+env:
+  CI: '1'
+  EXPO_NO_TELEMETRY: '1'
+  NAVIGATOR_IOS_AETHER: '0'
+  NAVIGATOR_ADAPTIVE_FIXTURES: '0'
+jobs:
+  android:
+    name: Android APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: mobile
+        shell: bash
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - name: Build standalone Android APK for arm64
+        run: |
+          npx --no-install expo prebuild --clean --platform android --no-install
+          cd android
+          ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon
+      - name: Verify Android package
+        run: |
+          apk=android/app/build/outputs/apk/release/app-release.apk
+          tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          test -x "$tools/apksigner"
+          staging=test-results/device-packages/android
+          mkdir -p "$staging"
+          "$tools/apksigner" verify --verbose "$apk"
+          "$tools/aapt" dump badging "$apk" > "$RUNNER_TEMP/navigator-apk-badging.txt"
+          application_id=$(node -p 'require("./app.json").expo.android.package')
+          app_version=$(node -p 'require("./app.json").expo.version')
+          grep -Fq "package: name='$application_id'" "$RUNNER_TEMP/navigator-apk-badging.txt"
+          grep -Fq "versionName='$app_version'" "$RUNNER_TEMP/navigator-apk-badging.txt"
+          zipinfo -1 "$apk" > "$RUNNER_TEMP/navigator-apk-files.txt"
+          grep -Fxq 'lib/arm64-v8a/libreactnative.so' "$RUNNER_TEMP/navigator-apk-files.txt"
+          grep -Fxq 'assets/index.android.bundle' "$RUNNER_TEMP/navigator-apk-files.txt"
+          install -m 644 "$apk" "$staging/Navigator-Android.apk"
+          cd "$staging"
+          sha256sum Navigator-Android.apk > SHA256SUMS
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: navigator-mobile-android
+          path: mobile/test-results/device-packages/android/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+  ios:
+    name: Unsigned iPhone IPA
+    runs-on: macos-26
+    timeout-minutes: 65
+    env:
+      COCOAPODS_DISABLE_STATS: 'true'
+    defaults:
+      run:
+        working-directory: mobile
+        shell: bash
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Select Xcode 26
+        run: |
+          for app in /Applications/Xcode_26.6.app /Applications/Xcode_26.5.app /Applications/Xcode_26.4.1.app /Applications/Xcode_26.4.app; do
+            if [[ -d "$app/Contents/Developer" ]]; then
+              export DEVELOPER_DIR="$app/Contents/Developer"
+              echo "DEVELOPER_DIR=$DEVELOPER_DIR" >> "$GITHUB_ENV"
+              break
+            fi
+          done
+          version=$(xcodebuild -version)
+          printf '%s\n' "$version"
+          [[ "$version" == "Xcode 26."* ]]
+      - run: npm ci
+      - name: Generate the Expo iOS project
+        run: |
+          npx --no-install expo prebuild --clean --platform ios --no-install
+          cd ios
+          pod install
+      - name: Build an unsigned device archive
+        run: |
+          workspace=$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)
+          test -n "$workspace"
+          xcodebuild -workspace "$workspace" -scheme Navigator -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/Navigator.xcarchive" \
+            archive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=''
+      - name: Package and verify the iPhone IPA
+        run: |
+          app="$RUNNER_TEMP/Navigator.xcarchive/Products/Applications/Navigator.app"
+          info="$app/Info.plist"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$info")" = app.navigator.mobile
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleSupportedPlatforms:0' "$info")" = iPhoneOS
+          binary=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$info")
+          test "$(lipo -archs "$app/$binary")" = arm64
+          test -s "$app/main.jsbundle"
+          test ! -e "$app/embedded.mobileprovision"
+          output="$RUNNER_TEMP/navigator-ios-package"
+          mkdir -p "$output/Payload"
+          ditto "$app" "$output/Payload/Navigator.app"
+          ipa="$output/Navigator-iOS-unsigned.ipa"
+          ditto -c -k --keepParent "$output/Payload" "$ipa"
+          unzip -tq "$ipa"
+          cd "$output"
+          shasum -a 256 Navigator-iOS-unsigned.ipa > Navigator-iOS-unsigned.ipa.sha256
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: navigator-ios-unsigned-ipa
+          path: |
+            ${{ runner.temp }}/navigator-ios-package/Navigator-iOS-unsigned.ipa
+            ${{ runner.temp }}/navigator-ios-package/Navigator-iOS-unsigned.ipa.sha256
+          if-no-files-found: error
+          retention-days: 7

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { detailStreamTarget, filterStreams, getStreamFilterTags, getStreamPresentation, isSelectableStream, matchesStreamFilters } from '../lib/stream-selection.ts';
+import { detailStreamTarget, filterStreams, getStreamFilterTags, getStreamPlayback, getStreamPresentation, matchesStreamFilters } from '../lib/stream-selection.ts';
 import { streamTargetId } from '../lib/stream-api.ts';
 import { getStreamFilterTags as getWebStreamFilterTags } from '../../lib/media/stream-release-info.ts';
 
@@ -48,12 +48,30 @@ test('search, provider and quality filters combine without changing provider ord
   assert.deepEqual(filterStreams(streams, '', null, []), streams);
 });
 
-test('provider notices are shown but only HTTP(S) links can be selected', () => {
-  assert.equal(isSelectableStream({ name: 'Provider notice', infoHash: 'hash' }), false);
-  assert.equal(isSelectableStream({ url: 'https://user:password@example.test/video.mp4' }), false);
-  assert.equal(isSelectableStream({ url: 'file:///video.mp4' }), false);
-  assert.equal(isSelectableStream({ externalUrl: 'https://example.test/video' }), true);
+test('provider notices keep their display metadata', () => {
   assert.deepEqual(getStreamPresentation({ name: '⚡ 4K WEB-DL', title: '★★☆\nTitle.mkv' }), {
     resolution: '2160p', source: 'WebDL', lightning: true, stars: [true, true, false], details: ['Title.mkv'],
   });
+});
+
+test('native playback receives the secure direct URL and valid provider request headers', () => {
+  const url = 'https://example.test/video.m3u8?signature=a%2Bb';
+  assert.deepEqual(getStreamPlayback({
+    url, externalUrl: 'https://example.test/watch',
+    behaviorHints: { proxyHeaders: {
+      request: { Referer: 'https://example.test/', Host: 'other.test', 'bad header': 'value', 'X-Unsafe': 'value\r\n' },
+      response: { 'Content-Type': 'application/vnd.apple.mpegurl' },
+    } },
+  }), { kind: 'native', source: { uri: url, headers: { Referer: 'https://example.test/' } } });
+  assert.deepEqual(getStreamPlayback({ url }), { kind: 'native', source: { uri: url } });
+});
+
+test('external links are handed to the system and unsupported streams stay disabled', () => {
+  const externalUrl = 'https://example.test/watch';
+  assert.deepEqual(getStreamPlayback({ url: 'http://example.test/video.mp4', externalUrl }),
+    { kind: 'external', uri: externalUrl });
+  assert.equal(getStreamPlayback({}), null);
+  assert.equal(getStreamPlayback({ url: 'http://example.test/video.mp4' }), null);
+  assert.equal(getStreamPlayback({ url: 'https://user:password@example.test/video.mp4' }), null);
+  assert.equal(getStreamPlayback({ url: 'file:///video.mp4', externalUrl: 'javascript:alert(1)' }), null);
 });
