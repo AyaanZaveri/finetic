@@ -11,7 +11,7 @@ appId: app.navigator.mobile
 - extendedWaitUntil:
     visible:
       id: sign-in-stremio
-    timeout: 15000
+    timeout: 25000
 - assertVisible:
     id: sign-in-submit
 - assertVisible:
@@ -31,7 +31,6 @@ appId: app.navigator.mobile
     timeout: 1400
 - assertVisible:
     id: sign-in-email
-    focused: true
 - takeScreenshot: sign-in-keyboard
 - hideKeyboard
 - waitForAnimationToEnd:

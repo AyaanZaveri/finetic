@@ -5,7 +5,9 @@ const SESSION_KEY = 'navigator.stremio.session';
 
 async function secureStore() {
   try {
-    const store = await import('expo-secure-store');
+    // Include the module in Metro's main bundle, but evaluate it only here so
+    // an older development client can still browse without the native module.
+    const store: typeof import('expo-secure-store') = require('expo-secure-store');
     if (await store.isAvailableAsync()) return store;
   } catch {
     // Old development clients can still browse without the new native module.
