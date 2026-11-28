@@ -4,13 +4,18 @@ import { artworkBlurLayers, createArtworkLoadTracker, lightArtworkTopScrim } fro
 
 test('light mode scrim protects the status area and fades shortly below it', () => {
   for (const inset of [0, 24, 59, 62]) {
-    const { height, colors, locations } = lightArtworkTopScrim(inset);
-    const protectedHeight = Math.max(24, inset);
-    assert.equal(height, protectedHeight + 72);
-    assert.equal(locations[1] * height, protectedHeight);
-    assert.equal(colors[1], 'rgba(255,255,255,0.60)');
-    assert.equal(colors[3], 'rgba(255,255,255,0)');
-    assert.equal(locations[3], 1);
+    for (const artworkHeight of [288, 400, 520]) {
+      const { height, colors, locations } = lightArtworkTopScrim(inset, artworkHeight);
+      const protectedHeight = Math.max(24, inset);
+      assert.equal(height, protectedHeight + 72);
+      assert.ok(Math.abs(locations[1] * artworkHeight - protectedHeight) < 0.001);
+      assert.equal(colors[1], 'rgba(255,255,255,0.60)');
+      assert.equal(colors[3], 'rgba(255,255,255,0)');
+      assert.equal(colors[4], colors[3]);
+      assert.ok(Math.abs(locations[3] * artworkHeight - height) < 0.001);
+      assert.ok(locations[3] < locations[4]);
+      assert.equal(locations[4], 1);
+    }
   }
   // Worst case: a black image beneath the 60% white scrim. Compare with
   // near-black (#191919) status text using the sRGB luminance formula.

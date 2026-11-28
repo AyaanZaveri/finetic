@@ -14,13 +14,16 @@ export function artworkBlurLayers(quality: ArtworkQuality, platform: string) {
 }
 
 /** Protect dark system icons in light mode without whitening the full image. */
-export function lightArtworkTopScrim(topInset: number) {
+export function lightArtworkTopScrim(topInset: number, artworkHeight: number) {
   const protectedHeight = Math.max(24, topInset);
   const height = protectedHeight + 72;
+  // Keep the transparent stop inside a full-height shader. Ending a short
+  // gradient at this point makes Android's clamped shader draw a bright row.
+  const extent = Math.max(height + 1, artworkHeight);
   return {
     height,
-    colors: ['rgba(255,255,255,0.68)', 'rgba(255,255,255,0.60)', 'rgba(255,255,255,0.24)', 'rgba(255,255,255,0)'] as const,
-    locations: [0, protectedHeight / height, (protectedHeight + 28) / height, 1] as const,
+    colors: ['rgba(255,255,255,0.68)', 'rgba(255,255,255,0.60)', 'rgba(255,255,255,0.24)', 'rgba(255,255,255,0)', 'rgba(255,255,255,0)'] as const,
+    locations: [0, protectedHeight / extent, (protectedHeight + 28) / extent, height / extent, 1] as const,
   };
 }
 
