@@ -4,7 +4,7 @@ A separate Expo application for iPhone, iPad and Android. Navigator web and desk
 
 ## Development
 
-Home now loads guest discovery catalogs, renders the centered progressive-blur hero and media cards, and opens separate native movie and series details routes. Home, Search and Settings use native bottom tabs. On iOS 26 the tab bar uses system Liquid Glass. Movie and TV pages match the artwork-led web phone layout. Playback and authentication are not implemented yet. The design-system preview is accessible from Settings.
+Home now loads guest discovery catalogs, renders the centered progressive-blur hero and media cards, and opens separate native movie and series details routes. Home, Search and Settings use native bottom tabs. On iOS 26 the tab bar uses system Liquid Glass. Movie and TV pages match the artwork-led web phone layout. Account playback and authentication are not implemented yet. A native playback lab in Settings tests local media and direct HTTPS videos. The design-system preview is accessible from Settings.
 
 ```sh
 cd mobile
@@ -14,7 +14,7 @@ npm test
 npm run dev
 ```
 
-Use the Expo SDK 56 development environment. Fast Refresh avoids rebuilding the native application for JavaScript-only changes. NativeWind 4 and React Native Reusables are paired intentionally with the upstream minimal template. Future native playback will require a custom development build, not Expo Go. Do not prebuild or install native packages from the repository root.
+Use the Expo SDK 56 development environment. Fast Refresh avoids rebuilding the native application for JavaScript-only changes. NativeWind 4 and React Native Reusables are paired intentionally with the upstream minimal template. The playback lab uses native Expo Video and requires an updated custom development build. Do not prebuild or install native packages from the repository root.
 
 Add more local components with `npx @react-native-reusables/cli@0.7.1 add <component>` from this directory. Do not overwrite an adapted component without reviewing its changes. The template was downloaded from [upstream revision ecdc14b](https://github.com/founded-labs/react-native-reusables-templates/tree/ecdc14b50fa9ad4d905085dc394cf783d48ad66d/minimal). Registry and template code is MIT licensed; see `REUSABLES-LICENSE`. The bundled Sunghyun Sans fonts are decoded copies of the web app's original WOFF2 assets, with the original license included.
 
@@ -57,3 +57,5 @@ References: [Expo development builds](https://docs.expo.dev/develop/development-
 Home, Search and title details default to live public Cinemeta endpoints. Select TMDB in Settings to use the Navigator metadata service. Set `EXPO_PUBLIC_NAVIGATOR_API_ORIGIN` to an authorized HTTPS deployment if needed. No provider key or sample catalog is embedded in the app.
 
 See [DESIGN.md](DESIGN.md) for current scope and [MOBILE-ROADMAP.md](MOBILE-ROADMAP.md) for the batches and platform-specific visual work.
+
+See [Native playback implementation and test plan](docs/playback.md) for engine research, codec fixtures, preview cache behavior and native CI scope.

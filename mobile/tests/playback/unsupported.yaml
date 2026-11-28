@@ -1,0 +1,13 @@
+appId: app.navigator.mobile
+name: Report an unsupported source without a crash
+---
+- runFlow: open.yaml
+- extendedWaitUntil:
+    visible:
+      id: playback-error
+    timeout: 30000
+- assertNotVisible:
+    id: playback-first-frame
+- assertNotVisible:
+    id: playback-playing
+- takeScreenshot: unsupported-source

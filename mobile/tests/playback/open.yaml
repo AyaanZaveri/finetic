@@ -1,0 +1,20 @@
+appId: app.navigator.mobile
+---
+# Use only bundled synthetic media, without depending on catalog data.
+- launchApp:
+    clearState: true
+- tapOn:
+    text: Wait
+    optional: true
+- openLink: "navigator-mobile:///playback-lab?fixture=${FIXTURE}&auto=1"
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: Open
+          optional: true
+- extendedWaitUntil:
+    visible:
+      id: playback-player
+    timeout: 45000

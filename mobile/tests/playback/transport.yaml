@@ -1,0 +1,47 @@
+appId: app.navigator.mobile
+---
+# A ready status alone does not prove a rendered frame or a moving clock.
+- extendedWaitUntil:
+    visible:
+      id: playback-first-frame
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: playback-duration-ready
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: playback-progress
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: playback-playing
+    timeout: 10000
+- tapOn:
+    id: playback-toggle
+- extendedWaitUntil:
+    visible:
+      id: playback-paused
+    timeout: 10000
+- tapOn:
+    id: playback-seek
+- extendedWaitUntil:
+    visible:
+      id: playback-seek-complete
+    timeout: 10000
+- assertVisible:
+    id: playback-paused
+- tapOn:
+    id: playback-toggle
+- extendedWaitUntil:
+    visible:
+      id: playback-playing
+    timeout: 10000
+- tapOn:
+    id: playback-toggle
+- extendedWaitUntil:
+    visible:
+      id: playback-paused
+    timeout: 10000
+- assertNotVisible:
+    id: playback-error

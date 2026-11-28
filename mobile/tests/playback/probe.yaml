@@ -1,0 +1,28 @@
+appId: app.navigator.mobile
+name: Record observed codec support (not a support guarantee)
+---
+- runFlow: open.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'playback-(first-frame|error)'
+    timeout: 30000
+- runFlow:
+    label: Supported on this simulator
+    when:
+      visible:
+        id: playback-first-frame
+    commands:
+      - runFlow: transport.yaml
+      - takeScreenshot: codec-rendered
+      - runFlow: preview.yaml
+- runFlow:
+    label: Explicitly rejected by this simulator
+    when:
+      visible:
+        id: playback-error
+    commands:
+      - assertNotVisible:
+          id: playback-first-frame
+      - assertNotVisible:
+          id: playback-playing
+      - takeScreenshot: codec-rejected

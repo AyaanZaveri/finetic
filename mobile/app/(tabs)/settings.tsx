@@ -48,6 +48,7 @@ export default function SettingsScreen() {
         <Text variant="muted">Cinemeta is the default. TMDB uses the Navigator metadata service.</Text>
         <Text role="heading" className="text-lg font-nav-medium pt-4">About</Text>
         <Button testID="open-design-system" variant="outline" className="justify-between" onPress={() => router.push('/design-system')}><Text>Design system</Text><Icon as={ChevronRight} size={18} /></Button>
+        <Button testID="open-playback-lab" variant="outline" className="justify-between" onPress={() => router.push('/playback-lab')}><Text>Playback lab</Text><Icon as={ChevronRight} size={18} /></Button>
         <Text variant="muted">Navigator Mobile</Text>
       </View>
     </ScrollView>

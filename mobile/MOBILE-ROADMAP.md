@@ -16,7 +16,7 @@ Keep `app/`, `components/`, `desktop/`, `ios/` and `android/` as the existing pr
 | 4 | Movie and series detail routes, search, episodes, seasons and people | Movie/series and episode pages, title search, season picker and episode rail implemented; playback integration pending |
 | 5 | Session and secure storage, library, watch history and addons | Pending |
 | 6 | Settings categories and provider connections | Pending |
-| 7 | Native playback adapters, player chrome and lifecycle | Pending |
+| 7 | Native playback adapters, player chrome and lifecycle | Native ExoPlayer and AVPlayer comparison lab, preview cache, synthetic fixtures and CI coverage in progress; AetherEngine and account integration pending |
 | 8 | End-to-end feature parity, screenshots on device classes, accessibility and physical device validation | Pending |
 
 Every batch preserves the existing clients. Add focused tests and screenshots to the mobile CI suite as features arrive. Use real Cinemeta data in device previews and isolated mock responses in unit tests. Do not consider a batch device-verified until its tests have run on both platforms.
@@ -59,7 +59,7 @@ haptics, playback, HDR or frame pacing as hardware verification.
 | Web Framer Motion and hover feedback | Reanimated (transform/opacity), Gesture Handler, native navigation. Convert hover to touch feedback; remove desktop-only behaviors. Honor Reduced Motion. |
 | Expandable search, keyboard and chat composer | Native TextInput, keyboard insets, native scrolling, focus and accessible labels. Preserve search debounce and query semantics. |
 | Browser storage, auth and TanStack Query | Native secure storage for credentials, ordinary persisted storage for settings, TanStack Query for data. Replace relative fetch and server actions with explicit HTTP contracts. Check signin/session, logout, account isolation, and the hosted API's challenge behavior; do not bypass bot protection. |
-| Media player and native bridge | Reuse ExoPlayer on Android and VLC on iOS via Expo Modules API. Preserve session-scoped commands, secure header transport, track selection, exact resume, state relay, PiP capability flags, audio focus and lifecycle. Do not replace the existing engines with generic Expo video without validating format and feature coverage. |
+| Media player and native bridge | Use Expo Video as the initial Media3 ExoPlayer (Android) and AVPlayer (iOS) comparison baseline. Evaluate AetherEngine on iOS through an owned Expo native module. Preserve session-scoped commands, secure headers, track selection, resume, state relay, PiP capability flags, audio focus and lifecycle for production playback. See [native playback research and tests](docs/playback.md). |
 | Timeline, seek previews, brightness and volume gestures | Reuse independent native preview workers and gesture logic. Use UI-thread animation for drag, commit once, preserve haptic detents and disable work when backgrounded. |
 | Subtitles, delay, skip segments, next episode | Retain parsing, timing, playback reporting and continuation logic where platform-independent; bridge native engine capabilities and adapt overlay rendering. |
 | HDR and glass over playback | Keep native video surfaces and avoid sampling or recompositing the playing video for cosmetic effects. Evaluate device-specific overlays separately; simulator screenshots cannot prove HDR presentation. |

@@ -1,0 +1,42 @@
+appId: app.navigator.mobile
+name: Render and seek to chapter images
+---
+- runFlow: open.yaml
+- runFlow: transport.yaml
+- runFlow: preview.yaml
+- scrollUntilVisible:
+    element:
+      id: playback-chapter-image-0
+    direction: DOWN
+    timeout: 20000
+- assertVisible:
+    id: playback-chapter-image-0
+- scrollUntilVisible:
+    element:
+      id: playback-chapter-image-1
+    direction: DOWN
+    timeout: 20000
+- assertVisible:
+    id: playback-chapter-image-1
+- scrollUntilVisible:
+    element:
+      id: playback-chapter-image-2
+    direction: DOWN
+    timeout: 20000
+- assertVisible:
+    id: playback-chapter-image-2
+- takeScreenshot: chapter-images-displayed
+- tapOn:
+    id: playback-chapter-2
+- scrollUntilVisible:
+    element:
+      id: playback-seek-complete
+    direction: UP
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: playback-duration-ready
+    direction: UP
+    timeout: 15000
+- assertVisible:
+    text: '0:0[89] / 0:1[34]'

@@ -1,0 +1,155 @@
+name: Expo native playback checks
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'mobile/app/playback-lab.tsx'
+      - 'mobile/components/playback/**'
+      - 'mobile/lib/playback-*.ts'
+      - 'mobile/assets/playback/**'
+      - 'mobile/tests/playback/**'
+      - 'mobile/tests/playback-*.test.mjs'
+      - 'mobile/scripts/generate-playback-fixtures.py'
+      - 'mobile/scripts/test-native-playback.sh'
+      - 'mobile/package*.json'
+      - 'mobile/app.json'
+      - 'mobile/metro.config.js'
+      - '.github/workflows/mobile-playback.yml'
+permissions:
+  contents: read
+concurrency:
+  group: mobile-playback-${{ github.ref_name }}
+  cancel-in-progress: true
+env:
+  CI: '1'
+  EXPO_NO_TELEMETRY: '1'
+  MAESTRO_CLI_NO_ANALYTICS: 'true'
+  COCOAPODS_DISABLE_STATS: 'true'
+jobs:
+  fixtures:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Check fixture containers, codecs, duration, chapters and decoding
+        run: python3 scripts/generate-playback-fixtures.py --verify
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npx expo install --check
+  android:
+    needs: fixtures
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: mobile
+        shell: bash
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - name: Install Maestro
+        run: bash scripts/install-maestro.sh
+      - name: Configure Android SDK
+        run: bash scripts/configure-android-sdk.sh
+      - name: Build standalone Android app with bundled fixtures
+        run: |
+          mkdir -p test-results
+          npx expo prebuild --platform android --no-install
+          cd android
+          ./gradlew assembleRelease --no-daemon | tee ../test-results/android-build.log
+      - name: Start API 35 emulator and install app
+        run: bash scripts/prepare-android-device.sh
+      - name: Test native playback and extracted images
+        run: |
+          device=$(adb devices | awk '$2 == "device" { print $1; exit }')
+          test -n "$device"
+          bash scripts/test-native-playback.sh android "$device"
+      - name: Collect Android diagnostics
+        if: always()
+        continue-on-error: true
+        run: |
+          mkdir -p test-results
+          timeout 15 adb logcat -d -t 3000 > test-results/logcat.txt || true
+          timeout 15 adb exec-out screencap -p > test-results/final-screen.png || rm -f test-results/final-screen.png
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always()
+        with:
+          name: mobile-android-playback
+          path: mobile/test-results/
+          if-no-files-found: warn
+          retention-days: 7
+  ios:
+    needs: fixtures
+    runs-on: macos-26
+    timeout-minutes: 65
+    defaults:
+      run:
+        working-directory: mobile
+        shell: bash
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - name: Install Maestro
+        run: bash scripts/install-maestro.sh
+      - name: Generate native iOS app
+        run: |
+          mkdir -p test-results
+          npx expo prebuild --platform ios --no-install
+          cd ios
+          pod install | tee ../test-results/pods.log
+      - name: Build unsigned standalone iPhone app with bundled fixtures
+        run: |
+          workspace=$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)
+          test -n "$workspace"
+          xcodebuild -workspace "$workspace" -scheme Navigator -configuration Release -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/navigator-playback-ios" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO | tee test-results/ios-build.log
+      - name: Boot iPhone and install app
+        run: |
+          app=$(find "$RUNNER_TEMP/navigator-playback-ios/Build/Products/Release-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)
+          test -n "$app"
+          device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; groups=json.load(sys.stdin)["devices"]; print(next(item["udid"] for devices in reversed(list(groups.values())) for item in devices if item["name"].startswith("iPhone")))')
+          echo "PLAYBACK_IOS_DEVICE=$device" >> "$GITHUB_ENV"
+          xcrun simctl boot "$device" || true
+          xcrun simctl bootstatus "$device" -b
+          xcrun simctl install "$device" "$app"
+      - name: Test native playback and extracted images
+        run: bash scripts/test-native-playback.sh ios "$PLAYBACK_IOS_DEVICE"
+      - name: Collect iOS diagnostics
+        if: always()
+        continue-on-error: true
+        run: |
+          mkdir -p test-results
+          if [ -n "${PLAYBACK_IOS_DEVICE:-}" ]; then
+            xcrun simctl io "$PLAYBACK_IOS_DEVICE" screenshot test-results/final-screen.png || true
+            xcrun simctl spawn "$PLAYBACK_IOS_DEVICE" log show --last 10m --predicate 'process == "Navigator"' > test-results/simulator.log || true
+            xcrun simctl shutdown "$PLAYBACK_IOS_DEVICE" || true
+          fi
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always()
+        with:
+          name: mobile-ios-playback
+          path: mobile/test-results/
+          if-no-files-found: warn
+          retention-days: 7

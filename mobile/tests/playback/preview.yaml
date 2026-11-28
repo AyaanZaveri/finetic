@@ -1,0 +1,14 @@
+appId: app.navigator.mobile
+---
+- tapOn:
+    id: playback-preview
+- scrollUntilVisible:
+    element:
+      id: playback-preview-ready
+    direction: DOWN
+    timeout: 20000
+- assertVisible:
+    id: playback-preview-ready
+- assertNotVisible:
+    id: playback-preview-error
+- takeScreenshot: preview-displayed

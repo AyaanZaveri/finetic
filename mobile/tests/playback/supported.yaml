@@ -1,0 +1,7 @@
+appId: app.navigator.mobile
+name: Render, pause, seek and extract a native preview
+---
+- runFlow: open.yaml
+- runFlow: transport.yaml
+- takeScreenshot: transport-ready
+- runFlow: preview.yaml
