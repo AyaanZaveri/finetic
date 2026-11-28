@@ -5,8 +5,8 @@ import { THEME } from '@/lib/theme';
 import { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { Image } from 'expo-image';
 import { useColorScheme } from 'nativewind';
-import { useEffect, useRef, useState, type ComponentRef } from 'react';
-import { AccessibilityInfo, Keyboard, Linking, Pressable, StyleSheet, View, type TextInput } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, Keyboard, Linking, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 // Same official Stremio brand artwork as Navigator web's account form.
 const stremioLogo = require('@/assets/images/stremio.svg');
@@ -25,10 +25,10 @@ function waitForPoll(ms: number, signal: AbortSignal) {
   });
 }
 
-export function StreamSignIn({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+export function StreamSignIn({ onClose, onSuccess, presentation }: { onClose: () => void; onSuccess: () => void; presentation: 'sheet' | 'dialog' }) {
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme ?? 'light'];
-  const passwordInput = useRef<ComponentRef<typeof BottomSheetTextInput>>(null);
+  const passwordInput = useRef<TextInput>(null);
   const request = useRef<AbortController | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -92,13 +92,14 @@ export function StreamSignIn({ onClose, onSuccess }: { onClose: () => void; onSu
     }
   };
 
-  // Gorhom types the ref as the gesture wrapper, but forwards the native input.
-  const focusPassword = () => (passwordInput.current as unknown as TextInput | null)?.focus();
+  const FormScrollView = presentation === 'dialog' ? ScrollView : BottomSheetScrollView;
+  const FormInput = presentation === 'dialog' ? TextInput : BottomSheetTextInput;
   const inputStyle = [styles.input, { backgroundColor: theme.muted, color: theme.foreground }];
-  return <BottomSheetScrollView
+  return <FormScrollView
     accessibilityViewIsModal accessible={false} onAccessibilityEscape={close}
-    keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
-    <Button testID="sign-in-stremio" accessibilityLabel="Sign in with Stremio" variant="outline" className="rounded-full bg-transparent active:bg-muted"
+    keyboardShouldPersistTaps="handled" style={presentation === 'dialog' ? styles.dialogScroll : undefined}
+    contentContainerStyle={presentation === 'dialog' ? [styles.content, styles.dialogContent] : styles.content}>
+    <Button testID="sign-in-stremio" accessibilityLabel="Sign in with Stremio" className="rounded-full"
       onAccessibilityEscape={close}
       disabled={pending !== null} loading={pending === 'stremio' && !linkUrl} haptic="impact" onPress={() => void authenticate('stremio')}>
       <Image source={stremioLogo} style={styles.logo} contentFit="contain" accessible={false} />
@@ -118,30 +119,32 @@ export function StreamSignIn({ onClose, onSuccess }: { onClose: () => void; onSu
     </View>
     <View className="gap-1.5">
       <Text className="text-sm font-nav-medium">Email</Text>
-      <BottomSheetTextInput testID="sign-in-email" accessibilityLabel="Email" autoCapitalize="none" autoCorrect={false}
-        autoComplete="username" textContentType="username" returnKeyType="next" submitBehavior="submit" onSubmitEditing={focusPassword}
+      <FormInput testID="sign-in-email" accessibilityLabel="Email" autoCapitalize="none" autoCorrect={false}
+        autoComplete="username" textContentType="username" returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => passwordInput.current?.focus()}
         keyboardType="email-address" value={email} onChangeText={value => { setEmail(value); setError(null); }} editable={pending === null}
         maxLength={320} style={inputStyle} placeholderTextColor={theme.mutedForeground} placeholder="you@example.com" />
     </View>
     <View className="gap-1.5">
       <Text className="text-sm font-nav-medium">Password</Text>
-      <BottomSheetTextInput ref={passwordInput} accessibilityLabel="Password" secureTextEntry autoComplete="current-password" textContentType="password"
+      <FormInput ref={(input: unknown) => { passwordInput.current = input as TextInput | null; }} accessibilityLabel="Password" secureTextEntry autoComplete="current-password" textContentType="password"
         returnKeyType="go" onSubmitEditing={() => void authenticate('email')} value={password}
         onChangeText={value => { setPassword(value); setError(null); }} editable={pending === null} maxLength={4096}
         style={inputStyle} placeholderTextColor={theme.mutedForeground} placeholder="Password" />
     </View>
     {error && <Text accessibilityRole="alert" className="text-sm text-destructive">{error}</Text>}
-    <Button testID="sign-in-submit" accessibilityLabel="Sign in" loading={pending === 'email'} disabled={pending !== null || !email.trim() || !password}
+    <Button testID="sign-in-submit" accessibilityLabel="Sign in" variant="secondary" loading={pending === 'email'} disabled={pending !== null || !email.trim() || !password}
       className="rounded-full" onPress={() => void authenticate('email')} haptic="impact"><Text className="text-[17px] font-nav-semibold">Sign in</Text></Button>
     <Pressable testID="sign-in-sign-up" accessibilityRole="link" accessibilityLabel="Sign up for Stremio" onPress={() => void openUrl(signUpUrl)}
       className="min-h-12 items-center justify-center active:opacity-75">
       <Text variant="muted" className="text-center">Don&apos;t have an account? <Text className="text-sm font-nav-semibold text-foreground">Sign up</Text></Text>
     </Pressable>
-  </BottomSheetScrollView>;
+  </FormScrollView>;
 }
 
 const styles = StyleSheet.create({
   content: { paddingTop: 6, paddingHorizontal: 16, paddingBottom: 16, gap: 10 },
+  dialogScroll: { flexGrow: 0 },
+  dialogContent: { paddingTop: 24, paddingHorizontal: 24, paddingBottom: 16, gap: 12 },
   input: { minHeight: 48, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, fontSize: 16 },
   logo: { width: 16, height: 16, flexShrink: 0 },
   rule: { height: StyleSheet.hairlineWidth },

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { signInSheetLayout, streamSheetLayout } from '../lib/stream-sheet.ts';
+import { signInPresentation, signInSheetLayout, streamSheetLayout } from '../lib/stream-sheet.ts';
 
 test('stream drawers use the same detached margins and a tall bounded detent', () => {
   const layout = streamSheetLayout(402, 874, { left: 0, right: 0, top: 62, bottom: 34 });
@@ -17,7 +17,7 @@ test('wide and landscape drawers stay inside the safe area', () => {
   assert.ok(layout.snapHeight + layout.topInset + layout.bottomInset <= 768);
 });
 
-test('the content-sized sign-in drawer is narrow on tablets and bounded on phones', () => {
+test('the sign-in drawer is content-sized and bounded by the safe area', () => {
   const phone = signInSheetLayout(390, 400, { left: 0, right: 0, top: 44, bottom: 34 });
   assert.equal(phone.marginLeft, 12);
   assert.equal(phone.marginRight, 12);
@@ -26,4 +26,12 @@ test('the content-sized sign-in drawer is narrow on tablets and bounded on phone
   const tablet = signInSheetLayout(1024, 768, { left: 24, right: 12, top: 24, bottom: 20 });
   assert.equal(1024 - tablet.marginLeft - tablet.marginRight, 440);
   assert.equal(tablet.marginLeft - tablet.marginRight, 12);
+});
+
+test('sign-in uses a centered dialog only when the safe width supports it', () => {
+  const insets = { left: 12, right: 12, top: 24, bottom: 20 };
+  assert.equal(signInPresentation(390, insets), 'sheet');
+  assert.equal(signInPresentation(743, insets), 'sheet');
+  assert.equal(signInPresentation(744, insets), 'dialog');
+  assert.equal(signInPresentation(1024, insets), 'dialog');
 });

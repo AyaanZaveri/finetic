@@ -1,4 +1,5 @@
 import { StreamCard } from './stream-card';
+import { SignInDialog } from './sign-in-dialog';
 import { StreamSignIn } from './stream-sign-in';
 import { Button } from '@/components/ui/button';
 import { FloatingSheet } from '@/components/ui/floating-sheet';
@@ -10,14 +11,14 @@ import {
   filterStreams, getSourceLabel, getStreamPresentation, isSelectableStream, streamFilterGroups, streamFilterLabels,
   type StreamChoice, type StreamTarget,
 } from '@/lib/stream-selection';
-import { signInSheetLayout, streamSheetLayout } from '@/lib/stream-sheet';
+import { signInPresentation, signInSheetLayout, streamSheetLayout } from '@/lib/stream-sheet';
 import { triggerHaptic } from '@/lib/haptics';
 import { THEME } from '@/lib/theme';
 import { BottomSheetFlatList, BottomSheetModal, BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { ArrowLeft, Check, ChevronDown, Layers, Search, SearchX, SlidersHorizontal, X } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref, type RefObject } from 'react';
-import { ActivityIndicator, BackHandler, Keyboard, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, BackHandler, Keyboard, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export type StreamSelectorHandle = { present: () => void };
@@ -63,6 +64,7 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
   const presented = useRef(false);
   const visible = useRef(false);
   const [open, setOpen] = useState(false);
+  const [accountPresentation, setAccountPresentation] = useState<'sheet' | 'dialog'>('sheet');
   const [snapshot, setSnapshot] = useState(emptyStreamSnapshot);
   const [retry, setRetry] = useState(0);
   const [pane, setPane] = useState<Pane>('streams');
@@ -76,6 +78,9 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
   const targetType = target.type;
   const targetSeason = target.type === 'series' ? target.season : undefined;
   const targetEpisode = target.type === 'series' ? target.episode : undefined;
+  const preferredPresentation = signInPresentation(width, insets);
+  const accountDialog = accountPresentation === 'dialog' && snapshot.signedIn !== true && !visible.current;
+  const ready = snapshot.signedIn !== null || snapshot.complete;
 
   const resetFilters = () => { setSearch(''); setAddon(null); setFilters([]); };
   const reload = useCallback(() => {
@@ -95,6 +100,7 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
     cancelRequests();
     Keyboard.dismiss();
     setOpen(false);
+    setAccountPresentation('sheet');
     setAuthPending(false);
     setAuthError(null);
     setSnapshot(emptyStreamSnapshot());
@@ -108,15 +114,17 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
   }, [cancelRequests, dismissed]);
   useImperativeHandle(ref, () => ({
     present() {
-      if (presented.current || !sheet.current) return;
+      if (presented.current) return;
       presented.current = true;
+      // Do not swap the native container while the user is entering text.
+      setAccountPresentation(preferredPresentation);
       setPane('streams');
       resetFilters();
       setSnapshot(emptyStreamSnapshot());
       setSelected(null);
       setOpen(true);
     },
-  }), []);
+  }), [preferredPresentation]);
 
   useEffect(() => {
     if (!open) return;
@@ -137,10 +145,10 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
   useEffect(() => {
     // Resolve the local account state before showing either drawer. A guest
     // never sees the stream header while SecureStore is loading.
-    if (!open || visible.current || !sheet.current || (snapshot.signedIn === null && !snapshot.complete)) return;
+    if (!open || !ready || accountDialog || visible.current || !sheet.current) return;
     visible.current = true;
     sheet.current.present();
-  }, [open, snapshot.signedIn, snapshot.complete]);
+  }, [open, ready, accountDialog]);
   useEffect(() => cancelRequests, [cancelRequests]);
   useEffect(() => {
     if (!open) return;
@@ -200,20 +208,25 @@ export function StreamSelector({ ref, target, title, blurTarget, onSelect }: {
     }
   };
 
-  // The edge-to-edge Android portal keeps its full height. Let Gorhom lift
-  // the compact form above the IME rather than assuming the portal resized.
-  if (snapshot.signedIn !== true) return <FloatingSheet ref={sheet} layout={signInSheetLayout(width, height, insets)}
-    blurTarget={blurTarget} onDismiss={dismissed} contentSized keyboardClearance={8}
-    keyboardBehavior="interactive" keyboardBlurBehavior="restore" android_keyboardInputMode="adjustPan" enableBlurKeyboardOnGesture>
-    {snapshot.signedIn === false ? <StreamSignIn onClose={close} onSuccess={close} /> : (
-      <BottomSheetScrollView accessibilityViewIsModal accessible={false} onAccessibilityEscape={close} contentContainerStyle={styles.body}>
+  if (snapshot.signedIn !== true) {
+    const AccountScrollView = accountDialog ? ScrollView : BottomSheetScrollView;
+    const account = snapshot.signedIn === false ? <StreamSignIn onClose={close} onSuccess={close} presentation={accountDialog ? 'dialog' : 'sheet'} /> : (
+      <AccountScrollView accessibilityViewIsModal accessible={false} onAccessibilityEscape={close} contentContainerStyle={styles.body}>
         {snapshot.complete ? <>
           <Text accessibilityRole="alert" variant="muted">{snapshot.error ?? 'Could not open sign-in. Try again.'}</Text>
           <Button variant="secondary" onPress={reload}><Text>Try again</Text></Button>
         </> : <ActivityIndicator color={theme.mutedForeground} accessibilityLabel="Checking account" />}
-      </BottomSheetScrollView>
-    )}
-  </FloatingSheet>;
+      </AccountScrollView>
+    );
+    if (accountDialog) return <SignInDialog visible={open && ready} onClose={close}>{account}</SignInDialog>;
+    // The edge-to-edge Android portal keeps its full height. Let Gorhom lift
+    // the compact form above the IME rather than assuming the portal resized.
+    return <FloatingSheet ref={sheet} layout={signInSheetLayout(width, height, insets)}
+      onDismiss={dismissed} contentSized solidSurface keyboardClearance={8}
+      keyboardBehavior="interactive" keyboardBlurBehavior="restore" android_keyboardInputMode="adjustPan" enableBlurKeyboardOnGesture>
+      {account}
+    </FloatingSheet>;
+  }
 
   const body = pane === 'addons' ? (
     <BottomSheetScrollView contentContainerStyle={styles.body}>

@@ -9,7 +9,11 @@ export function streamSheetLayout(width: number, height: number, insets: Insets)
   return { ...layout, snapHeight: Math.min(availableHeight, Math.round(availableHeight * 0.94)) };
 }
 
-/** The account form measures its own height and stays narrow on tablets. */
+export function signInPresentation(width: number, insets: Pick<Insets, 'left' | 'right'>) {
+  return width - insets.left - insets.right >= 720 ? 'dialog' : 'sheet';
+}
+
+/** The compact account form measures its own height. */
 export function signInSheetLayout(width: number, height: number, insets: Insets) {
   const layout = seasonSheetLayout(width, height, insets, 1);
   const margin = Math.max(12, (width - insets.left - insets.right - 440) / 2);

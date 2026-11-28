@@ -28,13 +28,14 @@ function SheetKeyboardClearance({ amount, offset }: { amount: number; offset: Sh
 }
 
 /** Shared detached drawer material and safe-area geometry for contextual actions. */
-export function FloatingSheet({ ref, layout, blurTarget, children, contentSized = false, keyboardClearance = 0, ...props }: Pick<BottomSheetModalProps, 'onDismiss' | 'keyboardBehavior' | 'keyboardBlurBehavior' | 'android_keyboardInputMode' | 'enableBlurKeyboardOnGesture'> & {
+export function FloatingSheet({ ref, layout, blurTarget, children, contentSized = false, keyboardClearance = 0, solidSurface = false, ...props }: Pick<BottomSheetModalProps, 'onDismiss' | 'keyboardBehavior' | 'keyboardBlurBehavior' | 'android_keyboardInputMode' | 'enableBlurKeyboardOnGesture'> & {
   ref: Ref<BottomSheetModal>;
   layout: FloatingSheetLayout;
   children: ReactNode;
   blurTarget?: RefObject<View | null>;
   contentSized?: boolean;
   keyboardClearance?: number;
+  solidSurface?: boolean;
 }) {
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme ?? 'light'];
@@ -43,6 +44,7 @@ export function FloatingSheet({ ref, layout, blurTarget, children, contentSized 
   const keyboardMargins = useAnimatedStyle(() => ({ marginTop: -keyboardOffset.get(), marginBottom: keyboardOffset.get() }));
   const SheetBackground = useCallback(({ style, pointerEvents }: BottomSheetBackgroundProps) => {
     const surfaceStyle = [style, styles.background];
+    if (solidSurface) return <View pointerEvents={pointerEvents} style={[surfaceStyle, { backgroundColor: theme.card }]} />;
     if (Platform.OS === 'ios') return <GlassSurface pointerEvents={pointerEvents} style={surfaceStyle}
       fallbackStyle={{ backgroundColor: theme.card, borderWidth: 0 }} />;
     const canBlur = Platform.OS === 'android' && Number(Platform.Version) >= 31 && blurTarget;
@@ -52,7 +54,7 @@ export function FloatingSheet({ ref, layout, blurTarget, children, contentSized 
         <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: colorScheme === 'dark' ? '#171717db' : '#ffffffde' }]} />
       </>}
     </View>;
-  }, [colorScheme, theme.card, blurTarget]);
+  }, [colorScheme, theme.card, blurTarget, solidSurface]);
   return <BottomSheetModal {...props} ref={ref} accessible={false}
     style={[styles.sheet, { marginLeft: layout.marginLeft, marginRight: layout.marginRight }, keyboardClearance > 0 && keyboardMargins]}
     detached bottomInset={layout.bottomInset} topInset={layout.topInset} snapPoints={contentSized ? undefined : [layout.snapHeight]}
