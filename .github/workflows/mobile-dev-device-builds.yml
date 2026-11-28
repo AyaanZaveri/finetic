@@ -27,11 +27,24 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           persist-credentials: false
-      - uses: actions/setup-node@249970729cb0ef3589644e5dc5ba9c38
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: mobile/package-lock.json
+      - name: Use runner Node.js 22
+        run: |
+          node_bin=$(python3 - <<'PYTHON'
+          import os
+          from pathlib import Path
+
+          cache = Path(os.environ["RUNNER_TOOL_CACHE"]) / "node"
+          arch = {"x86_64": "x64", "arm64": "arm64", "aarch64": "arm64"}[os.uname().machine]
+          candidates = [
+              release for release in cache.glob("22.*")
+              if (release / arch / "bin" / "node").is_file()
+          ]
+          release = max(candidates, key=lambda path: tuple(map(int, path.name.split("."))))
+          print(release / arch / "bin")
+          PYTHON
+          )
+          "$node_bin/node" --version
+          printf '%s\n' "$node_bin" >> "$GITHUB_PATH"
       - run: npm ci
       - name: Build ARM64 development client
         run: |
@@ -76,11 +89,24 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           persist-credentials: false
-      - uses: actions/setup-node@249970729cb0ef3589644e5dc5ba9c38
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: mobile/package-lock.json
+      - name: Use runner Node.js 22
+        run: |
+          node_bin=$(python3 - <<'PYTHON'
+          import os
+          from pathlib import Path
+
+          cache = Path(os.environ["RUNNER_TOOL_CACHE"]) / "node"
+          arch = {"x86_64": "x64", "arm64": "arm64", "aarch64": "arm64"}[os.uname().machine]
+          candidates = [
+              release for release in cache.glob("22.*")
+              if (release / arch / "bin" / "node").is_file()
+          ]
+          release = max(candidates, key=lambda path: tuple(map(int, path.name.split("."))))
+          print(release / arch / "bin")
+          PYTHON
+          )
+          "$node_bin/node" --version
+          printf '%s\n' "$node_bin" >> "$GITHUB_PATH"
       - name: Verify Xcode version
         run: |
           version=$(xcodebuild -version)
