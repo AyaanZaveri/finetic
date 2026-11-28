@@ -4,6 +4,8 @@ set -euo pipefail
 platform=${1:?Specify android or ios}
 device=${2:?Specify the installed app device}
 case "$platform" in android|ios) ;; *) exit 2 ;; esac
+engine=${3:-expo}
+case "$platform:$engine" in android:expo|ios:expo|ios:aether) ;; *) exit 2 ;; esac
 folder="test-results/playback"
 mkdir -p "$folder"
 result=0
@@ -12,7 +14,7 @@ run_case() {
   local destination="$folder/$fixture"
   mkdir -p "$destination"
   echo "Testing $fixture: $flow"
-  if ! maestro test --device "$device" -e FIXTURE="$fixture" \
+  if ! maestro test --device "$device" -e FIXTURE="$fixture" -e ENGINE="$engine" \
     --format junit --output "$destination/report.xml" \
     --test-output-dir "$destination" --debug-output "$destination" \
     "tests/playback/$flow.yaml" | tee "$destination/maestro.log"; then
@@ -43,8 +45,7 @@ run_case() {
 # Required baseline uses real frames and thumbnails, not fixture screenshots.
 run_case mp4-avc cache
 run_case mp4-chapters chapters
-if [ "$platform" = android ]; then
-  # Media3 supports these containers; the emulator must demonstrate playback.
+if [ "$platform" = android ] || [ "$engine" = aether ]; then
   run_case mkv-avc supported
   run_case webm-vp9 supported
 else
@@ -58,11 +59,12 @@ fi
 run_case mp4-hevc probe
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {
-    echo "### $platform native media results"
+    echo "### $platform native media results ($engine)"
     echo
     echo '| Fixture | Required outcome | Observed |'
     echo '|---|---|---|'
-    for name in mp4-avc mp4-chapters mkv-avc webm-vp9 mp4-hevc; do
+    for dest in "$folder"/*/; do
+      name=$(basename "$dest")
       dest="$folder/$name"
       expected='Playback and preview'
       if [ "$name" = mp4-avc ]; then
@@ -71,7 +73,7 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
         expected='Playback, preview and chapter images'
       elif [ "$name" = mp4-hevc ]; then
         expected='Compatibility probe'
-      elif [ "$platform" = ios ] && [[ "$name" = mkv-avc || "$name" = webm-vp9 ]]; then
+      elif [ "$platform:$engine" = ios:expo ] && [[ "$name" = mkv-avc || "$name" = webm-vp9 ]]; then
         expected='Compatibility probe (AVPlayer usually rejects)'
       fi
       observed='FAILED or incomplete; see logs'
@@ -99,7 +101,7 @@ PY
       echo "| $name | $expected | $observed |"
     done
     echo
-    echo 'Simulator evidence does not establish audio output quality, HDR, hardware decoding, or device-wide codec support.'
+    echo 'Preview timings are request-to-display samples on this runner. Simulator evidence does not establish audio output quality, HDR, hardware decoding, or device-wide codec support.'
   } >> "$GITHUB_STEP_SUMMARY"
 fi
 exit "$result"
