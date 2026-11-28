@@ -17,6 +17,9 @@ export function PlaybackLabPlayer({ source, ...details }: PlaybackLabSource) {
   });
   const { status } = useEvent(player, 'statusChange', { status: player.status });
   const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
+  const { availableSubtitleTracks } = useEvent(player, 'availableSubtitleTracksChange', {
+    availableSubtitleTracks: player.availableSubtitleTracks,
+  });
   const [currentTime, setCurrentTime] = useState(0);
   useEventListener(player, 'timeUpdate', event => { if (Number.isFinite(event.currentTime)) setCurrentTime(event.currentTime); });
   const [duration, setDuration] = useState(0);
@@ -85,7 +88,7 @@ export function PlaybackLabPlayer({ source, ...details }: PlaybackLabSource) {
       <VideoView player={player} style={{ flex: 1 }} nativeControls={false} contentFit="contain"
         surfaceType="surfaceView" onFirstFrameRender={() => setFirstFrame(true)} allowsVideoFrameAnalysis={false} />
     } currentTime={currentTime} duration={duration} firstFrame={firstFrame} isPlaying={isPlaying}
-      ended={ended} failed={status === 'error'}
+      ended={ended} failed={status === 'error'} subtitleCount={availableSubtitleTracks.length}
       seekComplete={seekComplete} seek={seek} toggle={toggle} extract={extract} />
   );
 }

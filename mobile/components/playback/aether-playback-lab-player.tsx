@@ -11,6 +11,7 @@ type Status = {
   isPlaying: boolean;
   ended: boolean;
   failed: boolean;
+  subtitleCount: number;
 };
 
 type Commands = {
@@ -30,7 +31,7 @@ type NativeProps = ViewProps & {
 
 const NativePlayer = requireNativeView<NativeProps>('NavigatorAether');
 const initialStatus: Status = {
-  currentTime: 0, duration: 0, firstFrame: false, isPlaying: false, ended: false, failed: false,
+  currentTime: 0, duration: 0, firstFrame: false, isPlaying: false, ended: false, failed: false, subtitleCount: 0,
 };
 
 export function AetherPlaybackLabPlayer({ source, label, expectedDuration }: PlaybackLabSource) {

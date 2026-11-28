@@ -60,6 +60,7 @@ private final class NavigatorAetherView: ExpoView {
     var playing = false
     var ended = false
     var failed = false
+    var subtitleCount = 0
   }
 
   let onStatus = EventDispatcher()
@@ -206,7 +207,8 @@ private final class NavigatorAetherView: ExpoView {
       firstFrame: status.firstFrame || engine.hasFirstFrameReadyForDisplay,
       playing: engine.state == .playing || (engine.state == .seeking && wantsPlayback),
       ended: engine.state == .ended && !loop,
-      failed: failed
+      failed: failed,
+      subtitleCount: engine.subtitleTracks.count
     )
     if status != latest {
       status = latest
@@ -230,7 +232,8 @@ private final class NavigatorAetherView: ExpoView {
       "firstFrame": status.firstFrame,
       "isPlaying": status.playing,
       "ended": status.ended,
-      "failed": status.failed
+      "failed": status.failed,
+      "subtitleCount": status.subtitleCount
     ])
   }
 

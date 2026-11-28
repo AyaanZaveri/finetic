@@ -24,6 +24,7 @@ type Props = Omit<PlaybackLabSource, 'source'> & {
   isPlaying: boolean;
   ended: boolean;
   failed: boolean;
+  subtitleCount: number;
   seekComplete: boolean;
   seek: (time: number) => void;
   toggle: () => void;
@@ -35,7 +36,7 @@ type PreviewResult = PlaybackPreview<PlaybackImage> & { request: number; cached:
 
 export function PlaybackLabControls({
   label, chapters = NO_CHAPTERS, expectedDuration, video, currentTime, duration,
-  firstFrame, isPlaying, ended, failed, seekComplete, seek, toggle, extract,
+  firstFrame, isPlaying, ended, failed, subtitleCount, seekComplete, seek, toggle, extract,
 }: Props) {
   const [progressed, setProgressed] = useState(false);
   const [preview, setPreview] = useState<PreviewResult | null>(null);
@@ -147,6 +148,9 @@ export function PlaybackLabControls({
         {previewTimes.cold !== undefined && <Text testID="playback-preview-cold" variant="muted">Uncached preview {previewTimes.cold} ms</Text>}
         {previewTimes.cached !== undefined && <Text testID="playback-preview-cached" variant="muted">Cached preview {previewTimes.cached} ms</Text>}
       </View>}
+      {subtitleCount > 0 && <Text testID="playback-subtitle-tracks" variant="muted">
+        {subtitleCount === 1 ? '1 subtitle track' : `${subtitleCount} subtitle tracks`}
+      </Text>}
       {chapters.length > 0 && <View className="gap-2">
         <Text role="heading" className="text-lg font-nav-semibold">Chapters</Text>
         {chapters.slice(0, 8).map((chapter, index) => (

@@ -26,6 +26,7 @@ run_case() {
     supported) evidence='preview-displayed.png' ;;
     cache) evidence='preview-cache-comparison.png' ;;
     chapters) evidence='chapter-images-displayed.png' ;;
+    subtitles) evidence='subtitle-track-discovered.png' ;;
     unsupported) evidence='unsupported-source.png' ;;
     probe)
       # A probe must take precisely one branch and leave corresponding evidence.
@@ -54,6 +55,11 @@ else
   run_case mkv-avc probe
   run_case webm-vp9 probe
 fi
+if [ "$engine" = aether ]; then
+  run_case mkv-av1-subs subtitles
+else
+  run_case mkv-av1-subs probe
+fi
 # HEVC decoder availability is device/OS dependent. Require a native frame and
 # preview, or an explicit unsupported error, and preserve which was observed.
 run_case mp4-hevc probe
@@ -71,7 +77,9 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
         expected='Playback and uncached/cached previews'
       elif [ "$name" = mp4-chapters ]; then
         expected='Playback, preview and chapter images'
-      elif [ "$name" = mp4-hevc ]; then
+      elif [ "$name" = mkv-av1-subs ] && [ "$engine" = aether ]; then
+        expected='Playback, preview and embedded subtitle track'
+      elif [[ "$name" = mp4-hevc || "$name" = mkv-av1-subs ]]; then
         expected='Compatibility probe'
       elif [ "$platform:$engine" = ios:expo ] && [[ "$name" = mkv-avc || "$name" = webm-vp9 ]]; then
         expected='Compatibility probe (AVPlayer usually rejects)'
@@ -93,6 +101,8 @@ PY
           observed='Expected rejection (not playable)'
         elif [ -n "$(find "$dest" -name 'preview-cache-comparison.png' -print -quit)" ]; then
           observed='Rendered and displayed uncached/cached previews'
+        elif [ -n "$(find "$dest" -name 'subtitle-track-discovered.png' -print -quit)" ]; then
+          observed='Rendered, extracted preview and found embedded subtitle track'
         elif [ -n "$(find "$dest" -name 'preview-displayed.png' -print -quit)" ]; then
           observed='Rendered and extracted preview'
           if [ "$name" = mp4-chapters ]; then observed='Rendered and extracted chapter images'; fi

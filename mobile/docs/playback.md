@@ -25,7 +25,7 @@ References:
 
 The lab can switch between AVPlayer and AetherEngine in an iOS development client built with `NAVIGATOR_IOS_AETHER=1`. Generate the iOS project with that environment variable in a clean checkout, then build the custom development client with Xcode 27. The opt-in client requires iOS 18 or later. The normal iOS and Android builds keep the Expo Video baseline.
 
-The [Expo inline module](https://docs.expo.dev/modules/inline-modules-reference/) hosts AetherEngine’s UIKit player view and passes first-frame, native seek landing, clock, and chapter data to the shared lab controls. It stops the engine when the view leaves the window. Chapter times come from the source metadata. The build plugin links the same exact AetherEngine version as the desktop adapter, 7.76.0, with the default package traits. The hosted iOS job checks that the app embeds the dynamic FFmpeg frameworks. Review upstream redistribution requirements before shipping an Aether-enabled build.
+The [Expo inline module](https://docs.expo.dev/modules/inline-modules-reference/) hosts AetherEngine’s UIKit player view and passes first-frame, native seek landing, clock, chapter and subtitle-track data to the shared lab controls. It stops the engine when the view leaves the window. Chapter times come from the source metadata. The build plugin links the same exact AetherEngine version as the desktop adapter, 7.76.0, with the default package traits. The hosted iOS job checks that the app embeds the dynamic FFmpeg frameworks. Review upstream redistribution requirements before shipping an Aether-enabled build.
 
 Primary sources at the pinned revision:
 
@@ -49,6 +49,6 @@ Expo Video uses the known fixture timestamps for the chapter test. AetherEngine 
 
 ## Test coverage
 
-The fixture job fully decodes the synthetic audio and video and verifies the test chapters. The native matrix checks each engine’s first frame, advancing clock, duration, pause/resume, seek and rendered preview. AetherEngine also checks embedded chapter discovery.
+The fixture job fully decodes the synthetic audio and video. It also checks chapters and verifies the exact subtitle text and timing in the MKV AV1/FLAC/SubRip clip. The native matrix checks each engine’s first frame, advancing clock, duration, pause/resume, seek and rendered preview. AetherEngine also checks embedded chapter discovery and reports a discovered subtitle track. Subtitle rendering and audio output quality require separate checks.
 
 The tests do not establish physical device HDR or Dolby Vision, audio quality, HDMI passthrough, thermal performance, exact frame-accurate seeking, chapter extraction from unknown files, or authenticated stream handling. Follow up with physical iPhone/iPad and Android devices, HLS/DASH, multiple audio and subtitle tracks, HTTP range sources, stream interruption, audio focus, orientation changes and long-form media.

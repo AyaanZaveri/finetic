@@ -1,0 +1,14 @@
+appId: app.navigator.mobile
+name: Discover a real embedded subtitle track
+---
+- runFlow: open.yaml
+- runFlow: transport.yaml
+- runFlow: preview.yaml
+- scrollUntilVisible:
+    element:
+      id: playback-subtitle-tracks
+    direction: DOWN
+    timeout: 15000
+- assertVisible:
+    text: 1 subtitle track
+- takeScreenshot: subtitle-track-discovered
