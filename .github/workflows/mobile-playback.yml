@@ -23,7 +23,7 @@ permissions:
   contents: read
   actions: read
 concurrency:
-  group: mobile-playback-${{ github.ref_name }}
+  group: mobile-playback-${{ github.ref_name }}-${{ github.sha }}
   cancel-in-progress: true
 env:
   CI: '1'

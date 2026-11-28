@@ -1,10 +1,10 @@
 import AetherEngine
 import Combine
-import ExpoModulesCore
+internal import ExpoModulesCore
 import UIKit
 
-public final class NavigatorAether: Module {
-  public func definition() -> ModuleDefinition {
+final class NavigatorAether: Module {
+  func definition() -> ModuleDefinition {
     Name("NavigatorAether")
 
     View(NavigatorAetherView.self) {
