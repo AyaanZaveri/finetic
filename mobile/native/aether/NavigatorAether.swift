@@ -107,6 +107,8 @@ private final class NavigatorAetherView: ExpoView {
     do {
       let engine = try AetherEngine()
       self.engine = engine
+      engine.nativeAudioSessionActivationEnabled = true
+      engine.deactivatesAudioSessionOnStop = true
       engine.bind(view: surface)
       seekSubscription = engine.seekEvents.sink { [weak self] event in
         guard case .landed = event.outcome else { return }
@@ -124,7 +126,7 @@ private final class NavigatorAetherView: ExpoView {
     }
   }
 
-  private func load(_ engine: AetherEngine, source: URL) {
+  private func load(_ engine: AetherEngine, source: URL, restore: Bool = false) {
     guard loadTask == nil else { return }
     var options = LoadOptions()
     options.autoplay = wantsPlayback
@@ -134,9 +136,17 @@ private final class NavigatorAetherView: ExpoView {
         if let self, self.engine === engine { self.loadTask = nil }
       }
       do {
-        try await engine.load(url: source, options: options)
+        if restore {
+          try await engine.reloadAtCurrentPosition()
+        } else {
+          try await engine.load(url: source, options: options)
+        }
         guard let self, self.engine === engine, !Task.isCancelled else { return }
-        if !self.wantsPlayback { engine.pause() }
+        if !self.wantsPlayback {
+          engine.pause()
+        } else if restore {
+          engine.play()
+        }
       } catch is CancellationError {
         // The native view was detached or given another source.
       } catch {
@@ -154,6 +164,8 @@ private final class NavigatorAetherView: ExpoView {
       engine.pause()
     } else if engine.state == .ended, let openedSource {
       load(engine, source: openedSource)
+    } else if engine.needsForegroundVideoRestore, let openedSource {
+      load(engine, source: openedSource, restore: true)
     } else {
       engine.play()
     }

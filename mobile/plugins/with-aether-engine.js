@@ -1,10 +1,10 @@
-const { withXcodeProject } = require('expo/config-plugins');
+const { withPodfile, withXcodeProject } = require('expo/config-plugins');
 
 const repository = 'https://github.com/superuser404notfound/AetherEngine';
 const version = '7.76.0';
 const productName = 'AetherEngine';
 
-module.exports = config => withXcodeProject(config, config => {
+const withAetherPackage = config => withXcodeProject(config, config => {
   const project = config.modResults;
   const { firstProject } = project.getFirstProject();
   const { uuid: targetId, firstTarget } = project.getFirstTarget();
@@ -53,5 +53,29 @@ module.exports = config => withXcodeProject(config, config => {
   };
   objects.PBXBuildFile[`${buildFileId}_comment`] = comment;
   frameworks.files.push({ value: buildFileId, comment });
+  return config;
+});
+
+module.exports = config => withPodfile(withAetherPackage(config), config => {
+  const anchor = '  post_install do |installer|\n';
+  const marker = '    # Xcode 27 requires iOS 15 or later for pod resource targets.';
+  const { contents } = config.modResults;
+  if (contents.includes(marker)) return config;
+  if (!contents.includes(anchor)) throw new Error('The Navigator Podfile requires a post-install hook');
+
+  const minimum = [
+    marker,
+    "    minimum_ios = Gem::Version.new('15.0')",
+    '    installer.pods_project.targets.each do |target|',
+    '      target.build_configurations.each do |build|',
+    "        deployment = build.build_settings['IPHONEOS_DEPLOYMENT_TARGET'].to_s",
+    '        next unless deployment.match?(/\\A\\d+(?:\\.\\d+)*\\z/)',
+    "        build.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = minimum_ios.to_s if Gem::Version.new(deployment) < minimum_ios",
+    '      end',
+    '    end',
+    '',
+    '',
+  ].join('\n');
+  config.modResults.contents = contents.replace(anchor, anchor + minimum);
   return config;
 });
