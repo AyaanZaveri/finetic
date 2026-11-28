@@ -1,8 +1,15 @@
 appId: app.navigator.mobile
 ---
+# Use a catalog poster. It supplies a cached title summary, unlike a cold deep link.
+- scrollUntilVisible:
+    element:
+      id: 'media-card-movie:tt.*'
+    direction: DOWN
+    timeout: 20000
 - tapOn:
-    text: '^Open$'
-    optional: true
+    id: 'media-card-movie:tt.*'
+    index: 0
+    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible:
       id: title-detail-name
@@ -10,7 +17,8 @@ appId: app.navigator.mobile
 - runFlow: stream-selector-signed-out.yaml
 - tapOn:
     id: title-detail-back
-- extendedWaitUntil:
-    visible:
+- scrollUntilVisible:
+    element:
       id: hero-primary
-    timeout: 30000
+    direction: UP
+    timeout: 15000

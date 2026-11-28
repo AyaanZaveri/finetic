@@ -85,7 +85,7 @@ jobs:
       - name: Launch current JavaScript in the native client
         run: bash scripts/dev-client-android.sh launch
       - name: Verify and capture Android sign-in
-        run: bash scripts/capture-sign-in-preview.sh android
+        run: maestro test --device "$(adb get-serialno)" --test-output-dir test-results/sign-in-preview --format junit --output test-results/sign-in-report.xml tests/sign-in-preview.yaml
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         if: always()
         with:
@@ -170,7 +170,7 @@ jobs:
       - name: Launch current JavaScript in the native client
         run: bash scripts/dev-client-ios.sh launch iPhone
       - name: Verify and capture iPhone sign-in
-        run: bash scripts/capture-sign-in-preview.sh ios
+        run: maestro test --device "$DEV_CLIENT_IOS_DEVICE" --test-output-dir test-results/sign-in-preview --format junit --output test-results/sign-in-report.xml tests/sign-in-preview.yaml
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         if: always()
         with:
@@ -257,7 +257,7 @@ jobs:
         if: steps.launch.outcome == 'success'
         run: |
           xcrun simctl ui "$DEV_CLIENT_IOS_DEVICE" appearance dark
-          bash scripts/capture-sign-in-preview.sh ios
+          maestro test --device "$DEV_CLIENT_IOS_DEVICE" --test-output-dir test-results/sign-in-preview --format junit --output test-results/sign-in-report.xml tests/sign-in-preview.yaml
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         if: always() && steps.launch.outcome == 'success'
         with:
