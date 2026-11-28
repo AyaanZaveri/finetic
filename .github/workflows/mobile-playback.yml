@@ -50,11 +50,11 @@ jobs:
       - name: Check fixture containers, codecs, duration, chapters and decoding
         run: python3 scripts/generate-playback-fixtures.py --verify
       - name: Generate and verify adaptive fixtures
-        run: python3 scripts/prepare-adaptive-playback-fixtures.py --output test-results/adaptive-fixtures
+        run: python3 scripts/prepare-adaptive-playback-fixtures.py --output "$RUNNER_TEMP/navigator-adaptive-fixtures"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
           name: mobile-adaptive-playback-fixtures
-          path: mobile/test-results/adaptive-fixtures/
+          path: ${{ runner.temp }}/navigator-adaptive-fixtures/
           retention-days: 7
       - run: npm ci
       - run: npm run typecheck
