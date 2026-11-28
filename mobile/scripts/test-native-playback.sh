@@ -27,6 +27,14 @@ run_case() {
     cache) evidence='preview-cache-comparison.png' ;;
     chapters) evidence='chapter-images-displayed.png' ;;
     subtitles) evidence='subtitle-track-discovered.png' ;;
+    adaptive) evidence='adaptive-rendered.png' ;;
+    adaptive-probe)
+      if [ -n "$(find "$destination" -name 'adaptive-rejected.png' -print -quit)" ]; then
+        evidence='adaptive-rejected.png'
+      else
+        evidence='adaptive-rendered.png'
+      fi
+      ;;
     unsupported) evidence='unsupported-source.png' ;;
     probe)
       # A probe must take precisely one branch and leave corresponding evidence.
@@ -63,6 +71,23 @@ fi
 # HEVC decoder availability is device/OS dependent. Require a native frame and
 # preview, or an explicit unsupported error, and preserve which was observed.
 run_case mp4-hevc probe
+if [ "${NAVIGATOR_ADAPTIVE_FIXTURES:-0}" = 1 ]; then
+  if [ "$platform" = android ]; then
+    adb -s "$device" reverse tcp:8765 tcp:8765
+  fi
+  python3 scripts/prepare-adaptive-playback-fixtures.py --serve 8765 --directory "${RUNNER_TEMP:?}/navigator-adaptive-fixtures" \
+    > "$folder/adaptive-origin.log" 2>&1 &
+  origin_pid=$!
+  trap 'kill "$origin_pid" 2>/dev/null || true' EXIT
+  for attempt in {1..15}; do
+    if curl -fsS -o /dev/null http://127.0.0.1:8765/hls/playlist.m3u8; then break; fi
+    if ! kill -0 "$origin_pid" 2>/dev/null; then break; fi
+    sleep 1
+  done
+  curl -fsS -o /dev/null http://127.0.0.1:8765/dash/manifest.mpd
+  run_case adaptive-hls adaptive
+  if [ "$platform" = android ]; then run_case adaptive-dash adaptive; else run_case adaptive-dash adaptive-probe; fi
+fi
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {
     echo "### $platform native media results ($engine)"
@@ -79,6 +104,10 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
         expected='Playback, preview and chapter images'
       elif [ "$name" = mkv-av1-subs ] && [ "$engine" = aether ]; then
         expected='Playback, preview and embedded subtitle track'
+      elif [ "$name" = adaptive-hls ] || { [ "$name" = adaptive-dash ] && [ "$platform" = android ]; }; then
+        expected='Playback and seek'
+      elif [ "$name" = adaptive-dash ]; then
+        expected='Compatibility probe'
       elif [[ "$name" = mp4-hevc || "$name" = mkv-av1-subs ]]; then
         expected='Compatibility probe'
       elif [ "$platform:$engine" = ios:expo ] && [[ "$name" = mkv-avc || "$name" = webm-vp9 ]]; then
@@ -95,10 +124,12 @@ cases = list(root.iter("testcase"))
 sys.exit(0 if cases and not any(case.find("failure") is not None or case.find("error") is not None or case.find("skipped") is not None for case in cases) else 1)
 PY
       then
-        if [ -n "$(find "$dest" -name 'codec-rejected.png' -print -quit)" ]; then
+        if [ -n "$(find "$dest" \( -name 'codec-rejected.png' -o -name 'adaptive-rejected.png' \) -print -quit)" ]; then
           observed='Rejected (not playable)'
         elif [ -n "$(find "$dest" -name 'unsupported-source.png' -print -quit)" ]; then
           observed='Expected rejection (not playable)'
+        elif [ -n "$(find "$dest" -name 'adaptive-rendered.png' -print -quit)" ]; then
+          observed='Rendered and sought in adaptive media'
         elif [ -n "$(find "$dest" -name 'preview-cache-comparison.png' -print -quit)" ]; then
           observed='Rendered and displayed uncached/cached previews'
         elif [ -n "$(find "$dest" -name 'subtitle-track-discovered.png' -print -quit)" ]; then

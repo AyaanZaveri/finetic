@@ -1,0 +1,25 @@
+appId: app.navigator.mobile
+name: Record adaptive manifest support
+---
+- runFlow: open.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'playback-(first-frame|error)'
+    timeout: 30000
+- runFlow:
+    when:
+      visible:
+        id: playback-first-frame
+    commands:
+      - runFlow: transport.yaml
+      - takeScreenshot: adaptive-rendered
+- runFlow:
+    when:
+      visible:
+        id: playback-error
+    commands:
+      - assertNotVisible:
+          id: playback-first-frame
+      - assertNotVisible:
+          id: playback-playing
+      - takeScreenshot: adaptive-rejected

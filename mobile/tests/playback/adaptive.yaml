@@ -1,0 +1,6 @@
+appId: app.navigator.mobile
+name: Play and seek synthetic adaptive media
+---
+- runFlow: open.yaml
+- runFlow: transport.yaml
+- takeScreenshot: adaptive-rendered

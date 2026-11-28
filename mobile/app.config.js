@@ -8,5 +8,10 @@ module.exports = ({ config }) => {
     config.plugins = [...(config.plugins ?? []), './plugins/with-aether-engine'];
   }
 
+  if (process.env.NAVIGATOR_ADAPTIVE_FIXTURES === '1') {
+    config.extra = { ...config.extra, playbackAdaptiveFixtures: true };
+    config.plugins = [...(config.plugins ?? []), './plugins/with-adaptive-fixtures'];
+  }
+
   return config;
 };

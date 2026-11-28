@@ -4,6 +4,7 @@ import { playbackFixtures } from '@/assets/playback/fixtures';
 import { validPlaybackUrl, type PlaybackChapter } from '@/lib/playback-fixtures';
 import { Input } from '@/components/ui/input';
 import { requireOptionalNativeModule } from 'expo';
+import Constants from 'expo-constants';
 import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Asset } from 'expo-asset';
@@ -21,6 +22,14 @@ const testClips: { id: string; selection: Selection }[] = playbackFixtures.map(f
     expectedDuration: fixture.expectedDuration,
   },
 }));
+
+if (Constants.expoConfig?.extra?.playbackAdaptiveFixtures === true) {
+  // CI uses the host loopback on iOS and ADB reverse on Android.
+  testClips.push(
+    { id: 'adaptive-hls', selection: { label: 'HLS · H.264 / AAC', source: 'http://127.0.0.1:8765/hls/playlist.m3u8', expectedDuration: 14 } },
+    { id: 'adaptive-dash', selection: { label: 'DASH · H.264 / AAC', source: 'http://127.0.0.1:8765/dash/manifest.mpd', expectedDuration: 14 } },
+  );
+}
 
 // The router discovers routes before a user opens them. Defer the video import so
 // an older development client can still browse, search, and open Settings.

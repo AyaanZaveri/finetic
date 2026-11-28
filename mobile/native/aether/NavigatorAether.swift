@@ -128,6 +128,7 @@ private final class NavigatorAetherView: ExpoView {
     guard loadTask == nil else { return }
     var options = LoadOptions()
     options.autoplay = wantsPlayback
+    options.nativeRemoteHLS = !source.isFileURL && source.pathExtension.lowercased() == "m3u8"
     loadTask = Task { [weak self] in
       defer {
         if let self, self.engine === engine { self.loadTask = nil }

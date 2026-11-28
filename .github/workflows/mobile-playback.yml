@@ -12,6 +12,7 @@ on:
       - 'mobile/tests/playback/**'
       - 'mobile/tests/playback-*.test.mjs'
       - 'mobile/scripts/generate-playback-fixtures.py'
+      - 'mobile/scripts/prepare-adaptive-playback-fixtures.py'
       - 'mobile/scripts/test-native-playback.sh'
       - 'mobile/package*.json'
       - 'mobile/app.json'
@@ -28,6 +29,7 @@ env:
   EXPO_NO_TELEMETRY: '1'
   MAESTRO_CLI_NO_ANALYTICS: 'true'
   COCOAPODS_DISABLE_STATS: 'true'
+  NAVIGATOR_ADAPTIVE_FIXTURES: '1'
 jobs:
   fixtures:
     runs-on: ubuntu-24.04
@@ -46,6 +48,13 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Check fixture containers, codecs, duration, chapters and decoding
         run: python3 scripts/generate-playback-fixtures.py --verify
+      - name: Generate and verify adaptive fixtures
+        run: python3 scripts/prepare-adaptive-playback-fixtures.py --output test-results/adaptive-fixtures
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: mobile-adaptive-playback-fixtures
+          path: mobile/test-results/adaptive-fixtures/
+          retention-days: 7
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
@@ -78,6 +87,10 @@ jobs:
           ./gradlew assembleRelease --no-daemon | tee ../test-results/android-build.log
       - name: Start API 35 emulator and install app
         run: bash scripts/prepare-android-device.sh
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          name: mobile-adaptive-playback-fixtures
+          path: ${{ runner.temp }}/navigator-adaptive-fixtures
       - name: Test native playback and extracted images
         run: |
           device=$(adb devices | awk '$2 == "device" { print $1; exit }')
@@ -160,6 +173,10 @@ jobs:
           xcrun simctl boot "$device" || true
           xcrun simctl bootstatus "$device" -b
           xcrun simctl install "$device" "$app"
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          name: mobile-adaptive-playback-fixtures
+          path: ${{ runner.temp }}/navigator-adaptive-fixtures
       - name: Test native playback and extracted images
         run: bash scripts/test-native-playback.sh ios "$PLAYBACK_IOS_DEVICE" "${{ matrix.engine }}"
       - name: Collect iOS diagnostics

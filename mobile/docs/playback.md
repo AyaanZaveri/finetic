@@ -51,4 +51,6 @@ Expo Video uses the known fixture timestamps for the chapter test. AetherEngine 
 
 The fixture job fully decodes the synthetic audio and video. It also checks chapters and verifies the exact subtitle text and timing in the MKV AV1/FLAC/SubRip clip. The native matrix checks each engine’s first frame, advancing clock, duration, pause/resume, seek and rendered preview. AetherEngine also checks embedded chapter discovery and reports a discovered subtitle track. Subtitle rendering and audio output quality require separate checks.
 
+The adaptive fixtures use synthetic H.264/AAC and a loopback HTTP origin that runs only for the CI matrix. HLS runs on all three adapters. DASH runs on Android and records a compatibility result on iOS. Normal builds keep HTTPS validation for manually entered video URLs.
+
 The tests do not establish physical device HDR or Dolby Vision, audio quality, HDMI passthrough, thermal performance, exact frame-accurate seeking, chapter extraction from unknown files, or authenticated stream handling. Follow up with physical iPhone/iPad and Android devices, HLS/DASH, multiple audio and subtitle tracks, HTTP range sources, stream interruption, audio focus, orientation changes and long-form media.
