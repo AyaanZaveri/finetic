@@ -22,6 +22,7 @@ run_case() {
   local evidence
   case "$flow" in
     supported) evidence='preview-displayed.png' ;;
+    cache) evidence='preview-cache-comparison.png' ;;
     chapters) evidence='chapter-images-displayed.png' ;;
     unsupported) evidence='unsupported-source.png' ;;
     probe)
@@ -40,7 +41,7 @@ run_case() {
 }
 
 # Required baseline uses real frames and thumbnails, not fixture screenshots.
-run_case mp4-avc supported
+run_case mp4-avc cache
 run_case mp4-chapters chapters
 if [ "$platform" = android ]; then
   # Media3 supports these containers; the emulator must demonstrate playback.
@@ -64,7 +65,9 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     for name in mp4-avc mp4-chapters mkv-avc webm-vp9 mp4-hevc; do
       dest="$folder/$name"
       expected='Playback and preview'
-      if [ "$name" = mp4-chapters ]; then
+      if [ "$name" = mp4-avc ]; then
+        expected='Playback and uncached/cached previews'
+      elif [ "$name" = mp4-chapters ]; then
         expected='Playback, preview and chapter images'
       elif [ "$name" = mp4-hevc ]; then
         expected='Compatibility probe'
@@ -86,6 +89,8 @@ PY
           observed='Rejected (not playable)'
         elif [ -n "$(find "$dest" -name 'unsupported-source.png' -print -quit)" ]; then
           observed='Expected rejection (not playable)'
+        elif [ -n "$(find "$dest" -name 'preview-cache-comparison.png' -print -quit)" ]; then
+          observed='Rendered and displayed uncached/cached previews'
         elif [ -n "$(find "$dest" -name 'preview-displayed.png' -print -quit)" ]; then
           observed='Rendered and extracted preview'
           if [ "$name" = mp4-chapters ]; then observed='Rendered and extracted chapter images'; fi

@@ -31,14 +31,16 @@ type Props = Omit<PlaybackLabSource, 'source'> & {
 };
 
 const NO_CHAPTERS: PlaybackChapter[] = [];
+type PreviewResult = PlaybackPreview<PlaybackImage> & { request: number; cached: boolean; started: number };
 
 export function PlaybackLabControls({
   label, chapters = NO_CHAPTERS, expectedDuration, video, currentTime, duration,
   firstFrame, isPlaying, ended, failed, seekComplete, seek, toggle, extract,
 }: Props) {
   const [progressed, setProgressed] = useState(false);
-  const [preview, setPreview] = useState<PlaybackPreview<PlaybackImage> | null>(null);
+  const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [previewState, setPreviewState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [previewTimes, setPreviewTimes] = useState<{ cold?: number; cached?: number }>({});
   const [chapterImages, setChapterImages] = useState<Record<number, PlaybackImage>>({});
   const [chapterFailures, setChapterFailures] = useState<Record<number, boolean>>({});
   const pipeline = useRef<ReturnType<typeof createPlaybackPreviewPipeline<PlaybackImage>> | null>(null);
@@ -86,11 +88,13 @@ export function PlaybackLabControls({
     const owner = pipeline.current;
     if (!owner) return;
     const version = ++requestVersion.current;
+    const cached = owner.getCached(target) !== null;
+    const started = performance.now();
     setPreview(null);
     setPreviewState('loading');
     void owner.requestScrub(target).then(result => {
       if (owner !== pipeline.current || version !== requestVersion.current) return;
-      setPreview(result);
+      setPreview(result ? { ...result, request: version, cached, started } : null);
       setPreviewState(result ? 'ready' : 'error');
     });
   };
@@ -132,7 +136,17 @@ export function PlaybackLabControls({
       {seekComplete && <Text testID="playback-seek-complete" variant="muted">Seek completed</Text>}
       {previewState === 'loading' && <Text variant="muted">Generating preview…</Text>}
       {previewState === 'error' && <Text testID="playback-preview-error" variant="muted">Preview unavailable for this source</Text>}
-      {preview && <PreviewImage key={preview.time} frame={preview.frame} id="playback-preview-ready" label={`Preview at ${formatPlaybackTime(preview.time)}`} />}
+      {preview && <PreviewImage key={preview.request} frame={preview.frame} id="playback-preview-ready"
+        label={`Preview at ${formatPlaybackTime(preview.time)}`}
+        onDisplayed={() => {
+          if (requestVersion.current !== preview.request) return;
+          const elapsed = Math.round(performance.now() - preview.started);
+          setPreviewTimes(times => ({ ...times, [preview.cached ? 'cached' : 'cold']: elapsed }));
+        }} />}
+      {(previewTimes.cold !== undefined || previewTimes.cached !== undefined) && <View className="flex-row flex-wrap gap-2">
+        {previewTimes.cold !== undefined && <Text testID="playback-preview-cold" variant="muted">Uncached preview {previewTimes.cold} ms</Text>}
+        {previewTimes.cached !== undefined && <Text testID="playback-preview-cached" variant="muted">Cached preview {previewTimes.cached} ms</Text>}
+      </View>}
       {chapters.length > 0 && <View className="gap-2">
         <Text role="heading" className="text-lg font-nav-semibold">Chapters</Text>
         {chapters.slice(0, 8).map((chapter, index) => (
@@ -151,12 +165,16 @@ export function PlaybackLabControls({
   );
 }
 
-function PreviewImage({ frame, id, label, compact = false }: {
-  frame: PlaybackImage; id: string; label: string; compact?: boolean;
+function PreviewImage({ frame, id, label, compact = false, onDisplayed }: {
+  frame: PlaybackImage; id: string; label: string; compact?: boolean; onDisplayed?: () => void;
 }) {
   const [displayed, setDisplayed] = useState(false);
   return <View testID={displayed ? id : undefined} accessible accessibilityLabel={label}>
-    <Image source={frame} onDisplay={() => setDisplayed(true)} contentFit="contain"
+    <Image source={frame} onDisplay={() => {
+      if (displayed) return;
+      setDisplayed(true);
+      onDisplayed?.();
+    }} contentFit="contain"
       style={{ width: compact ? 100 : 160, aspectRatio: 16 / 9, borderRadius: 8, backgroundColor: '#000' }} />
   </View>;
 }

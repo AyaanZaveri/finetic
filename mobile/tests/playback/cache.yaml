@@ -1,0 +1,26 @@
+appId: app.navigator.mobile
+name: Compare first and cached preview display time
+---
+- runFlow: open.yaml
+- runFlow: transport.yaml
+- runFlow: preview.yaml
+- scrollUntilVisible:
+    element:
+      id: playback-preview-cold
+    direction: DOWN
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: playback-preview
+    direction: UP
+    timeout: 10000
+- tapOn:
+    id: playback-preview
+- scrollUntilVisible:
+    element:
+      id: playback-preview-cached
+    direction: DOWN
+    timeout: 10000
+- assertVisible:
+    id: playback-preview-cold
+- takeScreenshot: preview-cache-comparison
