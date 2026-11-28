@@ -15,22 +15,27 @@ appId: app.navigator.mobile
 - assertVisible:
     id: hero-primary
 - takeScreenshot: ipad-home-landscape
-# Isolate the visual cases from touch-coordinate flakiness immediately after rotation.
-- openLink: navigator-mobile:///movie/tt16311594
+# Navigate in portrait before rotating for the landscape capture. This avoids
+# the external URL confirmation dialog and stale landscape touch coordinates.
+- setOrientation: PORTRAIT
+- waitForAnimationToEnd:
+    timeout: 1500
 - tapOn:
-    text: Open
-    optional: true
+    id: hero-primary
 - extendedWaitUntil:
     visible:
       id: title-detail-name
     timeout: 30000
+- setOrientation: LANDSCAPE_LEFT
 - waitForAnimationToEnd:
     timeout: 1500
 - takeScreenshot: ipad-title-landscape
-- openLink: navigator-mobile:///search
+- setOrientation: PORTRAIT
+- waitForAnimationToEnd:
+    timeout: 1500
 - tapOn:
-    text: Open
-    optional: true
+    id: title-detail-back
+- tapOn: Search
 - extendedWaitUntil:
     visible:
       id: search-input
@@ -43,6 +48,7 @@ appId: app.navigator.mobile
     visible:
       id: 'media-card-movie:tt16311594'
     timeout: 30000
+- setOrientation: LANDSCAPE_LEFT
 - waitForAnimationToEnd:
     timeout: 1200
 - takeScreenshot: ipad-search-landscape
@@ -50,10 +56,8 @@ appId: app.navigator.mobile
 - waitForAnimationToEnd:
     timeout: 1200
 - takeScreenshot: ipad-search-portrait
-- openLink: navigator-mobile:///movie/tt16311594
 - tapOn:
-    text: Open
-    optional: true
+    id: 'media-card-movie:tt16311594'
 - extendedWaitUntil:
     visible:
       id: title-detail-name
@@ -63,10 +67,20 @@ appId: app.navigator.mobile
 - takeScreenshot: ipad-movie-portrait
 - assertNotVisible:
     id: tablet-detail-poster
-- openLink: navigator-mobile:///series/tt22202452
 - tapOn:
-    text: Open
-    optional: true
+    id: title-detail-back
+- tapOn:
+    id: search-clear
+- tapOn:
+    id: search-input
+- inputText: Pluribus
+- hideKeyboard
+- extendedWaitUntil:
+    visible:
+      id: 'media-card-series:tt22202452'
+    timeout: 30000
+- tapOn:
+    id: 'media-card-series:tt22202452'
 - extendedWaitUntil:
     visible:
       id: title-detail-name

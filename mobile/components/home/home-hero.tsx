@@ -1,6 +1,6 @@
 import { ProgressiveArtwork } from '@/components/effects/progressive-artwork';
 import { GlassSurface } from '@/components/effects/glass-surface';
-import { Button } from '@/components/ui/button';
+import { GlassButton } from '@/components/ui/glass-button';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { useHeroCarousel } from './use-hero-carousel';
@@ -27,20 +27,22 @@ type BlendState = { base: SharedValue<number>; progress: SharedValue<number>; di
 const EMPTY: MediaItem[] = [];
 const leading = I18nManager.isRTL ? 'right' : 'left';
 
-function Wordmark({ item, light, roomy }: { item: MediaItem; light: boolean; roomy: boolean }) {
+type HeroLayout = ReturnType<typeof heroLayout>;
+
+function Wordmark({ item, light, layout }: { item: MediaItem; light: boolean; layout: HeroLayout }) {
   const logo = useTitleLogo(item.logo);
+  const { roomy, wordmarkHeight, wordmarkWidth } = layout;
   const fallback = <Text className="text-3xl font-nav-bold tracking-tight" role="heading" style={{ color: light ? '#0a0a0a' : '#ffffff', textAlign: roomy ? leading : 'center' }}>{item.name}</Text>;
-  if (!item.logo) return fallback;
   // Keep the same title slot while a cold logo decodes. The shared ImageRef
   // cache lets the detail route reuse this image without a second decode.
-  return <View style={[styles.wordmark, roomy && styles.roomyWordmark]}>
-    {logo ? <Image source={Platform.OS === 'ios' ? item.logo : logo.image} cachePolicy="memory-disk" transition={0} tintColor={Platform.OS === 'ios' && light ? '#272727' : undefined} accessibilityLabel={item.name} style={StyleSheet.absoluteFill} contentFit="contain" contentPosition={roomy ? leading : 'center'} /> : fallback}
+  return <View style={[styles.wordmark, { minHeight: wordmarkHeight, maxWidth: wordmarkWidth, alignItems: roomy ? 'flex-start' : 'center' }]}>
+    {logo ? <Image source={Platform.OS === 'ios' ? item.logo : logo.image} cachePolicy="memory-disk" transition={0} tintColor={Platform.OS === 'ios' && light ? '#272727' : undefined} accessibilityLabel={item.name} style={StyleSheet.absoluteFill} contentFit="contain" contentPosition={{ top: '100%', left: roomy ? I18nManager.isRTL ? '100%' : '0%' : '50%' }} /> : fallback}
   </View>;
 }
 
 function HeroMetadata({ item, light, roomy }: { item: MediaItem; light: boolean; roomy: boolean }) {
   return (
-    <Text testID="hero-metadata" className="text-sm font-nav-medium" style={{ color: light ? '#333333' : '#ffffffd9', textAlign: roomy ? leading : 'center', maxWidth: '100%' }}>
+    <Text className="font-nav-medium" style={{ fontSize: roomy ? 15 : 14, lineHeight: 20, color: light ? '#333333' : '#ffffffd9', textAlign: roomy ? leading : 'center', maxWidth: '100%' }}>
       {heroMetadata(item)}
     </Text>
   );
@@ -80,19 +82,20 @@ function ArtworkLayer({ background, index, light, blend, onArtworkReady }: {
   );
 }
 
-function CopyLayer({ item, index, current, light, blend, roomy }: {
-  item: MediaItem; index: number; current: boolean; light: boolean; blend: BlendState; roomy: boolean;
+function CopyLayer({ item, index, current, light, blend, layout }: {
+  item: MediaItem; index: number; current: boolean; light: boolean; blend: BlendState; layout: HeroLayout;
 }) {
+  const { roomy } = layout;
   const { base, progress, direct, count } = blend;
   const animated = useAnimatedStyle(() => ({
     opacity: slideWeight(index, base.get(), progress.get(), direct.get(), count),
   }));
   return <Animated.View testID={current ? `hero-current-${index}` : undefined} pointerEvents="none" importantForAccessibility={current ? 'auto' : 'no-hide-descendants'} accessibilityElementsHidden={!current}
     style={[styles.copyPanel, roomy && styles.roomyCopyPanel, !current && styles.copyOverlay, animated]}>
-    <Wordmark key={mediaKey(item) + (item.logo ?? '')} item={item} light={light} roomy={roomy} />
-    <HeroMetadata item={item} light={light} roomy={roomy} />
-    {roomy && <View style={styles.roomyDescription}>
-      {!!item.description && <Text numberOfLines={2} className="text-[15px] leading-5" style={{ color: light ? '#202020' : '#ffffffe0', textAlign: leading }}>{item.description}</Text>}
+    <Wordmark key={mediaKey(item) + (item.logo ?? '')} item={item} light={light} layout={layout} />
+    <View style={{ marginTop: layout.identityGap, width: '100%' }}><HeroMetadata item={item} light={light} roomy={roomy} /></View>
+    {roomy && <View style={[styles.roomyDescription, { marginTop: layout.descriptionGap }]}>
+      {!!item.description && <Text numberOfLines={2} className="text-[16px] leading-[22px]" style={{ color: light ? '#202020' : '#ffffffe0', textAlign: leading }}>{item.description}</Text>}
     </View>}
   </Animated.View>;
 }
@@ -142,7 +145,7 @@ export function HomeHero({ items, onOpen }: { items: MediaItem[]; onOpen: (item:
   });
   return (
     <GestureDetector gesture={pan}>
-      <View collapsable={false} testID="home-hero" style={{ minHeight: layout.height, paddingTop: top + 24, paddingBottom: 12, backgroundColor: theme.background, zIndex: Platform.OS === 'ios' ? 1 : undefined }} className="relative justify-end">
+      <View collapsable={false} testID="home-hero" style={{ minHeight: layout.height, paddingTop: top + 24, paddingBottom: layout.bottomGap, backgroundColor: theme.background, zIndex: Platform.OS === 'ios' ? 1 : undefined }} className="relative justify-end">
         {/* Clip only the artwork. Native glass shadows must fall naturally
             beyond the hero so they do not end in a visible horizontal seam. */}
         <View pointerEvents="none" style={styles.artworkStage}>
@@ -156,14 +159,16 @@ export function HomeHero({ items, onOpen }: { items: MediaItem[]; onOpen: (item:
           <LinearGradient style={[StyleSheet.absoluteFill, { zIndex: 2 }]} colors={['transparent', 'transparent', light ? 'rgba(255,255,255,0.04)' : 'rgba(10,10,10,0.16)', theme.background, theme.background]} locations={[0, 0.74, 0.89, 0.96, 1]} />
         </View>
         <View pointerEvents="none" style={[styles.artworkEnd, { backgroundColor: theme.background }]} />
-        <View className="justify-end gap-2" style={{ width: '100%', alignItems: layout.roomy ? 'flex-start' : 'center', paddingLeft: layout.leadingPadding, paddingRight: layout.trailingPadding }}>
+        <View className="justify-end" style={{ width: '100%', alignItems: layout.roomy ? 'flex-start' : 'center', paddingLeft: layout.leadingPadding, paddingRight: layout.trailingPadding }}>
           <View style={{ width: '100%', maxWidth: layout.roomy ? layout.copyWidth : undefined }}>
-            {layers.map(layer => <CopyLayer key={mediaKey(layer.item)} item={layer.item} index={layer.index} current={layer.index === selection} light={light} blend={blend} roomy={layout.roomy} />)}
+            {layers.map(layer => <CopyLayer key={mediaKey(layer.item)} item={layer.item} index={layer.index} current={layer.index === selection} light={light} blend={blend} layout={layout} />)}
           </View>
-          <Button testID="hero-primary" size="default" haptic="impact" onPress={() => onOpen(item)} accessibilityLabel={`View ${item.name}`} containerClassName="mt-2" className="rounded-full min-h-12 min-w-[120px] px-5">
-            <Text className="text-[17px] font-nav-semibold">View</Text><Icon as={ArrowRight} color={theme.background} size={20} strokeWidth={2.25} />
-          </Button>
-          {items.length > 1 && <View className="flex-row items-center justify-center px-1.5" style={styles.carouselControls} accessibilityLabel="Featured titles">
+          <View style={{ marginTop: layout.actionGap }}>
+            <GlassButton testID="hero-primary" size="default" androidVariant="default" haptic="impact" onPress={() => onOpen(item)} accessibilityLabel={`View ${item.name}`} className="rounded-full min-h-12 min-w-[128px] px-6">
+              <Text className="text-[17px] font-nav-semibold">View</Text><Icon as={ArrowRight} color={Platform.OS === 'ios' ? theme.foreground : theme.background} size={20} strokeWidth={2.25} />
+            </GlassButton>
+          </View>
+          {items.length > 1 && <View className="flex-row items-center justify-center px-1.5" style={[styles.carouselControls, { marginTop: layout.controlsGap }]} accessibilityLabel="Featured titles">
             {Platform.OS === 'ios'
               ? <GlassSurface pointerEvents="none" style={[styles.carouselPill, { padding: 0 }]} fallbackStyle={{ borderWidth: 0, backgroundColor: theme.secondary }} />
               : <View pointerEvents="none" style={[styles.carouselPill, { backgroundColor: light ? '#0000000d' : '#ffffff0d' }]} />}
@@ -176,15 +181,14 @@ export function HomeHero({ items, onOpen }: { items: MediaItem[]; onOpen: (item:
 }
 
 const styles = StyleSheet.create({
-  wordmark: { maxWidth: 330, width: '100%', minHeight: 86, alignItems: 'center', justifyContent: 'center' },
-  roomyWordmark: { maxWidth: 400, minHeight: 100, alignItems: 'flex-start' },
+  wordmark: { width: '100%', justifyContent: 'flex-end' },
   artworkStage: { position: 'absolute', top: 0, start: 0, end: 0, bottom: 4, overflow: 'hidden' },
   artworkEnd: { position: 'absolute', start: 0, end: 0, bottom: 0, height: 5 },
-  copyPanel: { alignItems: 'center', justifyContent: 'flex-end', gap: 16, width: '100%' },
-  roomyDescription: { minHeight: 40, width: '100%' },
+  copyPanel: { alignItems: 'center', justifyContent: 'flex-end', width: '100%' },
+  roomyDescription: { minHeight: 44, width: '100%' },
   roomyCopyPanel: { alignItems: 'flex-start' },
   copyOverlay: { position: 'absolute', bottom: 0, start: 0, end: 0 },
-  carouselControls: { marginTop: 2, minHeight: 44, alignSelf: 'center' },
+  carouselControls: { minHeight: 44, alignSelf: 'center' },
   carouselPill: { position: 'absolute', start: 0, end: 0, top: 6, bottom: 6, borderRadius: 999 },
   dotButton: { minWidth: 24, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
 });

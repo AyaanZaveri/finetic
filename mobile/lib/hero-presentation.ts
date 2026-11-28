@@ -19,6 +19,13 @@ export function heroLayout(width: number, height: number, leftInset: number, rig
       : Math.min(704, Math.max(480, Math.min(width * 1.34, height * 0.8))),
     leadingPadding: leftInset + (roomy ? 32 : 16),
     trailingPadding: rightInset + (roomy ? 32 : 16),
-    copyWidth: roomy ? Math.min(460, availableWidth * 0.50) : availableWidth,
+    copyWidth: roomy ? Math.min(460, availableWidth * 0.50) : Math.max(0, availableWidth - 32),
+    wordmarkHeight: roomy ? 136 : 112,
+    wordmarkWidth: Math.max(0, Math.min(roomy ? Math.min(460, availableWidth * 0.50) : availableWidth - 32, roomy ? 440 : 340)),
+    identityGap: roomy ? 16 : 12,
+    descriptionGap: 12,
+    actionGap: 18,
+    controlsGap: 12,
+    bottomGap: roomy ? 20 : 16,
   };
 }

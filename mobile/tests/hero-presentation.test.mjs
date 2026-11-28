@@ -29,3 +29,16 @@ test('roomy tablet hero reserves a leading copy column and a wide artwork area',
   assert.equal(landscape.copyWidth, 460);
   assert.ok(landscape.copyWidth < 1194 / 2);
 });
+
+test('hero keeps the View and visible carousel gaps balanced, and grows the logo on tablets', () => {
+  const phone = heroLayout(360, 780, 0, 0);
+  const tablet = heroLayout(1024, 768, 0, 0);
+  // The carousel's visible pill starts 6 points below its touch area.
+  for (const layout of [phone, tablet]) {
+    assert.equal(layout.actionGap, layout.controlsGap + 6);
+    assert.ok(layout.wordmarkWidth <= layout.copyWidth);
+    assert.ok(layout.bottomGap >= 16);
+  }
+  assert.ok(tablet.wordmarkHeight > phone.wordmarkHeight);
+  assert.ok(tablet.identityGap > phone.identityGap);
+});

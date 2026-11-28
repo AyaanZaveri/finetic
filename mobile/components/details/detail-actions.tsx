@@ -3,6 +3,7 @@ import { Button, type ButtonProps } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { GlassSurface } from '@/components/effects/glass-surface';
+import { GlassButton } from '@/components/ui/glass-button';
 import { episodeCode } from './episode-rail';
 import type { MediaEpisode, MediaItem } from '@/lib/home-catalog';
 import { THEME } from '@/lib/theme';
@@ -27,13 +28,7 @@ export function DetailBackControl({ onBack, blurTarget }: { onBack: () => void; 
 }
 
 function SecondaryDetailAction(props: ButtonProps) {
-  const { colorScheme } = useColorScheme();
-  const theme = THEME[colorScheme ?? 'light'];
-  return Platform.OS === 'ios'
-    ? <GlassSurface style={styles.glass} isInteractive={!props.disabled} fallbackStyle={{ backgroundColor: theme.secondary, borderWidth: 0 }}>
-        <Button {...props} variant="ghost" size="icon" className="rounded-full active:bg-transparent" />
-      </GlassSurface>
-    : <Button {...props} variant="secondary" size="icon" className="rounded-full" />;
+  return <GlassButton {...props} surfaceStyle={styles.glass} size="icon" className="rounded-full" />;
 }
 
 export function DetailActions({ item, episode, episodes, onShuffle }: { item: MediaItem; episode?: MediaEpisode; episodes: MediaEpisode[]; onShuffle: (episode: MediaEpisode) => void }) {
