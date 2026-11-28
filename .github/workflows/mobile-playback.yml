@@ -21,6 +21,7 @@ on:
       - '.github/workflows/mobile-playback.yml'
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: mobile-playback-${{ github.ref_name }}
   cancel-in-progress: true
@@ -87,10 +88,12 @@ jobs:
           ./gradlew assembleRelease --no-daemon | tee ../test-results/android-build.log
       - name: Start API 35 emulator and install app
         run: bash scripts/prepare-android-device.sh
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
-        with:
-          name: mobile-adaptive-playback-fixtures
-          path: ${{ runner.temp }}/navigator-adaptive-fixtures
+      - name: Download adaptive fixtures from this run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name mobile-adaptive-playback-fixtures --dir "$RUNNER_TEMP/navigator-adaptive-fixtures"
       - name: Test native playback and extracted images
         run: |
           device=$(adb devices | awk '$2 == "device" { print $1; exit }')
@@ -173,10 +176,12 @@ jobs:
           xcrun simctl boot "$device" || true
           xcrun simctl bootstatus "$device" -b
           xcrun simctl install "$device" "$app"
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
-        with:
-          name: mobile-adaptive-playback-fixtures
-          path: ${{ runner.temp }}/navigator-adaptive-fixtures
+      - name: Download adaptive fixtures from this run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name mobile-adaptive-playback-fixtures --dir "$RUNNER_TEMP/navigator-adaptive-fixtures"
       - name: Test native playback and extracted images
         run: bash scripts/test-native-playback.sh ios "$PLAYBACK_IOS_DEVICE" "${{ matrix.engine }}"
       - name: Collect iOS diagnostics
