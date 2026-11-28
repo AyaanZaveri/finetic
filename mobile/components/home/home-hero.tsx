@@ -5,7 +5,7 @@ import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { useHeroCarousel } from './use-hero-carousel';
 import { slideWeight } from '@/lib/hero-carousel';
-import { heroLayout, heroMetadata } from '@/lib/hero-presentation';
+import { heroLayout, heroMetadataParts } from '@/lib/hero-presentation';
 import { mergeTitleDetails } from '@/lib/detail-presentation';
 import { mediaKey, resizeBackdrop, type MediaItem } from '@/lib/home-catalog';
 import { titleQueryOptions, useTitleLogo, useTitlePrefetch } from '@/lib/title-cache';
@@ -16,8 +16,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useIsFocused } from 'expo-router';
 import { ArrowRight } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
-import { useCallback, useLayoutEffect } from 'react';
-import { I18nManager, PixelRatio, Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Fragment, useCallback, useLayoutEffect } from 'react';
+import { I18nManager, PixelRatio, Platform, Pressable, StyleSheet, Text as NativeText, View, useWindowDimensions } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
 import Animated, { interpolateColor, ReduceMotion, useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -41,9 +41,14 @@ function Wordmark({ item, light, layout }: { item: MediaItem; light: boolean; la
 }
 
 function HeroMetadata({ item, light, roomy }: { item: MediaItem; light: boolean; roomy: boolean }) {
+  const parts = heroMetadataParts(item);
+  const fontSize = roomy ? 15 : 14;
   return (
-    <Text className="font-nav-medium" style={{ fontSize: roomy ? 15 : 14, lineHeight: 20, color: light ? '#333333' : '#ffffffd9', textAlign: roomy ? leading : 'center', maxWidth: '100%' }}>
-      {heroMetadata(item)}
+    <Text className="font-nav-medium" accessibilityLabel={parts.join(', ')} style={{ fontSize, lineHeight: 20, color: light ? '#333333' : '#ffffffd9', textAlign: roomy ? leading : 'center', maxWidth: '100%' }}>
+      {parts.map((part, index) => <Fragment key={index}>
+        {index > 0 && <NativeText style={{ fontSize: fontSize + 1, fontFamily: 'SunghyunSans-Bold', color: light ? '#666666' : '#ffffffa6' }}>{'\u2004·\u2004'}</NativeText>}
+        {part}
+      </Fragment>)}
     </Text>
   );
 }

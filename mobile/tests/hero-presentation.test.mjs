@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { heroLayout, heroMetadata } from '../lib/hero-presentation.ts';
+import { heroLayout, heroMetadataParts } from '../lib/hero-presentation.ts';
 
 test('hero metadata is one concise discovery summary, not a detail fact list', () => {
-  assert.equal(heroMetadata({ id: 'tt1', type: 'movie', name: 'Film', genres: ['Action', 'Drama', 'Adventure'], contentRating: 'PG-13', year: 2025, runtime: '156 min', imdbRating: '7.6' }), 'Movie · Action · Drama · PG-13');
-  assert.equal(heroMetadata({ id: 'tt2', type: 'series', name: 'Series', genres: ['Drama', 'Drama', 'Sci-Fi'] }), 'TV show · Drama · Sci-Fi');
-  assert.equal(heroMetadata({ id: 'tt3', type: 'movie', name: 'Film', genres: [' ', 'Comedy'], contentRating: ' ' }), 'Movie · Comedy');
+  assert.deepEqual(heroMetadataParts({ id: 'tt1', type: 'movie', name: 'Film', genres: ['Action', 'Drama', 'Adventure'], contentRating: 'PG-13', year: 2025, runtime: '156 min', imdbRating: '7.6' }), ['Movie', 'Action', 'Drama', 'PG-13']);
+  assert.deepEqual(heroMetadataParts({ id: 'tt2', type: 'series', name: 'Series', genres: ['Drama', 'Drama', 'Sci-Fi'] }), ['TV show', 'Drama', 'Sci-Fi']);
+  assert.deepEqual(heroMetadataParts({ id: 'tt3', type: 'movie', name: 'Film', genres: [' ', 'Comedy'], contentRating: ' ' }), ['Movie', 'Comedy']);
+  assert.deepEqual(heroMetadataParts({ id: 'tt4', type: 'series', name: 'Series' }), ['TV show']);
 });
 
 test('compact phones and narrow tablet split views keep the centered hero', () => {
