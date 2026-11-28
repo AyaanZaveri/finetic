@@ -7,13 +7,15 @@ import { AccessibilityInfo, Platform, StyleSheet, View, type StyleProp, type Vie
 type GlassSurfaceProps = ViewProps & {
   isInteractive?: boolean;
   tintColor?: string;
+  appearance?: 'light' | 'dark';
   fallbackStyle?: StyleProp<ViewStyle>;
 };
 
 /** Native glass for controls, with a legible solid surface on other devices. */
-export function GlassSurface({ children, style, isInteractive, tintColor, fallbackStyle, ...props }: GlassSurfaceProps) {
+export function GlassSurface({ children, style, isInteractive, tintColor, appearance, fallbackStyle, ...props }: GlassSurfaceProps) {
   const { colorScheme } = useColorScheme();
-  const theme = THEME[colorScheme ?? 'light'];
+  const surfaceAppearance = appearance ?? colorScheme ?? 'light';
+  const theme = THEME[surfaceAppearance];
   const [reduceTransparency, setReduceTransparency] = useState(true);
   useEffect(() => {
     if (Platform.OS !== 'ios') return;
@@ -30,7 +32,7 @@ export function GlassSurface({ children, style, isInteractive, tintColor, fallba
   }, []);
   const available = Platform.OS === 'ios' && !reduceTransparency && isGlassEffectAPIAvailable() && isLiquidGlassAvailable();
   if (available) {
-    return <GlassView {...props} glassEffectStyle="regular" isInteractive={isInteractive} tintColor={tintColor} colorScheme={colorScheme ?? 'light'} style={[styles.surface, style]}>{children}</GlassView>;
+    return <GlassView {...props} glassEffectStyle="regular" isInteractive={isInteractive} tintColor={tintColor} colorScheme={surfaceAppearance} style={[styles.surface, style]}>{children}</GlassView>;
   }
   return <View {...props} style={[styles.surface, { backgroundColor: theme.card, borderColor: theme.border, borderWidth: StyleSheet.hairlineWidth }, style, fallbackStyle]}>{children}</View>;
 }

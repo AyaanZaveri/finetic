@@ -169,8 +169,8 @@ export function HomeHero({ items, onOpen }: { items: MediaItem[]; onOpen: (item:
             {layers.map(layer => <CopyLayer key={mediaKey(layer.item)} item={layer.item} index={layer.index} current={layer.index === selection} light={light} blend={blend} layout={layout} />)}
           </View>
           <View style={{ marginTop: layout.actionGap }}>
-            <GlassButton testID="hero-primary" size="default" androidVariant="default" haptic="impact" onPress={() => onOpen(item)} accessibilityLabel={`View ${item.name}`} className="rounded-full min-h-12 min-w-[128px] px-6">
-              <Text className="text-[17px] font-nav-semibold">View</Text><Icon as={ArrowRight} color={Platform.OS === 'ios' ? theme.foreground : theme.background} size={20} strokeWidth={2.25} />
+            <GlassButton testID="hero-primary" size="default" androidVariant="default" glassAppearance="light" glassTintColor={light ? undefined : '#ffffff'} haptic="impact" onPress={() => onOpen(item)} accessibilityLabel={`View ${item.name}`} className="rounded-full min-h-12 min-w-[128px] px-6">
+              <Text className="text-[17px] font-nav-semibold" style={{ color: Platform.OS === 'ios' ? THEME.light.foreground : theme.background }}>View</Text><Icon as={ArrowRight} color={Platform.OS === 'ios' ? THEME.light.foreground : theme.background} size={20} strokeWidth={2.25} />
             </GlassButton>
           </View>
           {items.length > 1 && <View className="flex-row items-center justify-center px-1.5" style={[styles.carouselControls, { marginTop: layout.controlsGap }]} accessibilityLabel="Featured titles">
